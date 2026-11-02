@@ -299,11 +299,11 @@ export default function StatisticsPage() {
   const insight = generateDetailedLearningInsight(subjectPerformance, accuracyRate);
 
   return (
-    <div className="space-y-6">
+    <div className="mx-auto w-full max-w-7xl space-y-7 pb-8">
       <PageHeader title="Statistik Belajar" description="Personal Learning Analytics — Pantau evaluasi dan performa belajarmu secara mendalam." />
 
       {/* 1. RINGKASAN METRIK UTAMA */}
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <StatCard label="Akurasi Jawaban" value={`${accuracyRate}%`} icon={Target} hint="Rata-rata ketepatan soal" />
         <StatCard label="Soal Dikerjakan" value={String(totalQuestionsAnswered)} icon={BookOpen} hint="Total butir soal dijawab" />
         <StatCard label="Ujian Diselesaikan" value={String(totalExams)} icon={CheckCircle2} hint="Paket ujian tuntas" />
@@ -311,36 +311,36 @@ export default function StatisticsPage() {
       </div>
 
       {/* 2. AUTOMATED LEARNING INSIGHT DENGAN KONDISI RINCI */}
-      <Card className="border-2 border-emerald-500/30 bg-gradient-to-r from-emerald-950/20 via-background to-background shadow-md">
-        <CardContent className="p-6 space-y-4">
+      <Card className="overflow-hidden rounded-2xl border border-emerald-500/25 bg-gradient-to-br from-emerald-500/[0.09] via-card to-card shadow-sm">
+        <CardContent className="space-y-5 p-4 sm:p-6">
           <div className="flex items-start gap-4">
-            <span className="p-3.5 rounded-2xl bg-emerald-500/15 text-emerald-400 shrink-0 border border-emerald-500/30 shadow-inner">
-              <BrainCircuit className="h-7 w-7 animate-pulse" />
+            <span className="shrink-0 rounded-2xl border border-emerald-500/20 bg-emerald-500/10 p-3 text-emerald-500 shadow-sm sm:p-3.5">
+              <BrainCircuit className="h-6 w-6 sm:h-7 sm:w-7" />
             </span>
             <div className="space-y-1 min-w-0 flex-1">
               <div className="flex items-center gap-2 flex-wrap">
-                <h3 className="font-black text-base text-foreground tracking-tight">
+                <h3 className="text-sm font-extrabold leading-snug tracking-tight text-foreground sm:text-base">
                   {insight.title}
                 </h3>
-                <Badge variant="outline" className="bg-emerald-500/10 text-emerald-400 border-emerald-500/30 text-[10px] font-bold">
+                <Badge variant="outline" className="border-emerald-500/25 bg-emerald-500/10 text-[10px] font-bold text-emerald-600 dark:text-emerald-400">
                   <Sparkles className="h-3 w-3 mr-1" /> AI Diagnostic
                 </Badge>
               </div>
-              <p className="text-xs text-muted-foreground leading-relaxed pt-1">
+              <p className="pt-1 text-sm leading-relaxed text-muted-foreground">
                 {insight.description}
               </p>
             </div>
           </div>
 
           {/* Rencana Aksi Lanjutan */}
-          <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-4 space-y-2.5">
-            <h4 className="text-xs font-bold text-emerald-400 flex items-center gap-1.5 uppercase tracking-wider">
+          <div className="space-y-3 rounded-xl border border-border/70 bg-muted/30 p-4 sm:p-5">
+            <h4 className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400">
               <Lightbulb className="h-4 w-4" /> Rekomendasi Langkah Belajar Khusus:
             </h4>
-            <ul className="space-y-1.5 text-xs text-foreground/90 pl-1">
+            <ul className="space-y-2 text-sm leading-relaxed text-foreground/90">
               {insight.actionPlan.map((action, idx) => (
                 <li key={idx} className="flex items-start gap-2 leading-relaxed">
-                  <span className="text-emerald-400 font-bold select-none">•</span>
+                  <span className="mt-0.5 select-none font-bold text-emerald-500">•</span>
                   <span>{action}</span>
                 </li>
               ))}
@@ -350,29 +350,29 @@ export default function StatisticsPage() {
       </Card>
 
       {/* 3. PETA PENGUASAAN MATA PELAJARAN */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base font-extrabold flex items-center gap-2">
+      <Card className="overflow-hidden rounded-2xl border-border/70 shadow-sm">
+        <CardHeader className="border-b border-border/60 bg-muted/20 px-4 py-4 sm:px-6">
+          <CardTitle className="flex items-center gap-2 text-base font-extrabold">
             <Award className="h-5 w-5 text-emerald-400" /> Peta Penguasaan Mata Pelajaran
           </CardTitle>
         </CardHeader>
-        <CardContent className="space-y-4">
+        <CardContent className="space-y-5 p-4 sm:p-6">
           {subjectPerformance.map((item) => {
             const isHigh = item.skor >= 80;
             const isMid = item.skor >= 65 && item.skor < 80;
 
             return (
-              <div key={item.mapel} className="space-y-1.5">
-                <div className="flex items-center justify-between text-xs font-semibold">
-                  <span className="capitalize text-foreground font-bold">{item.mapel}</span>
-                  <div className="flex items-center gap-2">
-                    <span className="text-muted-foreground">{item.skor}% ({item.benar}/{item.totalSoal} Soal Benar)</span>
+              <div key={item.mapel} className="space-y-2 rounded-xl border border-border/60 bg-muted/20 p-3.5 sm:p-4">
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                  <span className="text-sm font-bold capitalize text-foreground">{item.mapel}</span>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="text-xs font-medium text-muted-foreground">{item.skor}% · {item.benar}/{item.totalSoal} soal benar</span>
                     {isHigh && <Badge className="bg-emerald-500/10 text-emerald-400 border-emerald-500/30 text-[10px]">Menguasai</Badge>}
                     {isMid && <Badge className="bg-amber-500/10 text-amber-400 border-amber-500/30 text-[10px]">Berkembang</Badge>}
                     {!isHigh && !isMid && <Badge className="bg-rose-500/10 text-rose-400 border-rose-500/30 text-[10px]">Perlu Tingkatkan</Badge>}
                   </div>
                 </div>
-                <Progress value={item.skor} className="h-2" />
+                <Progress value={item.skor} className="h-2.5 overflow-hidden rounded-full" />
               </div>
             );
           })}
@@ -380,32 +380,32 @@ export default function StatisticsPage() {
       </Card>
 
       {/* 4. GRAFIK TREN & DISTRIBUSI JAWABAN */}
-      <ChartCard title="Tren Skor Ujian" description="Progres peningkatan nilai dari waktu ke waktu" height={300}>
+      <div className="min-w-0 overflow-hidden rounded-2xl"><ChartCard title="Tren Skor Ujian" description="Progres peningkatan nilai dari waktu ke waktu" height={300}>
         <ResponsiveContainer width="100%" height="100%">
           <LineChart data={scoreTrend} margin={{ top: 8, right: 12, left: -20, bottom: 0 }}>
             <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--border))" />
-            <XAxis dataKey="tanggal" {...axisProps} />
+            <XAxis dataKey="tanggal" {...axisProps} tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 11 }} />
             <YAxis domain={[0, 100]} {...axisProps} />
             <Tooltip {...chartTooltipStyle} />
             <Line type="monotone" dataKey="skor" name="Skor" stroke={CHART_COLORS.primary} strokeWidth={3} dot={{ r: 5, fill: CHART_COLORS.secondary, strokeWidth: 2, stroke: "hsl(var(--card))" }} activeDot={{ r: 7 }} />
           </LineChart>
         </ResponsiveContainer>
-      </ChartCard>
+      </ChartCard></div>
 
-      <div className="grid gap-6 lg:grid-cols-2">
-        <ChartCard title="Rata-rata Skor per Mapel" description="Perbandingan nilai antar kategori">
+      <div className="grid min-w-0 gap-5 xl:grid-cols-2">
+        <div className="min-w-0 overflow-hidden rounded-2xl"><ChartCard title="Rata-rata Skor per Mapel" description="Perbandingan nilai antar kategori">
           <ResponsiveContainer width="100%" height="100%">
             <BarChart data={subjectPerformance} margin={{ top: 8, right: 8, left: -20, bottom: 0 }}>
               <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--border))" />
               <XAxis dataKey="mapel" {...axisProps} interval={0} tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 11 }} />
               <YAxis domain={[0, 100]} {...axisProps} />
               <Tooltip {...chartTooltipStyle} />
-              <Bar dataKey="skor" name="Skor" radius={[8, 8, 0, 0]} fill={CHART_COLORS.secondary} />
+              <Bar dataKey="skor" name="Skor" radius={[8, 8, 0, 0]} fill={CHART_COLORS.secondary} maxBarSize={52} />
             </BarChart>
           </ResponsiveContainer>
-        </ChartCard>
+        </ChartCard></div>
 
-        <ChartCard title="Distribusi Jawaban Benar vs Salah" description="Akumulasi seluruh butir soal yang dijawab">
+        <div className="min-w-0 overflow-hidden rounded-2xl"><ChartCard title="Distribusi Jawaban Benar vs Salah" description="Akumulasi seluruh butir soal yang dijawab">
           <ResponsiveContainer width="100%" height="100%">
             <PieChart>
               <Pie data={answerBreakdown} dataKey="value" nameKey="name" innerRadius={60} outerRadius={95} paddingAngle={3} stroke="none">
@@ -415,7 +415,7 @@ export default function StatisticsPage() {
               <Legend iconType="circle" wrapperStyle={{ fontSize: 12 }} />
             </PieChart>
           </ResponsiveContainer>
-        </ChartCard>
+        </ChartCard></div>
       </div>
     </div>
   );
