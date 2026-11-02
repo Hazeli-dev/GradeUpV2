@@ -4,7 +4,7 @@ import {
   Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis 
 } from "recharts";
 import { 
-  Target, Award, CheckCircle2, Clock, BookOpen, BrainCircuit 
+  Target, Award, CheckCircle2, Clock, BookOpen, BrainCircuit, Lightbulb, AlertTriangle, Sparkles 
 } from "lucide-react";
 
 import { PageHeader } from "@/components/shared/page-header";
@@ -34,7 +34,128 @@ interface AnswerBreakdownData {
   value: number;
 }
 
+interface LearningInsightResult {
+  title: string;
+  type: "warning" | "success" | "balanced" | "info";
+  description: string;
+  actionPlan: string[];
+}
+
 const pieColors = [CHART_COLORS.secondary, CHART_COLORS.danger];
+
+// HELPER: Menganalisis Performa & Menghasilkan Insight Sangat Detail
+function generateDetailedLearningInsight(
+  subjects: SubjectPerformanceData[], 
+  accuracy: number
+): LearningInsightResult {
+  if (!subjects || subjects.length === 0) {
+    return {
+      title: "Belum Ada Data Cukup",
+      type: "info",
+      description: "Selesaikan lebih banyak ujian untuk mengaktifkan analisis tipe belajar presisi.",
+      actionPlan: ["Selesaikan minimal 2 paket ujian dari kategori berbeda."]
+    };
+  }
+
+  // 1. Kategorisasi Mapel
+  const mathSubjects = subjects.filter((s) => 
+    /matematika|math|hitung|kalkulus|fisika|ekonomi/i.test(s.mapel)
+  );
+  const scienceSubjects = subjects.filter((s) => 
+    /ipa|biologi|sains|kimia|alam/i.test(s.mapel)
+  );
+
+  // Hitung rata-rata hitungan vs sains
+  const mathAvg = mathSubjects.length > 0 
+    ? Math.round(mathSubjects.reduce((acc, curr) => acc + curr.skor, 0) / mathSubjects.length) 
+    : null;
+    
+  const scienceAvg = scienceSubjects.length > 0 
+    ? Math.round(scienceSubjects.reduce((acc, curr) => acc + curr.skor, 0) / scienceSubjects.length) 
+    : null;
+
+  const bestSubject = [...subjects].sort((a, b) => b.skor - a.skor)[0];
+  const weakestSubject = [...subjects].sort((a, b) => a.skor - b.skor)[0];
+
+  // KONDISI A: Jelek di Hitung-hitungan (Skor < 65) tapi Bagus di IPA (Skor >= 80)
+  if (mathAvg !== null && mathAvg < 65 && scienceAvg !== null && scienceAvg >= 80) {
+    return {
+      title: "Tipe Pembelajar Visual-Eksploratif (Kuat Teori Sains, Perlu Penguatan Logika Hitungan)",
+      type: "warning",
+      description: `Kemampuan analitis dan pemahaman konsep sains (${scienceSubjects.map(s => s.mapel).join(", ")}) kamu sangat unggul dengan rata-rata ${scienceAvg}%. Namun, penguasaan pada mapel hitungan (${mathSubjects.map(s => s.mapel).join(", ")}) masih di angka ${mathAvg}%. Kamu cenderung memahami konsep secara menyeluruh tetapi terkendala pada penyelesaian langkah numerik & rumus.`,
+      actionPlan: [
+        `💡 alokasikan waktu 30 menit/hari khusus berlatihan pembongkaran rumus dasar pada mapel ${weakestSubject.mapel}.`,
+        `Gunakan metode "Kerjakan Soal Bertahap": Baca soal ➔ Tulis Variabel Diketahui ➔ Pilih Rumus. Jangan langsung menghitung di luar kepala.`,
+        `Manfaatkan kekuatan visual IPA milikmu: Buat grafik atau diagram saat menyelesaikan soal cerita matematika/fisika.`
+      ]
+    };
+  }
+
+  // KONDISI B: Jelek di Hitung-hitungan (< 65) secara umum
+  if (mathAvg !== null && mathAvg < 65) {
+    return {
+      title: "Perhatian Khusus: Diperlukan Evaluasi Dasar Matematika & Numerik",
+      type: "warning",
+      description: `Hasil evaluasi menunjukkan tantangan pada kelompok kuantitatif (${mathSubjects.map(s => s.mapel).join(", ")}) dengan rata-rata nilai ${mathAvg}%. Kesalahan terbanyak biasanya terletak pada ketidaktelitian operasi dasar dan pemahaman konsep logika rumus.`,
+      actionPlan: [
+        `Fokus pada pembongkaran soal latihan tingkat mudah (Basic) sebelum masuk ke level HOTS.`,
+        `Pelajari kembali konsep dasar/operasional matematika pembentuk (seperti aljabar dasar, pecahan, & perbandingan).`,
+        `Kerjakan minimal 5 soal hitungan setiap pagi saat pikiran masih segar.`
+      ]
+    };
+  }
+
+  // KONDISI C: Sangat Baik di IPA (>= 80) secara umum
+  if (scienceAvg !== null && scienceAvg >= 80) {
+    return {
+      title: "Dominasi Sains & IPA Logis",
+      type: "success",
+      description: `Luar biasa! Penguasaan materi ilmu pengetahuan alam (${scienceSubjects.map(s => s.mapel).join(", ")}) berada di tingkat optimal dengan skor rata-rata ${scienceAvg}%. Kamu memiliki daya tangkap yang baik terhadap konsep sebab-akibat dan fenomena sains.`,
+      actionPlan: [
+        `Pertahankan keunggulan ini dengan mencoba paket ujian dengan kompleksitas tinggi (Soal Penalaran HOTS).`,
+        `Bantu daya ingat jangka panjang dengan membuat Mind Map / Catatan Rangkuman Visual per bab.`,
+        `Transfer metode analisa sains ini saat mengerjakan materi mapel lain yang nilai penguasannya masih di bawah 70%.`
+      ]
+    };
+  }
+
+  // KONDISI D: Performa Unggul di Satu Mapel Utama
+  if (bestSubject.skor >= 85 && weakestSubject.skor < 70) {
+    return {
+      title: `Ketimpangan Penguasaan: Unggul di ${bestSubject.mapel}, Perlu Dorongan di ${weakestSubject.mapel}`,
+      type: "warning",
+      description: `Performa kamu sangat dominan pada ${bestSubject.mapel} (${bestSubject.skor}%), namun terdapat gap pada ${weakestSubject.mapel} (${weakestSubject.skor}%). Ketimpangan ini bisa memengaruhi batas kelulusan rata-rata ujian secara keseluruhan.`,
+      actionPlan: [
+        `Gunakan teknik Pomodoro: Belajar 25 menit ${weakestSubject.mapel}, lalu gunakan 10 menit mengulas ${bestSubject.mapel} sebagai penyegaran.`,
+        `Evaluasi riwayat pengerjaan soal ${weakestSubject.mapel} untuk mengetahui sub-bab mana yang paling banyak menghasilkan jawaban salah.`
+      ]
+    };
+  }
+
+  // KONDISI E: Performa Seimbang dan Tinggi (Semua >= 75)
+  if (accuracy >= 75) {
+    return {
+      title: "Performa Perimbang Tinggi (High Performing Student)",
+      type: "success",
+      description: `Penguasaan materi kamu tergolong konsisten di seluruh spektrum pelajaran dengan tingkat akurasi ${accuracy}%. Kamu memiliki adaptasi belajar yang seimbang antara logika hitungan dan hafalan konsep.`,
+      actionPlan: [
+        `Tingkatkan kecepatan waktu pengerjaan soal per butir (manajemen waktu ujian).`,
+        `Simulasikan tryout dalam kondisi pengawasan waktu nyata tanpa melihat kunci jawaban.`
+      ]
+    };
+  }
+
+  // DEFAULT / PERFORMA BERKEMBANG
+  return {
+    title: "Modus Pembelajaran Berkembang",
+    type: "balanced",
+    description: `Akurasi pengerjaan soal berada di angka ${accuracy}%. Mata pelajaran terkuatmu saat ini adalah ${bestSubject.mapel} (${bestSubject.skor}%), sedangkan area utama yang butuh dorongan adalah ${weakestSubject.mapel} (${weakestSubject.skor}%).`,
+    actionPlan: [
+      `Ulas kembali pembahasan soal yang salah di setiap sesi ujian.`,
+      `Konsisten mengerjakan minimal 1 paket ujian per hari untuk meningkatkan daya tahan belajar.`
+    ]
+  };
+}
 
 export default function StatisticsPage() {
   const [loading, setLoading] = useState(true);
@@ -162,14 +283,6 @@ export default function StatisticsPage() {
 
   if (loading) return <PageSkeleton />;
 
-  const best = subjectPerformance.length > 0 
-    ? [...subjectPerformance].sort((a, b) => b.skor - a.skor)[0] 
-    : null;
-
-  const weakest = subjectPerformance.length > 0 
-    ? [...subjectPerformance].sort((a, b) => a.skor - b.skor)[0] 
-    : null;
-
   if (scoreTrend.length === 0) {
     return (
       <div className="space-y-6">
@@ -181,6 +294,9 @@ export default function StatisticsPage() {
       </div>
     );
   }
+
+  // Hitung Insight Belajar Otomatis
+  const insight = generateDetailedLearningInsight(subjectPerformance, accuracyRate);
 
   return (
     <div className="space-y-6">
@@ -194,26 +310,41 @@ export default function StatisticsPage() {
         <StatCard label="Estimasi Waktu Belajar" value={`${estimatedHours}j`} icon={Clock} hint="Durasi pengerjaan aktif" />
       </div>
 
-      {/* 2. AUTOMATED LEARNING INSIGHT */}
-      <Card className="border-emerald-500/30 bg-emerald-500/5 shadow-sm">
-        <CardContent className="p-5 flex items-start gap-4">
-          <span className="p-3 rounded-2xl bg-emerald-500/10 text-emerald-500 shrink-0 border border-emerald-500/20">
-            <BrainCircuit className="h-6 w-6" />
-          </span>
-          <div className="space-y-1">
-            <h3 className="font-extrabold text-sm text-foreground flex items-center gap-2">
-              Insight Belajar Otomatis
-              <Badge variant="outline" className="bg-emerald-500/10 text-emerald-400 border-emerald-500/30 text-[10px]">AI Analytics</Badge>
-            </h3>
-            <p className="text-xs text-muted-foreground leading-relaxed">
-              {best && weakest && best.mapel !== weakest.mapel ? (
-                <>
-                  Performa terkuatmu berada pada mata pelajaran <strong className="text-emerald-400 capitalize">{best.mapel}</strong> dengan rata-rata skor <strong>{best.skor}</strong>. Coba alokasikan lebih banyak waktu untuk mengulas materi <strong className="text-rose-400 capitalize">{weakest.mapel}</strong> (skor: {weakest.skor}) agar tingkat penguasaan belajarmu makin seimbang!
-                </>
-              ) : (
-                <>Konsistensi belajarmu sangat baik! Teruskan latihan untuk meningkatkan persentase akurasi jawaban di setiap paket ujian.</>
-              )}
-            </p>
+      {/* 2. AUTOMATED LEARNING INSIGHT DENGAN KONDISI RINCI */}
+      <Card className="border-2 border-emerald-500/30 bg-gradient-to-r from-emerald-950/20 via-background to-background shadow-md">
+        <CardContent className="p-6 space-y-4">
+          <div className="flex items-start gap-4">
+            <span className="p-3.5 rounded-2xl bg-emerald-500/15 text-emerald-400 shrink-0 border border-emerald-500/30 shadow-inner">
+              <BrainCircuit className="h-7 w-7 animate-pulse" />
+            </span>
+            <div className="space-y-1 min-w-0 flex-1">
+              <div className="flex items-center gap-2 flex-wrap">
+                <h3 className="font-black text-base text-foreground tracking-tight">
+                  {insight.title}
+                </h3>
+                <Badge variant="outline" className="bg-emerald-500/10 text-emerald-400 border-emerald-500/30 text-[10px] font-bold">
+                  <Sparkles className="h-3 w-3 mr-1" /> AI Diagnostic
+                </Badge>
+              </div>
+              <p className="text-xs text-muted-foreground leading-relaxed pt-1">
+                {insight.description}
+              </p>
+            </div>
+          </div>
+
+          {/* Rencana Aksi Lanjutan */}
+          <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-4 space-y-2.5">
+            <h4 className="text-xs font-bold text-emerald-400 flex items-center gap-1.5 uppercase tracking-wider">
+              <Lightbulb className="h-4 w-4" /> Rekomendasi Langkah Belajar Khusus:
+            </h4>
+            <ul className="space-y-1.5 text-xs text-foreground/90 pl-1">
+              {insight.actionPlan.map((action, idx) => (
+                <li key={idx} className="flex items-start gap-2 leading-relaxed">
+                  <span className="text-emerald-400 font-bold select-none">•</span>
+                  <span>{action}</span>
+                </li>
+              ))}
+            </ul>
           </div>
         </CardContent>
       </Card>
