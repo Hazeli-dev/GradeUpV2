@@ -21,17 +21,18 @@ import {
   TrendingUp,
   CheckCircle2,
   Zap,
+  Lock,
 } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
-import { BadgeCard } from "@/components/shared/badge-card";
 import { PageSkeleton } from "@/components/shared/states";
 import { initials } from "@/utils/format";
 import { CHART_COLORS } from "@/constants";
 import { supabase } from "@/lib/supabase";
+import { cn } from "@/lib/utils";
 
 interface StudentProfile {
   id: string;
@@ -40,16 +41,22 @@ interface StudentProfile {
   is_premium: boolean;
   premium_until?: string | null;
   target_exams?: number | null;
+  total_xp?: number;
+  total_articles_read?: number;
+  total_exams_passed?: number;
 }
 
-interface BadgeItem {
+interface DynamicBadgeItem {
   id: string;
+  category: "Membaca Materi" | "Ulangan Harian";
+  tier: number;
   title: string;
   description: string;
-  icon_name: string;
+  targetCount: number;
+  currentCount: number;
   rarity: "common" | "rare" | "epic" | "legendary";
   xp_reward: number;
-  is_premium_only: boolean;
+  isUnlocked: boolean;
 }
 
 interface ExamSchedule {
@@ -72,14 +79,69 @@ interface CourseItem {
   progress: number;
 }
 
+// GENERATOR BADGE DINAMIS (SAMA PERSIS DENGAN HALAMAN PENCAPAIAN)
+function generateMultiTierBadges(articlesRead: number, examsPassed: number): DynamicBadgeItem[] {
+  const generated: DynamicBadgeItem[] = [];
+
+  // 1. Generate 50 Level Badge Membaca
+  for (let tier = 1; tier <= 50; tier++) {
+    const target = tier;
+    const isUnlocked = articlesRead >= target;
+
+    let rarity: DynamicBadgeItem["rarity"] = "common";
+    if (tier > 35) rarity = "legendary";
+    else if (tier > 20) rarity = "epic";
+    else if (tier > 10) rarity = "rare";
+
+    generated.push({
+      id: `reading-tier-${tier}`,
+      category: "Membaca Materi",
+      tier,
+      title: `Pembaca Setia Lv. ${tier}`,
+      description: `Selesaikan membaca total ${target} materi pelajaran di platform GradeUp.`,
+      targetCount: target,
+      currentCount: Math.min(articlesRead, target),
+      rarity,
+      xp_reward: tier * 50,
+      isUnlocked,
+    });
+  }
+
+  // 2. Generate 50 Level Badge Ulangan Harian
+  for (let tier = 1; tier <= 50; tier++) {
+    const target = tier;
+    const isUnlocked = examsPassed >= target;
+
+    let rarity: DynamicBadgeItem["rarity"] = "common";
+    if (tier > 35) rarity = "legendary";
+    else if (tier > 20) rarity = "epic";
+    else if (tier > 10) rarity = "rare";
+
+    generated.push({
+      id: `exam-tier-${tier}`,
+      category: "Ulangan Harian",
+      tier,
+      title: `Pejuang Ujian Lv. ${tier}`,
+      description: `Selesaikan total ${target} paket ulangan harian dengan nilai tuntas.`,
+      targetCount: target,
+      currentCount: Math.min(examsPassed, target),
+      rarity,
+      xp_reward: tier * 100,
+      isUnlocked,
+    });
+  }
+
+  return generated;
+}
+
 export default function StudentOverviewPage() {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [profile, setProfile] = useState<StudentProfile | null>(null);
 
-  // State Gamifikasi
-  const [unlockedBadges, setUnlockedBadges] = useState<BadgeItem[]>([]);
-  const [totalBadgesCount, setTotalBadgesCount] = useState(0);
+  // State Gamifikasi Dinamis
+  const [unlockedBadges, setUnlockedBadges] = useState<DynamicBadgeItem[]>([]);
+  const [totalBadgesCount, setTotalBadgesCount] = useState(100);
   const [totalXp, setTotalXp] = useState(0);
 
   // State Statistik Real-Time
@@ -88,7 +150,7 @@ export default function StudentOverviewPage() {
   const [completionPercentage, setCompletionPercentage] = useState(0);
   const [currentTargetExams, setCurrentTargetExams] = useState(10);
 
-  // State Materi Saya (Dinamis dari Supabase)
+  // State Materi Saya
   const [courses, setCourses] = useState<CourseItem[]>([]);
 
   // State Kalender & Jadwal
@@ -140,23 +202,18 @@ export default function StudentOverviewPage() {
         startOfWeek.setDate(now.getDate() - now.getDay());
         startOfWeek.setHours(0, 0, 0, 0);
 
-        // Fetch data secara paralel termasuk materi/courses
         const [
           profRes,
-          allBadgesRes,
-          userBadgesRes,
           examsRes,
           allAttemptsRes,
           weeklyAttemptsRes,
           coursesRes,
         ] = await Promise.all([
-          supabase.from("profiles").select("*").eq("id", user.id).single(),
-          supabase.from("badges").select("*"),
           supabase
-            .from("student_achievements")
-            .select("badge_id, unlocked_at")
-            .eq("user_id", user.id)
-            .order("unlocked_at", { ascending: false }),
+            .from("profiles")
+            .select("id, email, full_name, is_premium, premium_until, target_exams, total_xp, total_articles_read, total_exams_passed")
+            .eq("id", user.id)
+            .single(),
           supabase
             .from("exam_packages")
             .select("id, title, start_time, end_time, instructor_name, is_published")
@@ -177,7 +234,7 @@ export default function StudentOverviewPage() {
             .limit(3),
         ]);
 
-        // 1. Profil
+        // 1. Profil & Logika Badge Dinamis
         const profData = profRes.data;
         const userProfile: StudentProfile = profData
           ? (profData as StudentProfile)
@@ -190,6 +247,9 @@ export default function StudentOverviewPage() {
                 "Siswa",
               is_premium: false,
               target_exams: 10,
+              total_xp: 0,
+              total_articles_read: 0,
+              total_exams_passed: 0,
             };
         setProfile(userProfile);
 
@@ -199,21 +259,19 @@ export default function StudentOverviewPage() {
             : 10;
         setCurrentTargetExams(userTarget);
 
-        // 2. Badges & Gamifikasi
-        const allBadges = allBadgesRes.data || [];
-        const userBadges = userBadgesRes.data || [];
-        setTotalBadgesCount(allBadges.length);
+        // Synchronize XP & Dynamic Badges
+        const articlesRead = userProfile.total_articles_read || 0;
+        const examsPassed = userProfile.total_exams_passed || 0;
+        const userXp = userProfile.total_xp || 0;
 
-        const unlockedIds = new Set(userBadges.map((b) => b.badge_id));
-        const unlockedList = allBadges.filter((b) => unlockedIds.has(b.id)).slice(0, 3);
-        const xpSum = allBadges
-          .filter((b) => unlockedIds.has(b.id))
-          .reduce((acc, curr) => acc + (curr.xp_reward || 0), 0);
+        const allGeneratedBadges = generateMultiTierBadges(articlesRead, examsPassed);
+        const unlockedList = allGeneratedBadges.filter((b) => b.isUnlocked);
 
-        setUnlockedBadges(unlockedList as BadgeItem[]);
-        setTotalXp(xpSum);
+        setUnlockedBadges(unlockedList);
+        setTotalBadgesCount(allGeneratedBadges.length);
+        setTotalXp(userXp);
 
-        // 3. Materi Saya (Courses) Real-Time
+        // 2. Materi Saya (Courses) Real-Time
         if (coursesRes.data && coursesRes.data.length > 0) {
           const fetchedCourses: CourseItem[] = coursesRes.data.map((item: any) => ({
             id: item.id,
@@ -223,11 +281,10 @@ export default function StudentOverviewPage() {
           }));
           setCourses(fetchedCourses);
         } else {
-          // Fallback jika belum ada data di tabel courses
           setCourses([]);
         }
 
-        // 4. Jadwal Ujian
+        // 3. Jadwal Ujian
         const examsData = examsRes.data || [];
         const formattedSchedules: ExamSchedule[] = examsData.map((exam) => {
           const start = new Date(exam.start_time);
@@ -254,7 +311,7 @@ export default function StudentOverviewPage() {
         });
         setSchedules(formattedSchedules);
 
-        // 5. Attempts Statistik
+        // 4. Attempts Statistik
         const allAttempts = allAttemptsRes.data || [];
         let completed = 0;
         let inProgress = 0;
@@ -273,7 +330,7 @@ export default function StudentOverviewPage() {
         );
         setCompletionPercentage(calculatedPercentage);
 
-        // 6. Aktivitas Mingguan
+        // 5. Aktivitas Mingguan
         const weeklyAttempts = weeklyAttemptsRes.data || [];
         const dayMap: { [key: number]: number } = { 0: 0, 1: 0, 2: 0, 3: 0, 4: 0, 5: 0, 6: 0 };
 
@@ -314,6 +371,21 @@ export default function StudentOverviewPage() {
 
   const studentName = profile?.full_name || "Siswa";
   const isPremium = profile?.is_premium || false;
+
+  const getRarityBadge = (rarity: DynamicBadgeItem["rarity"]) => {
+    switch (rarity) {
+      case "common":
+        return <Badge variant="outline" className="bg-slate-500/10 text-slate-400 border-slate-500/20 text-[10px] capitalize">Common</Badge>;
+      case "rare":
+        return <Badge variant="outline" className="bg-blue-500/15 text-blue-400 border-blue-500/30 text-[10px] capitalize">Rare</Badge>;
+      case "epic":
+        return <Badge variant="outline" className="bg-emerald-500/15 text-emerald-400 border-emerald-500/30 text-[10px] capitalize">Epic</Badge>;
+      case "legendary":
+        return <Badge variant="outline" className="bg-amber-500/15 text-amber-400 border-amber-500/30 text-[10px] capitalize">Legendary</Badge>;
+      default:
+        return null;
+    }
+  };
 
   return (
     <div className="space-y-6">
@@ -502,7 +574,7 @@ export default function StudentOverviewPage() {
             </CardContent>
           </Card>
 
-          {/* List Materi Saya (Dinamis) */}
+          {/* List Materi Saya */}
           <Card className="border shadow-sm">
             <CardHeader className="flex flex-row items-center justify-between pb-3">
               <CardTitle className="text-base font-bold">Materi Saya</CardTitle>
@@ -564,7 +636,7 @@ export default function StudentOverviewPage() {
             </CardContent>
           </Card>
 
-          {/* Gamifikasi & Badge */}
+          {/* Gamifikasi & Badge (Dinamis 100% Sinkron) */}
           <Card className="border-2 border-emerald-500/20 bg-gradient-to-b from-emerald-950/10 to-transparent shadow-sm">
             <CardHeader className="flex flex-row items-center justify-between pb-2">
               <CardTitle className="text-base font-extrabold flex items-center gap-2">
@@ -611,22 +683,34 @@ export default function StudentOverviewPage() {
               {unlockedBadges.length === 0 ? (
                 <div className="rounded-xl border border-dashed p-4 text-center">
                   <p className="text-xs text-muted-foreground">
-                    Belum ada badge yang terbuka. Kerjakan ujian pertama untuk membuka badge!
+                    Belum ada badge yang terbuka. Kerjakan ujian atau baca materi untuk membuka badge!
                   </p>
                 </div>
               ) : (
                 <div className="grid gap-3 sm:grid-cols-2">
-                  {unlockedBadges.map((b) => (
-                    <BadgeCard
+                  {unlockedBadges.slice(0, 4).map((b) => (
+                    <div
                       key={b.id}
-                      title={b.title}
-                      description={b.description}
-                      iconName={b.icon_name}
-                      rarity={b.rarity}
-                      xpReward={b.xp_reward}
-                      isUnlocked={true}
-                      isPremiumOnly={b.is_premium_only}
-                    />
+                      onClick={() => navigate("/dashboard/achievements")}
+                      className="p-3.5 rounded-xl border border-emerald-500/40 bg-card hover:border-emerald-500/80 hover:scale-[1.01] transition-all cursor-pointer flex items-center gap-3 shadow-sm"
+                    >
+                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+                        {b.category === "Membaca Materi" ? (
+                          <BookOpen className="h-5 w-5" />
+                        ) : (
+                          <Zap className="h-5 w-5 fill-current" />
+                        )}
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center justify-between gap-1">
+                          <h5 className="text-xs font-bold truncate leading-snug">{b.title}</h5>
+                          {getRarityBadge(b.rarity)}
+                        </div>
+                        <p className="text-[11px] text-emerald-400 font-extrabold mt-0.5 flex items-center gap-1">
+                          <Zap className="h-3 w-3 fill-current" /> +{b.xp_reward} XP
+                        </p>
+                      </div>
+                    </div>
                   ))}
                 </div>
               )}
