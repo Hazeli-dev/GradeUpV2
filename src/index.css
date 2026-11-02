@@ -1,0 +1,80 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 210 40% 98%;
+    --foreground: 222 47% 11%;
+    --card: 0 0% 100%;
+    --card-foreground: 222 47% 11%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 222 47% 11%;
+    --primary: 174 77% 26%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 160 84% 39%;
+    --secondary-foreground: 0 0% 100%;
+    --accent: 158 64% 52%;
+    --accent-foreground: 174 77% 14%;
+    --soft: 171 77% 90%;
+    --muted: 210 40% 96%;
+    --muted-foreground: 215 16% 47%;
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 214 32% 91%;
+    --input: 214 32% 91%;
+    --ring: 174 77% 26%;
+    --radius: 0.75rem;
+  }
+
+  .dark {
+    --background: 170 25% 7%;
+    --foreground: 150 20% 96%;
+    --card: 170 22% 10%;
+    --card-foreground: 150 20% 96%;
+    --popover: 170 22% 10%;
+    --popover-foreground: 150 20% 96%;
+    --primary: 160 84% 39%;
+    --primary-foreground: 170 40% 6%;
+    --secondary: 174 77% 30%;
+    --secondary-foreground: 0 0% 100%;
+    --accent: 158 64% 52%;
+    --accent-foreground: 170 40% 6%;
+    --soft: 172 40% 16%;
+    --muted: 170 18% 14%;
+    --muted-foreground: 160 10% 66%;
+    --destructive: 0 62% 55%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 170 16% 18%;
+    --input: 170 16% 18%;
+    --ring: 160 84% 39%;
+  }
+
+  * {
+    @apply border-border;
+  }
+
+  html {
+    scroll-behavior: smooth;
+  }
+
+  body {
+    @apply bg-background text-foreground font-sans antialiased;
+    font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+  }
+}
+
+@layer components {
+  .glass {
+    @apply border border-white/40 bg-white/70 backdrop-blur-xl dark:border-white/10 dark:bg-white/5;
+  }
+  .text-gradient {
+    @apply bg-brand-gradient bg-clip-text text-transparent;
+  }
+  .card-hover {
+    @apply transition-all duration-300 hover:-translate-y-1 hover:shadow-glow;
+  }
+  .page-enter {
+    @apply animate-fade-up;
+  }
+}
