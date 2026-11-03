@@ -1,16 +1,20 @@
+```tsx
 import { useEffect, useState } from "react";
-import { 
-  Search, 
-  Shield, 
-  Crown, 
-  UserCheck, 
-  Calendar, 
+import {
+  Search,
+  Shield,
+  Crown,
+  UserCheck,
+  Calendar,
   Sliders,
   RefreshCw,
-  Loader2
+  Loader2,
+  AlertCircle,
 } from "lucide-react";
+
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+
 import {
   Table,
   TableBody,
@@ -19,6 +23,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+
 import {
   Dialog,
   DialogContent,
@@ -27,6 +32,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+
 import {
   Select,
   SelectContent,
@@ -34,37 +40,49 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+
 import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/lib/supabase";
 
 interface UserProfile {
   id: string;
-  email: string;
-  full_name: string;
+  email: string | null;
+  full_name: string | null;
   role: string;
   is_premium: boolean;
-  premium_until?: string | null;
-  created_at: string;
+  premium_until: string | null;
+  created_at: string | null;
 }
+
+type DurationUnit = "days" | "months" | "years" | "custom";
 
 export function AdminUsersPage() {
   const [users, setUsers] = useState<UserProfile[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [search, setSearch] = useState("");
-  
-  // Dialog State
-  const [selectedUser, setSelectedUser] = useState<UserProfile | null>(null);
+
+  // Dialog
+  const [selectedUser, setSelectedUser] =
+    useState<UserProfile | null>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
 
-  // Form Premium State
-  const [durationUnit, setDurationUnit] = useState<"days" | "months" | "years" | "custom">("months");
-  const [durationValue, setDurationValue] = useState<number>(1);
-  const [customDate, setCustomDate] = useState<string>("");
+  // Premium duration
+  const [durationUnit, setDurationUnit] =
+    useState<DurationUnit>("months");
+  const [durationValue, setDurationValue] = useState(1);
+  const [customDate, setCustomDate] = useState("");
 
-  // Fetch Data Pengguna dari Supabase
+  // Error message
+  const [errorMessage, setErrorMessage] = useState("");
+
+  // ==========================================
+  // FETCH USERS
+  // ==========================================
+
   const fetchUsers = async () => {
     setLoading(true);
+
     try {
       const { data, error } = await supabase
         .from("profiles")
@@ -72,12 +90,16 @@ export function AdminUsersPage() {
         .order("created_at", { ascending: false });
 
       if (error) {
-        console.error("Gagal mengambil data pengguna:", error.message);
-      } else if (data) {
-        setUsers(data as UserProfile[]);
+        console.error("Gagal mengambil data pengguna:", error);
+        setErrorMessage(error.message);
+        return;
       }
-    } catch (err) {
-      console.error("Error fetching users:", err);
+
+      setUsers((data ?? []) as UserProfile[]);
+      setErrorMessage("");
+    } catch (error) {
+      console.error("Error fetching users:", error);
+      setErrorMessage("Terjadi kesalahan saat mengambil data pengguna.");
     } finally {
       setLoading(false);
     }
@@ -87,117 +109,310 @@ export function AdminUsersPage() {
     fetchUsers();
   }, []);
 
-  // Filter Pengguna berdasarkan kata kunci pencarian
-  const filteredUsers = users.filter(
-    (u) =>
-      (u.full_name?.toLowerCase() || "").includes(search.toLowerCase()) ||
-      (u.email?.toLowerCase() || "").includes(search.toLowerCase())
-  );
+  // ==========================================
+  // SEARCH FILTER
+  // ==========================================
+
+  const filteredUsers = users.filter((user) => {
+    const keyword = search.toLowerCase();
+
+    return (
+      (user.full_name ?? "").toLowerCase().includes(keyword) ||
+      (user.email ?? "").toLowerCase().includes(keyword)
+    );
+  });
+
+  // ==========================================
+  // OPEN PREMIUM DIALOG
+  // ==========================================
 
   const handleOpenSetting = (user: UserProfile) => {
     setSelectedUser(user);
+    setDurationUnit("months");
+    setDurationValue(1);
+    setCustomDate("");
+    setErrorMessage("");
     setIsDialogOpen(true);
   };
 
-  // Simpan Akses Premium ke Supabase
-  const handleSavePremium = async () => {
-    if (!selectedUser) return;
-    setSaving(true);
+  // ==========================================
+  // CALCULATE PREMIUM EXPIRY
+  // ==========================================
 
-    let targetDate = new Date();
+  const calculateExpiryDate = (): string | null => {
+    const targetDate = new Date();
 
     if (durationUnit === "days") {
-      targetDate.setDate(targetDate.getDate() + Number(durationValue));
+      targetDate.setDate(
+        targetDate.getDate() + durationValue
+      );
     } else if (durationUnit === "months") {
-      targetDate.setMonth(targetDate.getMonth() + Number(durationValue));
+      targetDate.setMonth(
+        targetDate.getMonth() + durationValue
+      );
     } else if (durationUnit === "years") {
-      targetDate.setFullYear(targetDate.getFullYear() + Number(durationValue));
-    } else if (durationUnit === "custom" && customDate) {
-      targetDate = new Date(customDate);
-    }
+      targetDate.setFullYear(
+        targetDate.getFullYear() + durationValue
+      );
+    } else if (durationUnit === "custom") {
+      if (!customDate) return null;
 
-    const formattedDate = targetDate.toISOString();
+      const [year, month, day] = customDate
+        .split("-")
+        .map(Number);
 
-    try {
-      const { error } = await supabase
-        .from("profiles")
-        .update({
-          is_premium: true,
-          premium_until: formattedDate,
-        })
-        .eq("id", selectedUser.id);
+      const selectedDate = new Date(
+        year,
+        month - 1,
+        day,
+        23,
+        59,
+        59,
+        999
+      );
 
-      if (error) {
-        alert("Gagal memperbarui status premium: " + error.message);
-      } else {
-        setIsDialogOpen(false);
-        fetchUsers();
+      if (
+        selectedDate.getFullYear() !== year ||
+        selectedDate.getMonth() !== month - 1 ||
+        selectedDate.getDate() !== day
+      ) {
+        return null;
       }
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setSaving(false);
+
+      if (selectedDate <= new Date()) {
+        return null;
+      }
+
+      return selectedDate.toISOString();
     }
+
+    if (durationValue < 1 || !Number.isInteger(durationValue)) {
+      return null;
+    }
+
+    return targetDate.toISOString();
   };
 
-  // Cabut Paket Premium di Supabase
-  const handleRevokePremium = async () => {
-    if (!selectedUser) return;
+  // ==========================================
+  // ACTIVATE PREMIUM VIA SECURE RPC
+  // ==========================================
+
+  const handleSavePremium = async () => {
+    if (!selectedUser || saving) return;
+
+    setErrorMessage("");
+
+    const formattedDate = calculateExpiryDate();
+
+    if (!formattedDate) {
+      setErrorMessage(
+        durationUnit === "custom"
+          ? "Pilih tanggal berakhir Premium yang valid dan masih di masa depan."
+          : "Jumlah durasi harus berupa bilangan bulat minimal 1."
+      );
+      return;
+    }
+
     setSaving(true);
 
     try {
-      const { error } = await supabase
-        .from("profiles")
-        .update({
-          is_premium: false,
-          premium_until: null,
-        })
-        .eq("id", selectedUser.id);
+      const { error } = await supabase.rpc(
+        "admin_set_user_premium",
+        {
+          target_user_id: selectedUser.id,
+          premium_status: true,
+          expiry_date: formattedDate,
+        }
+      );
 
       if (error) {
-        alert("Gagal mencabut status premium: " + error.message);
-      } else {
-        setIsDialogOpen(false);
-        fetchUsers();
+        console.error("Gagal mengaktifkan Premium:", error);
+        setErrorMessage(
+          "Gagal mengaktifkan Premium: " + error.message
+        );
+        return;
       }
-    } catch (err) {
-      console.error(err);
+
+      setIsDialogOpen(false);
+      setSelectedUser(null);
+
+      await fetchUsers();
+
+      alert("Akses Premium berhasil diaktifkan.");
+    } catch (error: any) {
+      console.error("Premium activation error:", error);
+      setErrorMessage(
+        error?.message || "Terjadi kesalahan saat mengaktifkan Premium."
+      );
     } finally {
       setSaving(false);
     }
   };
 
+  // ==========================================
+  // REVOKE PREMIUM VIA SECURE RPC
+  // ==========================================
+
+  const handleRevokePremium = async () => {
+    if (!selectedUser || saving) return;
+
+    const confirmed = window.confirm(
+      `Cabut akses Premium untuk ${
+        selectedUser.full_name || selectedUser.email || "pengguna ini"
+      }?`
+    );
+
+    if (!confirmed) return;
+
+    setErrorMessage("");
+    setSaving(true);
+
+    try {
+      const { error } = await supabase.rpc(
+        "admin_set_user_premium",
+        {
+          target_user_id: selectedUser.id,
+          premium_status: false,
+          expiry_date: null,
+        }
+      );
+
+      if (error) {
+        console.error("Gagal mencabut Premium:", error);
+        setErrorMessage(
+          "Gagal mencabut Premium: " + error.message
+        );
+        return;
+      }
+
+      setIsDialogOpen(false);
+      setSelectedUser(null);
+
+      await fetchUsers();
+
+      alert("Akses Premium berhasil dicabut.");
+    } catch (error: any) {
+      console.error("Premium revoke error:", error);
+      setErrorMessage(
+        error?.message || "Terjadi kesalahan saat mencabut Premium."
+      );
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // ==========================================
+  // FORMAT DATE
+  // ==========================================
+
+  const formatDate = (date: string | null) => {
+    if (!date) return "-";
+
+    const parsedDate = new Date(date);
+
+    if (Number.isNaN(parsedDate.getTime())) {
+      return "-";
+    }
+
+    return parsedDate.toLocaleDateString("id-ID", {
+      day: "numeric",
+      month: "short",
+      year: "numeric",
+    });
+  };
+
+  // ==========================================
+  // RENDER
+  // ==========================================
+
   return (
-    <div className="space-y-6 p-6">
-      {/* Header Halaman */}
-      <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+    <div className="space-y-6 p-4 md:p-6">
+
+      {/* HEADER */}
+      <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Manajemen Pengguna</h1>
-          <p className="text-sm text-muted-foreground">
-            Data pengguna tersinkronisasi langsung dari database Supabase.
+          <h1 className="text-2xl font-bold tracking-tight">
+            Manajemen Pengguna
+          </h1>
+
+          <p className="mt-1 text-sm text-muted-foreground">
+            Kelola data pengguna dan akses paket Premium GradeUp.
           </p>
         </div>
-        <Button variant="outline" size="sm" onClick={fetchUsers} disabled={loading} className="gap-2">
-          <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
+
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={fetchUsers}
+          disabled={loading || saving}
+          className="gap-2"
+        >
+          <RefreshCw
+            className={`h-4 w-4 ${
+              loading ? "animate-spin" : ""
+            }`}
+          />
           Refresh Data
         </Button>
       </div>
 
-      {/* Bar Pencarian */}
+      {/* STATISTICS */}
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+        <div className="rounded-xl border bg-card p-4 shadow-sm">
+          <p className="text-sm text-muted-foreground">
+            Total Pengguna
+          </p>
+
+          <p className="mt-2 text-2xl font-bold">
+            {users.length}
+          </p>
+        </div>
+
+        <div className="rounded-xl border bg-card p-4 shadow-sm">
+          <p className="text-sm text-muted-foreground">
+            Pengguna Premium
+          </p>
+
+          <p className="mt-2 text-2xl font-bold text-amber-600">
+            {users.filter((user) => user.is_premium).length}
+          </p>
+        </div>
+
+        <div className="rounded-xl border bg-card p-4 shadow-sm">
+          <p className="text-sm text-muted-foreground">
+            Pengguna Gratis
+          </p>
+
+          <p className="mt-2 text-2xl font-bold">
+            {users.filter((user) => !user.is_premium).length}
+          </p>
+        </div>
+      </div>
+
+      {/* SEARCH */}
       <div className="flex items-center gap-4">
-        <div className="relative flex-1 max-w-sm">
+        <div className="relative w-full max-w-sm">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+
           <Input
             placeholder="Cari nama atau email pengguna..."
             value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            onChange={(event) => setSearch(event.target.value)}
             className="pl-9"
           />
         </div>
       </div>
 
-      {/* Tabel Data Pengguna */}
-      <div className="rounded-xl border bg-card shadow-sm overflow-hidden">
+      {/* ERROR */}
+      {errorMessage && !isDialogOpen && (
+        <div className="flex items-start gap-2 rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
+          <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+          <span>{errorMessage}</span>
+        </div>
+      )}
+
+      {/* USERS TABLE */}
+      <div className="overflow-hidden rounded-xl border bg-card shadow-sm">
         <Table>
           <TableHeader>
             <TableRow>
@@ -209,81 +424,105 @@ export function AdminUsersPage() {
               <TableHead className="text-right">Aksi</TableHead>
             </TableRow>
           </TableHeader>
+
           <TableBody>
             {loading ? (
               <TableRow>
-                <TableCell colSpan={6} className="text-center py-12 text-muted-foreground">
+                <TableCell
+                  colSpan={6}
+                  className="py-12 text-center text-muted-foreground"
+                >
                   <div className="flex items-center justify-center gap-2">
                     <Loader2 className="h-5 w-5 animate-spin text-primary" />
-                    <span>Memuat data pengguna dari Supabase...</span>
+                    <span>Memuat data pengguna...</span>
                   </div>
                 </TableCell>
               </TableRow>
             ) : filteredUsers.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
-                  Tidak ada data pengguna yang ditemukan.
+                <TableCell
+                  colSpan={6}
+                  className="py-10 text-center text-muted-foreground"
+                >
+                  {search
+                    ? "Tidak ada pengguna yang cocok dengan pencarian."
+                    : "Belum ada data pengguna."}
                 </TableCell>
               </TableRow>
             ) : (
               filteredUsers.map((user) => (
                 <TableRow key={user.id}>
+                  {/* USER */}
                   <TableCell>
-                    <div className="flex flex-col">
-                      <span className="font-semibold">{user.full_name || "Tanpa Nama"}</span>
-                      <span className="text-xs text-muted-foreground">{user.email}</span>
+                    <div className="flex flex-col gap-1">
+                      <span className="font-semibold">
+                        {user.full_name || "Tanpa Nama"}
+                      </span>
+
+                      <span className="text-xs text-muted-foreground">
+                        {user.email || "-"}
+                      </span>
                     </div>
                   </TableCell>
+
+                  {/* ROLE */}
                   <TableCell>
                     {user.role === "admin" ? (
-                      <Badge variant="default" className="gap-1 bg-primary">
-                        <Shield className="h-3 w-3" /> Admin
+                      <Badge className="gap-1">
+                        <Shield className="h-3 w-3" />
+                        Admin
                       </Badge>
                     ) : (
-                      <Badge variant="outline" className="gap-1">
-                        <UserCheck className="h-3 w-3" /> Siswa
+                      <Badge
+                        variant="outline"
+                        className="gap-1"
+                      >
+                        <UserCheck className="h-3 w-3" />
+                        Siswa
                       </Badge>
                     )}
                   </TableCell>
+
+                  {/* PACKAGE */}
                   <TableCell>
                     {user.is_premium ? (
-                      <Badge className="bg-amber-500 hover:bg-amber-600 gap-1 text-white">
-                        <Crown className="h-3 w-3" /> Premium
+                      <Badge className="gap-1 bg-amber-500 text-white hover:bg-amber-600">
+                        <Crown className="h-3 w-3" />
+                        Premium
                       </Badge>
                     ) : (
-                      <Badge variant="outline" className="text-muted-foreground">
+                      <Badge variant="outline">
                         Gratis
                       </Badge>
                     )}
                   </TableCell>
+
+                  {/* EXPIRY */}
                   <TableCell>
                     {user.is_premium && user.premium_until ? (
-                      <span className="text-xs font-medium flex items-center gap-1">
+                      <span className="flex items-center gap-1.5 text-xs font-medium">
                         <Calendar className="h-3.5 w-3.5 text-muted-foreground" />
-                        {new Date(user.premium_until).toLocaleDateString("id-ID", {
-                          day: "numeric",
-                          month: "short",
-                          year: "numeric",
-                        })}
+                        {formatDate(user.premium_until)}
                       </span>
                     ) : (
-                      <span className="text-xs text-muted-foreground">-</span>
+                      <span className="text-xs text-muted-foreground">
+                        -
+                      </span>
                     )}
                   </TableCell>
+
+                  {/* JOINED */}
                   <TableCell className="text-xs text-muted-foreground">
-                    {user.created_at
-                      ? new Date(user.created_at).toLocaleDateString("id-ID", {
-                          day: "numeric",
-                          month: "short",
-                          year: "numeric",
-                        })
-                      : "-"}
+                    {formatDate(user.created_at)}
                   </TableCell>
+
+                  {/* ACTION */}
                   <TableCell className="text-right">
                     <Button
                       variant="outline"
                       size="sm"
                       onClick={() => handleOpenSetting(user)}
+                      disabled={saving}
                       className="gap-1.5"
                     >
                       <Sliders className="h-3.5 w-3.5" />
@@ -297,34 +536,104 @@ export function AdminUsersPage() {
         </Table>
       </div>
 
-      {/* Modal / Dialog Pengaturan Paket Premium */}
-      <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+      {/* PREMIUM DIALOG */}
+      <Dialog
+        open={isDialogOpen}
+        onOpenChange={(open) => {
+          if (!saving) {
+            setIsDialogOpen(open);
+
+            if (!open) {
+              setErrorMessage("");
+            }
+          }
+        }}
+      >
         <DialogContent className="sm:max-w-md">
+
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Crown className="h-5 w-5 text-amber-500" />
               Atur Paket Premium
             </DialogTitle>
+
             <DialogDescription>
-              Ubah masa berlaku akses Premium untuk <b>{selectedUser?.full_name || selectedUser?.email}</b>.
+              Kelola akses Premium untuk{" "}
+              <strong>
+                {selectedUser?.full_name ||
+                  selectedUser?.email ||
+                  "pengguna"}
+              </strong>.
             </DialogDescription>
           </DialogHeader>
 
-          <div className="space-y-4 py-3">
+          {/* CURRENT STATUS */}
+          <div className="rounded-lg border bg-muted/30 p-3">
+            <p className="text-xs text-muted-foreground">
+              Status paket saat ini
+            </p>
+
+            <div className="mt-1 flex items-center justify-between">
+              <span className="text-sm font-semibold">
+                {selectedUser?.is_premium
+                  ? "Premium"
+                  : "Gratis"}
+              </span>
+
+              {selectedUser?.is_premium ? (
+                <Badge className="bg-amber-500 text-white">
+                  <Crown className="mr-1 h-3 w-3" />
+                  Aktif
+                </Badge>
+              ) : (
+                <Badge variant="outline">
+                  Free
+                </Badge>
+              )}
+            </div>
+
+            {selectedUser?.premium_until && (
+              <p className="mt-2 text-xs text-muted-foreground">
+                Berakhir: {formatDate(selectedUser.premium_until)}
+              </p>
+            )}
+          </div>
+
+          {/* DURATION */}
+          <div className="space-y-4 py-2">
+
             <div className="space-y-2">
-              <label className="text-xs font-semibold">Pilih Satuan Waktu</label>
+              <label className="text-xs font-semibold">
+                Pilih Satuan Waktu
+              </label>
+
               <Select
                 value={durationUnit}
-                onValueChange={(val: any) => setDurationUnit(val)}
+                onValueChange={(value) =>
+                  setDurationUnit(value as DurationUnit)
+                }
+                disabled={saving}
               >
                 <SelectTrigger>
                   <SelectValue placeholder="Pilih satuan..." />
                 </SelectTrigger>
+
                 <SelectContent>
-                  <SelectItem value="days">Hari</SelectItem>
-                  <SelectItem value="months">Bulan</SelectItem>
-                  <SelectItem value="years">Tahun</SelectItem>
-                  <SelectItem value="custom">Pilih Tanggal Spesifik</SelectItem>
+                  <SelectItem value="days">
+                    Hari
+                  </SelectItem>
+
+                  <SelectItem value="months">
+                    Bulan
+                  </SelectItem>
+
+                  <SelectItem value="years">
+                    Tahun
+                  </SelectItem>
+
+                  <SelectItem value="custom">
+                    Pilih Tanggal Spesifik
+                  </SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -332,28 +641,56 @@ export function AdminUsersPage() {
             {durationUnit !== "custom" ? (
               <div className="space-y-2">
                 <label className="text-xs font-semibold">
-                  Jumlah ({durationUnit === "days" ? "Hari" : durationUnit === "months" ? "Bulan" : "Tahun"})
+                  Jumlah Durasi (
+                  {durationUnit === "days"
+                    ? "Hari"
+                    : durationUnit === "months"
+                    ? "Bulan"
+                    : "Tahun"}
+                  )
                 </label>
+
                 <Input
                   type="number"
                   min={1}
+                  step={1}
                   value={durationValue}
-                  onChange={(e) => setDurationValue(Number(e.target.value))}
+                  onChange={(event) =>
+                    setDurationValue(Number(event.target.value))
+                  }
+                  disabled={saving}
                 />
               </div>
             ) : (
               <div className="space-y-2">
-                <label className="text-xs font-semibold">Berlaku Sampai Tanggal</label>
+                <label className="text-xs font-semibold">
+                  Berlaku Sampai Tanggal
+                </label>
+
                 <Input
                   type="date"
                   value={customDate}
-                  onChange={(e) => setCustomDate(e.target.value)}
+                  min={new Date().toLocaleDateString("en-CA")}
+                  onChange={(event) =>
+                    setCustomDate(event.target.value)
+                  }
+                  disabled={saving}
                 />
               </div>
             )}
           </div>
 
+          {/* DIALOG ERROR */}
+          {errorMessage && (
+            <div className="flex items-start gap-2 rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
+              <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+              <span>{errorMessage}</span>
+            </div>
+          )}
+
+          {/* FOOTER */}
           <DialogFooter className="flex-col gap-2 sm:flex-row sm:justify-between">
+
             {selectedUser?.is_premium ? (
               <Button
                 variant="destructive"
@@ -361,15 +698,37 @@ export function AdminUsersPage() {
                 onClick={handleRevokePremium}
                 disabled={saving}
               >
-                {saving ? "Memproses..." : "Cabut Premium"}
+                {saving ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : null}
+
+                Cabut Premium
               </Button>
-            ) : <div />}
+            ) : (
+              <div />
+            )}
+
             <div className="flex gap-2">
-              <Button variant="outline" onClick={() => setIsDialogOpen(false)} disabled={saving}>
+              <Button
+                variant="outline"
+                onClick={() => setIsDialogOpen(false)}
+                disabled={saving}
+              >
                 Batal
               </Button>
-              <Button onClick={handleSavePremium} disabled={saving}>
-                {saving ? "Menyimpan..." : "Simpan Paket"}
+
+              <Button
+                onClick={handleSavePremium}
+                disabled={saving}
+              >
+                {saving ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Menyimpan...
+                  </>
+                ) : (
+                  "Simpan Paket"
+                )}
               </Button>
             </div>
           </DialogFooter>
@@ -380,3 +739,4 @@ export function AdminUsersPage() {
 }
 
 export default AdminUsersPage;
+```
