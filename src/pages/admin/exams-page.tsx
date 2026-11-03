@@ -4,7 +4,7 @@ import {
   Search, 
   MoreHorizontal, 
   CheckCircle2, 
-  Calendar, 
+  Calendar as CalendarIcon, 
   Archive, 
   BookOpen, 
   Zap, 
@@ -46,8 +46,14 @@ type Draft = {
   questionCount: number;
   premium: boolean;
   published: boolean;
+  startTime: string; // ISO String / YYYY-MM-DDTHH:mm
+  endTime: string;   // ISO String / YYYY-MM-DDTHH:mm
   excelFile: File | null;
 };
+
+// Default Tanggal Mulai = Hari ini, Tanggal Selesai = 30 hari lagi
+const nowIso = new Date().toISOString().slice(0, 16);
+const defaultEndIso = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 16);
 
 const emptyDraft: Draft = {
   title: "",
@@ -58,7 +64,9 @@ const emptyDraft: Draft = {
   duration: 30,
   questionCount: 10,
   premium: false,
-  published: false,
+  published: true,
+  startTime: nowIso,
+  endTime: defaultEndIso,
   excelFile: null,
 };
 
@@ -102,11 +110,32 @@ export default function AdminExamsPage() {
     fetchData();
   }, []);
 
-  // Ringkasan Jumlah Status untuk Stat Cards
+  // Helper Penentu Status Real-time Berdasarkan Tanggal
+  const getExamStatus = (e: ExamPackage): "Aktif" | "Akan Datang" | "Arsip" => {
+    if (e.status === "Draft" || (e as any).is_published === false) return "Arsip";
+    
+    const now = new Date().getTime();
+    const start = e.start_time ? new Date(e.start_time).getTime() : now;
+    const end = e.end_time ? new Date(e.end_time).getTime() : Infinity;
+
+    if (now < start) return "Akan Datang";
+    if (now > end) return "Arsip";
+    return "Aktif";
+  };
+
+  // Ringkasan Jumlah Status untuk Stat Cards (Tersinkron dengan tanggal real-time)
   const counts = useMemo(() => {
-    const aktif = items.filter((e) => e.status === "Published" || (e as any).status === "Aktif").length;
-    const akanDatang = items.filter((e) => (e as any).status === "Akan Datang").length;
-    const arsip = items.filter((e) => e.status === "Draft" || (e as any).status === "Arsip").length;
+    let aktif = 0;
+    let akanDatang = 0;
+    let arsip = 0;
+
+    items.forEach((item) => {
+      const st = getExamStatus(item);
+      if (st === "Aktif") aktif++;
+      else if (st === "Akan Datang") akanDatang++;
+      else arsip++;
+    });
+
     return { aktif, akanDatang, arsip };
   }, [items]);
 
@@ -115,24 +144,22 @@ export default function AdminExamsPage() {
     return items.filter((e) => {
       const matchQuery = e.title.toLowerCase().includes(q.toLowerCase());
       const matchLevel = level === "all" || e.level === level;
-
-      let itemStatus = "Aktif";
-      if (e.status === "Draft" || (e as any).status === "Arsip") itemStatus = "Arsip";
-      else if ((e as any).status === "Akan Datang") itemStatus = "Akan Datang";
-      else if (e.status === "Published") itemStatus = "Aktif";
+      const itemStatus = getExamStatus(e);
 
       const matchTab = activeTab === "all" || itemStatus === activeTab;
       return matchQuery && matchLevel && matchTab;
     });
   }, [items, q, level, activeTab]);
 
-  // Simpan Paket Ujian & Upload Soal Excel ke Supabase
+  // Simpan Paket Ujian dengan Input Tanggal ke Supabase
   const save = async () => {
     if (!draft) return;
     const e: Record<string, string> = {};
     if (draft.title.trim().length < 5) e.title = "Judul minimal 5 karakter.";
     if (!(draft.duration >= 5 && draft.duration <= 240)) e.duration = "Durasi 5–240 menit.";
     if (!(draft.questionCount >= 1 && draft.questionCount <= 200)) e.questionCount = "Jumlah soal 1–200.";
+    if (!draft.startTime) e.startTime = "Tanggal mulai wajib diisi.";
+
     setErrs(e);
     if (Object.keys(e).length) return;
 
@@ -146,7 +173,10 @@ export default function AdminExamsPage() {
       duration: Number(draft.duration),
       question_count: Number(draft.questionCount),
       premium: draft.premium,
+      is_published: draft.published,
       status: draft.published ? "Published" : "Draft",
+      start_time: new Date(draft.startTime).toISOString(),
+      end_time: draft.endTime ? new Date(draft.endTime).toISOString() : null,
     };
 
     try {
@@ -180,7 +210,7 @@ export default function AdminExamsPage() {
         }
       }
 
-      toast.success(draft.id ? "Paket ujian diperbarui!" : "Paket ujian & soal berhasil dibuat!");
+      toast.success(draft.id ? "Paket ujian diperbarui!" : "Paket ujian & jadwal berhasil disimpan!");
       setDraft(null);
       fetchData();
     } catch (err: any) {
@@ -264,10 +294,10 @@ export default function AdminExamsPage() {
             <div className="space-y-1">
               <p className="text-xs font-bold text-sky-600 dark:text-sky-400">Akan Datang</p>
               <h3 className="text-3xl font-black text-foreground">{counts.akanDatang}</h3>
-              <p className="text-[11px] text-muted-foreground">Dalam penyiapan</p>
+              <p className="text-[11px] text-muted-foreground">Jadwal mendatang</p>
             </div>
             <div className="h-12 w-12 rounded-2xl bg-sky-500/15 border border-sky-500/30 text-sky-500 flex items-center justify-center">
-              <Calendar className="h-6 w-6" />
+              <CalendarIcon className="h-6 w-6" />
             </div>
           </CardContent>
         </Card>
@@ -352,84 +382,96 @@ export default function AdminExamsPage() {
                   <th className="p-4">Nama Paket</th>
                   <th className="p-4">Jenjang</th>
                   <th className="p-4">Tingkat</th>
-                  <th className="p-4">Durasi</th>
-                  <th className="p-4">Soal</th>
+                  <th className="p-4">Periode Aktif</th>
                   <th className="p-4">Status</th>
                   <th className="p-4 text-right">Aksi</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
-                {filtered.map((e) => (
-                  <tr key={e.id} className="hover:bg-muted/30 transition-colors">
-                    <td className="p-4">
-                      <div className="flex items-center gap-3">
-                        {getCategoryIcon(e.category)}
-                        <div>
-                          <p className="font-extrabold text-sm text-foreground">{e.title}</p>
-                          <p className="text-[11px] text-muted-foreground">
-                            {e.category} {e.premium && <Badge variant="warning" className="ml-1 text-[9px] px-1.5 py-0">Premium</Badge>}
-                          </p>
+                {filtered.map((e) => {
+                  const status = getExamStatus(e);
+                  const startDateStr = e.start_time ? new Date(e.start_time).toLocaleDateString("id-ID", { day: "numeric", month: "short", year: "numeric" }) : "-";
+                  const endDateStr = e.end_time ? new Date(e.end_time).toLocaleDateString("id-ID", { day: "numeric", month: "short", year: "numeric" }) : "Tanpa Batas";
+
+                  return (
+                    <tr key={e.id} className="hover:bg-muted/30 transition-colors">
+                      <td className="p-4">
+                        <div className="flex items-center gap-3">
+                          {getCategoryIcon(e.category)}
+                          <div>
+                            <p className="font-extrabold text-sm text-foreground">{e.title}</p>
+                            <p className="text-[11px] text-muted-foreground">
+                              {e.category} • {(e as any).question_count || e.questionCount || 0} Soal {e.premium && <Badge variant="warning" className="ml-1 text-[9px] px-1.5 py-0">Premium</Badge>}
+                            </p>
+                          </div>
                         </div>
-                      </div>
-                    </td>
-                    <td className="p-4"><Badge variant="outline" className="font-bold">{e.level}</Badge></td>
-                    <td className="p-4"><Badge variant="muted" className="font-bold">{e.difficulty}</Badge></td>
-                    <td className="p-4 font-mono font-semibold">{e.duration} mnt</td>
-                    <td className="p-4 font-extrabold">{ (e as any).question_count || e.questionCount || 0 } Soal</td>
-                    <td className="p-4">
-                      {e.status === "Published" ? (
-                        <span className="inline-flex items-center gap-1.5 font-bold text-emerald-500">
-                          <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" /> Aktif
-                        </span>
-                      ) : (
-                        <span className="inline-flex items-center gap-1.5 font-bold text-slate-400">
-                          <span className="h-2 w-2 rounded-full bg-slate-400" /> Draft / Arsip
-                        </span>
-                      )}
-                    </td>
-                    <td className="p-4 text-right">
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="icon" aria-label={`Aksi untuk ${e.title}`}>
-                            <MoreHorizontal className="h-4 w-4" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end" className="w-36">
-                          <DropdownMenuItem
-                            onSelect={() => {
-                              setErrs({});
-                              setDraft({
-                                id: e.id,
-                                title: e.title,
-                                description: e.description,
-                                category: e.category,
-                                level: e.level,
-                                difficulty: e.difficulty,
-                                duration: e.duration,
-                                questionCount: (e as any).question_count || e.questionCount || 10,
-                                premium: e.premium,
-                                published: e.status === "Published",
-                                excelFile: null,
-                              });
-                            }}
-                          >
-                            <Pencil className="h-3.5 w-3.5 mr-2 text-emerald-500" /> Edit
-                          </DropdownMenuItem>
-                          <DropdownMenuItem destructive onSelect={() => setRemoving(e)}>
-                            <Trash2 className="h-3.5 w-3.5 mr-2" /> Hapus
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    </td>
-                  </tr>
-                ))}
+                      </td>
+                      <td className="p-4"><Badge variant="outline" className="font-bold">{e.level}</Badge></td>
+                      <td className="p-4"><Badge variant="muted" className="font-bold">{e.difficulty}</Badge></td>
+                      <td className="p-4 font-mono text-[11px] text-muted-foreground">
+                        {startDateStr} - {endDateStr}
+                      </td>
+                      <td className="p-4">
+                        {status === "Aktif" ? (
+                          <span className="inline-flex items-center gap-1.5 font-bold text-emerald-500">
+                            <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" /> Aktif
+                          </span>
+                        ) : status === "Akan Datang" ? (
+                          <span className="inline-flex items-center gap-1.5 font-bold text-sky-500">
+                            <span className="h-2 w-2 rounded-full bg-sky-500" /> Akan Datang
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1.5 font-bold text-slate-400">
+                            <span className="h-2 w-2 rounded-full bg-slate-400" /> Draft / Arsip
+                          </span>
+                        )}
+                      </td>
+                      <td className="p-4 text-right">
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="icon" aria-label={`Aksi untuk ${e.title}`}>
+                              <MoreHorizontal className="h-4 w-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end" className="w-36">
+                            <DropdownMenuItem
+                              onSelect={() => {
+                                setErrs({});
+                                setDraft({
+                                  id: e.id,
+                                  title: e.title,
+                                  description: e.description,
+                                  category: e.category,
+                                  level: e.level,
+                                  difficulty: e.difficulty,
+                                  duration: e.duration,
+                                  questionCount: (e as any).question_count || e.questionCount || 10,
+                                  premium: e.premium,
+                                  published: e.status === "Published" || (e as any).is_published,
+                                  startTime: e.start_time ? new Date(e.start_time).toISOString().slice(0, 16) : nowIso,
+                                  endTime: e.end_time ? new Date(e.end_time).toISOString().slice(0, 16) : defaultEndIso,
+                                  excelFile: null,
+                                });
+                              }}
+                            >
+                              <Pencil className="h-3.5 w-3.5 mr-2 text-emerald-500" /> Edit
+                            </DropdownMenuItem>
+                            <DropdownMenuItem destructive onSelect={() => setRemoving(e)}>
+                              <Trash2 className="h-3.5 w-3.5 mr-2" /> Hapus
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
         )}
       </Card>
 
-      {/* 6. MODAL DIALOG FORM (TAMBAH / EDIT PAKET) */}
+      {/* 6. MODAL DIALOG FORM (TAMBAH / EDIT PAKET PAKAI PERIODE TANGGAL) */}
       <Dialog open={!!draft} onOpenChange={(o) => !o && setDraft(null)}>
         <DialogContent className="max-w-xl max-h-[90vh] overflow-y-auto rounded-2xl">
           {draft && (
@@ -439,13 +481,13 @@ export default function AdminExamsPage() {
                   {draft.id ? "Edit Paket Ujian" : "Tambah Paket Ujian Baru"}
                 </DialogTitle>
                 <DialogDescription className="text-xs">
-                  Atur informasi paket dan upload file Excel soal sekaligus.
+                  Atur jadwal periode rilis, informasi paket, dan upload file Excel soal sekaligus.
                 </DialogDescription>
               </DialogHeader>
 
               <div className="space-y-4 py-2 text-xs">
                 <div className="space-y-1">
-                  <Label htmlFor="x-title" className="font-bold">Judul *</Label>
+                  <Label htmlFor="x-title" className="font-bold">Judul Ujian *</Label>
                   <Input 
                     id="x-title" 
                     value={draft.title} 
@@ -463,6 +505,38 @@ export default function AdminExamsPage() {
                     onChange={(e) => setDraft({ ...draft, description: e.target.value })} 
                     className="rounded-xl text-xs"
                   />
+                </div>
+
+                {/* INPUT PERIODE TANGGAL UNTUK MEMBUAT "AKAN DATANG" ATAU "AKTIF" */}
+                <div className="grid gap-3 sm:grid-cols-2 p-3 rounded-xl border bg-muted/20">
+                  <div className="space-y-1">
+                    <Label htmlFor="x-start" className="font-bold text-emerald-600 dark:text-emerald-400">
+                      📅 Tanggal & Jam Mulai *
+                    </Label>
+                    <Input
+                      id="x-start"
+                      type="datetime-local"
+                      value={draft.startTime}
+                      onChange={(e) => setDraft({ ...draft, startTime: e.target.value })}
+                      className="h-9 rounded-xl bg-background"
+                    />
+                    <p className="text-[10px] text-muted-foreground">Jika diatur ke masa depan, otomatis menjadi <strong>Akan Datang</strong>.</p>
+                    <FieldError message={errs.startTime} />
+                  </div>
+
+                  <div className="space-y-1">
+                    <Label htmlFor="x-end" className="font-bold text-amber-600 dark:text-amber-400">
+                      🏁 Tanggal & Jam Selesai
+                    </Label>
+                    <Input
+                      id="x-end"
+                      type="datetime-local"
+                      value={draft.endTime}
+                      onChange={(e) => setDraft({ ...draft, endTime: e.target.value })}
+                      className="h-9 rounded-xl bg-background"
+                    />
+                    <p className="text-[10px] text-muted-foreground">Paket otomatis terarsip setelah waktu ini lewat.</p>
+                  </div>
                 </div>
 
                 <div className="grid gap-3 sm:grid-cols-3">
