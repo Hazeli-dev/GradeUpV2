@@ -337,18 +337,18 @@ export default function StudentAchievementsPage() {
   };
 
   return (
-    <div className="mx-auto max-w-5xl space-y-6 pb-12">
+    <div className="mx-auto w-full max-w-6xl space-y-7 px-1 pb-12 sm:px-2">
       {/* Header + Countdown Season */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-2xl font-black tracking-tight sm:text-3xl">Pencapaian Saya</h1>
+          <h1 className="text-2xl font-extrabold tracking-tight text-foreground sm:text-3xl">Pencapaian Saya</h1>
           <p className="mt-1 text-sm text-muted-foreground">
             {unlockedCount} dari {totalBadges} badge berhasil dibuka
           </p>
         </div>
 
         <div
-          className="inline-flex items-center gap-2.5 self-start rounded-xl border border-amber-500/30 bg-amber-500/10 px-3.5 py-2 text-xs font-bold text-amber-600 dark:text-amber-400 sm:self-auto"
+          className="inline-flex items-center gap-2.5 self-start rounded-full border border-border bg-card px-4 py-2.5 text-xs font-semibold text-muted-foreground shadow-sm sm:self-auto"
           role="status"
         >
           <Timer className="h-4 w-4" aria-hidden />
@@ -360,11 +360,11 @@ export default function StudentAchievementsPage() {
       </div>
 
       {/* Hero: XP & Level */}
-      <Card className="relative overflow-hidden rounded-3xl border-2 border-emerald-500/20 bg-gradient-to-br from-emerald-500/10 via-background to-background shadow-md">
-        <CardContent className="space-y-6 p-6">
+      <Card className="relative overflow-hidden rounded-3xl border border-emerald-500/20 bg-gradient-to-br from-emerald-500/[0.08] via-card to-card shadow-sm">
+        <CardContent className="space-y-6 p-5 sm:p-7">
           <div className="flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
             <div className="flex items-center gap-4">
-              <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl border border-emerald-500/30 bg-emerald-500/10 text-emerald-500">
+              <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl border border-emerald-500/20 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 sm:h-16 sm:w-16">
                 <Trophy className="h-8 w-8" aria-hidden />
               </div>
               <div>
@@ -382,7 +382,7 @@ export default function StudentAchievementsPage() {
                     </Badge>
                   )}
                 </div>
-                <p className="text-3xl font-black tabular-nums tracking-tight text-foreground">
+                <p className="text-3xl font-extrabold tabular-nums tracking-tight text-foreground sm:text-4xl">
                   {totalXp.toLocaleString("id-ID")}{" "}
                   <span className="text-lg font-extrabold text-emerald-500">XP</span>
                 </p>
@@ -396,7 +396,7 @@ export default function StudentAchievementsPage() {
                   {xpToNextLevel} XP lagi ke Level {currentLevel + 1}
                 </span>
               </div>
-              <Progress value={levelProgress} className="h-3 rounded-full bg-muted" aria-label="Progres level" />
+              <Progress value={levelProgress} className="h-2.5 rounded-full bg-muted sm:h-3" aria-label="Progres level" />
             </div>
           </div>
 
@@ -414,7 +414,7 @@ export default function StudentAchievementsPage() {
                       key={b.id}
                       type="button"
                       onClick={() => handleOpenDetail(b)}
-                      className="flex items-center gap-3 rounded-2xl border bg-card p-3 text-left transition-colors hover:border-emerald-500/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/60"
+                      className="flex items-center gap-3 rounded-2xl border border-border/80 bg-background/80 p-3.5 text-left shadow-sm transition-all hover:-translate-y-0.5 hover:border-emerald-500/50 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/60"
                     >
                       <div
                         className={cn(
@@ -444,11 +444,11 @@ export default function StudentAchievementsPage() {
 
       {/* Tabs */}
       <Tabs defaultValue="badges" className="space-y-5">
-        <TabsList className="bg-muted/60 p-1">
-          <TabsTrigger value="badges" className="gap-2 text-xs font-bold">
+        <TabsList className="grid h-auto w-full max-w-sm grid-cols-2 rounded-xl border border-border/70 bg-muted/50 p-1">
+          <TabsTrigger value="badges" className="gap-2 rounded-lg py-2.5 text-xs font-bold data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm">
             <Award className="h-4 w-4" aria-hidden /> Badges ({totalBadges})
           </TabsTrigger>
-          <TabsTrigger value="leaderboard" className="gap-2 text-xs font-bold">
+          <TabsTrigger value="leaderboard" className="gap-2 rounded-lg py-2.5 text-xs font-bold data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm">
             <Crown className="h-4 w-4" aria-hidden /> Leaderboard
           </TabsTrigger>
         </TabsList>
@@ -470,7 +470,7 @@ export default function StudentAchievementsPage() {
                   setSearchQuery(e.target.value);
                   setVisibleCount(PAGE_SIZE);
                 }}
-                className="h-10 pl-9 text-sm"
+                className="h-11 rounded-xl border-border/80 bg-background pl-10 text-sm shadow-sm placeholder:text-muted-foreground/70"
               />
             </div>
 
@@ -555,16 +555,16 @@ export default function StudentAchievementsPage() {
                         onClick={() => handleOpenDetail(badge)}
                         aria-label={`${badge.title}, ${badge.isUnlocked ? "terbuka" : "terkunci"}. Lihat detail`}
                         className={cn(
-                          "flex h-full w-full flex-col gap-3 rounded-2xl border-2 p-4 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/60",
+                          "flex h-full w-full flex-col gap-4 rounded-2xl border p-4 text-left shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/60 sm:p-5",
                           badge.isUnlocked
-                            ? "border-emerald-500/40 bg-card hover:border-emerald-500/80"
-                            : "border-dashed border-border bg-muted/20 hover:border-foreground/30"
+                            ? "border-emerald-500/30 bg-card shadow-sm hover:-translate-y-0.5 hover:border-emerald-500/70 hover:shadow-md"
+                            : "border-dashed border-border bg-muted/20 hover:border-muted-foreground/50 hover:bg-muted/35"
                         )}
                       >
                         <div className="flex items-start gap-3">
                           <div
                             className={cn(
-                              "relative flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border-2",
+                              "relative flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border",
                               badge.isUnlocked ? theme.iconBox : "border-muted-foreground/20 bg-muted"
                             )}
                           >
@@ -583,7 +583,7 @@ export default function StudentAchievementsPage() {
                             <div className="flex items-start justify-between gap-2">
                               <h4
                                 className={cn(
-                                  "text-sm font-black leading-snug",
+                                  "text-sm font-bold leading-snug tracking-tight",
                                   !badge.isUnlocked && "text-muted-foreground"
                                 )}
                               >
@@ -591,13 +591,13 @@ export default function StudentAchievementsPage() {
                               </h4>
                               <RarityTag rarity={badge.rarity} />
                             </div>
-                            <p className="line-clamp-2 text-xs leading-relaxed text-muted-foreground">
+                            <p className="line-clamp-2 text-xs leading-relaxed text-muted-foreground sm:text-[13px]">
                               {badge.description}
                             </p>
                           </div>
                         </div>
 
-                        <div className="mt-auto space-y-2">
+                        <div className="mt-auto space-y-3">
                           {!badge.isUnlocked && (
                             <div className="space-y-1">
                               <div className="flex justify-between text-[11px] font-medium text-muted-foreground">
@@ -615,7 +615,7 @@ export default function StudentAchievementsPage() {
                             </div>
                           )}
 
-                          <div className="flex items-center justify-between border-t border-border/50 pt-2 text-[11px]">
+                          <div className="flex items-center justify-between border-t border-border/60 pt-3 text-[11px]">
                             <span
                               className={cn(
                                 "flex items-center gap-1 font-extrabold",
@@ -655,9 +655,9 @@ export default function StudentAchievementsPage() {
 
         {/* TAB 2: LEADERBOARD */}
         <TabsContent value="leaderboard">
-          <Card className="border shadow-sm">
-            <CardContent className="space-y-5 p-4 sm:p-6">
-              <div className="flex items-center justify-between border-b pb-3">
+          <Card className="overflow-hidden rounded-2xl border-border/80 shadow-sm">
+            <CardContent className="space-y-6 p-4 sm:p-7">
+              <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border/70 pb-4">
                 <div className="flex items-center gap-2">
                   <Medal className="h-5 w-5 text-amber-500" aria-hidden />
                   <CardTitle className="text-base font-bold">Peringkat 10 Besar Siswa</CardTitle>
@@ -675,7 +675,7 @@ export default function StudentAchievementsPage() {
                 <>
                   {/* Podium 3 teratas */}
                   {podiumOrder.length === 3 && (
-                    <div className="grid grid-cols-3 items-end gap-2 sm:gap-4">
+                    <div className="mx-auto grid w-full max-w-xl grid-cols-3 items-end gap-3 rounded-2xl bg-muted/25 px-2 pt-5 sm:gap-5 sm:px-5">
                       {podiumOrder.map((item) => {
                         const s = podiumStyle[item.rank];
                         return (
@@ -707,7 +707,7 @@ export default function StudentAchievementsPage() {
                             </div>
                             <div
                               className={cn(
-                                "flex w-full items-start justify-center rounded-t-xl border pt-2 text-sm font-black text-muted-foreground",
+                                "flex w-full items-start justify-center rounded-t-xl border border-b-0 pt-2 text-sm font-extrabold text-muted-foreground",
                                 s.height,
                                 s.ring
                               )}
@@ -728,7 +728,7 @@ export default function StudentAchievementsPage() {
                         <li
                           key={item.id}
                           className={cn(
-                            "flex items-center justify-between rounded-xl border p-3 transition-colors",
+                            "flex items-center justify-between gap-3 rounded-xl border p-3.5 transition-colors",
                             item.is_current_user
                               ? "border-emerald-500/40 bg-emerald-500/10"
                               : "border-border bg-card hover:bg-muted/30"
@@ -767,7 +767,7 @@ export default function StudentAchievementsPage() {
       {/* MODAL DETAIL BADGE */}
       <Dialog open={detailOpen} onOpenChange={setDetailOpen}>
         {selectedBadge && (
-          <DialogContent className="border-2 border-emerald-500/30 sm:max-w-md">
+          <DialogContent className="max-h-[90vh] overflow-y-auto rounded-2xl border border-emerald-500/20 p-5 sm:max-w-md sm:p-6">
             <DialogHeader className="items-center text-center">
               <div
                 className={cn(
@@ -797,7 +797,7 @@ export default function StudentAchievementsPage() {
               </DialogDescription>
             </DialogHeader>
 
-            <div className="my-2 space-y-3 border-y py-3 text-xs">
+            <div className="my-2 space-y-3 border-y border-border/70 py-4 text-xs">
               <div className="space-y-2 rounded-xl border bg-muted/30 p-3">
                 <div className="flex items-center justify-between text-xs font-bold">
                   <span className="flex items-center gap-1.5 text-foreground">
@@ -843,7 +843,7 @@ export default function StudentAchievementsPage() {
                     setDetailOpen(false);
                     navigate(selectedBadge.category === "Membaca Materi" ? "/dashboard/courses" : "/dashboard/exams");
                   }}
-                  className="w-full gap-1 bg-emerald-600 text-xs font-bold hover:bg-emerald-700 sm:w-auto"
+                  className="w-full gap-1 rounded-xl bg-emerald-600 text-xs font-bold text-white shadow-sm hover:bg-emerald-700 sm:w-auto"
                 >
                   {selectedBadge.category === "Membaca Materi" ? "Baca Materi Sekarang" : "Kerjakan Ujian Sekarang"}{" "}
                   <ArrowRight className="h-3.5 w-3.5" aria-hidden />
