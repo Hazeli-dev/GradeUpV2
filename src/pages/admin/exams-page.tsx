@@ -204,14 +204,22 @@ export default function AdminExamsPage() {
         );
 
         if (parsedQuestions.length > 0) {
-          const { error: qErr } = await supabase.from("questions").insert(parsedQuestions);
-          if (qErr) throw qErr;
+  if (parsedQuestions.length < draft.questionCount) {
+    throw new Error(
+      `Jumlah soal dalam Excel hanya ${parsedQuestions.length}, sedangkan paket membutuhkan ${draft.questionCount} soal.`
+    );
+  }
 
-          await supabase
-            .from("exam_packages")
-            .update({ question_count: parsedQuestions.length })
-            .eq("id", packageId);
-        }
+  const { error: qErr } = await supabase
+    .from("questions")
+    .insert(parsedQuestions);
+
+  if (qErr) throw qErr;
+
+  // Jangan menimpa question_count.
+  // question_count adalah jumlah soal yang ditampilkan kepada siswa,
+  // bukan jumlah seluruh soal yang tersedia di bank soal.
+}
       }
 
       toast.success(draft.id ? "Paket ujian diperbarui!" : "Paket ujian & jadwal berhasil disimpan!");
