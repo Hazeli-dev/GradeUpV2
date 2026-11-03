@@ -1,4 +1,3 @@
-```tsx
 import { useEffect, useState } from "react";
 import {
   Search,
@@ -52,18 +51,14 @@ interface UserProfile {
 
 type DurationUnit = "days" | "months" | "years" | "custom";
 
-// Pemeriksaan Premium berdasarkan status dan tanggal kedaluwarsa.
+// Memeriksa apakah akses Premium masih berlaku.
 function isPremiumActive(user: UserProfile): boolean {
   if (user.role === "admin") return false;
-
   if (!user.is_premium || !user.premium_until) return false;
 
   const expiryTime = new Date(user.premium_until).getTime();
 
-  return (
-    !Number.isNaN(expiryTime) &&
-    expiryTime > Date.now()
-  );
+  return !Number.isNaN(expiryTime) && expiryTime > Date.now();
 }
 
 export function AdminUsersPage() {
@@ -81,7 +76,7 @@ export function AdminUsersPage() {
 
   const [errorMessage, setErrorMessage] = useState("");
 
-  // Mengambil data pengguna
+  // Mengambil data pengguna.
   const fetchUsers = async () => {
     setLoading(true);
 
@@ -111,14 +106,14 @@ export function AdminUsersPage() {
     void fetchUsers();
   }, []);
 
-  // Statistik Premium aktif dan Gratis.
+  // Statistik pengguna.
   const premiumUsers = users.filter(isPremiumActive);
 
   const freeUsers = users.filter(
     (user) => user.role !== "admin" && !isPremiumActive(user)
   );
 
-  // Pencarian pengguna
+  // Pencarian pengguna.
   const filteredUsers = users.filter((user) => {
     const keyword = search.toLowerCase();
 
@@ -128,7 +123,7 @@ export function AdminUsersPage() {
     );
   });
 
-  // Membuka dialog pengaturan
+  // Membuka dialog pengaturan paket.
   const handleOpenSetting = (user: UserProfile) => {
     if (user.role === "admin") return;
 
@@ -140,7 +135,7 @@ export function AdminUsersPage() {
     setIsDialogOpen(true);
   };
 
-  // Menghitung tanggal berakhir Premium
+  // Menghitung tanggal kedaluwarsa Premium.
   const calculateExpiryDate = (): string | null => {
     if (durationUnit === "custom") {
       if (!customDate) return null;
@@ -169,10 +164,7 @@ export function AdminUsersPage() {
       return selectedDate.toISOString();
     }
 
-    if (
-      !Number.isInteger(durationValue) ||
-      durationValue < 1
-    ) {
+    if (!Number.isInteger(durationValue) || durationValue < 1) {
       return null;
     }
 
@@ -215,9 +207,11 @@ export function AdminUsersPage() {
     return targetDate.toISOString();
   };
 
-  // Mengaktifkan Premium melalui RPC
+  // Mengaktifkan Premium melalui RPC.
   const handleSavePremium = async () => {
-    if (!selectedUser || saving || selectedUser.role === "admin") return;
+    if (!selectedUser || saving || selectedUser.role === "admin") {
+      return;
+    }
 
     setErrorMessage("");
 
@@ -261,9 +255,11 @@ export function AdminUsersPage() {
     }
   };
 
-  // Mencabut Premium melalui RPC
+  // Mencabut Premium melalui RPC.
   const handleRevokePremium = async () => {
-    if (!selectedUser || saving || selectedUser.role === "admin") return;
+    if (!selectedUser || saving || selectedUser.role === "admin") {
+      return;
+    }
 
     const confirmed = window.confirm(
       `Cabut akses Premium untuk ${
@@ -303,7 +299,7 @@ export function AdminUsersPage() {
     }
   };
 
-  // Format tanggal
+  // Format tanggal.
   const formatDate = (date: string | null) => {
     if (!date) return "-";
 
@@ -319,15 +315,10 @@ export function AdminUsersPage() {
     });
   };
 
-  // Label status paket
+  // Menentukan status paket pengguna.
   const getPackageStatus = (user: UserProfile) => {
-    if (user.role === "admin") {
-      return "admin";
-    }
-
-    if (isPremiumActive(user)) {
-      return "premium";
-    }
+    if (user.role === "admin") return "admin";
+    if (isPremiumActive(user)) return "premium";
 
     if (user.is_premium && !user.premium_until) {
       return "missing-date";
@@ -375,21 +366,15 @@ export function AdminUsersPage() {
         </div>
 
         <div className="rounded-xl border bg-card p-4 shadow-sm">
-          <p className="text-sm text-muted-foreground">
-            Premium Aktif
-          </p>
+          <p className="text-sm text-muted-foreground">Premium Aktif</p>
           <p className="mt-2 text-2xl font-bold text-amber-600">
             {premiumUsers.length}
           </p>
         </div>
 
         <div className="rounded-xl border bg-card p-4 shadow-sm">
-          <p className="text-sm text-muted-foreground">
-            Pengguna Gratis
-          </p>
-          <p className="mt-2 text-2xl font-bold">
-            {freeUsers.length}
-          </p>
+          <p className="text-sm text-muted-foreground">Pengguna Gratis</p>
+          <p className="mt-2 text-2xl font-bold">{freeUsers.length}</p>
         </div>
       </div>
 
@@ -495,13 +480,9 @@ export function AdminUsersPage() {
                           Premium Aktif
                         </Badge>
                       ) : packageStatus === "expired" ? (
-                        <Badge variant="destructive">
-                          Kedaluwarsa
-                        </Badge>
+                        <Badge variant="destructive">Kedaluwarsa</Badge>
                       ) : packageStatus === "missing-date" ? (
-                        <Badge variant="outline">
-                          Perlu Pemeriksaan
-                        </Badge>
+                        <Badge variant="outline">Perlu Pemeriksaan</Badge>
                       ) : (
                         <Badge variant="outline">Gratis</Badge>
                       )}
@@ -689,7 +670,7 @@ export function AdminUsersPage() {
             )}
           </div>
 
-          {/* Error Dialog */}
+          {/* Pesan Error */}
           {errorMessage && (
             <div className="flex items-start gap-2 rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
               <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
@@ -742,4 +723,3 @@ export function AdminUsersPage() {
 }
 
 export default AdminUsersPage;
-```
