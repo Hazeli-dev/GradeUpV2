@@ -1,4 +1,3 @@
-```tsx
 import { useEffect, useState } from "react";
 import {
   Search,
@@ -14,7 +13,6 @@ import {
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-
 import {
   Table,
   TableBody,
@@ -23,7 +21,6 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-
 import {
   Dialog,
   DialogContent,
@@ -32,7 +29,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-
 import {
   Select,
   SelectContent,
@@ -40,7 +36,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-
 import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/lib/supabase";
 
@@ -62,24 +57,16 @@ export function AdminUsersPage() {
   const [saving, setSaving] = useState(false);
   const [search, setSearch] = useState("");
 
-  // Dialog
-  const [selectedUser, setSelectedUser] =
-    useState<UserProfile | null>(null);
+  const [selectedUser, setSelectedUser] = useState<UserProfile | null>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
 
-  // Premium duration
-  const [durationUnit, setDurationUnit] =
-    useState<DurationUnit>("months");
+  const [durationUnit, setDurationUnit] = useState<DurationUnit>("months");
   const [durationValue, setDurationValue] = useState(1);
   const [customDate, setCustomDate] = useState("");
 
-  // Error message
   const [errorMessage, setErrorMessage] = useState("");
 
-  // ==========================================
-  // FETCH USERS
-  // ==========================================
-
+  // Mengambil data pengguna
   const fetchUsers = async () => {
     setLoading(true);
 
@@ -106,13 +93,10 @@ export function AdminUsersPage() {
   };
 
   useEffect(() => {
-    fetchUsers();
+    void fetchUsers();
   }, []);
 
-  // ==========================================
-  // SEARCH FILTER
-  // ==========================================
-
+  // Pencarian pengguna
   const filteredUsers = users.filter((user) => {
     const keyword = search.toLowerCase();
 
@@ -122,10 +106,7 @@ export function AdminUsersPage() {
     );
   });
 
-  // ==========================================
-  // OPEN PREMIUM DIALOG
-  // ==========================================
-
+  // Membuka dialog pengaturan
   const handleOpenSetting = (user: UserProfile) => {
     setSelectedUser(user);
     setDurationUnit("months");
@@ -135,31 +116,12 @@ export function AdminUsersPage() {
     setIsDialogOpen(true);
   };
 
-  // ==========================================
-  // CALCULATE PREMIUM EXPIRY
-  // ==========================================
-
+  // Menghitung tanggal berakhir Premium
   const calculateExpiryDate = (): string | null => {
-    const targetDate = new Date();
-
-    if (durationUnit === "days") {
-      targetDate.setDate(
-        targetDate.getDate() + durationValue
-      );
-    } else if (durationUnit === "months") {
-      targetDate.setMonth(
-        targetDate.getMonth() + durationValue
-      );
-    } else if (durationUnit === "years") {
-      targetDate.setFullYear(
-        targetDate.getFullYear() + durationValue
-      );
-    } else if (durationUnit === "custom") {
+    if (durationUnit === "custom") {
       if (!customDate) return null;
 
-      const [year, month, day] = customDate
-        .split("-")
-        .map(Number);
+      const [year, month, day] = customDate.split("-").map(Number);
 
       const selectedDate = new Date(
         year,
@@ -174,29 +136,36 @@ export function AdminUsersPage() {
       if (
         selectedDate.getFullYear() !== year ||
         selectedDate.getMonth() !== month - 1 ||
-        selectedDate.getDate() !== day
+        selectedDate.getDate() !== day ||
+        selectedDate <= new Date()
       ) {
-        return null;
-      }
-
-      if (selectedDate <= new Date()) {
         return null;
       }
 
       return selectedDate.toISOString();
     }
 
-    if (durationValue < 1 || !Number.isInteger(durationValue)) {
+    if (
+      !Number.isInteger(durationValue) ||
+      durationValue < 1
+    ) {
       return null;
+    }
+
+    const targetDate = new Date();
+
+    if (durationUnit === "days") {
+      targetDate.setDate(targetDate.getDate() + durationValue);
+    } else if (durationUnit === "months") {
+      targetDate.setMonth(targetDate.getMonth() + durationValue);
+    } else if (durationUnit === "years") {
+      targetDate.setFullYear(targetDate.getFullYear() + durationValue);
     }
 
     return targetDate.toISOString();
   };
 
-  // ==========================================
-  // ACTIVATE PREMIUM VIA SECURE RPC
-  // ==========================================
-
+  // Mengaktifkan Premium melalui RPC
   const handleSavePremium = async () => {
     if (!selectedUser || saving) return;
 
@@ -216,20 +185,15 @@ export function AdminUsersPage() {
     setSaving(true);
 
     try {
-      const { error } = await supabase.rpc(
-        "admin_set_user_premium",
-        {
-          target_user_id: selectedUser.id,
-          premium_status: true,
-          expiry_date: formattedDate,
-        }
-      );
+      const { error } = await supabase.rpc("admin_set_user_premium", {
+        target_user_id: selectedUser.id,
+        premium_status: true,
+        expiry_date: formattedDate,
+      });
 
       if (error) {
         console.error("Gagal mengaktifkan Premium:", error);
-        setErrorMessage(
-          "Gagal mengaktifkan Premium: " + error.message
-        );
+        setErrorMessage(error.message);
         return;
       }
 
@@ -238,21 +202,16 @@ export function AdminUsersPage() {
 
       await fetchUsers();
 
-      alert("Akses Premium berhasil diaktifkan.");
-    } catch (error: any) {
+      window.alert("Akses Premium berhasil diaktifkan.");
+    } catch (error) {
       console.error("Premium activation error:", error);
-      setErrorMessage(
-        error?.message || "Terjadi kesalahan saat mengaktifkan Premium."
-      );
+      setErrorMessage("Terjadi kesalahan saat mengaktifkan Premium.");
     } finally {
       setSaving(false);
     }
   };
 
-  // ==========================================
-  // REVOKE PREMIUM VIA SECURE RPC
-  // ==========================================
-
+  // Mencabut Premium melalui RPC
   const handleRevokePremium = async () => {
     if (!selectedUser || saving) return;
 
@@ -268,20 +227,15 @@ export function AdminUsersPage() {
     setSaving(true);
 
     try {
-      const { error } = await supabase.rpc(
-        "admin_set_user_premium",
-        {
-          target_user_id: selectedUser.id,
-          premium_status: false,
-          expiry_date: null,
-        }
-      );
+      const { error } = await supabase.rpc("admin_set_user_premium", {
+        target_user_id: selectedUser.id,
+        premium_status: false,
+        expiry_date: null,
+      });
 
       if (error) {
         console.error("Gagal mencabut Premium:", error);
-        setErrorMessage(
-          "Gagal mencabut Premium: " + error.message
-        );
+        setErrorMessage(error.message);
         return;
       }
 
@@ -290,29 +244,22 @@ export function AdminUsersPage() {
 
       await fetchUsers();
 
-      alert("Akses Premium berhasil dicabut.");
-    } catch (error: any) {
+      window.alert("Akses Premium berhasil dicabut.");
+    } catch (error) {
       console.error("Premium revoke error:", error);
-      setErrorMessage(
-        error?.message || "Terjadi kesalahan saat mencabut Premium."
-      );
+      setErrorMessage("Terjadi kesalahan saat mencabut Premium.");
     } finally {
       setSaving(false);
     }
   };
 
-  // ==========================================
-  // FORMAT DATE
-  // ==========================================
-
+  // Format tanggal
   const formatDate = (date: string | null) => {
     if (!date) return "-";
 
     const parsedDate = new Date(date);
 
-    if (Number.isNaN(parsedDate.getTime())) {
-      return "-";
-    }
+    if (Number.isNaN(parsedDate.getTime())) return "-";
 
     return parsedDate.toLocaleDateString("id-ID", {
       day: "numeric",
@@ -321,20 +268,14 @@ export function AdminUsersPage() {
     });
   };
 
-  // ==========================================
-  // RENDER
-  // ==========================================
-
   return (
     <div className="space-y-6 p-4 md:p-6">
-
-      {/* HEADER */}
+      {/* Header */}
       <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">
             Manajemen Pengguna
           </h1>
-
           <p className="mt-1 text-sm text-muted-foreground">
             Kelola data pengguna dan akses paket Premium GradeUp.
           </p>
@@ -343,57 +284,43 @@ export function AdminUsersPage() {
         <Button
           variant="outline"
           size="sm"
-          onClick={fetchUsers}
+          onClick={() => void fetchUsers()}
           disabled={loading || saving}
           className="gap-2"
         >
           <RefreshCw
-            className={`h-4 w-4 ${
-              loading ? "animate-spin" : ""
-            }`}
+            className={`h-4 w-4 ${loading ? "animate-spin" : ""}`}
           />
           Refresh Data
         </Button>
       </div>
 
-      {/* STATISTICS */}
+      {/* Statistik */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
         <div className="rounded-xl border bg-card p-4 shadow-sm">
-          <p className="text-sm text-muted-foreground">
-            Total Pengguna
-          </p>
-
-          <p className="mt-2 text-2xl font-bold">
-            {users.length}
-          </p>
+          <p className="text-sm text-muted-foreground">Total Pengguna</p>
+          <p className="mt-2 text-2xl font-bold">{users.length}</p>
         </div>
 
         <div className="rounded-xl border bg-card p-4 shadow-sm">
-          <p className="text-sm text-muted-foreground">
-            Pengguna Premium
-          </p>
-
+          <p className="text-sm text-muted-foreground">Pengguna Premium</p>
           <p className="mt-2 text-2xl font-bold text-amber-600">
             {users.filter((user) => user.is_premium).length}
           </p>
         </div>
 
         <div className="rounded-xl border bg-card p-4 shadow-sm">
-          <p className="text-sm text-muted-foreground">
-            Pengguna Gratis
-          </p>
-
+          <p className="text-sm text-muted-foreground">Pengguna Gratis</p>
           <p className="mt-2 text-2xl font-bold">
             {users.filter((user) => !user.is_premium).length}
           </p>
         </div>
       </div>
 
-      {/* SEARCH */}
+      {/* Pencarian */}
       <div className="flex items-center gap-4">
         <div className="relative w-full max-w-sm">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-
           <Input
             placeholder="Cari nama atau email pengguna..."
             value={search}
@@ -403,7 +330,7 @@ export function AdminUsersPage() {
         </div>
       </div>
 
-      {/* ERROR */}
+      {/* Pesan Error */}
       {errorMessage && !isDialogOpen && (
         <div className="flex items-start gap-2 rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
           <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
@@ -411,7 +338,7 @@ export function AdminUsersPage() {
         </div>
       )}
 
-      {/* USERS TABLE */}
+      {/* Tabel Pengguna */}
       <div className="overflow-hidden rounded-xl border bg-card shadow-sm">
         <Table>
           <TableHeader>
@@ -452,20 +379,17 @@ export function AdminUsersPage() {
             ) : (
               filteredUsers.map((user) => (
                 <TableRow key={user.id}>
-                  {/* USER */}
                   <TableCell>
                     <div className="flex flex-col gap-1">
                       <span className="font-semibold">
                         {user.full_name || "Tanpa Nama"}
                       </span>
-
                       <span className="text-xs text-muted-foreground">
                         {user.email || "-"}
                       </span>
                     </div>
                   </TableCell>
 
-                  {/* ROLE */}
                   <TableCell>
                     {user.role === "admin" ? (
                       <Badge className="gap-1">
@@ -473,17 +397,13 @@ export function AdminUsersPage() {
                         Admin
                       </Badge>
                     ) : (
-                      <Badge
-                        variant="outline"
-                        className="gap-1"
-                      >
+                      <Badge variant="outline" className="gap-1">
                         <UserCheck className="h-3 w-3" />
                         Siswa
                       </Badge>
                     )}
                   </TableCell>
 
-                  {/* PACKAGE */}
                   <TableCell>
                     {user.is_premium ? (
                       <Badge className="gap-1 bg-amber-500 text-white hover:bg-amber-600">
@@ -491,13 +411,10 @@ export function AdminUsersPage() {
                         Premium
                       </Badge>
                     ) : (
-                      <Badge variant="outline">
-                        Gratis
-                      </Badge>
+                      <Badge variant="outline">Gratis</Badge>
                     )}
                   </TableCell>
 
-                  {/* EXPIRY */}
                   <TableCell>
                     {user.is_premium && user.premium_until ? (
                       <span className="flex items-center gap-1.5 text-xs font-medium">
@@ -505,18 +422,14 @@ export function AdminUsersPage() {
                         {formatDate(user.premium_until)}
                       </span>
                     ) : (
-                      <span className="text-xs text-muted-foreground">
-                        -
-                      </span>
+                      <span className="text-xs text-muted-foreground">-</span>
                     )}
                   </TableCell>
 
-                  {/* JOINED */}
                   <TableCell className="text-xs text-muted-foreground">
                     {formatDate(user.created_at)}
                   </TableCell>
 
-                  {/* ACTION */}
                   <TableCell className="text-right">
                     <Button
                       variant="outline"
@@ -536,7 +449,7 @@ export function AdminUsersPage() {
         </Table>
       </div>
 
-      {/* PREMIUM DIALOG */}
+      {/* Dialog Premium */}
       <Dialog
         open={isDialogOpen}
         onOpenChange={(open) => {
@@ -550,7 +463,6 @@ export function AdminUsersPage() {
         }}
       >
         <DialogContent className="sm:max-w-md">
-
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Crown className="h-5 w-5 text-amber-500" />
@@ -567,7 +479,7 @@ export function AdminUsersPage() {
             </DialogDescription>
           </DialogHeader>
 
-          {/* CURRENT STATUS */}
+          {/* Status Saat Ini */}
           <div className="rounded-lg border bg-muted/30 p-3">
             <p className="text-xs text-muted-foreground">
               Status paket saat ini
@@ -575,9 +487,7 @@ export function AdminUsersPage() {
 
             <div className="mt-1 flex items-center justify-between">
               <span className="text-sm font-semibold">
-                {selectedUser?.is_premium
-                  ? "Premium"
-                  : "Gratis"}
+                {selectedUser?.is_premium ? "Premium" : "Gratis"}
               </span>
 
               {selectedUser?.is_premium ? (
@@ -586,9 +496,7 @@ export function AdminUsersPage() {
                   Aktif
                 </Badge>
               ) : (
-                <Badge variant="outline">
-                  Free
-                </Badge>
+                <Badge variant="outline">Free</Badge>
               )}
             </div>
 
@@ -599,9 +507,8 @@ export function AdminUsersPage() {
             )}
           </div>
 
-          {/* DURATION */}
+          {/* Pilihan Durasi */}
           <div className="space-y-4 py-2">
-
             <div className="space-y-2">
               <label className="text-xs font-semibold">
                 Pilih Satuan Waktu
@@ -619,18 +526,9 @@ export function AdminUsersPage() {
                 </SelectTrigger>
 
                 <SelectContent>
-                  <SelectItem value="days">
-                    Hari
-                  </SelectItem>
-
-                  <SelectItem value="months">
-                    Bulan
-                  </SelectItem>
-
-                  <SelectItem value="years">
-                    Tahun
-                  </SelectItem>
-
+                  <SelectItem value="days">Hari</SelectItem>
+                  <SelectItem value="months">Bulan</SelectItem>
+                  <SelectItem value="years">Tahun</SelectItem>
                   <SelectItem value="custom">
                     Pilih Tanggal Spesifik
                   </SelectItem>
@@ -645,8 +543,8 @@ export function AdminUsersPage() {
                   {durationUnit === "days"
                     ? "Hari"
                     : durationUnit === "months"
-                    ? "Bulan"
-                    : "Tahun"}
+                      ? "Bulan"
+                      : "Tahun"}
                   )
                 </label>
 
@@ -671,16 +569,14 @@ export function AdminUsersPage() {
                   type="date"
                   value={customDate}
                   min={new Date().toLocaleDateString("en-CA")}
-                  onChange={(event) =>
-                    setCustomDate(event.target.value)
-                  }
+                  onChange={(event) => setCustomDate(event.target.value)}
                   disabled={saving}
                 />
               </div>
             )}
           </div>
 
-          {/* DIALOG ERROR */}
+          {/* Error Dialog */}
           {errorMessage && (
             <div className="flex items-start gap-2 rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
               <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
@@ -688,9 +584,7 @@ export function AdminUsersPage() {
             </div>
           )}
 
-          {/* FOOTER */}
           <DialogFooter className="flex-col gap-2 sm:flex-row sm:justify-between">
-
             {selectedUser?.is_premium ? (
               <Button
                 variant="destructive"
@@ -698,10 +592,9 @@ export function AdminUsersPage() {
                 onClick={handleRevokePremium}
                 disabled={saving}
               >
-                {saving ? (
+                {saving && (
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                ) : null}
-
+                )}
                 Cabut Premium
               </Button>
             ) : (
@@ -717,10 +610,7 @@ export function AdminUsersPage() {
                 Batal
               </Button>
 
-              <Button
-                onClick={handleSavePremium}
-                disabled={saving}
-              >
+              <Button onClick={handleSavePremium} disabled={saving}>
                 {saving ? (
                   <>
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -739,4 +629,3 @@ export function AdminUsersPage() {
 }
 
 export default AdminUsersPage;
-```
