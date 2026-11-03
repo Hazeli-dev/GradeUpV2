@@ -1,10 +1,11 @@
-import { useEffect, useState } from "react";
-import { 
-  Trophy, 
-  Zap, 
-  Lock, 
-  Medal, 
-  Crown, 
+import { useEffect, useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
+import {
+  Trophy,
+  Zap,
+  Lock,
+  Medal,
+  Crown,
   Sparkles,
   Award,
   Search,
@@ -12,7 +13,9 @@ import {
   CheckCircle2,
   HelpCircle,
   ArrowRight,
-  BookOpen
+  BookOpen,
+  Target,
+  ChevronDown,
 } from "lucide-react";
 import { Card, CardContent, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
@@ -55,6 +58,45 @@ interface LeaderboardUser {
   is_current_user: boolean;
 }
 
+type StatusFilter = "Semua" | "Terbuka" | "Terkunci";
+type CategoryFilter = "Semua" | BadgeItem["category"];
+
+const PAGE_SIZE = 12;
+
+const RARITY_THEME: Record<
+  BadgeItem["rarity"],
+  { label: string; badge: string; iconBox: string; icon: string; bar: string }
+> = {
+  common: {
+    label: "Common",
+    badge: "bg-slate-500/10 text-slate-500 dark:text-slate-400 border-slate-500/25",
+    iconBox: "bg-slate-500/10 border-slate-500/30",
+    icon: "text-slate-500 dark:text-slate-400",
+    bar: "bg-slate-500",
+  },
+  rare: {
+    label: "Rare",
+    badge: "bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/30",
+    iconBox: "bg-blue-500/10 border-blue-500/40",
+    icon: "text-blue-500",
+    bar: "bg-blue-500",
+  },
+  epic: {
+    label: "Epic",
+    badge: "bg-purple-500/10 text-purple-600 dark:text-purple-400 border-purple-500/30",
+    iconBox: "bg-purple-500/10 border-purple-500/40",
+    icon: "text-purple-500",
+    bar: "bg-purple-500",
+  },
+  legendary: {
+    label: "Legendary",
+    badge: "bg-amber-500/15 text-amber-600 dark:text-amber-400 border-amber-500/40",
+    iconBox: "bg-amber-500/15 border-amber-500/50",
+    icon: "text-amber-500",
+    bar: "bg-amber-500",
+  },
+};
+
 // GENERATOR BADGE DINAMIS (50 TIER MEMBACA + 50 TIER UJIAN)
 function generateMultiTierBadges(articlesRead: number, examsPassed: number): BadgeItem[] {
   const generated: BadgeItem[] = [];
@@ -63,7 +105,7 @@ function generateMultiTierBadges(articlesRead: number, examsPassed: number): Bad
   for (let tier = 1; tier <= 50; tier++) {
     const target = tier; // Target: 1, 2, ..., 50 materi
     const isUnlocked = articlesRead >= target;
-    
+
     let rarity: BadgeItem["rarity"] = "common";
     if (tier > 35) rarity = "legendary";
     else if (tier > 20) rarity = "epic";
@@ -110,10 +152,31 @@ function generateMultiTierBadges(articlesRead: number, examsPassed: number): Bad
   return generated;
 }
 
+function RarityTag({ rarity }: { rarity: BadgeItem["rarity"] }) {
+  const t = RARITY_THEME[rarity];
+  return (
+    <Badge variant="outline" className={cn("shrink-0 text-[10px] font-semibold", t.badge)}>
+      {t.label}
+    </Badge>
+  );
+}
+
+function CategoryIcon({ category, className }: { category: BadgeItem["category"]; className?: string }) {
+  return category === "Membaca Materi" ? (
+    <BookOpen className={className} aria-hidden />
+  ) : (
+    <Zap className={cn("fill-current", className)} aria-hidden />
+  );
+}
+
 export default function StudentAchievementsPage() {
+  const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [badges, setBadges] = useState<BadgeItem[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>("Semua");
+  const [categoryFilter, setCategoryFilter] = useState<CategoryFilter>("Semua");
+  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
 
   // State Modal Detail Badge
   const [selectedBadge, setSelectedBadge] = useState<BadgeItem | null>(null);
@@ -136,7 +199,9 @@ export default function StudentAchievementsPage() {
     async function fetchAchievementsData() {
       try {
         setLoading(true);
-        const { data: { user } } = await supabase.auth.getUser();
+        const {
+          data: { user },
+        } = await supabase.auth.getUser();
         if (!user) return;
 
         // 1. Auto-reset season check
@@ -148,9 +213,17 @@ export default function StudentAchievementsPage() {
 
         // 2. Fetch Profil User, Leaderboard, & Config Season
         const [profileRes, leaderboardRes, seasonConfigRes] = await Promise.all([
-          supabase.from("profiles").select("total_xp, total_articles_read, total_exams_passed").eq("id", user.id).single(),
-          supabase.from("profiles").select("id, full_name, total_xp").order("total_xp", { ascending: false }).limit(10),
-          supabase.from("system_settings").select("value").eq("key", "season_config").single()
+          supabase
+            .from("profiles")
+            .select("total_xp, total_articles_read, total_exams_passed")
+            .eq("id", user.id)
+            .single(),
+          supabase
+            .from("profiles")
+            .select("id, full_name, total_xp")
+            .order("total_xp", { ascending: false })
+            .limit(10),
+          supabase.from("system_settings").select("value").eq("key", "season_config").single(),
         ]);
 
         // Hitung Sisa Hari Season
@@ -198,7 +271,6 @@ export default function StudentAchievementsPage() {
           }));
           setLeaderboard(rankedList);
         }
-
       } catch (err) {
         console.error("Gagal memuat data pencapaian:", err);
       } finally {
@@ -209,325 +281,558 @@ export default function StudentAchievementsPage() {
     fetchAchievementsData();
   }, []);
 
-  if (loading) return <PageSkeleton />;
-
-  const unlockedCount = badges.filter((b) => b.isUnlocked).length;
+  // Semua hook turunan harus berada sebelum early return
+  const unlockedCount = useMemo(() => badges.filter((b) => b.isUnlocked).length, [badges]);
   const totalBadges = badges.length;
 
-  const filteredBadges = badges.filter((b) =>
-    b.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    b.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    b.category.toLowerCase().includes(searchQuery.toLowerCase())
+  // Badge terkunci pertama per kategori = target berikutnya
+  const nextTargets = useMemo(
+    () =>
+      (["Membaca Materi", "Ulangan Harian"] as const)
+        .map((cat) => badges.find((b) => b.category === cat && !b.isUnlocked))
+        .filter((b): b is BadgeItem => Boolean(b)),
+    [badges]
   );
 
-  const getRarityBadge = (rarity: BadgeItem["rarity"]) => {
-    switch (rarity) {
-      case "common":
-        return <Badge variant="outline" className="bg-slate-500/10 text-slate-400 border-slate-500/20 text-[10px] capitalize">Common</Badge>;
-      case "rare":
-        return <Badge variant="outline" className="bg-blue-500/15 text-blue-400 border-blue-500/30 text-[10px] capitalize">Rare</Badge>;
-      case "epic":
-        return <Badge variant="outline" className="bg-emerald-500/15 text-emerald-400 border-emerald-500/30 text-[10px] capitalize">Epic</Badge>;
-      case "legendary":
-        return <Badge variant="outline" className="bg-amber-500/15 text-amber-400 border-amber-500/30 text-[10px] capitalize">Legendary</Badge>;
-      default:
-        return null;
-    }
-  };
+  const filteredBadges = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    return badges.filter((b) => {
+      const matchSearch =
+        !q ||
+        b.title.toLowerCase().includes(q) ||
+        b.description.toLowerCase().includes(q) ||
+        b.category.toLowerCase().includes(q);
+      const matchStatus =
+        statusFilter === "Semua" || (statusFilter === "Terbuka" ? b.isUnlocked : !b.isUnlocked);
+      const matchCategory = categoryFilter === "Semua" || b.category === categoryFilter;
+      return matchSearch && matchStatus && matchCategory;
+    });
+  }, [badges, searchQuery, statusFilter, categoryFilter]);
+
+  if (loading) return <PageSkeleton />;
+
+  const shownBadges = filteredBadges.slice(0, visibleCount);
+  const myRank = leaderboard.find((l) => l.is_current_user)?.rank;
+  const hasActiveFilter = searchQuery !== "" || statusFilter !== "Semua" || categoryFilter !== "Semua";
 
   const handleOpenDetail = (badge: BadgeItem) => {
     setSelectedBadge(badge);
     setDetailOpen(true);
   };
 
+  const resetFilters = () => {
+    setSearchQuery("");
+    setStatusFilter("Semua");
+    setCategoryFilter("Semua");
+    setVisibleCount(PAGE_SIZE);
+  };
+
+  const podium = leaderboard.slice(0, 3);
+  const restOfBoard = leaderboard.length >= 3 ? leaderboard.slice(3) : leaderboard;
+  const podiumOrder = podium.length === 3 ? [podium[1], podium[0], podium[2]] : [];
+  const podiumStyle: Record<number, { height: string; medal: string; ring: string }> = {
+    1: { height: "h-24", medal: "🥇", ring: "border-amber-400/60 bg-amber-400/10" },
+    2: { height: "h-16", medal: "🥈", ring: "border-slate-400/50 bg-slate-400/10" },
+    3: { height: "h-12", medal: "🥉", ring: "border-amber-700/50 bg-amber-700/10" },
+  };
+
   return (
-    <div className="space-y-6">
-      {/* Header Judul & Banner Countdown Season Dinamis */}
+    <div className="mx-auto max-w-5xl space-y-6 pb-12">
+      {/* Header + Countdown Season */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-2xl font-black tracking-tight sm:text-3xl">Pencapaian Saya</h1>
-          <p className="text-xs text-muted-foreground mt-1">
+          <p className="mt-1 text-sm text-muted-foreground">
             {unlockedCount} dari {totalBadges} badge berhasil dibuka
           </p>
         </div>
 
-        {/* BANNER COUNTDOWN SEASON */}
-        <div className="inline-flex items-center gap-2.5 rounded-xl border border-amber-500/30 bg-amber-500/10 px-3.5 py-2 text-xs font-bold text-amber-400 shadow-sm self-start sm:self-auto">
-          <Timer className="h-4 w-4 animate-pulse" />
-          <span>⏳ {seasonName} Berakhir dalam: <strong className="font-mono text-sm">{seasonDaysLeft} Hari</strong></span>
+        <div
+          className="inline-flex items-center gap-2.5 self-start rounded-xl border border-amber-500/30 bg-amber-500/10 px-3.5 py-2 text-xs font-bold text-amber-600 dark:text-amber-400 sm:self-auto"
+          role="status"
+        >
+          <Timer className="h-4 w-4" aria-hidden />
+          <span>
+            {seasonName} berakhir dalam{" "}
+            <strong className="text-sm tabular-nums">{seasonDaysLeft} hari</strong>
+          </span>
         </div>
       </div>
 
-      {/* Hero Card: XP & Level Banner */}
-      <Card className="relative overflow-hidden border-2 border-emerald-500/20 bg-gradient-to-r from-emerald-950/20 via-background to-background p-6 shadow-md">
-        <div className="flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
-          <div className="flex items-center gap-4">
-            <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 shadow-inner">
-              <Trophy className="h-8 w-8" />
-            </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
-                  Level {currentLevel}
-                </span>
-                <Badge variant="outline" className="bg-amber-400/15 text-amber-400 border-amber-400/30 text-[10px]">
-                  <Sparkles className="h-3 w-3 mr-1" /> Active Student
-                </Badge>
+      {/* Hero: XP & Level */}
+      <Card className="relative overflow-hidden rounded-3xl border-2 border-emerald-500/20 bg-gradient-to-br from-emerald-500/10 via-background to-background shadow-md">
+        <CardContent className="space-y-6 p-6">
+          <div className="flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
+            <div className="flex items-center gap-4">
+              <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl border border-emerald-500/30 bg-emerald-500/10 text-emerald-500">
+                <Trophy className="h-8 w-8" aria-hidden />
               </div>
-              <p className="text-3xl font-black text-foreground tracking-tight">
-                {totalXp} <span className="text-lg font-extrabold text-emerald-400">XP</span>
-              </p>
-            </div>
-          </div>
-
-          <div className="w-full md:max-w-xs space-y-2">
-            <div className="flex justify-between text-xs font-semibold">
-              <span className="text-muted-foreground">Level {currentLevel}</span>
-              <span className="text-emerald-400">{xpToNextLevel} XP lagi ke Level {currentLevel + 1}</span>
-            </div>
-            <Progress value={levelProgress} className="h-3 rounded-full bg-muted" />
-          </div>
-        </div>
-      </Card>
-
-      {/* Tabs & Filter Search */}
-      <Tabs defaultValue="badges" className="space-y-6">
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <TabsList className="bg-muted/60 p-1">
-            <TabsTrigger value="badges" className="gap-2 font-bold text-xs">
-              <Award className="h-4 w-4" /> Badges ({totalBadges})
-            </TabsTrigger>
-            <TabsTrigger value="leaderboard" className="gap-2 font-bold text-xs">
-              <Crown className="h-4 w-4" /> Leaderboard
-            </TabsTrigger>
-          </TabsList>
-
-          <div className="relative w-full sm:w-64">
-            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              placeholder="Cari level/badge..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-9 h-9 text-xs"
-            />
-          </div>
-        </div>
-
-        {/* TAB 1: GRID BADGES */}
-        <TabsContent value="badges" className="space-y-4">
-          {filteredBadges.length === 0 ? (
-            <div className="rounded-xl border border-dashed p-8 text-center">
-              <p className="text-xs text-muted-foreground">Tidak ada badge yang cocok dengan pencarian.</p>
-            </div>
-          ) : (
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              {filteredBadges.map((badge) => {
-                return (
-                  <Card
-                    key={badge.id}
-                    onClick={() => handleOpenDetail(badge)}
-                    className={cn(
-                      "relative overflow-hidden transition-all duration-300 border-2 cursor-pointer select-none group",
-                      badge.isUnlocked
-                        ? "bg-card border-emerald-500/40 shadow-lg shadow-emerald-500/5 hover:border-emerald-500/80 hover:scale-[1.02]"
-                        : "bg-muted/20 border-dashed border-border/80 hover:border-amber-500/40 hover:scale-[1.01]"
-                    )}
+              <div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="text-sm font-bold text-muted-foreground">Level {currentLevel}</span>
+                  <Badge
+                    variant="outline"
+                    className="border-amber-400/30 bg-amber-400/15 text-[10px] text-amber-600 dark:text-amber-400"
                   >
-                    {/* OVERLAY GEMBOK BADGE TERKUNCI */}
-                    {!badge.isUnlocked && (
-                      <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-background/60 backdrop-blur-[2px] transition-opacity group-hover:bg-background/40">
-                        <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-background/80 border border-amber-500/40 text-amber-400 shadow-lg backdrop-blur-md group-hover:scale-110 transition-transform">
-                          <Lock className="h-5 w-5" />
-                        </div>
-                        <span className="mt-1.5 text-[10px] font-bold tracking-wider uppercase text-amber-400/90 bg-amber-500/10 px-2.5 py-0.5 rounded-full border border-amber-500/20">
-                          {badge.currentCount}/{badge.targetCount} Dikumpulkan
-                        </span>
-                      </div>
-                    )}
+                    <Sparkles className="mr-1 h-3 w-3" aria-hidden /> Active Student
+                  </Badge>
+                  {myRank && (
+                    <Badge variant="outline" className="text-[10px] font-semibold">
+                      Peringkat #{myRank}
+                    </Badge>
+                  )}
+                </div>
+                <p className="text-3xl font-black tabular-nums tracking-tight text-foreground">
+                  {totalXp.toLocaleString("id-ID")}{" "}
+                  <span className="text-lg font-extrabold text-emerald-500">XP</span>
+                </p>
+              </div>
+            </div>
 
-                    {/* KONTEN BADGE */}
-                    <div className={cn("p-5 flex items-start gap-4 transition-all", !badge.isUnlocked && "filter blur-[1px] grayscale opacity-40")}>
+            <div className="w-full space-y-2 md:max-w-xs">
+              <div className="flex justify-between text-xs font-semibold">
+                <span className="text-muted-foreground">Level {currentLevel}</span>
+                <span className="text-emerald-600 dark:text-emerald-400">
+                  {xpToNextLevel} XP lagi ke Level {currentLevel + 1}
+                </span>
+              </div>
+              <Progress value={levelProgress} className="h-3 rounded-full bg-muted" aria-label="Progres level" />
+            </div>
+          </div>
+
+          {/* Target berikutnya */}
+          {nextTargets.length > 0 && (
+            <div className="space-y-2 border-t border-emerald-500/15 pt-5">
+              <p className="flex items-center gap-1.5 text-sm font-bold text-foreground">
+                <Target className="h-4 w-4 text-emerald-500" aria-hidden /> Target berikutnya
+              </p>
+              <div className="grid gap-3 sm:grid-cols-2">
+                {nextTargets.map((b) => {
+                  const theme = RARITY_THEME[b.rarity];
+                  return (
+                    <button
+                      key={b.id}
+                      type="button"
+                      onClick={() => handleOpenDetail(b)}
+                      className="flex items-center gap-3 rounded-2xl border bg-card p-3 text-left transition-colors hover:border-emerald-500/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/60"
+                    >
                       <div
                         className={cn(
-                          "relative flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl border-2 font-bold",
-                          badge.isUnlocked
-                            ? "bg-gradient-to-br from-emerald-500/20 to-emerald-500/5 border-emerald-500/40 text-emerald-400 shadow-inner"
-                            : "bg-muted border-muted-foreground/20 text-muted-foreground"
+                          "flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border",
+                          theme.iconBox
                         )}
                       >
-                        {badge.category === "Membaca Materi" ? (
-                          <BookOpen className="h-7 w-7 text-emerald-400" />
-                        ) : (
-                          <Zap className="h-7 w-7 fill-current text-emerald-400 drop-shadow-sm" />
-                        )}
+                        <CategoryIcon category={b.category} className={cn("h-5 w-5", theme.icon)} />
                       </div>
-
-                      <div className="flex-1 min-w-0 space-y-1 pt-0.5">
-                        <div className="flex items-center justify-between gap-2 pr-2">
-                          <h4 className="text-sm font-black truncate leading-snug">
-                            {badge.title}
-                          </h4>
-                          {getRarityBadge(badge.rarity)}
-                        </div>
-
-                        <p className="text-xs text-muted-foreground line-clamp-2 leading-relaxed">
-                          {badge.description}
-                        </p>
-
-                        <div className="pt-2.5 flex items-center justify-between border-t border-border/40 text-[11px]">
-                          <span className={cn("font-extrabold flex items-center gap-1", badge.isUnlocked ? "text-emerald-400" : "text-muted-foreground")}>
-                            <Zap className="h-3.5 w-3.5 fill-current" /> +{badge.xp_reward} XP
+                      <div className="min-w-0 flex-1 space-y-1.5">
+                        <div className="flex items-baseline justify-between gap-2">
+                          <span className="truncate text-sm font-bold">{b.title}</span>
+                          <span className="shrink-0 text-xs font-semibold tabular-nums text-muted-foreground">
+                            {b.currentCount}/{b.targetCount}
                           </span>
-
-                          {badge.isUnlocked && (
-                            <span className="text-[10px] font-semibold text-emerald-500/90 bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/20">
-                              Terbuka
-                            </span>
-                          )}
                         </div>
+                        <Progress value={(b.currentCount / b.targetCount) * 100} className="h-1.5" />
                       </div>
-                    </div>
-                  </Card>
-                );
-              })}
+                    </button>
+                  );
+                })}
+              </div>
             </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Tabs */}
+      <Tabs defaultValue="badges" className="space-y-5">
+        <TabsList className="bg-muted/60 p-1">
+          <TabsTrigger value="badges" className="gap-2 text-xs font-bold">
+            <Award className="h-4 w-4" aria-hidden /> Badges ({totalBadges})
+          </TabsTrigger>
+          <TabsTrigger value="leaderboard" className="gap-2 text-xs font-bold">
+            <Crown className="h-4 w-4" aria-hidden /> Leaderboard
+          </TabsTrigger>
+        </TabsList>
+
+        {/* TAB 1: BADGES */}
+        <TabsContent value="badges" className="space-y-4">
+          {/* Toolbar filter */}
+          <div className="space-y-3">
+            <div className="relative w-full sm:max-w-xs">
+              <Search
+                className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground"
+                aria-hidden
+              />
+              <Input
+                placeholder="Cari level atau badge"
+                aria-label="Cari badge"
+                value={searchQuery}
+                onChange={(e) => {
+                  setSearchQuery(e.target.value);
+                  setVisibleCount(PAGE_SIZE);
+                }}
+                className="h-10 pl-9 text-sm"
+              />
+            </div>
+
+            <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
+              <div role="group" aria-label="Filter status" className="flex gap-1.5 overflow-x-auto">
+                {(["Semua", "Terbuka", "Terkunci"] as StatusFilter[]).map((s) => (
+                  <Button
+                    key={s}
+                    type="button"
+                    size="sm"
+                    variant={statusFilter === s ? "default" : "outline"}
+                    aria-pressed={statusFilter === s}
+                    onClick={() => {
+                      setStatusFilter(s);
+                      setVisibleCount(PAGE_SIZE);
+                    }}
+                    className={cn(
+                      "h-8 shrink-0 rounded-full px-3.5 text-xs font-bold",
+                      statusFilter === s && "bg-emerald-600 text-white hover:bg-emerald-700"
+                    )}
+                  >
+                    {s}
+                    {s === "Terbuka" && <span className="ml-1.5 tabular-nums opacity-80">{unlockedCount}</span>}
+                    {s === "Terkunci" && (
+                      <span className="ml-1.5 tabular-nums opacity-80">{totalBadges - unlockedCount}</span>
+                    )}
+                  </Button>
+                ))}
+              </div>
+
+              <span className="hidden h-5 w-px bg-border sm:block" aria-hidden />
+
+              <div role="group" aria-label="Filter kategori" className="flex gap-1.5 overflow-x-auto">
+                {(["Semua", "Membaca Materi", "Ulangan Harian"] as CategoryFilter[]).map((c) => (
+                  <Button
+                    key={c}
+                    type="button"
+                    size="sm"
+                    variant={categoryFilter === c ? "secondary" : "outline"}
+                    aria-pressed={categoryFilter === c}
+                    onClick={() => {
+                      setCategoryFilter(c);
+                      setVisibleCount(PAGE_SIZE);
+                    }}
+                    className={cn(
+                      "h-8 shrink-0 rounded-full px-3.5 text-xs font-bold",
+                      categoryFilter === c && "border border-emerald-500/40 text-foreground"
+                    )}
+                  >
+                    {c}
+                  </Button>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {filteredBadges.length === 0 ? (
+            <div className="rounded-2xl border border-dashed p-10 text-center">
+              <p className="text-sm font-semibold">Badge tidak ditemukan</p>
+              <p className="mt-1 text-xs text-muted-foreground">Coba kata kunci atau filter yang lain.</p>
+              {hasActiveFilter && (
+                <Button type="button" variant="outline" size="sm" className="mt-4 rounded-xl" onClick={resetFilters}>
+                  Reset filter
+                </Button>
+              )}
+            </div>
+          ) : (
+            <>
+              <p className="text-xs text-muted-foreground" aria-live="polite">
+                Menampilkan {shownBadges.length} dari {filteredBadges.length} badge
+              </p>
+
+              <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                {shownBadges.map((badge) => {
+                  const theme = RARITY_THEME[badge.rarity];
+                  const pct = (badge.currentCount / badge.targetCount) * 100;
+
+                  return (
+                    <li key={badge.id}>
+                      <button
+                        type="button"
+                        onClick={() => handleOpenDetail(badge)}
+                        aria-label={`${badge.title}, ${badge.isUnlocked ? "terbuka" : "terkunci"}. Lihat detail`}
+                        className={cn(
+                          "flex h-full w-full flex-col gap-3 rounded-2xl border-2 p-4 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/60",
+                          badge.isUnlocked
+                            ? "border-emerald-500/40 bg-card hover:border-emerald-500/80"
+                            : "border-dashed border-border bg-muted/20 hover:border-foreground/30"
+                        )}
+                      >
+                        <div className="flex items-start gap-3">
+                          <div
+                            className={cn(
+                              "relative flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border-2",
+                              badge.isUnlocked ? theme.iconBox : "border-muted-foreground/20 bg-muted"
+                            )}
+                          >
+                            <CategoryIcon
+                              category={badge.category}
+                              className={cn("h-6 w-6", badge.isUnlocked ? theme.icon : "text-muted-foreground/60")}
+                            />
+                            {!badge.isUnlocked && (
+                              <span className="absolute -bottom-1.5 -right-1.5 flex h-5 w-5 items-center justify-center rounded-full border bg-background">
+                                <Lock className="h-3 w-3 text-muted-foreground" aria-hidden />
+                              </span>
+                            )}
+                          </div>
+
+                          <div className="min-w-0 flex-1 space-y-1">
+                            <div className="flex items-start justify-between gap-2">
+                              <h4
+                                className={cn(
+                                  "text-sm font-black leading-snug",
+                                  !badge.isUnlocked && "text-muted-foreground"
+                                )}
+                              >
+                                {badge.title}
+                              </h4>
+                              <RarityTag rarity={badge.rarity} />
+                            </div>
+                            <p className="line-clamp-2 text-xs leading-relaxed text-muted-foreground">
+                              {badge.description}
+                            </p>
+                          </div>
+                        </div>
+
+                        <div className="mt-auto space-y-2">
+                          {!badge.isUnlocked && (
+                            <div className="space-y-1">
+                              <div className="flex justify-between text-[11px] font-medium text-muted-foreground">
+                                <span>Progres</span>
+                                <span className="tabular-nums">
+                                  {badge.currentCount}/{badge.targetCount}
+                                </span>
+                              </div>
+                              <div className="h-1.5 overflow-hidden rounded-full bg-muted">
+                                <div
+                                  className={cn("h-full rounded-full", theme.bar)}
+                                  style={{ width: `${pct}%` }}
+                                />
+                              </div>
+                            </div>
+                          )}
+
+                          <div className="flex items-center justify-between border-t border-border/50 pt-2 text-[11px]">
+                            <span
+                              className={cn(
+                                "flex items-center gap-1 font-extrabold",
+                                badge.isUnlocked ? "text-emerald-600 dark:text-emerald-400" : "text-muted-foreground"
+                              )}
+                            >
+                              <Zap className="h-3.5 w-3.5 fill-current" aria-hidden /> +{badge.xp_reward} XP
+                            </span>
+                            {badge.isUnlocked && (
+                              <span className="flex items-center gap-1 rounded-full border border-emerald-500/20 bg-emerald-500/10 px-2 py-0.5 text-[10px] font-semibold text-emerald-600 dark:text-emerald-400">
+                                <CheckCircle2 className="h-3 w-3" aria-hidden /> Terbuka
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      </button>
+                    </li>
+                  );
+                })}
+              </ul>
+
+              {shownBadges.length < filteredBadges.length && (
+                <div className="flex justify-center pt-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => setVisibleCount((c) => c + PAGE_SIZE)}
+                    className="gap-1.5 rounded-xl text-xs font-bold"
+                  >
+                    Tampilkan lebih banyak <ChevronDown className="h-4 w-4" aria-hidden />
+                  </Button>
+                </div>
+              )}
+            </>
           )}
         </TabsContent>
 
-        {/* TAB 2: LEADERBOARD SISWA */}
+        {/* TAB 2: LEADERBOARD */}
         <TabsContent value="leaderboard">
           <Card className="border shadow-sm">
-            <CardContent className="p-4 sm:p-6 space-y-3">
-              <div className="flex items-center justify-between pb-3 border-b">
+            <CardContent className="space-y-5 p-4 sm:p-6">
+              <div className="flex items-center justify-between border-b pb-3">
                 <div className="flex items-center gap-2">
-                  <Medal className="h-5 w-5 text-amber-400" />
+                  <Medal className="h-5 w-5 text-amber-500" aria-hidden />
                   <CardTitle className="text-base font-bold">Peringkat 10 Besar Siswa</CardTitle>
                 </div>
-                <Badge variant="outline" className="text-[10px] font-semibold">Real-Time XP</Badge>
+                <Badge variant="outline" className="text-[10px] font-semibold">
+                  Real-Time XP
+                </Badge>
               </div>
 
               {leaderboard.length === 0 ? (
-                <div className="p-8 text-center text-xs text-muted-foreground">
+                <div className="p-8 text-center text-sm text-muted-foreground">
                   Belum ada data peringkat siswa.
                 </div>
               ) : (
-                <div className="space-y-2 pt-1">
-                  {leaderboard.map((item) => (
-                    <div
-                      key={item.id}
-                      className={cn(
-                        "flex items-center justify-between p-3 rounded-xl border transition-colors",
-                        item.is_current_user
-                          ? "bg-emerald-500/10 border-emerald-500/40 font-bold"
-                          : "bg-card hover:bg-muted/30 border-border"
-                      )}
-                    >
-                      <div className="flex items-center gap-3 min-w-0">
-                        <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg font-black text-xs">
-                          {item.rank === 1 && <span className="text-amber-400 text-sm">🥇</span>}
-                          {item.rank === 2 && <span className="text-slate-300 text-sm">🥈</span>}
-                          {item.rank === 3 && <span className="text-amber-600 text-sm">🥉</span>}
-                          {item.rank > 3 && <span className="text-muted-foreground">#{item.rank}</span>}
-                        </div>
-
-                        <Avatar className="h-9 w-9 border shrink-0">
-                          <AvatarFallback className="bg-primary/10 text-primary text-xs font-bold">
-                            {initials(item.full_name)}
-                          </AvatarFallback>
-                        </Avatar>
-
-                        <div className="min-w-0">
-                          <p className="text-sm font-bold truncate leading-none">
-                            {item.full_name} {item.is_current_user && <span className="text-[10px] text-emerald-400 font-normal ml-1">(Anda)</span>}
-                          </p>
-                        </div>
-                      </div>
-
-                      <div className="text-right shrink-0 pl-2">
-                        <span className="text-xs font-black text-emerald-400">
-                          {item.total_xp} XP
-                        </span>
-                      </div>
+                <>
+                  {/* Podium 3 teratas */}
+                  {podiumOrder.length === 3 && (
+                    <div className="grid grid-cols-3 items-end gap-2 sm:gap-4">
+                      {podiumOrder.map((item) => {
+                        const s = podiumStyle[item.rank];
+                        return (
+                          <div key={item.id} className="flex flex-col items-center gap-2 text-center">
+                            <span className="text-2xl" aria-hidden>
+                              {s.medal}
+                            </span>
+                            <Avatar
+                              className={cn(
+                                "border-2",
+                                item.rank === 1 ? "h-14 w-14" : "h-11 w-11",
+                                item.is_current_user && "ring-2 ring-emerald-500"
+                              )}
+                            >
+                              <AvatarFallback className="bg-primary/10 text-xs font-bold text-primary">
+                                {initials(item.full_name)}
+                              </AvatarFallback>
+                            </Avatar>
+                            <div className="w-full min-w-0">
+                              <p className="truncate text-xs font-bold sm:text-sm">
+                                {item.full_name}
+                                {item.is_current_user && (
+                                  <span className="ml-1 text-[10px] font-normal text-emerald-500">(Anda)</span>
+                                )}
+                              </p>
+                              <p className="text-xs font-black tabular-nums text-emerald-600 dark:text-emerald-400">
+                                {item.total_xp.toLocaleString("id-ID")} XP
+                              </p>
+                            </div>
+                            <div
+                              className={cn(
+                                "flex w-full items-start justify-center rounded-t-xl border pt-2 text-sm font-black text-muted-foreground",
+                                s.height,
+                                s.ring
+                              )}
+                              aria-label={`Peringkat ${item.rank}`}
+                            >
+                              #{item.rank}
+                            </div>
+                          </div>
+                        );
+                      })}
                     </div>
-                  ))}
-                </div>
+                  )}
+
+                  {/* Peringkat lainnya */}
+                  {restOfBoard.length > 0 && (
+                    <ol className="space-y-2">
+                      {restOfBoard.map((item) => (
+                        <li
+                          key={item.id}
+                          className={cn(
+                            "flex items-center justify-between rounded-xl border p-3 transition-colors",
+                            item.is_current_user
+                              ? "border-emerald-500/40 bg-emerald-500/10"
+                              : "border-border bg-card hover:bg-muted/30"
+                          )}
+                        >
+                          <div className="flex min-w-0 items-center gap-3">
+                            <span className="w-8 shrink-0 text-center text-xs font-black text-muted-foreground">
+                              #{item.rank}
+                            </span>
+                            <Avatar className="h-9 w-9 shrink-0 border">
+                              <AvatarFallback className="bg-primary/10 text-xs font-bold text-primary">
+                                {initials(item.full_name)}
+                              </AvatarFallback>
+                            </Avatar>
+                            <p className="truncate text-sm font-bold">
+                              {item.full_name}
+                              {item.is_current_user && (
+                                <span className="ml-1.5 text-[10px] font-normal text-emerald-500">(Anda)</span>
+                              )}
+                            </p>
+                          </div>
+                          <span className="shrink-0 pl-2 text-xs font-black tabular-nums text-emerald-600 dark:text-emerald-400">
+                            {item.total_xp.toLocaleString("id-ID")} XP
+                          </span>
+                        </li>
+                      ))}
+                    </ol>
+                  )}
+                </>
               )}
             </CardContent>
           </Card>
         </TabsContent>
       </Tabs>
 
-      {/* MODAL DIALOG DETAIL BADGE DENGAN PROGRESS BAR */}
+      {/* MODAL DETAIL BADGE */}
       <Dialog open={detailOpen} onOpenChange={setDetailOpen}>
         {selectedBadge && (
-          <DialogContent className="sm:max-w-md border-2 border-emerald-500/30">
+          <DialogContent className="border-2 border-emerald-500/30 sm:max-w-md">
             <DialogHeader className="items-center text-center">
               <div
                 className={cn(
-                  "flex h-20 w-20 items-center justify-center rounded-3xl border-2 mb-2 shadow-lg",
+                  "mb-2 flex h-20 w-20 items-center justify-center rounded-3xl border-2 shadow-lg",
                   selectedBadge.isUnlocked
-                    ? "bg-gradient-to-br from-emerald-500/20 to-emerald-500/5 border-emerald-500/50 text-emerald-400 shadow-emerald-500/10"
-                    : "bg-muted border-amber-500/30 text-amber-400"
+                    ? RARITY_THEME[selectedBadge.rarity].iconBox
+                    : "border-border bg-muted"
                 )}
               >
                 {selectedBadge.isUnlocked ? (
-                  <CheckCircle2 className="h-10 w-10 text-emerald-400" />
+                  <CheckCircle2 className="h-10 w-10 text-emerald-500" aria-hidden />
                 ) : (
-                  <Lock className="h-10 w-10 text-amber-400" />
+                  <Lock className="h-10 w-10 text-muted-foreground" aria-hidden />
                 )}
               </div>
 
-              <div className="flex items-center gap-2 mb-1">
-                {getRarityBadge(selectedBadge.rarity)}
-                <span className="text-[11px] font-bold text-emerald-400 flex items-center gap-1">
-                  <Zap className="h-3.5 w-3.5 fill-current" /> +{selectedBadge.xp_reward} XP
+              <div className="mb-1 flex items-center gap-2">
+                <RarityTag rarity={selectedBadge.rarity} />
+                <span className="flex items-center gap-1 text-[11px] font-bold text-emerald-600 dark:text-emerald-400">
+                  <Zap className="h-3.5 w-3.5 fill-current" aria-hidden /> +{selectedBadge.xp_reward} XP
                 </span>
               </div>
 
-              <DialogTitle className="text-xl font-black text-foreground">
-                {selectedBadge.title}
-              </DialogTitle>
-              <DialogDescription className="text-xs text-muted-foreground pt-1">
+              <DialogTitle className="text-xl font-black text-foreground">{selectedBadge.title}</DialogTitle>
+              <DialogDescription className="pt-1 text-sm text-muted-foreground">
                 {selectedBadge.description}
               </DialogDescription>
             </DialogHeader>
 
-            {/* PROGRESS BAR DI DALAM MODAL DETAIL */}
-            <div className="space-y-3 py-3 border-y my-2 text-xs">
-              <div className="rounded-xl border bg-muted/30 p-3 space-y-2">
-                <div className="flex justify-between items-center text-xs font-bold">
-                  <span className="text-foreground flex items-center gap-1.5">
-                    <HelpCircle className="h-4 w-4 text-emerald-400" /> Progres Kemajuan:
+            <div className="my-2 space-y-3 border-y py-3 text-xs">
+              <div className="space-y-2 rounded-xl border bg-muted/30 p-3">
+                <div className="flex items-center justify-between text-xs font-bold">
+                  <span className="flex items-center gap-1.5 text-foreground">
+                    <HelpCircle className="h-4 w-4 text-emerald-500" aria-hidden /> Progres
                   </span>
-                  <span className="text-emerald-400 font-mono">
+                  <span className="tabular-nums text-emerald-600 dark:text-emerald-400">
                     {selectedBadge.currentCount} / {selectedBadge.targetCount}
                   </span>
                 </div>
 
-                <Progress 
-                  value={(selectedBadge.currentCount / selectedBadge.targetCount) * 100} 
+                <Progress
+                  value={(selectedBadge.currentCount / selectedBadge.targetCount) * 100}
                   className="h-2.5 rounded-full"
                 />
 
                 {!selectedBadge.isUnlocked && (
-                  <p className="text-[11px] text-amber-400/90 font-medium pt-0.5">
-                    💡 Perlu {selectedBadge.targetCount - selectedBadge.currentCount} aktivitas lagi untuk membuka badge ini!
+                  <p className="pt-0.5 text-[11px] font-medium text-amber-600 dark:text-amber-400">
+                    Tinggal {selectedBadge.targetCount - selectedBadge.currentCount} aktivitas lagi untuk membuka
+                    badge ini.
                   </p>
                 )}
               </div>
 
-              <div className="flex items-center justify-between text-[11px] px-1">
-                <span className="text-muted-foreground font-semibold">Kategori Badges:</span>
+              <div className="flex items-center justify-between px-1 text-[11px]">
+                <span className="font-semibold text-muted-foreground">Kategori</span>
                 <span className="font-bold text-foreground">{selectedBadge.category}</span>
               </div>
             </div>
 
-            <DialogFooter className="sm:justify-between gap-2">
+            <DialogFooter className="gap-2 sm:justify-between">
               <Button
                 variant="outline"
                 size="sm"
                 onClick={() => setDetailOpen(false)}
-                className="w-full sm:w-auto text-xs"
+                className="w-full text-xs sm:w-auto"
               >
                 Tutup
               </Button>
@@ -536,11 +841,12 @@ export default function StudentAchievementsPage() {
                   size="sm"
                   onClick={() => {
                     setDetailOpen(false);
-                    window.location.href = selectedBadge.category === "Membaca Materi" ? "/dashboard/courses" : "/dashboard/exams";
+                    navigate(selectedBadge.category === "Membaca Materi" ? "/dashboard/courses" : "/dashboard/exams");
                   }}
-                  className="w-full sm:w-auto text-xs font-bold gap-1 bg-emerald-600 hover:bg-emerald-700"
+                  className="w-full gap-1 bg-emerald-600 text-xs font-bold hover:bg-emerald-700 sm:w-auto"
                 >
-                  {selectedBadge.category === "Membaca Materi" ? "Baca Materi Sekarang" : "Kerjakan Ujian Sekarang"} <ArrowRight className="h-3.5 w-3.5" />
+                  {selectedBadge.category === "Membaca Materi" ? "Baca Materi Sekarang" : "Kerjakan Ujian Sekarang"}{" "}
+                  <ArrowRight className="h-3.5 w-3.5" aria-hidden />
                 </Button>
               )}
             </DialogFooter>
