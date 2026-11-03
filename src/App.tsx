@@ -2,7 +2,8 @@ import { createContext, useContext, Component, type ReactNode } from "react";
 import { BrowserRouter } from "react-router-dom";
 import { AppRoutes } from "@/routes";
 import { Toaster } from "sonner";
-import { ThemeProvider } from "@/utils/theme-provider";
+// IMPOR DARI FILE useTheme.tsx KAMU (sesuaikan lokasi folder-nya, misal: @/context/useTheme)
+import { ThemeProvider } from "@/context/useTheme"; 
 
 // Fallback Provider agar tidak crash meskipun impor path Provider spesifik berbeda
 const GuestGateContext = createContext<{ requireLogin: (activity?: string) => void }>({
@@ -70,7 +71,8 @@ class SafeErrorBoundary extends Component<Props, State> {
 export function App() {
   return (
     <SafeErrorBoundary>
-      <ThemeProvider defaultTheme="dark" storageKey="gradeup-ui-theme">
+      {/* Cukup bungkus dengan ThemeProvider tanpa menambahkan prop tambahan */}
+      <ThemeProvider>
         <AppGuestGateProvider>
           <BrowserRouter>
             <AppRoutes />
