@@ -134,7 +134,7 @@ export default function StudentExamsPage() {
 
   // State Profile Siswa & Level GAMIFIKASI
   const [studentName, setStudentName] = useState("Andi Pratama");
-  const [userClass, setUserClass] = useState("Kelas 6 SD");
+  const [userClass] = useState("Kelas 6 SD");
   const [level, setLevel] = useState(5);
   const [currentXp, setCurrentXp] = useState(750);
   const [maxXp] = useState(1000);
@@ -599,7 +599,7 @@ export default function StudentExamsPage() {
                               <Button
                                 size="sm"
                                 disabled
-                                variant="secondary"
+                                variant="outline"
                                 className="h-10 w-full gap-1.5 rounded-xl px-5 text-xs font-bold sm:w-auto sm:min-w-[130px]"
                               >
                                 {isDone ? (
