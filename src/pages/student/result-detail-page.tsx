@@ -1,51 +1,110 @@
-import { useEffect, useState } from "react";
-import { Link, useNavigate, useParams } from "react-router-dom";
+
+import { useCallback, useEffect, useState } from "react";
+import { Link, useParams } from "react-router-dom";
 import { Cell, Pie, PieChart, ResponsiveContainer } from "recharts";
-import { ArrowLeft, CheckCircle2, Clock, MessageSquareText, MinusCircle, XCircle } from "lucide-react";
+import {
+  ArrowLeft,
+  CheckCircle2,
+  Clock,
+  MessageSquareText,
+  MinusCircle,
+  XCircle,
+} from "lucide-react";
+
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { EmptyState, ErrorState, PageSkeleton } from "@/components/shared/states";
+import {
+  EmptyState,
+  ErrorState,
+  PageSkeleton,
+} from "@/components/shared/states";
 import { formatDate } from "@/utils/format";
 import { CHART_COLORS } from "@/constants";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/lib/supabase";
-// IMPORT SERVICE PENCAPAIAN (LANGKAH 2)
-import { checkAndUnlockAchievements } from "@/services/achievement.service";
+
+interface QuestionOption {
+  id: string;
+  text: string;
+}
 
 interface QuestionItem {
   id: string;
   text: string;
-  options: string[];
+  options: QuestionOption[];
   correctIndex: number;
   explanation: string;
 }
 
 interface ResultData {
   id: string;
-  examId: string;
   examTitle: string;
   date: string;
   score: number;
   correct: number;
   incorrect: number;
   unanswered: number;
-  durationUsed: number;
+  totalQuestions: number;
+  durationUsed: number | null;
   passed: boolean;
-  userAnswers: Record<string, number>;
+  userAnswers: Record<string, number | null>;
 }
+
+const getCorrectIndex = (answer: unknown): number => {
+  if (typeof answer === "number" && Number.isInteger(answer)) {
+    return answer;
+  }
+
+  const value = String(answer ?? "").trim().toUpperCase();
+
+  if (/^[A-Z]$/.test(value)) {
+    return value.charCodeAt(0) - 65;
+  }
+
+  const numericValue = Number(value);
+  return Number.isInteger(numericValue) ? numericValue : -1;
+};
+
+const parseOptions = (value: unknown): QuestionOption[] => {
+  let parsed = value;
+
+  if (typeof parsed === "string") {
+    try {
+      parsed = JSON.parse(parsed);
+    } catch {
+      return [];
+    }
+  }
+
+  if (!Array.isArray(parsed)) return [];
+
+  return parsed.map((option, index) => {
+    if (typeof option === "object" && option !== null) {
+      const item = option as Record<string, unknown>;
+
+      return {
+        id: String(item.id ?? String.fromCharCode(65 + index)),
+        text: String(item.text ?? ""),
+      };
+    }
+
+    return {
+      id: String.fromCharCode(65 + index),
+      text: String(option ?? ""),
+    };
+  });
+};
 
 export default function ResultDetailPage() {
   const { resultId } = useParams<{ resultId: string }>();
-  const navigate = useNavigate();
 
   const [result, setResult] = useState<ResultData | null>(null);
   const [questions, setQuestions] = useState<QuestionItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     if (!resultId) {
       setError("ID hasil ujian tidak ditemukan.");
       setLoading(false);
@@ -56,331 +115,519 @@ export default function ResultDetailPage() {
     setError(null);
 
     try {
-      // 1. Fetch Attempt Record
-      const { data: attempt, error: errAttempt } = await supabase
+      // 1. Pastikan pengguna sudah login.
+      const {
+        data: { user },
+        error: authError,
+      } = await supabase.auth.getUser();
+
+      if (authError) throw authError;
+      if (!user) throw new Error("Silakan login untuk melihat hasil ujian.");
+
+      // 2. Ambil hasil ujian milik pengguna yang sedang login.
+      const { data: attempt, error: attemptError } = await supabase
         .from("exam_attempts")
-        .select("*")
+        .select(
+          "id, user_id, exam_id, score, answers, status, created_at, correct_count, wrong_count, total_questions, is_passed"
+        )
         .eq("id", resultId)
+        .eq("user_id", user.id)
         .maybeSingle();
 
-      if (errAttempt) throw new Error(errAttempt.message);
-      if (!attempt) throw new Error("Data hasil ujian tidak ditemukan.");
+      if (attemptError) throw attemptError;
+      if (!attempt) {
+        throw new Error("Data hasil ujian tidak ditemukan atau tidak dapat diakses.");
+      }
 
-      const examId = attempt.exam_package_id || attempt.exam_id;
+      const examId = attempt.exam_id;
 
-      // 2. Fetch Exam Package Title & Passing Score
+      // 3. Ambil informasi paket ujian.
       let examTitle = "Paket Ujian";
-      let passingScore = 60;
+      let passingScore = 70;
 
       if (examId) {
-        const { data: pkg } = await supabase
+        const { data: examPackage, error: packageError } = await supabase
           .from("exam_packages")
           .select("title, passing_score")
           .eq("id", examId)
           .maybeSingle();
 
-        if (pkg) {
-          examTitle = pkg.title || examTitle;
-          passingScore = pkg.passing_score ?? 60;
+        if (packageError) throw packageError;
+
+        if (examPackage) {
+          examTitle = examPackage.title || examTitle;
+          passingScore = Number(examPackage.passing_score ?? 70);
         }
       }
 
-      // 3. Fetch Questions
-      let qList: QuestionItem[] = [];
-      if (examId) {
-        const { data: qData } = await supabase
+      // 4. Baca jawaban siswa.
+      const rawAnswers =
+        attempt.answers && typeof attempt.answers === "object"
+          ? (attempt.answers as Record<string, unknown>)
+          : {};
+
+      const userAnswers: Record<string, number | null> = {};
+
+      Object.entries(rawAnswers).forEach(([questionId, answer]) => {
+        const numericAnswer = Number(answer);
+
+        userAnswers[questionId] =
+          answer === null || answer === undefined || !Number.isInteger(numericAnswer)
+            ? null
+            : numericAnswer;
+      });
+
+      // 5. Ambil soal berdasarkan ID yang tersimpan pada jawaban.
+      // CBT saat ini menyimpan questionId sebagai key pada answers.
+      const questionIds = Object.keys(userAnswers);
+
+      let questionList: QuestionItem[] = [];
+
+      if (questionIds.length > 0) {
+        const { data: questionData, error: questionError } = await supabase
           .from("questions")
-          .select("*")
-          .eq("exam_package_id", examId);
+          .select("id, question_text, options, correct_answer, explanation")
+          .in("id", questionIds);
 
-        if (qData) {
-          qList = qData.map((q: any) => {
-            let rawText = q.question_text || q.text || "Pertanyaan";
-            if (typeof rawText === "object" && rawText !== null) {
-              rawText = rawText.text || rawText.question || JSON.stringify(rawText);
-            }
+        if (questionError) throw questionError;
 
-            let rawExp = q.explanation || "Belum ada pembahasan.";
-            if (typeof rawExp === "object" && rawExp !== null) {
-              rawExp = rawExp.text || JSON.stringify(rawExp);
-            }
+        questionList = (questionData ?? []).map((question) => ({
+          id: String(question.id),
+          text: String(question.question_text ?? "Pertanyaan tidak tersedia"),
+          options: parseOptions(question.options),
+          correctIndex: getCorrectIndex(question.correct_answer),
+          explanation: String(
+            question.explanation ?? "Belum ada pembahasan untuk soal ini."
+          ),
+        }));
 
-            let opts: string[] = [];
-            if (Array.isArray(q.options)) {
-              opts = q.options.map((o: any) => (typeof o === "object" ? o.text || String(o) : String(o)));
-            } else if (typeof q.options === "string") {
-              try {
-                const parsed = JSON.parse(q.options);
-                opts = Array.isArray(parsed)
-                  ? parsed.map((o: any) => (typeof o === "object" ? o.text || String(o) : String(o)))
-                  : [];
-              } catch {
-                opts = [];
-              }
-            }
+        // Susun kembali sesuai urutan ID pada answers.
+        const questionMap = new Map(
+          questionList.map((question) => [question.id, question])
+        );
 
-            return {
-              id: String(q.id),
-              text: String(rawText),
-              options: opts,
-              correctIndex: Number(q.correct_answer ?? q.correctIndex) || 0,
-              explanation: String(rawExp),
-            };
-          });
+        questionList = questionIds
+          .map((id) => questionMap.get(id))
+          .filter((question): question is QuestionItem => Boolean(question));
+      }
+
+      setQuestions(questionList);
+
+      // 6. Hitung statistik berdasarkan data yang tersedia.
+      const totalQuestions = Math.max(
+        0,
+        Number(attempt.total_questions ?? questionList.length)
+      );
+
+      let correct = 0;
+
+      questionList.forEach((question) => {
+        const selectedIndex = userAnswers[question.id];
+
+        if (
+          selectedIndex !== null &&
+          selectedIndex !== undefined &&
+          selectedIndex === question.correctIndex
+        ) {
+          correct++;
         }
-      }
+      });
 
-      setQuestions(qList);
+      const answeredCount = Object.values(userAnswers).filter(
+        (answer) => answer !== null && answer !== undefined
+      ).length;
 
-      const totalQ = qList.length || Number(attempt.total_questions) || 0;
-      const correct = Number(attempt.correct_count) || 0;
-      const incorrect = Number(attempt.incorrect_count) || 0;
-      const unanswered = Math.max(0, totalQ - (correct + incorrect));
-      const score = Number(attempt.score) || 0;
-
-      let userAnswers: Record<string, number> = {};
-      if (attempt.answers && typeof attempt.answers === "object") {
-        userAnswers = attempt.answers;
-      }
+      const incorrect = Math.max(0, answeredCount - correct);
+      const unanswered = Math.max(0, totalQuestions - answeredCount);
+      const score = Number(attempt.score ?? 0);
 
       setResult({
         id: String(attempt.id),
-        examId: examId ? String(examId) : "",
         examTitle,
-        date: attempt.created_at || new Date().toISOString(),
+        date: attempt.created_at ?? new Date().toISOString(),
         score,
         correct,
         incorrect,
         unanswered,
-        durationUsed: Math.ceil((Number(attempt.duration_seconds) || 0) / 60),
-        passed: score >= passingScore,
+        totalQuestions,
+        durationUsed: null,
+        passed:
+          typeof attempt.is_passed === "boolean"
+            ? attempt.is_passed
+            : score >= passingScore,
         userAnswers,
       });
+    } catch (err) {
+      console.error("Fetch result detail error:", err);
 
-      // PEMICU AUTOMATIS BADGE UNLOCK (LANGKAH 2)
-      if (attempt.user_id) {
-        checkAndUnlockAchievements(attempt.user_id);
-      }
-    } catch (err: any) {
-      setError(err.message || "Gagal memuat rincian hasil.");
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Gagal memuat rincian hasil ujian."
+      );
     } finally {
       setLoading(false);
     }
-  };
+  }, [resultId]);
 
   useEffect(() => {
     fetchData();
-  }, [resultId]);
+  }, [fetchData]);
 
   if (loading) return <PageSkeleton />;
+
   if (error || !result) {
-    return <ErrorState message={error || "Hasil tidak ditemukan"} onRetry={fetchData} />;
+    return (
+      <ErrorState
+        message={error || "Hasil ujian tidak ditemukan."}
+        onRetry={fetchData}
+      />
+    );
   }
 
   const secondaryColor = CHART_COLORS?.secondary || "#10b981";
   const dangerColor = CHART_COLORS?.danger || "#ef4444";
   const mutedColor = CHART_COLORS?.muted || "#6b7280";
 
-  const rawPie = [
+  const pieData = [
     { name: "Benar", value: result.correct, color: secondaryColor },
     { name: "Salah", value: result.incorrect, color: dangerColor },
     { name: "Kosong", value: result.unanswered, color: mutedColor },
-  ].filter((d) => d.value > 0);
+  ].filter((item) => item.value > 0);
 
-  const pieData = rawPie.length > 0 ? rawPie : [{ name: "Kosong", value: 1, color: mutedColor }];
+  const chartData =
+    pieData.length > 0
+      ? pieData
+      : [{ name: "Belum tersedia", value: 1, color: mutedColor }];
 
   return (
-    <div className="space-y-6">
+    <div className="mx-auto w-full max-w-7xl space-y-6 pb-8">
       <Link
         to="/dashboard/results"
-        className="inline-flex items-center gap-1.5 text-sm font-semibold text-muted-foreground hover:text-foreground"
+        className="inline-flex items-center gap-2 text-sm font-semibold text-muted-foreground transition-colors hover:text-primary"
       >
-        <ArrowLeft className="h-4 w-4" /> Kembali ke Hasil Belajar
+        <ArrowLeft className="h-4 w-4" />
+        Kembali ke Hasil Belajar
       </Link>
 
       <div className="grid gap-6 lg:grid-cols-3">
-        {/* Ringkasan Skor */}
-        <Card className="lg:col-span-1">
-          <CardContent className="flex flex-col items-center p-6 pt-6 text-center">
+        {/* RINGKASAN HASIL */}
+        <Card className="h-fit overflow-hidden border-border/70 shadow-sm lg:sticky lg:top-6">
+          <div className="h-1.5 bg-gradient-to-r from-emerald-600 to-emerald-400" />
+
+          <CardContent className="flex flex-col items-center p-6 text-center">
             <div className="relative h-48 w-48">
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
                   <Pie
-                    data={pieData}
+                    data={chartData}
                     dataKey="value"
-                    innerRadius={62}
-                    outerRadius={84}
+                    innerRadius={65}
+                    outerRadius={88}
                     paddingAngle={3}
                     stroke="none"
                     startAngle={90}
                     endAngle={-270}
                   >
-                    {pieData.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={entry.color} />
+                    {chartData.map((entry, index) => (
+                      <Cell
+                        key={`result-chart-${index}`}
+                        fill={entry.color}
+                      />
                     ))}
                   </Pie>
                 </PieChart>
               </ResponsiveContainer>
+
               <div className="absolute inset-0 flex flex-col items-center justify-center">
-                <span className="text-4xl font-extrabold">{result.score}</span>
-                <span className="text-xs text-muted-foreground">dari 100</span>
+                <span className="text-4xl font-black tracking-tight">
+                  {result.score}
+                </span>
+                <span className="text-xs font-medium text-muted-foreground">
+                  dari 100
+                </span>
               </div>
             </div>
-            <h1 className="mt-4 text-lg font-extrabold leading-snug">{result.examTitle}</h1>
-            <p className="mt-1 text-sm text-muted-foreground">{formatDate(result.date)}</p>
-            <div className="mt-3">
+
+            <h1 className="mt-3 text-lg font-extrabold leading-snug">
+              {result.examTitle}
+            </h1>
+
+            <p className="mt-1 text-sm text-muted-foreground">
+              {formatDate(result.date)}
+            </p>
+
+            <div className="mt-4">
               {result.passed ? (
-                <Badge variant="success">Lulus</Badge>
+                <Badge className="border-emerald-500/20 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400">
+                  <CheckCircle2 className="mr-1 h-3.5 w-3.5" />
+                  Lulus
+                </Badge>
               ) : (
-                <Badge variant="danger">Belum lulus</Badge>
+                <Badge variant="destructive">Belum lulus</Badge>
               )}
             </div>
-            <dl className="mt-6 grid w-full grid-cols-3 gap-2 text-center">
-              <div className="rounded-xl bg-emerald-50 p-3 dark:bg-emerald-500/10">
-                <dt className="text-xs text-muted-foreground">Benar</dt>
-                <dd className="text-lg font-extrabold text-emerald-600 dark:text-emerald-400">
+
+            <div className="mt-6 grid w-full grid-cols-3 gap-2">
+              <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-3">
+                <p className="text-xs font-medium text-muted-foreground">
+                  Benar
+                </p>
+                <p className="mt-1 text-xl font-extrabold text-emerald-600 dark:text-emerald-400">
                   {result.correct}
-                </dd>
+                </p>
               </div>
-              <div className="rounded-xl bg-red-50 p-3 dark:bg-red-500/10">
-                <dt className="text-xs text-muted-foreground">Salah</dt>
-                <dd className="text-lg font-extrabold text-red-500">{result.incorrect}</dd>
+
+              <div className="rounded-xl border border-red-500/20 bg-red-500/5 p-3">
+                <p className="text-xs font-medium text-muted-foreground">
+                  Salah
+                </p>
+                <p className="mt-1 text-xl font-extrabold text-red-600 dark:text-red-400">
+                  {result.incorrect}
+                </p>
               </div>
-              <div className="rounded-xl bg-muted p-3">
-                <dt className="text-xs text-muted-foreground">Kosong</dt>
-                <dd className="text-lg font-extrabold">{result.unanswered}</dd>
+
+              <div className="rounded-xl border border-border bg-muted/40 p-3">
+                <p className="text-xs font-medium text-muted-foreground">
+                  Kosong
+                </p>
+                <p className="mt-1 text-xl font-extrabold">
+                  {result.unanswered}
+                </p>
               </div>
-            </dl>
-            <p className="mt-4 inline-flex items-center gap-1.5 text-xs text-muted-foreground">
-              <Clock className="h-3.5 w-3.5" /> Waktu terpakai {result.durationUsed} menit
-            </p>
+            </div>
+
+            <div className="mt-5 flex w-full items-center justify-center gap-2 rounded-xl bg-muted/40 px-3 py-3 text-xs text-muted-foreground">
+              <Clock className="h-4 w-4 shrink-0" />
+              Durasi pengerjaan belum tercatat
+            </div>
+
+            <div className="mt-4 w-full space-y-1 text-left">
+              <div className="flex justify-between text-xs text-muted-foreground">
+                <span>Total soal</span>
+                <span className="font-bold text-foreground">
+                  {result.totalQuestions}
+                </span>
+              </div>
+              <div className="flex justify-between text-xs text-muted-foreground">
+                <span>Sudah dijawab</span>
+                <span className="font-bold text-foreground">
+                  {result.correct + result.incorrect}
+                </span>
+              </div>
+            </div>
           </CardContent>
         </Card>
 
-        {/* Tab Tinjauan Jawaban & Pembahasan */}
-        <div className="space-y-4 lg:col-span-2">
-          <Tabs defaultValue="review">
-            <TabsList>
-              <TabsTrigger value="review">Tinjauan Jawaban</TabsTrigger>
+        {/* TINJAUAN DAN PEMBAHASAN */}
+        <div className="min-w-0 space-y-4 lg:col-span-2">
+          <div>
+            <h2 className="text-xl font-extrabold tracking-tight">
+              Evaluasi Ujian
+            </h2>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Pelajari jawaban dan pembahasan untuk meningkatkan pemahamanmu.
+            </p>
+          </div>
+
+          <Tabs defaultValue="review" className="w-full">
+            <TabsList className="grid h-11 w-full grid-cols-2">
+              <TabsTrigger value="review">
+                Tinjauan Jawaban
+              </TabsTrigger>
               <TabsTrigger value="discussion">
-                <MessageSquareText className="h-4 w-4 mr-1 inline" /> Pembahasan
+                <MessageSquareText className="mr-1.5 h-4 w-4" />
+                Pembahasan
               </TabsTrigger>
             </TabsList>
 
-            <TabsContent value="review" className="space-y-4">
-              {questions.length === 0 && <EmptyState title="Tinjauan soal belum tersedia" />}
-              {questions.map((q, i) => {
-                const chosen = result.userAnswers[q.id] ?? null;
-                const status =
-                  chosen === null ? "blank" : chosen === q.correctIndex ? "correct" : "wrong";
+            {/* TAB TINJAUAN */}
+            <TabsContent value="review" className="mt-4 space-y-4">
+              {questions.length === 0 ? (
+                <EmptyState
+                  title="Tinjauan soal belum tersedia"
+                  description="ID soal tidak ditemukan dalam data jawaban ujian ini."
+                />
+              ) : (
+                questions.map((question, index) => {
+                  const chosen = result.userAnswers[question.id] ?? null;
 
-                return (
-                  <Card key={q.id || i}>
-                    <CardHeader className="flex-row items-start gap-3 space-y-0">
-                      <span
-                        className={cn(
-                          "flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-sm font-extrabold",
-                          status === "correct"
-                            ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300"
-                            : status === "wrong"
-                            ? "bg-red-100 text-red-700 dark:bg-red-500/15 dark:text-red-300"
-                            : "bg-muted text-muted-foreground"
+                  const isAnswered =
+                    chosen !== null && chosen !== undefined;
+
+                  const isCorrect =
+                    isAnswered && chosen === question.correctIndex;
+
+                  const status = !isAnswered
+                    ? "blank"
+                    : isCorrect
+                      ? "correct"
+                      : "wrong";
+
+                  return (
+                    <Card
+                      key={question.id}
+                      className="overflow-hidden border-border/70 shadow-sm"
+                    >
+                      <CardHeader className="flex-row items-start gap-3 space-y-0 pb-3">
+                        <span
+                          className={cn(
+                            "flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-sm font-extrabold",
+                            status === "correct" &&
+                              "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400",
+                            status === "wrong" &&
+                              "bg-red-500/10 text-red-600 dark:text-red-400",
+                            status === "blank" &&
+                              "bg-muted text-muted-foreground"
+                          )}
+                        >
+                          {index + 1}
+                        </span>
+
+                        <div className="min-w-0 flex-1">
+                          <CardTitle className="text-sm font-bold leading-relaxed">
+                            {question.text}
+                          </CardTitle>
+
+                          <p className="mt-1 text-xs text-muted-foreground">
+                            {status === "correct"
+                              ? "Jawaban benar"
+                              : status === "wrong"
+                                ? "Jawaban belum tepat"
+                                : "Tidak dijawab"}
+                          </p>
+                        </div>
+                      </CardHeader>
+
+                      <CardContent className="space-y-2">
+                        {question.options.map((option, optionIndex) => {
+                          const correctOption =
+                            optionIndex === question.correctIndex;
+
+                          const selectedOption =
+                            optionIndex === chosen;
+
+                          return (
+                            <div
+                              key={option.id}
+                              className={cn(
+                                "flex items-center gap-3 rounded-xl border px-3.5 py-3 text-sm",
+                                correctOption &&
+                                  "border-emerald-500/40 bg-emerald-500/5",
+                                selectedOption &&
+                                  !correctOption &&
+                                  "border-red-500/40 bg-red-500/5"
+                              )}
+                            >
+                              <span className="font-bold text-muted-foreground">
+                                {option.id}.
+                              </span>
+
+                              <span className="min-w-0 flex-1">
+                                {option.text}
+                              </span>
+
+                              {correctOption && (
+                                <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-600" />
+                              )}
+
+                              {selectedOption && !correctOption && (
+                                <XCircle className="h-4 w-4 shrink-0 text-red-500" />
+                              )}
+                            </div>
+                          );
+                        })}
+
+                        {!isAnswered && (
+                          <p className="flex items-center gap-2 pt-1 text-xs text-muted-foreground">
+                            <MinusCircle className="h-4 w-4" />
+                            Kamu belum memilih jawaban.
+                          </p>
                         )}
-                      >
-                        {i + 1}
-                      </span>
-                      <CardTitle className="text-sm leading-relaxed">{q.text}</CardTitle>
-                    </CardHeader>
-                    <CardContent className="space-y-2">
-                      {(q.options || []).map((o: string, oi: number) => {
-                        const isCorrect = oi === q.correctIndex;
-                        const isChosen = oi === chosen;
-                        return (
-                          <div
-                            key={oi}
-                            className={cn(
-                              "flex items-center gap-3 rounded-xl border px-3.5 py-2.5 text-sm",
-                              isCorrect && "border-emerald-400/60 bg-emerald-50 dark:bg-emerald-500/10",
-                              isChosen && !isCorrect && "border-red-400/60 bg-red-50 dark:bg-red-500/10"
-                            )}
-                          >
-                            <span className="font-bold text-muted-foreground">
-                              {String.fromCharCode(65 + oi)}.
-                            </span>
-                            <span className="flex-1">{o}</span>
-                            {isCorrect && (
-                              <CheckCircle2 className="h-4 w-4 text-emerald-600" />
-                            )}
-                            {isChosen && !isCorrect && (
-                              <XCircle className="h-4 w-4 text-red-500" />
-                            )}
-                          </div>
-                        );
-                      })}
-                      {status === "blank" && (
-                        <p className="flex items-center gap-1.5 text-xs text-muted-foreground pt-1">
-                          <MinusCircle className="h-3.5 w-3.5" /> Tidak dijawab
-                        </p>
-                      )}
-                    </CardContent>
-                  </Card>
-                );
-              })}
+                      </CardContent>
+                    </Card>
+                  );
+                })
+              )}
             </TabsContent>
 
             {/* TAB PEMBAHASAN */}
-            <TabsContent value="discussion" className="space-y-4">
-              {questions.length === 0 && <EmptyState title="Pembahasan belum tersedia" />}
-              {questions.map((q, i) => (
-                <Card key={q.id || i}>
-                  <CardHeader className="flex-row items-start gap-3 space-y-0 pb-3">
-                    <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-emerald-500/15 text-sm font-extrabold text-emerald-400">
-                      {i + 1}
-                    </span>
-                    <CardTitle className="text-base font-semibold leading-relaxed text-foreground">
-                      {q.text}
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    {/* List Pilihan Jawaban */}
-                    <div className="grid gap-2 sm:grid-cols-2">
-                      {(q.options || []).map((o: string, oi: number) => {
-                        const isCorrect = oi === q.correctIndex;
-                        return (
-                          <div
-                            key={oi}
-                            className={cn(
-                              "flex items-center gap-2.5 rounded-lg border px-3.5 py-2.5 text-xs transition-colors",
-                              isCorrect
-                                ? "border-emerald-500/60 bg-emerald-500/10 font-semibold text-emerald-300"
-                                : "border-border/60 bg-muted/20 text-muted-foreground"
-                            )}
-                          >
-                            <span className="font-bold">{String.fromCharCode(65 + oi)}.</span>
-                            <span className="flex-1">{o}</span>
-                            {isCorrect && <CheckCircle2 className="h-4 w-4 text-emerald-400 shrink-0" />}
-                          </div>
-                        );
-                      })}
-                    </div>
+            <TabsContent value="discussion" className="mt-4 space-y-4">
+              {questions.length === 0 ? (
+                <EmptyState
+                  title="Pembahasan belum tersedia"
+                  description="Belum ada data soal yang dapat ditampilkan."
+                />
+              ) : (
+                questions.map((question, index) => (
+                  <Card
+                    key={question.id}
+                    className="overflow-hidden border-border/70 shadow-sm"
+                  >
+                    <CardHeader className="flex-row items-start gap-3 space-y-0 pb-3">
+                      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-emerald-500/10 text-sm font-extrabold text-emerald-600 dark:text-emerald-400">
+                        {index + 1}
+                      </span>
 
-                    {/* Box Pembahasan */}
-                    <div className="rounded-xl border border-emerald-500/30 bg-emerald-950/30 p-4 space-y-2">
-                      <p className="font-bold text-emerald-400 flex items-center gap-1.5 text-sm">
-                        <MessageSquareText className="h-4 w-4" /> Pembahasan:
-                      </p>
-                      <p className="leading-relaxed text-sm text-slate-100 font-normal">
-                        {q.explanation}
-                      </p>
-                      <div className="pt-1">
-                        <Badge variant="default" className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold">
-                          Kunci Jawaban: {String.fromCharCode(65 + q.correctIndex)}
-                        </Badge>
+                      <CardTitle className="text-sm font-bold leading-relaxed">
+                        {question.text}
+                      </CardTitle>
+                    </CardHeader>
+
+                    <CardContent className="space-y-4">
+                      <div className="grid gap-2 sm:grid-cols-2">
+                        {question.options.map((option, optionIndex) => {
+                          const isCorrect =
+                            optionIndex === question.correctIndex;
+
+                          return (
+                            <div
+                              key={option.id}
+                              className={cn(
+                                "flex items-center gap-2.5 rounded-lg border px-3 py-3 text-sm",
+                                isCorrect
+                                  ? "border-emerald-500/40 bg-emerald-500/5 font-semibold text-emerald-700 dark:text-emerald-400"
+                                  : "border-border/70 bg-muted/20 text-muted-foreground"
+                              )}
+                            >
+                              <span className="font-bold">
+                                {option.id}.
+                              </span>
+
+                              <span className="min-w-0 flex-1">
+                                {option.text}
+                              </span>
+
+                              {isCorrect && (
+                                <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-500" />
+                              )}
+                            </div>
+                          );
+                        })}
                       </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
+
+                      <div className="space-y-3 rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-4">
+                        <div className="flex items-center gap-2 text-sm font-bold text-emerald-700 dark:text-emerald-400">
+                          <MessageSquareText className="h-4 w-4" />
+                          Pembahasan
+                        </div>
+
+                        <p className="text-sm leading-relaxed text-foreground">
+                          {question.explanation}
+                        </p>
+
+                        {question.correctIndex >= 0 &&
+                          question.options[question.correctIndex] && (
+                            <Badge className="border-emerald-500/20 bg-emerald-600 text-white hover:bg-emerald-700">
+                              Kunci Jawaban:{" "}
+                              {question.options[question.correctIndex].id}
+                            </Badge>
+                          )}
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))
+              )}
             </TabsContent>
           </Tabs>
         </div>
