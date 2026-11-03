@@ -34,7 +34,6 @@ import { DIFFICULTIES, LEVELS } from "@/constants";
 import { supabase } from "@/lib/supabase";
 import { downloadQuestionTemplate, parseQuestionsExcelForExam } from "@/utils/excel-helpers";
 import type { Difficulty, ExamPackage, Level } from "@/types";
-import { cn } from "@/lib/utils";
 
 type Draft = {
   id?: string;
@@ -374,7 +373,7 @@ export default function AdminExamsPage() {
                       </div>
                     </td>
                     <td className="p-4"><Badge variant="outline" className="font-bold">{e.level}</Badge></td>
-                    <td className="p-4"><Badge variant="secondary" className="font-bold">{e.difficulty}</Badge></td>
+                    <td className="p-4"><Badge variant="muted" className="font-bold">{e.difficulty}</Badge></td>
                     <td className="p-4 font-mono font-semibold">{e.duration} mnt</td>
                     <td className="p-4 font-extrabold">{ (e as any).question_count || e.questionCount || 0 } Soal</td>
                     <td className="p-4">
