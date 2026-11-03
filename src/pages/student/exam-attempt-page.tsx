@@ -1,5 +1,5 @@
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import {
   ArrowLeft,
@@ -40,7 +40,6 @@ interface QuestionItem {
   category: string;
   question_text: string;
   options: QuestionOption[];
-  correct_answer: string;
 }
 
 interface ExamPackage {
@@ -51,21 +50,48 @@ interface ExamPackage {
   passing_score: number;
 }
 
-type SavedAnswers = Record<string, number | null>;
+interface StartExamResponse {
+  attempt_id: string;
+  duration: number;
+  started_at: string;
+  expires_at: string;
+  questions: QuestionItem[];
+  saved_answers: Record<string, string | null>;
+  resumed: boolean;
+}
+
+interface SubmitExamResponse {
+  attempt_id: string;
+  score: number;
+  correct_count: number;
+  wrong_count: number;
+  unanswered_count: number;
+  total_questions: number;
+  is_passed: boolean;
+  xp_earned: number;
+}
+
+type LocalAnswers = Record<string, number>;
+
+type ServerAnswers = Record<string, string | null>;
 
 export default function ExamAttemptPage() {
   const { examId } = useParams();
   const navigate = useNavigate();
 
   const [exam, setExam] = useState<ExamPackage | null>(null);
+  const [attemptId, setAttemptId] = useState<string | null>(null);
   const [questions, setQuestions] = useState<QuestionItem[]>([]);
+
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const [current, setCurrent] = useState(0);
-  const [answers, setAnswers] = useState<Record<string, number>>({});
+  const [answers, setAnswers] = useState<LocalAnswers>({});
   const [flagged, setFlagged] = useState<Set<string>>(new Set());
+
   const [secondsLeft, setSecondsLeft] = useState<number | null>(null);
+  const [expiresAt, setExpiresAt] = useState<string | null>(null);
 
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [submitted, setSubmitted] = useState(false);
@@ -77,8 +103,71 @@ export default function ExamAttemptPage() {
   const [finalWrong, setFinalWrong] = useState(0);
   const [finalUnanswered, setFinalUnanswered] = useState(0);
 
-  // 1. Fetch data ujian dan soal
-  const fetchData = async () => {
+  // Mencegah pengumpulan ganda.
+  const submittingRef = useRef(false);
+
+  // Menjaga urutan penyimpanan jawaban agar jawaban terbaru
+  // tidak tertimpa permintaan penyimpanan yang lebih lama.
+  const saveQueueRef = useRef<Promise<void>>(Promise.resolve());
+
+  // Mengubah indeks pilihan lokal menjadi ID pilihan A/B/C/D.
+  const toServerAnswers = useCallback(
+    (localAnswers: LocalAnswers): ServerAnswers => {
+      const result: ServerAnswers = {};
+
+      questions.forEach((question) => {
+        const selectedIndex = localAnswers[question.id];
+
+        if (
+          selectedIndex === undefined ||
+          !question.options[selectedIndex]
+        ) {
+          result[question.id] = null;
+          return;
+        }
+
+        result[question.id] =
+          question.options[selectedIndex].id;
+      });
+
+      return result;
+    },
+    [questions]
+  );
+
+  // Memulihkan jawaban dari database ke indeks pilihan lokal.
+  const restoreLocalAnswers = useCallback(
+    (
+      questionList: QuestionItem[],
+      savedAnswers: Record<string, string | null> | null
+    ): LocalAnswers => {
+      const restored: LocalAnswers = {};
+
+      if (!savedAnswers) return restored;
+
+      questionList.forEach((question) => {
+        const savedOptionId = savedAnswers[question.id];
+
+        if (!savedOptionId) return;
+
+        const selectedIndex = question.options.findIndex(
+          (option) =>
+            option.id.toUpperCase() ===
+            savedOptionId.toUpperCase()
+        );
+
+        if (selectedIndex >= 0) {
+          restored[question.id] = selectedIndex;
+        }
+      });
+
+      return restored;
+    },
+    []
+  );
+
+  // 1. Memulai atau melanjutkan sesi ujian.
+  const fetchData = useCallback(async () => {
     if (!examId) {
       setError("ID ujian tidak ditemukan.");
       setLoading(false);
@@ -88,10 +177,25 @@ export default function ExamAttemptPage() {
     setLoading(true);
     setError(null);
 
+    setSubmitted(false);
+    setSubmitting(false);
+    submittingRef.current = false;
+
+    setAttemptId(null);
+    setQuestions([]);
+    setAnswers({});
+    setCurrent(0);
+    setFlagged(new Set());
+    setSecondsLeft(null);
+    setExpiresAt(null);
+
+    saveQueueRef.current = Promise.resolve();
+
     try {
+      // Ambil informasi paket.
       const { data: examData, error: examError } = await supabase
         .from("exam_packages")
-        .select("id, title, category, duration, passing_score")
+        .select("id, title, category, passing_score")
         .eq("id", examId)
         .single();
 
@@ -101,36 +205,44 @@ export default function ExamAttemptPage() {
         throw new Error("Paket ujian tidak ditemukan.");
       }
 
-      const normalizedExam: ExamPackage = {
-        ...examData,
-        duration: Number(examData.duration) || 60,
-        passing_score: Number(examData.passing_score) || 70,
-      };
+      // Mulai atau lanjutkan sesi melalui RPC.
+      const { data: sessionData, error: sessionError } =
+        await supabase.rpc("start_exam_secure", {
+          p_exam_id: examId,
+        });
 
-      setExam(normalizedExam);
-      setSecondsLeft(normalizedExam.duration * 60);
+      if (sessionError) throw sessionError;
 
-      // Mengambil soal berdasarkan kategori seperti alur CBT sebelumnya.
-      const { data: qData, error: questionError } = await supabase
-        .from("questions")
-        .select(
-          "id, category, question_text, options, correct_answer"
-        )
-        .eq("category", normalizedExam.category)
-        .limit(50);
-
-      if (questionError) throw questionError;
-
-      if (!qData || qData.length === 0) {
-        setQuestions([]);
-        setError(
-          "Belum ada soal yang tersedia untuk kategori ujian ini."
-        );
-        return;
+      if (!sessionData) {
+        throw new Error("Server tidak mengembalikan sesi ujian.");
       }
 
-      const normalizedQuestions: QuestionItem[] = qData.map(
-        (question) => {
+      const session =
+        sessionData as unknown as StartExamResponse;
+
+      if (
+        !session.attempt_id ||
+        !Array.isArray(session.questions) ||
+        session.questions.length === 0
+      ) {
+        throw new Error("Data sesi ujian tidak lengkap.");
+      }
+
+      if (!session.expires_at) {
+        throw new Error("Waktu kedaluwarsa ujian tidak tersedia.");
+      }
+
+      const expiryTimestamp = new Date(
+        session.expires_at
+      ).getTime();
+
+      if (Number.isNaN(expiryTimestamp)) {
+        throw new Error("Format waktu ujian tidak valid.");
+      }
+
+      // Normalisasi soal yang dikirim RPC.
+      const normalizedQuestions: QuestionItem[] =
+        session.questions.map((question) => {
           let parsedOptions: unknown = question.options;
 
           if (typeof parsedOptions === "string") {
@@ -148,22 +260,68 @@ export default function ExamAttemptPage() {
           return {
             id: String(question.id),
             category: String(question.category || ""),
-            question_text: String(question.question_text || ""),
-            options: options.map((option: any, index: number) => ({
-              id: String(
-                option?.id || String.fromCharCode(65 + index)
-              ),
-              text: String(option?.text ?? option ?? ""),
-            })),
-            correct_answer: String(question.correct_answer || ""),
+            question_text: String(
+              question.question_text || ""
+            ),
+            options: options.map(
+              (option: any, index: number) => ({
+                id: String(
+                  option?.id ||
+                    String.fromCharCode(65 + index)
+                ).toUpperCase(),
+                text: String(option?.text ?? option ?? ""),
+              })
+            ),
           };
-        }
+        });
+
+      if (
+        normalizedQuestions.some(
+          (question) =>
+            !question.id ||
+            !question.question_text ||
+            question.options.length === 0
+        )
+      ) {
+        throw new Error("Terdapat data soal yang tidak valid.");
+      }
+
+      // Pulihkan jawaban yang sebelumnya tersimpan.
+      const restoredAnswers = restoreLocalAnswers(
+        normalizedQuestions,
+        session.saved_answers || {}
       );
 
+      const normalizedExam: ExamPackage = {
+        id: examData.id,
+        title: examData.title,
+        category: examData.category || "",
+        duration: Number(session.duration) || 30,
+        passing_score: Number(examData.passing_score ?? 70),
+      };
+
+      setExam(normalizedExam);
+      setAttemptId(session.attempt_id);
       setQuestions(normalizedQuestions);
-      setAnswers({});
-      setCurrent(0);
-      setFlagged(new Set());
+      setAnswers(restoredAnswers);
+
+      setExpiresAt(session.expires_at);
+
+      // Timer mengikuti waktu kedaluwarsa server.
+      const remainingSeconds = Math.max(
+        0,
+        Math.ceil(
+          (expiryTimestamp - Date.now()) / 1000
+        )
+      );
+
+      setSecondsLeft(remainingSeconds);
+
+      if (session.resumed) {
+        toast.info(
+          "Sesi ujian sebelumnya berhasil dipulihkan."
+        );
+      }
     } catch (err: unknown) {
       console.error("Fetch exam error:", err);
 
@@ -175,157 +333,142 @@ export default function ExamAttemptPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [examId, restoreLocalAnswers]);
 
   useEffect(() => {
-    fetchData();
-  }, [examId]);
+    void fetchData();
+  }, [fetchData]);
 
-  // 2. Submit dan simpan hasil ujian
+  // 2. Simpan progres jawaban melalui RPC.
+  const queueSaveProgress = useCallback(
+    (localAnswers: LocalAnswers): Promise<void> => {
+      if (!attemptId) {
+        return Promise.reject(
+          new Error("Sesi ujian belum tersedia.")
+        );
+      }
+
+      const serverAnswers = toServerAnswers(localAnswers);
+
+      const task = saveQueueRef.current
+        .catch(() => undefined)
+        .then(async () => {
+          const { error: saveError } = await supabase.rpc(
+            "save_exam_session_progress_secure",
+            {
+              p_attempt_id: attemptId,
+              p_answers: serverAnswers,
+            }
+          );
+
+          if (saveError) throw saveError;
+        });
+
+      saveQueueRef.current = task;
+
+      return task;
+    },
+    [attemptId, toServerAnswers]
+  );
+
+  // 3. Pilih jawaban dan simpan ke server.
+  const handleAnswerSelect = useCallback(
+    (questionId: string, selectedIndex: number) => {
+      const nextAnswers = {
+        ...answers,
+        [questionId]: selectedIndex,
+      };
+
+      setAnswers(nextAnswers);
+
+      void queueSaveProgress(nextAnswers).catch(
+        (saveError: unknown) => {
+          console.error(
+            "Save progress error:",
+            saveError
+          );
+        }
+      );
+    },
+    [answers, queueSaveProgress]
+  );
+
+  // 4. Submit ujian melalui RPC server.
   const submit = useCallback(
     async (auto = false) => {
-      if (submitting || submitted || !exam || questions.length === 0) {
+      if (
+        submittingRef.current ||
+        submitted ||
+        !attemptId ||
+        questions.length === 0
+      ) {
         return;
       }
 
+      submittingRef.current = true;
       setSubmitting(true);
 
       try {
-        // Pastikan pengguna sudah login.
-        const {
-          data: userData,
-          error: userError,
-        } = await supabase.auth.getUser();
+        const serverAnswers = toServerAnswers(answers);
 
-        if (userError) throw userError;
-
-        const userId = userData.user?.id;
-
-        if (!userId) {
-          throw new Error(
-            "Sesi pengguna tidak ditemukan. Silakan login kembali."
-          );
-        }
-
-        // SIMPAN SEMUA ID SOAL, TERMASUK YANG TIDAK DIJAWAB.
-        // Jawaban kosong akan memiliki nilai null.
-        const savedAnswers: SavedAnswers = {};
-
-        questions.forEach((question) => {
-          savedAnswers[question.id] =
-            answers[question.id] !== undefined
-              ? answers[question.id]
-              : null;
-        });
-
-        // Hitung benar, salah, dan kosong secara terpisah.
-        let correctCount = 0;
-        let answeredTotal = 0;
-
-        questions.forEach((question) => {
-          const selectedIndex = savedAnswers[question.id];
-
-          if (selectedIndex === null) {
-            return;
-          }
-
-          answeredTotal++;
-
-          const selectedOption =
-            question.options[selectedIndex];
-
-          if (
-            selectedOption &&
-            selectedOption.id === question.correct_answer
-          ) {
-            correctCount++;
-          }
-        });
-
-        const totalQuestions = questions.length;
-        const wrongCount = answeredTotal - correctCount;
-        const unansweredCount = totalQuestions - answeredTotal;
-
-        // Hitung nilai akhir berdasarkan jumlah seluruh soal.
-        const score = Math.round(
-          (correctCount / totalQuestions) * 100
-        );
-
-        const passingScore = exam.passing_score || 70;
-        const isPassed = score >= passingScore;
-
-        setFinalScore(score);
-        setFinalCorrect(correctCount);
-        setFinalWrong(wrongCount);
-        setFinalUnanswered(unansweredCount);
-
-        // Hitung XP.
-        const baseXP = 250;
-        const performanceXP = Math.round(score * 5);
-        const bonusPerfectXP = score === 100 ? 500 : 0;
-
-        const passedXP =
-          baseXP + performanceXP + bonusPerfectXP;
-
-        const failedXP = Math.round(score * 2);
-        const actualXP = isPassed ? passedXP : failedXP;
-
-        setEarnedXp(actualXP);
-
-        // Simpan hasil ujian ke Supabase.
-        // Hanya menggunakan kolom yang tersedia pada exam_attempts.
-        const { error: insertError } = await supabase
-          .from("exam_attempts")
-          .insert({
-            user_id: userId,
-            exam_id: exam.id,
-            score,
-            correct_count: correctCount,
-            wrong_count: wrongCount,
-            total_questions: totalQuestions,
-            answers: savedAnswers,
-            is_passed: isPassed,
-            status: "completed",
-          });
-
-        if (insertError) {
-          throw insertError;
-        }
-
-        // Proses XP setelah hasil berhasil disimpan.
-        if (isPassed) {
-          const { error: xpError } = await supabase.rpc(
-            "complete_exam_attempt",
-            {
-              p_user_id: userId,
-              p_xp_reward: passedXP,
-            }
-          );
-
-          if (xpError) {
-            console.error("XP update error:", xpError);
-
-            toast.warning(
-              "Hasil ujian tersimpan, tetapi XP belum berhasil diperbarui."
+        // Untuk submit manual, upayakan simpan jawaban terbaru.
+        // Jika tenggat sudah terlewati, server akan menggunakan
+        // progres terakhir yang sudah tersimpan.
+        if (!auto) {
+          try {
+            await queueSaveProgress(answers);
+          } catch (saveError) {
+            console.warn(
+              "Final progress save warning:",
+              saveError
             );
           }
         } else {
-          const { error: xpError } = await supabase.rpc(
-            "increment_user_xp",
-            {
-              user_id_param: userId,
-              xp_to_add: failedXP,
-            }
-          );
-
-          if (xpError) {
-            console.error("XP update error:", xpError);
-
-            toast.warning(
-              "Hasil ujian tersimpan, tetapi XP belum berhasil diperbarui."
+          // Tunggu permintaan penyimpanan sebelumnya selesai.
+          // Ini menghindari submit mendahului penyimpanan jawaban.
+          try {
+            await saveQueueRef.current;
+          } catch (saveError) {
+            console.warn(
+              "Pending progress save warning:",
+              saveError
             );
           }
         }
+
+        const { data, error: submitError } =
+          await supabase.rpc(
+            "submit_exam_session_secure",
+            {
+              p_attempt_id: attemptId,
+              p_answers: serverAnswers,
+            }
+          );
+
+        if (submitError) throw submitError;
+
+        const result = (
+          Array.isArray(data) ? data[0] : data
+        ) as SubmitExamResponse | null;
+
+        if (!result) {
+          throw new Error(
+            "Server tidak mengembalikan hasil ujian."
+          );
+        }
+
+        // Semua nilai berasal dari server.
+        setFinalScore(Number(result.score) || 0);
+        setFinalCorrect(
+          Number(result.correct_count) || 0
+        );
+        setFinalWrong(
+          Number(result.wrong_count) || 0
+        );
+        setFinalUnanswered(
+          Number(result.unanswered_count) || 0
+        );
+        setEarnedXp(Number(result.xp_earned) || 0);
 
         setSubmitted(true);
         setConfirmOpen(false);
@@ -339,56 +482,92 @@ export default function ExamAttemptPage() {
         console.error("Submit exam error:", err);
 
         toast.error(
-          "Gagal menyimpan hasil: " +
+          "Gagal mengumpulkan ujian: " +
             (err instanceof Error
               ? err.message
               : "Terjadi kesalahan.")
         );
       } finally {
+        submittingRef.current = false;
         setSubmitting(false);
       }
     },
     [
-      exam,
-      questions,
+      attemptId,
       answers,
-      submitting,
+      questions,
       submitted,
+      toServerAnswers,
+      queueSaveProgress,
     ]
   );
 
-  // 3. Timer countdown
+  // 5. Timer berdasarkan expires_at dari server.
   useEffect(() => {
-    if (submitted || submitting || secondsLeft === null) {
+    if (
+      !expiresAt ||
+      submitted ||
+      submitting
+    ) {
       return;
     }
 
-    if (secondsLeft <= 0) {
-      submit(true);
-      return;
-    }
-
-    const timerId = setTimeout(() => {
-      setSecondsLeft((previous) =>
-        previous === null ? previous : previous - 1
+    const updateTimer = () => {
+      const remaining = Math.max(
+        0,
+        Math.ceil(
+          (new Date(expiresAt).getTime() - Date.now()) /
+            1000
+        )
       );
-    }, 1000);
 
-    return () => clearTimeout(timerId);
-  }, [secondsLeft, submitted, submitting, submit]);
+      setSecondsLeft(remaining);
+    };
 
-  // 4. Statistik jawaban
+    updateTimer();
+
+    const timerId = window.setInterval(
+      updateTimer,
+      1000
+    );
+
+    return () => window.clearInterval(timerId);
+  }, [expiresAt, submitted, submitting]);
+
+  // 6. Otomatis kumpulkan ketika timer mencapai nol.
+  useEffect(() => {
+    if (
+      secondsLeft === 0 &&
+      !submitted &&
+      !submitting &&
+      attemptId
+    ) {
+      void submit(true);
+    }
+  }, [
+    secondsLeft,
+    submitted,
+    submitting,
+    attemptId,
+    submit,
+  ]);
+
+  // 7. Statistik jawaban.
   const answeredCount = useMemo(
     () =>
       questions.filter(
-        (question) => answers[question.id] !== undefined
+        (question) =>
+          answers[question.id] !== undefined
       ).length,
     [questions, answers]
   );
 
-  const unanswered = questions.length - answeredCount;
+  const unanswered = Math.max(
+    0,
+    questions.length - answeredCount
+  );
 
-  // 5. Kondisi loading
+  // 8. Kondisi loading.
   if (loading) {
     return (
       <div className="container py-10">
@@ -397,7 +576,7 @@ export default function ExamAttemptPage() {
     );
   }
 
-  // 6. Kondisi error
+  // 9. Kondisi error.
   if (error) {
     return (
       <div className="container py-10">
@@ -414,10 +593,12 @@ export default function ExamAttemptPage() {
       <div className="container py-10">
         <EmptyState
           title="Soal tidak tersedia"
-          description="Paket ujian ini belum memiliki soal di Supabase."
+          description="Paket ujian ini belum memiliki soal yang dapat dikerjakan."
           action={
             <Button
-              onClick={() => navigate("/dashboard/exams")}
+              onClick={() =>
+                navigate("/dashboard/exams")
+              }
             >
               Kembali ke Ujian
             </Button>
@@ -427,7 +608,7 @@ export default function ExamAttemptPage() {
     );
   }
 
-  // 7. Tampilan hasil setelah ujian dikumpulkan
+  // 10. Tampilan hasil setelah ujian dikumpulkan.
   if (submitted) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-background p-4">
@@ -442,7 +623,8 @@ export default function ExamAttemptPage() {
             </h1>
 
             <p className="text-sm text-muted-foreground">
-              Anda menjawab {answeredCount} dari{" "}
+              Anda menjawab{" "}
+              {finalCorrect + finalWrong} dari{" "}
               {questions.length} soal pada "{exam.title}".
             </p>
 
@@ -460,6 +642,7 @@ export default function ExamAttemptPage() {
                 <p className="text-xs font-semibold text-emerald-600 dark:text-emerald-400">
                   XP Didapatkan
                 </p>
+
                 <p className="flex items-center justify-center gap-1 text-2xl font-black text-emerald-600 dark:text-emerald-400">
                   <Zap className="h-5 w-5 fill-current" />
                   +{earnedXp}
@@ -469,21 +652,27 @@ export default function ExamAttemptPage() {
 
             <div className="grid grid-cols-3 gap-2">
               <div className="rounded-xl bg-emerald-500/10 p-3">
-                <p className="text-xs text-muted-foreground">Benar</p>
+                <p className="text-xs text-muted-foreground">
+                  Benar
+                </p>
                 <p className="text-lg font-bold text-emerald-600">
                   {finalCorrect}
                 </p>
               </div>
 
               <div className="rounded-xl bg-red-500/10 p-3">
-                <p className="text-xs text-muted-foreground">Salah</p>
+                <p className="text-xs text-muted-foreground">
+                  Salah
+                </p>
                 <p className="text-lg font-bold text-red-500">
                   {finalWrong}
                 </p>
               </div>
 
               <div className="rounded-xl bg-muted p-3">
-                <p className="text-xs text-muted-foreground">Kosong</p>
+                <p className="text-xs text-muted-foreground">
+                  Kosong
+                </p>
                 <p className="text-lg font-bold">
                   {finalUnanswered}
                 </p>
@@ -512,7 +701,7 @@ export default function ExamAttemptPage() {
     );
   }
 
-  // 8. Tampilan CBT
+  // 11. Tampilan CBT.
   const q = questions[current];
   const timeLow = (secondsLeft ?? 0) <= 60;
 
@@ -541,6 +730,7 @@ export default function ExamAttemptPage() {
               <p className="truncate text-sm font-bold">
                 {exam.title}
               </p>
+
               <p className="text-xs text-muted-foreground">
                 Soal {current + 1} dari {questions.length}
               </p>
@@ -581,7 +771,9 @@ export default function ExamAttemptPage() {
         </div>
 
         <Progress
-          value={(answeredCount / questions.length) * 100}
+          value={
+            (answeredCount / questions.length) * 100
+          }
           className="h-1 rounded-none"
         />
       </header>
@@ -591,17 +783,23 @@ export default function ExamAttemptPage() {
           <Card>
             <CardHeader className="flex-row items-center justify-between space-y-0">
               <div className="flex items-center gap-2">
-                <Badge>{q.category || exam.category}</Badge>
+                <Badge>
+                  {q.category || exam.category}
+                </Badge>
               </div>
 
               <Button
-                variant={flagged.has(q.id) ? "soft" : "ghost"}
+                variant={
+                  flagged.has(q.id) ? "soft" : "ghost"
+                }
                 size="sm"
                 onClick={toggleFlag}
                 aria-pressed={flagged.has(q.id)}
               >
                 <Flag />
-                {flagged.has(q.id) ? "Ditandai" : "Tandai ragu"}
+                {flagged.has(q.id)
+                  ? "Ditandai"
+                  : "Tandai ragu"}
               </Button>
             </CardHeader>
 
@@ -616,7 +814,8 @@ export default function ExamAttemptPage() {
                 aria-label="Pilihan jawaban"
               >
                 {q.options?.map((option, index) => {
-                  const selected = answers[q.id] === index;
+                  const selected =
+                    answers[q.id] === index;
 
                   return (
                     <button
@@ -625,13 +824,11 @@ export default function ExamAttemptPage() {
                       role="radio"
                       aria-checked={selected}
                       onClick={() =>
-                        setAnswers((previous) => ({
-                          ...previous,
-                          [q.id]: index,
-                        }))
+                        handleAnswerSelect(q.id, index)
                       }
+                      disabled={submitting}
                       className={cn(
-                        "flex w-full items-center gap-4 rounded-2xl border-2 p-4 text-left transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                        "flex w-full items-center gap-4 rounded-2xl border-2 p-4 text-left transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-70",
                         selected
                           ? "border-primary bg-soft/70 shadow-soft"
                           : "border-border hover:border-primary/40 hover:bg-muted/60"
@@ -660,7 +857,7 @@ export default function ExamAttemptPage() {
               <div className="flex items-center justify-between gap-3 border-t pt-5">
                 <Button
                   variant="outline"
-                  disabled={current === 0}
+                  disabled={current === 0 || submitting}
                   onClick={() =>
                     setCurrent((previous) => previous - 1)
                   }
@@ -673,6 +870,7 @@ export default function ExamAttemptPage() {
                     onClick={() =>
                       setCurrent((previous) => previous + 1)
                     }
+                    disabled={submitting}
                   >
                     Berikutnya <ArrowRight />
                   </Button>
@@ -700,6 +898,7 @@ export default function ExamAttemptPage() {
                 {questions.map((item, index) => {
                   const done =
                     answers[item.id] !== undefined;
+
                   const isFlag = flagged.has(item.id);
 
                   return (
@@ -707,11 +906,14 @@ export default function ExamAttemptPage() {
                       key={item.id}
                       type="button"
                       onClick={() => setCurrent(index)}
+                      disabled={submitting}
                       aria-label={`Soal ${index + 1}${
                         done ? ", sudah dijawab" : ""
                       }${isFlag ? ", ditandai" : ""}`}
                       aria-current={
-                        index === current ? "step" : undefined
+                        index === current
+                          ? "step"
+                          : undefined
                       }
                       className={cn(
                         "relative flex h-10 items-center justify-center rounded-xl border-2 text-sm font-bold transition-all",
