@@ -178,7 +178,6 @@ export default function ResultDetailPage() {
       });
 
       // 5. Ambil soal berdasarkan ID yang tersimpan pada jawaban.
-      // CBT saat ini menyimpan questionId sebagai key pada answers.
       const questionIds = Object.keys(userAnswers);
 
       let questionList: QuestionItem[] = [];
@@ -364,7 +363,7 @@ export default function ResultDetailPage() {
                   Lulus
                 </Badge>
               ) : (
-                <Badge variant="destructive">Belum lulus</Badge>
+                <Badge variant="danger">Belum lulus</Badge>
               )}
             </div>
 
