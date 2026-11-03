@@ -232,25 +232,21 @@ export default function ResultsPage() {
       // RLS nantinya memastikan siswa hanya membaca
       // riwayat ujian miliknya sendiri.
       const { data: attempts, error: attemptsError } =
-        await supabase
-          .from("exam_attempts")
-          .select(
-            "id, user_id, exam_id, exam_package_id, score, status, created_at, correct_count, wrong_count, incorrect_count, total_questions, is_passed, answers"
-          )
-          .eq("user_id", user.id)
-          .eq("status", "completed")
-          .order("created_at", { ascending: false });
+  await supabase
+    .from("exam_attempts")
+    .select(
+      "id, user_id, exam_id, score, status, created_at, correct_count, wrong_count, total_questions, is_passed, answers"
+    )
+    .eq("user_id", user.id)
+    .eq("status", "completed")
+    .order("created_at", { ascending: false });
 
       if (attemptsError) throw attemptsError;
 
       const packageIds = [
         ...new Set(
           (attempts || [])
-            .map((attempt: any) =>
-              String(
-                attempt.exam_package_id || attempt.exam_id || ""
-              )
-            )
+            .map((attempt: any) => String(attempt.exam_id || ""))
             .filter(Boolean)
         ),
       ];
@@ -287,9 +283,7 @@ export default function ResultsPage() {
 
       const mappedData: ResultItem[] = (attempts || []).map(
         (attempt: any) => {
-          const packageId = String(
-            attempt.exam_package_id || attempt.exam_id || ""
-          );
+          const packageId = String(attempt.exam_id || "");
 
           const pkg = packageMap.get(packageId);
 
