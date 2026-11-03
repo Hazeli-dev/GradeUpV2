@@ -54,6 +54,10 @@ import { formatDate } from "@/utils/format";
 import { supabase } from "@/lib/supabase";
 import { cn } from "@/lib/utils";
 
+// =====================================================
+// TYPES
+// =====================================================
+
 interface ResultItem {
   id: string;
   examTitle: string;
@@ -63,7 +67,7 @@ interface ResultItem {
   incorrect: number;
   score: number;
   passed: boolean;
-  answers?: Record<string, number | null>;
+  answersExpired: boolean;
 }
 
 interface QuestionReview {
@@ -72,9 +76,14 @@ interface QuestionReview {
   options: { id: string; text: string }[];
   correct_answer: string;
   explanation: string | null;
+  user_answer: string | null;
 }
 
 type PeriodType = "7" | "30" | "90" | "365";
+
+// =====================================================
+// CONSTANTS
+// =====================================================
 
 const periodOptions = [
   { label: "7 Hari", value: "7" },
@@ -82,6 +91,10 @@ const periodOptions = [
   { label: "3 Bulan", value: "90" },
   { label: "1 Tahun", value: "365" },
 ];
+
+// =====================================================
+// HELPERS
+// =====================================================
 
 const getPeriodStart = (days: number) => {
   const date = new Date();
@@ -103,8 +116,10 @@ const getScoreColor = (score: number) => {
   return "text-amber-600 dark:text-amber-400";
 };
 
-// Menyamakan format pilihan jawaban dari database
-const normalizeOptions = (value: unknown): QuestionReview["options"] => {
+// Menyamakan format pilihan jawaban dari database.
+const normalizeOptions = (
+  value: unknown
+): QuestionReview["options"] => {
   let parsed = value;
 
   if (typeof parsed === "string") {
@@ -132,12 +147,16 @@ const normalizeOptions = (value: unknown): QuestionReview["options"] => {
   });
 };
 
-// Mencari indeks jawaban benar berdasarkan ID, huruf, atau angka
-const getCorrectIndex = (
+// Mengubah jawaban berupa ID, huruf, atau angka menjadi indeks.
+const getAnswerIndex = (
   options: QuestionReview["options"],
-  answer: string
-) => {
-  const normalized = String(answer ?? "").trim();
+  answer: unknown
+): number => {
+  if (answer === null || answer === undefined) return -1;
+
+  const normalized = String(answer).trim();
+
+  if (!normalized) return -1;
 
   const byId = options.findIndex(
     (option) =>
@@ -148,13 +167,15 @@ const getCorrectIndex = (
 
   if (/^[A-Z]$/i.test(normalized)) {
     const index = normalized.toUpperCase().charCodeAt(0) - 65;
-    if (index >= 0 && index < options.length) return index;
+
+    if (index >= 0 && index < options.length) {
+      return index;
+    }
   }
 
   const numericIndex = Number(normalized);
 
   if (
-    normalized !== "" &&
     Number.isInteger(numericIndex) &&
     numericIndex >= 0 &&
     numericIndex < options.length
@@ -164,6 +185,10 @@ const getCorrectIndex = (
 
   return -1;
 };
+
+// =====================================================
+// MAIN PAGE
+// =====================================================
 
 export default function ResultsPage() {
   const [data, setData] = useState<ResultItem[]>([]);
@@ -183,7 +208,10 @@ export default function ResultsPage() {
   const [reviewLoading, setReviewLoading] = useState(false);
   const [detailOpen, setDetailOpen] = useState(false);
 
-  // Mengambil hasil ujian dari Supabase
+  // ===================================================
+  // FETCH EXAM RESULTS
+  // ===================================================
+
   const fetchResults = async () => {
     setLoading(true);
     setError(null);
@@ -191,78 +219,124 @@ export default function ResultsPage() {
     try {
       const {
         data: { user },
+        error: authError,
       } = await supabase.auth.getUser();
+
+      if (authError) throw authError;
 
       if (!user) {
         setData([]);
         return;
       }
 
-      const { data: attempts, error: errAttempts } =
+      // RLS nantinya memastikan siswa hanya membaca
+      // riwayat ujian miliknya sendiri.
+      const { data: attempts, error: attemptsError } =
         await supabase
           .from("exam_attempts")
-          .select("*")
+          .select(
+            "id, user_id, exam_id, exam_package_id, score, status, created_at, correct_count, wrong_count, incorrect_count, total_questions, is_passed, answers"
+          )
           .eq("user_id", user.id)
+          .eq("status", "completed")
           .order("created_at", { ascending: false });
 
-      if (errAttempts) throw errAttempts;
+      if (attemptsError) throw attemptsError;
 
-      const { data: packages, error: errPackages } =
-        await supabase
-          .from("exam_packages")
-          .select("id, title, category, passing_score");
+      const packageIds = [
+        ...new Set(
+          (attempts || [])
+            .map((attempt: any) =>
+              String(
+                attempt.exam_package_id || attempt.exam_id || ""
+              )
+            )
+            .filter(Boolean)
+        ),
+      ];
 
-      if (errPackages) throw errPackages;
+      let packageMap = new Map<
+        string,
+        {
+          title: string;
+          category: string;
+          passing_score: number;
+        }
+      >();
 
-      const packageMap = new Map(
-        (packages || []).map((p) => [p.id, p])
-      );
+      if (packageIds.length > 0) {
+        const { data: packages, error: packagesError } =
+          await supabase
+            .from("exam_packages")
+            .select("id, title, category, passing_score")
+            .in("id", packageIds);
+
+        if (packagesError) throw packagesError;
+
+        packageMap = new Map(
+          (packages || []).map((pkg: any) => [
+            String(pkg.id),
+            {
+              title: pkg.title || "Paket Ujian",
+              category: pkg.category || "Umum",
+              passing_score: Number(pkg.passing_score ?? 60),
+            },
+          ])
+        );
+      }
 
       const mappedData: ResultItem[] = (attempts || []).map(
-        (r: any) => {
-          const packageId = r.exam_package_id || r.exam_id;
+        (attempt: any) => {
+          const packageId = String(
+            attempt.exam_package_id || attempt.exam_id || ""
+          );
+
           const pkg = packageMap.get(packageId);
 
           const passingScore = pkg?.passing_score ?? 60;
-          const currentScore = Number(r.score) || 0;
+          const currentScore = Number(attempt.score) || 0;
 
-          const totalQ =
-            Number(r.total_questions) ||
-            (r.answers ? Object.keys(r.answers).length : 10);
+          const totalQuestions =
+            Number(attempt.total_questions) ||
+            (attempt.answers &&
+            typeof attempt.answers === "object"
+              ? Object.keys(attempt.answers).length
+              : 0);
 
-          let correctVal = Number(r.correct_count);
-          let wrongVal = Number(
-            r.wrong_count ?? r.incorrect_count
+          let correct = Number(attempt.correct_count);
+          let incorrect = Number(
+            attempt.wrong_count ?? attempt.incorrect_count
           );
 
           if (
-            isNaN(correctVal) ||
-            (correctVal === 0 &&
-              wrongVal === 0 &&
+            !Number.isFinite(correct) ||
+            (correct === 0 &&
+              incorrect === 0 &&
               currentScore > 0)
           ) {
-            correctVal = Math.round(
-              (currentScore / 100) * totalQ
+            correct = Math.round(
+              (currentScore / 100) * totalQuestions
             );
 
-            wrongVal = Math.max(0, totalQ - correctVal);
-          } else if (isNaN(wrongVal)) {
-            wrongVal = Math.max(0, totalQ - correctVal);
+            incorrect = Math.max(0, totalQuestions - correct);
+          } else if (!Number.isFinite(incorrect)) {
+            incorrect = Math.max(0, totalQuestions - correct);
           }
 
           return {
-            id: r.id,
+            id: String(attempt.id),
             examTitle: pkg?.title || "Paket Ujian",
             category: pkg?.category || "Umum",
-            date: r.created_at,
-            correct: correctVal,
-            incorrect: wrongVal,
+            date: attempt.created_at,
+            correct,
+            incorrect,
             score: currentScore,
             passed:
-              r.is_passed !== undefined
-                ? r.is_passed
+              attempt.is_passed !== null &&
+              attempt.is_passed !== undefined
+                ? Boolean(attempt.is_passed)
                 : currentScore >= passingScore,
-            answers: r.answers || {},
+            answersExpired: attempt.answers === null,
           };
         }
       );
@@ -281,53 +355,57 @@ export default function ResultsPage() {
     fetchResults();
   }, []);
 
-  // Membuka detail dan mengambil soal berdasarkan ID soal ujian
+  // ===================================================
+  // SECURE REVIEW RPC
+  // ===================================================
+
   const handleOpenDetail = async (item: ResultItem) => {
     setSelectedResult(item);
     setReviewQuestions([]);
     setDetailOpen(true);
+
+    if (item.answersExpired) {
+      setReviewLoading(false);
+      return;
+    }
+
     setReviewLoading(true);
 
     try {
-      const questionIds = Object.keys(item.answers || {});
+      // Tidak ada lagi SELECT langsung ke tabel questions.
+      // RPC memvalidasi kepemilikan dan status ujian.
+      const { data: reviewData, error: reviewError } =
+        await supabase.rpc("get_exam_attempt_review", {
+          p_attempt_id: item.id,
+        });
 
-      if (questionIds.length === 0) {
-        setReviewQuestions([]);
-        return;
-      }
+      if (reviewError) throw reviewError;
 
-      const { data: qData, error: qError } = await supabase
-        .from("questions")
-        .select(
-          "id, question_text, options, correct_answer, explanation"
-        )
-        .in("id", questionIds);
+      const mappedQuestions: QuestionReview[] = (
+        reviewData || []
+      ).map((question: any) => ({
+        id: String(question.question_id),
+        question_text: String(
+          question.question_text || "Pertanyaan"
+        ),
+        options: normalizeOptions(question.options),
+        correct_answer: String(
+          question.correct_answer ?? ""
+        ),
+        explanation:
+          question.explanation === null ||
+          question.explanation === undefined
+            ? null
+            : String(question.explanation),
+        user_answer:
+          question.user_answer === null ||
+          question.user_answer === undefined
+            ? null
+            : String(question.user_answer),
+      }));
 
-      if (qError) throw qError;
-
-      const questionMap = new Map(
-        (qData || []).map((question: any) => [
-          question.id,
-          {
-            id: question.id,
-            question_text: question.question_text,
-            options: normalizeOptions(question.options),
-            correct_answer: String(question.correct_answer ?? ""),
-            explanation: question.explanation || null,
-          } as QuestionReview,
-        ])
-      );
-
-      // Menjaga urutan soal sesuai urutan pengerjaan
-      const orderedQuestions = questionIds
-        .map((id) => questionMap.get(id))
-        .filter(
-          (question): question is QuestionReview =>
-            question !== undefined
-        );
-
-      setReviewQuestions(orderedQuestions);
-    } catch (err) {
+      setReviewQuestions(mappedQuestions);
+    } catch (err: any) {
       console.error("Gagal memuat tinjauan jawaban:", err);
       setReviewQuestions([]);
     } finally {
@@ -335,7 +413,10 @@ export default function ResultsPage() {
     }
   };
 
-  // Filter berdasarkan periode
+  // ===================================================
+  // PERIOD FILTER
+  // ===================================================
+
   const periodData = useMemo(() => {
     const days = Number(period);
     const startDate = getPeriodStart(days);
@@ -346,37 +427,43 @@ export default function ResultsPage() {
     });
   }, [data, period]);
 
-  // Filter pencarian dan status
+  // ===================================================
+  // SEARCH AND STATUS FILTER
+  // ===================================================
+
   const filtered = useMemo(() => {
     return periodData
       .filter(
-        (r) =>
-          r.examTitle.toLowerCase().includes(q.toLowerCase()) ||
-          r.category.toLowerCase().includes(q.toLowerCase())
+        (item) =>
+          item.examTitle.toLowerCase().includes(q.toLowerCase()) ||
+          item.category.toLowerCase().includes(q.toLowerCase())
       )
       .filter(
-        (r) =>
+        (item) =>
           status === "all" ||
-          (status === "Lulus" ? r.passed : !r.passed)
+          (status === "Lulus" ? item.passed : !item.passed)
       );
   }, [periodData, q, status]);
 
-  // Statistik utama
+  // ===================================================
+  // MAIN STATISTICS
+  // ===================================================
+
   const avg =
     periodData.length > 0
       ? (
-          periodData.reduce((s, r) => s + r.score, 0) /
+          periodData.reduce((sum, item) => sum + item.score, 0) /
           periodData.length
         ).toFixed(1)
       : "0";
 
   const best =
     periodData.length > 0
-      ? Math.max(...periodData.map((r) => r.score))
+      ? Math.max(...periodData.map((item) => item.score))
       : 0;
 
   const passedCount = periodData.filter(
-    (r) => r.passed
+    (item) => item.passed
   ).length;
 
   const passRate =
@@ -386,7 +473,10 @@ export default function ResultsPage() {
         )
       : 0;
 
-  // Grafik perkembangan nilai
+  // ===================================================
+  // SCORE CHART
+  // ===================================================
+
   const chartData = useMemo(() => {
     return [...periodData]
       .sort(
@@ -431,7 +521,10 @@ export default function ResultsPage() {
     .map((point) => `${point.x},${point.y}`)
     .join(" ");
 
-  // Analisis berdasarkan kategori ujian
+  // ===================================================
+  // CATEGORY ANALYSIS
+  // ===================================================
+
   const categoryStats = useMemo(() => {
     const groups = new Map<
       string,
@@ -468,6 +561,10 @@ export default function ResultsPage() {
         )[0]
       : null;
 
+  // ===================================================
+  // LOADING AND ERROR
+  // ===================================================
+
   if (loading) return <PageSkeleton />;
 
   if (error) {
@@ -478,6 +575,10 @@ export default function ResultsPage() {
       />
     );
   }
+
+  // ===================================================
+  // RENDER
+  // ===================================================
 
   return (
     <div className="space-y-6 pb-8">
@@ -511,7 +612,7 @@ export default function ResultsPage() {
         </div>
       </div>
 
-      {/* STATISTIK UTAMA */}
+      {/* MAIN STATISTICS */}
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <Card className="relative overflow-hidden border-emerald-200/70 bg-gradient-to-br from-emerald-50 to-white p-5 dark:border-emerald-900/50 dark:from-emerald-950/40 dark:to-card">
           <div className="flex items-center justify-between">
@@ -594,9 +695,9 @@ export default function ResultsPage() {
         </Card>
       </div>
 
-      {/* GRAFIK DAN ANALISIS */}
+      {/* CHART AND CATEGORY ANALYSIS */}
       <div className="grid gap-5 xl:grid-cols-2">
-        {/* GRAFIK PERKEMBANGAN */}
+        {/* SCORE DEVELOPMENT CHART */}
         <Card className="overflow-hidden p-5">
           <div className="mb-5 flex items-center justify-between gap-3">
             <div>
@@ -606,6 +707,7 @@ export default function ResultsPage() {
                   Grafik Perkembangan Nilai
                 </h3>
               </div>
+
               <p className="mt-1 text-xs text-muted-foreground">
                 Perjalanan hasil ujianmu dalam periode terpilih.
               </p>
@@ -744,7 +846,7 @@ export default function ResultsPage() {
           )}
         </Card>
 
-        {/* ANALISIS KATEGORI */}
+        {/* CATEGORY ANALYSIS */}
         <Card className="p-5">
           <div className="mb-5 flex items-center gap-2">
             <BarChart3 className="h-5 w-5 text-emerald-600" />
@@ -795,6 +897,7 @@ export default function ResultsPage() {
                       <span className="text-sm font-medium text-foreground">
                         {item.name}
                       </span>
+
                       <span
                         className={cn(
                           "text-sm font-bold",
@@ -837,6 +940,7 @@ export default function ResultsPage() {
                       <Lightbulb className="h-4 w-4" />
                       Perlu ditingkatkan
                     </p>
+
                     <p className="mt-1 text-xs text-amber-700 dark:text-amber-300">
                       Kategori {weakestCategory.name} memiliki
                       rata-rata nilai terendah, yaitu{" "}
@@ -849,7 +953,7 @@ export default function ResultsPage() {
         </Card>
       </div>
 
-      {/* RIWAYAT UJIAN */}
+      {/* EXAM HISTORY */}
       <Card className="overflow-hidden">
         <div className="flex flex-col gap-3 border-b p-5 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-2">
@@ -914,9 +1018,9 @@ export default function ResultsPage() {
                 </TableHeader>
 
                 <TableBody>
-                  {filtered.map((r, index) => (
+                  {filtered.map((item, index) => (
                     <TableRow
-                      key={r.id}
+                      key={item.id}
                       className="transition-colors hover:bg-muted/30"
                     >
                       <TableCell className="text-muted-foreground">
@@ -925,26 +1029,26 @@ export default function ResultsPage() {
 
                       <TableCell>
                         <p className="font-semibold text-foreground">
-                          {r.examTitle}
+                          {item.examTitle}
                         </p>
                         <p className="text-xs capitalize text-muted-foreground">
-                          {r.category}
+                          {item.category}
                         </p>
                       </TableCell>
 
                       <TableCell className="whitespace-nowrap text-xs text-muted-foreground">
-                        {formatDate(r.date)}
+                        {formatDate(item.date)}
                       </TableCell>
 
                       <TableCell className="whitespace-nowrap font-mono text-sm font-bold">
                         <span className="text-emerald-600 dark:text-emerald-400">
-                          {r.correct}
+                          {item.correct}
                         </span>
                         <span className="px-1 text-muted-foreground">
                           /
                         </span>
                         <span className="text-rose-500">
-                          {r.incorrect}
+                          {item.incorrect}
                         </span>
                       </TableCell>
 
@@ -952,15 +1056,15 @@ export default function ResultsPage() {
                         <span
                           className={cn(
                             "text-base font-black",
-                            getScoreColor(r.score)
+                            getScoreColor(item.score)
                           )}
                         >
-                          {r.score}
+                          {item.score}
                         </span>
                       </TableCell>
 
                       <TableCell>
-                        {r.passed ? (
+                        {item.passed ? (
                           <Badge variant="success" className="gap-1">
                             <CheckCircle2 className="h-3 w-3" />
                             Lulus
@@ -977,7 +1081,7 @@ export default function ResultsPage() {
                         <Button
                           size="sm"
                           variant="soft"
-                          onClick={() => handleOpenDetail(r)}
+                          onClick={() => handleOpenDetail(item)}
                         >
                           <Eye className="mr-1 h-4 w-4" />
                           Detail
@@ -989,53 +1093,53 @@ export default function ResultsPage() {
               </Table>
             </div>
 
-            {/* Tampilan mobile */}
+            {/* MOBILE HISTORY */}
             <div className="space-y-3 px-4 pb-4 md:hidden">
-              {filtered.map((r) => (
+              {filtered.map((item) => (
                 <div
-                  key={r.id}
+                  key={item.id}
                   className="rounded-xl border bg-card p-4"
                 >
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
                       <p className="font-semibold text-foreground">
-                        {r.examTitle}
+                        {item.examTitle}
                       </p>
                       <p className="mt-1 text-xs capitalize text-muted-foreground">
-                        {r.category}
+                        {item.category}
                       </p>
                     </div>
 
                     <span
                       className={cn(
                         "shrink-0 text-xl font-black",
-                        getScoreColor(r.score)
+                        getScoreColor(item.score)
                       )}
                     >
-                      {r.score}
+                      {item.score}
                     </span>
                   </div>
 
                   <div className="my-3 flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
                     <span className="flex items-center gap-1">
                       <CalendarDays className="h-3.5 w-3.5" />
-                      {formatDate(r.date)}
+                      {formatDate(item.date)}
                     </span>
 
                     <span>
                       <span className="font-bold text-emerald-600">
-                        {r.correct}
+                        {item.correct}
                       </span>
                       {" / "}
                       <span className="font-bold text-rose-500">
-                        {r.incorrect}
+                        {item.incorrect}
                       </span>
                       {" benar/salah"}
                     </span>
                   </div>
 
                   <div className="flex items-center justify-between border-t pt-3">
-                    {r.passed ? (
+                    {item.passed ? (
                       <Badge variant="success">Lulus</Badge>
                     ) : (
                       <Badge variant="danger">
@@ -1046,7 +1150,7 @@ export default function ResultsPage() {
                     <Button
                       size="sm"
                       variant="outline"
-                      onClick={() => handleOpenDetail(r)}
+                      onClick={() => handleOpenDetail(item)}
                     >
                       <Eye className="mr-1 h-4 w-4" />
                       Lihat Detail
@@ -1059,7 +1163,7 @@ export default function ResultsPage() {
         )}
       </Card>
 
-      {/* REKOMENDASI BELAJAR */}
+      {/* STUDY RECOMMENDATION */}
       <div className="overflow-hidden rounded-2xl border border-emerald-200 bg-gradient-to-r from-emerald-50 via-teal-50 to-white p-4 dark:border-emerald-900/50 dark:from-emerald-950/40 dark:via-teal-950/20 dark:to-card sm:p-5">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-start gap-3">
@@ -1089,7 +1193,7 @@ export default function ResultsPage() {
         </div>
       </div>
 
-      {/* MODAL DETAIL HASIL UJIAN */}
+      {/* RESULT DETAIL DIALOG */}
       <Dialog
         open={detailOpen}
         onOpenChange={setDetailOpen}
@@ -1107,7 +1211,7 @@ export default function ResultsPage() {
               </DialogDescription>
             </DialogHeader>
 
-            {/* Ringkasan nilai */}
+            {/* SCORE SUMMARY */}
             <div className="my-3 grid grid-cols-3 gap-2 rounded-xl border bg-muted/30 p-3 text-center sm:gap-3 sm:p-4">
               <div>
                 <p className="text-[10px] font-bold uppercase text-muted-foreground">
@@ -1146,298 +1250,329 @@ export default function ResultsPage() {
               </span>
             </div>
 
-            {/* TAB TINJAUAN DAN PEMBAHASAN */}
-            <div className="pt-3">
-              <Tabs defaultValue="review" className="w-full">
-                <TabsList className="grid h-auto w-full grid-cols-2">
-                  <TabsTrigger
+            {selectedResult.answersExpired ? (
+              <div className="rounded-xl border border-blue-200 bg-blue-50/70 p-6 text-center dark:border-blue-900 dark:bg-blue-950/20">
+                <Clock className="mx-auto mb-3 h-8 w-8 text-blue-600" />
+                <p className="font-bold text-foreground">
+                  Detail Evaluasi Tidak Tersedia
+                </p>
+                <p className="mt-2 text-sm text-muted-foreground">
+                  Detail jawaban sudah melewati masa penyimpanan.
+                  Nilai dan riwayat ujian tetap tersimpan.
+                </p>
+              </div>
+            ) : (
+              <div className="pt-3">
+                <Tabs defaultValue="review" className="w-full">
+                  <TabsList className="grid h-auto w-full grid-cols-2">
+                    <TabsTrigger
+                      value="review"
+                      className="gap-2 py-2.5 text-xs sm:text-sm"
+                    >
+                      <Eye className="h-4 w-4" />
+                      Tinjauan Jawaban
+                    </TabsTrigger>
+
+                    <TabsTrigger
+                      value="discussion"
+                      className="gap-2 py-2.5 text-xs sm:text-sm"
+                    >
+                      <BookOpen className="h-4 w-4" />
+                      Pembahasan
+                    </TabsTrigger>
+                  </TabsList>
+
+                  {/* ANSWER REVIEW */}
+                  <TabsContent
                     value="review"
-                    className="gap-2 py-2.5 text-xs sm:text-sm"
+                    className="mt-4 space-y-4"
                   >
-                    <Eye className="h-4 w-4" />
-                    Tinjauan Jawaban
-                  </TabsTrigger>
-
-                  <TabsTrigger
-                    value="discussion"
-                    className="gap-2 py-2.5 text-xs sm:text-sm"
-                  >
-                    <BookOpen className="h-4 w-4" />
-                    Pembahasan
-                  </TabsTrigger>
-                </TabsList>
-
-                {/* TAB TINJAUAN JAWABAN */}
-                <TabsContent value="review" className="mt-4 space-y-4">
-                  {reviewLoading ? (
-                    <div className="flex items-center justify-center gap-2 py-10 text-sm text-muted-foreground">
-                      <Clock className="h-4 w-4 animate-pulse" />
-                      Memuat lembar jawaban...
-                    </div>
-                  ) : reviewQuestions.length === 0 ? (
-                    <div className="rounded-xl border border-dashed p-6 text-center">
-                      <CircleHelp className="mx-auto mb-2 h-8 w-8 text-muted-foreground/40" />
-                      <p className="text-sm font-semibold text-foreground">
-                        Detail soal belum tersedia
-                      </p>
-                      <p className="mt-1 text-xs text-muted-foreground">
-                        Riwayat ujian ini belum memiliki data ID soal
-                        yang dapat ditampilkan.
-                      </p>
-                    </div>
-                  ) : (
-                    <>
-                      <div className="flex flex-wrap items-center gap-3 text-[10px] sm:text-xs">
-                        <span className="flex items-center gap-1 text-emerald-600">
-                          <CheckCircle2 className="h-3.5 w-3.5" />
-                          Jawaban benar
-                        </span>
-                        <span className="flex items-center gap-1 text-rose-600">
-                          <XCircle className="h-3.5 w-3.5" />
-                          Jawaban salah
-                        </span>
-                        <span className="flex items-center gap-1 text-muted-foreground">
-                          <CircleHelp className="h-3.5 w-3.5" />
-                          Tidak dijawab
-                        </span>
+                    {reviewLoading ? (
+                      <div className="flex items-center justify-center gap-2 py-10 text-sm text-muted-foreground">
+                        <Clock className="h-4 w-4 animate-pulse" />
+                        Memuat lembar jawaban...
                       </div>
+                    ) : reviewQuestions.length === 0 ? (
+                      <div className="rounded-xl border border-dashed p-6 text-center">
+                        <CircleHelp className="mx-auto mb-2 h-8 w-8 text-muted-foreground/40" />
+                        <p className="text-sm font-semibold text-foreground">
+                          Detail soal belum tersedia
+                        </p>
+                        <p className="mt-1 text-xs text-muted-foreground">
+                          Data soal untuk riwayat ujian ini belum
+                          tersedia atau tidak dapat ditampilkan.
+                        </p>
+                      </div>
+                    ) : (
+                      <>
+                        <div className="flex flex-wrap items-center gap-3 text-[10px] sm:text-xs">
+                          <span className="flex items-center gap-1 text-emerald-600">
+                            <CheckCircle2 className="h-3.5 w-3.5" />
+                            Jawaban benar
+                          </span>
+                          <span className="flex items-center gap-1 text-rose-600">
+                            <XCircle className="h-3.5 w-3.5" />
+                            Jawaban salah
+                          </span>
+                          <span className="flex items-center gap-1 text-muted-foreground">
+                            <CircleHelp className="h-3.5 w-3.5" />
+                            Tidak dijawab
+                          </span>
+                        </div>
 
-                      {reviewQuestions.map((qItem, idx) => {
-                        const userSelectedIndex =
-                          selectedResult.answers?.[qItem.id];
+                        {reviewQuestions.map((question, index) => {
+                          const userIndex = getAnswerIndex(
+                            question.options,
+                            question.user_answer
+                          );
 
-                        const hasAnswered =
-                          userSelectedIndex !== null &&
-                          userSelectedIndex !== undefined &&
-                          Number.isInteger(Number(userSelectedIndex)) &&
-                          Number(userSelectedIndex) >= 0 &&
-                          Number(userSelectedIndex) < qItem.options.length;
+                          const correctIndex = getAnswerIndex(
+                            question.options,
+                            question.correct_answer
+                          );
 
-                        const correctIndex = getCorrectIndex(
-                          qItem.options,
-                          qItem.correct_answer
+                          const hasAnswered = userIndex >= 0;
+
+                          const isCorrect =
+                            hasAnswered &&
+                            correctIndex >= 0 &&
+                            userIndex === correctIndex;
+
+                          const isUnanswered = !hasAnswered;
+
+                          return (
+                            <div
+                              key={question.id}
+                              className={cn(
+                                "space-y-3 rounded-xl border p-4 text-xs",
+                                isCorrect
+                                  ? "border-emerald-500/30 bg-emerald-500/5"
+                                  : isUnanswered
+                                    ? "border-amber-500/30 bg-amber-500/5"
+                                    : "border-rose-500/30 bg-rose-500/5"
+                              )}
+                            >
+                              <div className="flex items-start justify-between gap-3">
+                                <p className="font-bold leading-relaxed text-foreground">
+                                  {index + 1}. {question.question_text}
+                                </p>
+
+                                {isCorrect ? (
+                                  <Badge
+                                    variant="success"
+                                    className="shrink-0 gap-1"
+                                  >
+                                    <CheckCircle2 className="h-3 w-3" />
+                                    Benar
+                                  </Badge>
+                                ) : isUnanswered ? (
+                                  <Badge
+                                    variant="warning"
+                                    className="shrink-0 gap-1"
+                                  >
+                                    <CircleHelp className="h-3 w-3" />
+                                    Kosong
+                                  </Badge>
+                                ) : (
+                                  <Badge
+                                    variant="danger"
+                                    className="shrink-0 gap-1"
+                                  >
+                                    <XCircle className="h-3 w-3" />
+                                    Salah
+                                  </Badge>
+                                )}
+                              </div>
+
+                              <div className="space-y-1.5 border-l-2 border-border/80 pl-2">
+                                {question.options.map((option, optionIndex) => {
+                                  const isUserChoice =
+                                    hasAnswered && userIndex === optionIndex;
+
+                                  const isCorrectOption =
+                                    correctIndex === optionIndex;
+
+                                  return (
+                                    <div
+                                      key={`${question.id}-${optionIndex}`}
+                                      className={cn(
+                                        "flex items-center justify-between gap-2 rounded-lg p-2",
+                                        isCorrectOption &&
+                                          "bg-emerald-500/15 font-bold text-emerald-700 dark:text-emerald-400",
+                                        isUserChoice &&
+                                          !isCorrectOption &&
+                                          "bg-rose-500/15 text-rose-700 dark:text-rose-400"
+                                      )}
+                                    >
+                                      <span className="leading-relaxed">
+                                        <strong className="mr-1.5">
+                                          {option.id}.
+                                        </strong>
+                                        {option.text}
+                                      </span>
+
+                                      <span className="flex shrink-0 items-center gap-1">
+                                        {isUserChoice && (
+                                          <span className="text-[9px] font-semibold">
+                                            Jawabanmu
+                                          </span>
+                                        )}
+
+                                        {isCorrectOption && (
+                                          <CheckCircle2 className="h-3.5 w-3.5" />
+                                        )}
+                                      </span>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+
+                              <div className="grid gap-2 border-t pt-3 sm:grid-cols-2">
+                                <div className="rounded-lg bg-muted/50 p-2">
+                                  <p className="text-[10px] text-muted-foreground">
+                                    Jawabanmu
+                                  </p>
+                                  <p className="mt-1 font-semibold text-foreground">
+                                    {hasAnswered
+                                      ? question.options[userIndex]?.text ||
+                                        "Tidak diketahui"
+                                      : "Tidak dijawab"}
+                                  </p>
+                                </div>
+
+                                <div className="rounded-lg bg-emerald-500/10 p-2">
+                                  <p className="text-[10px] text-emerald-700 dark:text-emerald-400">
+                                    Jawaban benar
+                                  </p>
+                                  <p className="mt-1 font-semibold text-emerald-700 dark:text-emerald-400">
+                                    {correctIndex >= 0
+                                      ? question.options[correctIndex]?.text
+                                      : "Belum dapat ditentukan"}
+                                  </p>
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </>
+                    )}
+                  </TabsContent>
+
+                  {/* DISCUSSION */}
+                  <TabsContent
+                    value="discussion"
+                    className="mt-4 space-y-4"
+                  >
+                    {reviewLoading ? (
+                      <div className="flex items-center justify-center gap-2 py-10 text-sm text-muted-foreground">
+                        <Clock className="h-4 w-4 animate-pulse" />
+                        Memuat pembahasan...
+                      </div>
+                    ) : reviewQuestions.length === 0 ? (
+                      <div className="rounded-xl border border-dashed p-6 text-center">
+                        <BookOpen className="mx-auto mb-2 h-8 w-8 text-muted-foreground/40" />
+                        <p className="text-sm font-semibold text-foreground">
+                          Pembahasan belum tersedia
+                        </p>
+                        <p className="mt-1 text-xs text-muted-foreground">
+                          Data soal belum ditemukan untuk ujian ini.
+                        </p>
+                      </div>
+                    ) : (
+                      reviewQuestions.map((question, index) => {
+                        const userIndex = getAnswerIndex(
+                          question.options,
+                          question.user_answer
                         );
+
+                        const correctIndex = getAnswerIndex(
+                          question.options,
+                          question.correct_answer
+                        );
+
+                        const hasAnswered = userIndex >= 0;
 
                         const isCorrect =
                           hasAnswered &&
-                          Number(userSelectedIndex) === correctIndex;
-
-                        const isUnanswered = !hasAnswered;
+                          correctIndex >= 0 &&
+                          userIndex === correctIndex;
 
                         return (
                           <div
-                            key={qItem.id}
-                            className={cn(
-                              "space-y-3 rounded-xl border p-4 text-xs",
-                              isCorrect
-                                ? "border-emerald-500/30 bg-emerald-500/5"
-                                : isUnanswered
-                                  ? "border-amber-500/30 bg-amber-500/5"
-                                  : "border-rose-500/30 bg-rose-500/5"
-                            )}
+                            key={question.id}
+                            className="space-y-3 rounded-xl border bg-card p-4"
                           >
                             <div className="flex items-start justify-between gap-3">
-                              <p className="font-bold leading-relaxed text-foreground">
-                                {idx + 1}. {qItem.question_text}
+                              <p className="text-xs font-bold leading-relaxed text-foreground">
+                                {index + 1}. {question.question_text}
                               </p>
 
                               {isCorrect ? (
-                                <Badge variant="success" className="shrink-0 gap-1">
-                                  <CheckCircle2 className="h-3 w-3" />
+                                <Badge
+                                  variant="success"
+                                  className="shrink-0"
+                                >
                                   Benar
                                 </Badge>
-                              ) : isUnanswered ? (
-                                <Badge variant="warning" className="shrink-0 gap-1">
-                                  <CircleHelp className="h-3 w-3" />
+                              ) : !hasAnswered ? (
+                                <Badge
+                                  variant="warning"
+                                  className="shrink-0"
+                                >
                                   Kosong
                                 </Badge>
                               ) : (
-                                <Badge variant="danger" className="shrink-0 gap-1">
-                                  <XCircle className="h-3 w-3" />
+                                <Badge
+                                  variant="danger"
+                                  className="shrink-0"
+                                >
                                   Salah
                                 </Badge>
                               )}
                             </div>
 
-                            <div className="space-y-1.5 border-l-2 border-border/80 pl-2">
-                              {qItem.options.map((opt, optIdx) => {
-                                const isUserChoice =
-                                  hasAnswered &&
-                                  Number(userSelectedIndex) === optIdx;
-
-                                const isCorrectOption =
-                                  correctIndex === optIdx;
-
-                                return (
-                                  <div
-                                    key={`${qItem.id}-${optIdx}`}
-                                    className={cn(
-                                      "flex items-center justify-between gap-2 rounded-lg p-2",
-                                      isCorrectOption &&
-                                        "bg-emerald-500/15 font-bold text-emerald-700 dark:text-emerald-400",
-                                      isUserChoice &&
-                                        !isCorrectOption &&
-                                        "bg-rose-500/15 text-rose-700 dark:text-rose-400"
-                                    )}
-                                  >
-                                    <span className="leading-relaxed">
-                                      <strong className="mr-1.5">
-                                        {opt.id}.
-                                      </strong>
-                                      {opt.text}
-                                    </span>
-
-                                    <span className="flex shrink-0 items-center gap-1">
-                                      {isUserChoice && (
-                                        <span className="text-[9px] font-semibold">
-                                          Jawabanmu
-                                        </span>
-                                      )}
-
-                                      {isCorrectOption && (
-                                        <CheckCircle2 className="h-3.5 w-3.5" />
-                                      )}
-                                    </span>
-                                  </div>
-                                );
-                              })}
+                            <div className="rounded-lg bg-emerald-500/10 p-3">
+                              <p className="text-[10px] font-bold uppercase tracking-wide text-emerald-700 dark:text-emerald-400">
+                                Jawaban yang benar
+                              </p>
+                              <p className="mt-1 text-xs font-semibold text-emerald-800 dark:text-emerald-300">
+                                {correctIndex >= 0
+                                  ? `${question.options[correctIndex]?.id}. ${question.options[correctIndex]?.text}`
+                                  : "Jawaban benar belum dapat ditentukan."}
+                              </p>
                             </div>
 
-                            <div className="grid gap-2 border-t pt-3 sm:grid-cols-2">
-                              <div className="rounded-lg bg-muted/50 p-2">
-                                <p className="text-[10px] text-muted-foreground">
-                                  Jawabanmu
-                                </p>
-                                <p className="mt-1 font-semibold text-foreground">
-                                  {hasAnswered
-                                    ? qItem.options[Number(userSelectedIndex)]?.text ||
-                                      "Tidak diketahui"
-                                    : "Tidak dijawab"}
-                                </p>
-                              </div>
+                            <div className="rounded-lg bg-muted/50 p-3">
+                              <p className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">
+                                Jawaban siswa
+                              </p>
+                              <p className="mt-1 text-xs font-medium text-foreground">
+                                {hasAnswered
+                                  ? `${question.options[userIndex]?.id}. ${question.options[userIndex]?.text}`
+                                  : "Soal ini tidak dijawab."}
+                              </p>
+                            </div>
 
-                              <div className="rounded-lg bg-emerald-500/10 p-2">
-                                <p className="text-[10px] text-emerald-700 dark:text-emerald-400">
-                                  Jawaban benar
-                                </p>
-                                <p className="mt-1 font-semibold text-emerald-700 dark:text-emerald-400">
-                                  {correctIndex >= 0
-                                    ? qItem.options[correctIndex]?.text
-                                    : "Belum dapat ditentukan"}
-                                </p>
-                              </div>
+                            <div className="rounded-lg border border-blue-200 bg-blue-50/70 p-3 dark:border-blue-900/50 dark:bg-blue-950/20">
+                              <p className="flex items-center gap-2 text-xs font-bold text-blue-800 dark:text-blue-300">
+                                <Lightbulb className="h-4 w-4" />
+                                Pembahasan
+                              </p>
+
+                              <p className="mt-2 whitespace-pre-line text-xs leading-relaxed text-blue-900 dark:text-blue-200">
+                                {question.explanation?.trim()
+                                  ? question.explanation
+                                  : "Pembahasan untuk soal ini belum ditambahkan oleh pengajar."}
+                              </p>
                             </div>
                           </div>
                         );
-                      })}
-                    </>
-                  )}
-                </TabsContent>
-
-                {/* TAB PEMBAHASAN */}
-                <TabsContent value="discussion" className="mt-4 space-y-4">
-                  {reviewLoading ? (
-                    <div className="flex items-center justify-center gap-2 py-10 text-sm text-muted-foreground">
-                      <Clock className="h-4 w-4 animate-pulse" />
-                      Memuat pembahasan...
-                    </div>
-                  ) : reviewQuestions.length === 0 ? (
-                    <div className="rounded-xl border border-dashed p-6 text-center">
-                      <BookOpen className="mx-auto mb-2 h-8 w-8 text-muted-foreground/40" />
-                      <p className="text-sm font-semibold text-foreground">
-                        Pembahasan belum tersedia
-                      </p>
-                      <p className="mt-1 text-xs text-muted-foreground">
-                        Data soal belum ditemukan untuk ujian ini.
-                      </p>
-                    </div>
-                  ) : (
-                    reviewQuestions.map((qItem, idx) => {
-                      const userSelectedIndex =
-                        selectedResult.answers?.[qItem.id];
-
-                      const hasAnswered =
-                        userSelectedIndex !== null &&
-                        userSelectedIndex !== undefined &&
-                        Number.isInteger(Number(userSelectedIndex)) &&
-                        Number(userSelectedIndex) >= 0 &&
-                        Number(userSelectedIndex) < qItem.options.length;
-
-                      const correctIndex = getCorrectIndex(
-                        qItem.options,
-                        qItem.correct_answer
-                      );
-
-                      const isCorrect =
-                        hasAnswered &&
-                        Number(userSelectedIndex) === correctIndex;
-
-                      return (
-                        <div
-                          key={qItem.id}
-                          className="space-y-3 rounded-xl border bg-card p-4"
-                        >
-                          <div className="flex items-start justify-between gap-3">
-                            <p className="text-xs font-bold leading-relaxed text-foreground">
-                              {idx + 1}. {qItem.question_text}
-                            </p>
-
-                            {isCorrect ? (
-                              <Badge variant="success" className="shrink-0">
-                                Benar
-                              </Badge>
-                            ) : !hasAnswered ? (
-                              <Badge variant="warning" className="shrink-0">
-                                Kosong
-                              </Badge>
-                            ) : (
-                              <Badge variant="danger" className="shrink-0">
-                                Salah
-                              </Badge>
-                            )}
-                          </div>
-
-                          <div className="rounded-lg bg-emerald-500/10 p-3">
-                            <p className="text-[10px] font-bold uppercase tracking-wide text-emerald-700 dark:text-emerald-400">
-                              Jawaban yang benar
-                            </p>
-                            <p className="mt-1 text-xs font-semibold text-emerald-800 dark:text-emerald-300">
-                              {correctIndex >= 0
-                                ? `${qItem.options[correctIndex]?.id}. ${qItem.options[correctIndex]?.text}`
-                                : "Jawaban benar belum dapat ditentukan."}
-                            </p>
-                          </div>
-
-                          <div className="rounded-lg bg-muted/50 p-3">
-                            <p className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">
-                              Jawaban siswa
-                            </p>
-                            <p className="mt-1 text-xs font-medium text-foreground">
-                              {hasAnswered
-                                ? `${qItem.options[Number(userSelectedIndex)]?.id}. ${qItem.options[Number(userSelectedIndex)]?.text}`
-                                : "Soal ini tidak dijawab."}
-                            </p>
-                          </div>
-
-                          <div className="rounded-lg border border-blue-200 bg-blue-50/70 p-3 dark:border-blue-900/50 dark:bg-blue-950/20">
-                            <p className="flex items-center gap-2 text-xs font-bold text-blue-800 dark:text-blue-300">
-                              <Lightbulb className="h-4 w-4" />
-                              Pembahasan
-                            </p>
-
-                            <p className="mt-2 whitespace-pre-line text-xs leading-relaxed text-blue-900 dark:text-blue-200">
-                              {qItem.explanation?.trim()
-                                ? qItem.explanation
-                                : "Pembahasan untuk soal ini belum ditambahkan oleh pengajar."}
-                            </p>
-                          </div>
-                        </div>
-                      );
-                    })
-                  )}
-                </TabsContent>
-              </Tabs>
-            </div>
+                      })
+                    )}
+                  </TabsContent>
+                </Tabs>
+              </div>
+            )}
           </DialogContent>
         )}
       </Dialog>
