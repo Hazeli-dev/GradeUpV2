@@ -1,23 +1,19 @@
 
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { Cell, Pie, PieChart, ResponsiveContainer } from "recharts";
 import {
   ArrowLeft,
   CheckCircle2,
   Clock,
+  Info,
   MessageSquareText,
   MinusCircle,
   XCircle,
 } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Tabs,
   TabsContent,
@@ -33,78 +29,101 @@ import { formatDate } from "@/utils/format";
 import { CHART_COLORS } from "@/constants";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/lib/supabase";
-
-interface QuestionOption {
-  id: string;
-  text: string;
-}
+import { checkAndUnlockAchievements } from "@/services/achievement.service";
 
 interface QuestionItem {
   id: string;
   text: string;
-  options: QuestionOption[];
+  options: string[];
   correctIndex: number;
   explanation: string;
 }
 
 interface ResultData {
   id: string;
+  examId: string;
   examTitle: string;
   date: string;
   score: number;
   correct: number;
   incorrect: number;
   unanswered: number;
-  totalQuestions: number;
-  durationUsed: number | null;
+  durationUsed: number;
   passed: boolean;
-  userAnswers: Record<string, number | null>;
+  userAnswers: Record<string, number>;
+  answersExpired: boolean;
 }
 
+// Mengubah kunci jawaban menjadi indeks pilihan.
+// Mendukung format angka (0, 1, 2), huruf (A, B, C), dan angka string.
 const getCorrectIndex = (answer: unknown): number => {
   if (typeof answer === "number" && Number.isInteger(answer)) {
-    return answer;
+    return answer >= 0 ? answer : 0;
   }
 
-  const value = String(answer ?? "").trim().toUpperCase();
+  if (typeof answer === "string") {
+    const normalized = answer.trim().toUpperCase();
 
-  if (/^[A-Z]$/.test(value)) {
-    return value.charCodeAt(0) - 65;
+    if (/^[A-Z]$/.test(normalized)) {
+      return normalized.charCodeAt(0) - 65;
+    }
+
+    const parsed = Number(normalized);
+    if (Number.isInteger(parsed) && parsed >= 0) {
+      return parsed;
+    }
   }
 
-  const numericValue = Number(value);
-
-  return Number.isInteger(numericValue) ? numericValue : -1;
+  return 0;
 };
 
-const parseOptions = (value: unknown): QuestionOption[] => {
-  let parsed = value;
+const parseOptions = (options: unknown): string[] => {
+  let parsedOptions = options;
 
-  if (typeof parsed === "string") {
+  if (typeof options === "string") {
     try {
-      parsed = JSON.parse(parsed);
+      parsedOptions = JSON.parse(options);
     } catch {
       return [];
     }
   }
 
-  if (!Array.isArray(parsed)) return [];
+  if (!Array.isArray(parsedOptions)) return [];
 
-  return parsed.map((option, index) => {
+  return parsedOptions.map((option: any) => {
     if (typeof option === "object" && option !== null) {
-      const item = option as Record<string, unknown>;
-
-      return {
-        id: String(item.id ?? String.fromCharCode(65 + index)),
-        text: String(item.text ?? ""),
-      };
+      return String(option.text ?? option.label ?? option.value ?? "");
     }
 
-    return {
-      id: String.fromCharCode(65 + index),
-      text: String(option ?? ""),
-    };
+    return String(option);
   });
+};
+
+const parseUserAnswers = (answers: unknown): Record<string, number> => {
+  if (!answers || typeof answers !== "object" || Array.isArray(answers)) {
+    return {};
+  }
+
+  const parsed: Record<string, number> = {};
+
+  Object.entries(answers as Record<string, unknown>).forEach(([id, value]) => {
+    if (typeof value === "number" && Number.isInteger(value)) {
+      parsed[id] = value;
+    } else if (typeof value === "string") {
+      const normalized = value.trim().toUpperCase();
+
+      if (/^[A-Z]$/.test(normalized)) {
+        parsed[id] = normalized.charCodeAt(0) - 65;
+      } else {
+        const numericValue = Number(normalized);
+        if (Number.isInteger(numericValue)) {
+          parsed[id] = numericValue;
+        }
+      }
+    }
+  });
+
+  return parsed;
 };
 
 export default function ResultDetailPage() {
@@ -115,7 +134,7 @@ export default function ResultDetailPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const fetchData = useCallback(async () => {
+  const fetchData = async () => {
     if (!resultId) {
       setError("ID hasil ujian tidak ditemukan.");
       setLoading(false);
@@ -126,41 +145,30 @@ export default function ResultDetailPage() {
     setError(null);
 
     try {
-      // 1. Pastikan pengguna sudah login.
+      // 1. Ambil data hasil ujian milik pengguna yang sedang login.
       const {
         data: { user },
         error: authError,
       } = await supabase.auth.getUser();
 
-      if (authError) throw authError;
+      if (authError) throw new Error(authError.message);
+      if (!user) throw new Error("Silakan login kembali.");
 
-      if (!user) {
-        throw new Error("Silakan login untuk melihat hasil ujian.");
-      }
-
-      // 2. Ambil hasil ujian milik pengguna yang sedang login.
       const { data: attempt, error: attemptError } = await supabase
         .from("exam_attempts")
-        .select(
-          "id, user_id, exam_id, score, answers, status, created_at, correct_count, wrong_count, total_questions, is_passed"
-        )
+        .select("*")
         .eq("id", resultId)
         .eq("user_id", user.id)
         .maybeSingle();
 
-      if (attemptError) throw attemptError;
+      if (attemptError) throw new Error(attemptError.message);
+      if (!attempt) throw new Error("Data hasil ujian tidak ditemukan.");
 
-      if (!attempt) {
-        throw new Error(
-          "Data hasil ujian tidak ditemukan atau tidak dapat diakses."
-        );
-      }
+      const examId = attempt.exam_package_id || attempt.exam_id;
 
-      const examId = attempt.exam_id;
-
-      // 3. Ambil informasi paket ujian.
+      // 2. Ambil informasi paket ujian.
       let examTitle = "Paket Ujian";
-      let passingScore = 70;
+      let passingScore = 60;
 
       if (examId) {
         const { data: examPackage, error: packageError } = await supabase
@@ -169,142 +177,144 @@ export default function ResultDetailPage() {
           .eq("id", examId)
           .maybeSingle();
 
-        if (packageError) throw packageError;
+        if (packageError) throw new Error(packageError.message);
 
         if (examPackage) {
           examTitle = examPackage.title || examTitle;
-          passingScore = Number(examPackage.passing_score ?? 70);
+          passingScore = examPackage.passing_score ?? 60;
         }
       }
 
-      // 4. Baca jawaban siswa.
-      const rawAnswers =
-        attempt.answers && typeof attempt.answers === "object"
-          ? (attempt.answers as Record<string, unknown>)
-          : {};
+      // 3. Deteksi apakah detail jawaban sudah dihapus oleh cron.
+      // Cron mengubah kolom answers menjadi NULL setelah 6 bulan.
+      const answersExpired = attempt.answers === null;
 
-      const userAnswers: Record<string, number | null> = {};
+      const userAnswers = parseUserAnswers(attempt.answers);
 
-      Object.entries(rawAnswers).forEach(([questionId, answer]) => {
-        const numericAnswer = Number(answer);
-
-        userAnswers[questionId] =
-          answer === null ||
-          answer === undefined ||
-          !Number.isInteger(numericAnswer)
-            ? null
-            : numericAnswer;
-      });
-
-      // 5. Ambil soal berdasarkan ID yang tersimpan pada jawaban.
-      const questionIds = Object.keys(userAnswers);
-
+      // 4. Ambil soal hanya jika detail jawaban masih tersedia.
       let questionList: QuestionItem[] = [];
 
-      if (questionIds.length > 0) {
-        const { data: questionData, error: questionError } = await supabase
-          .from("questions")
-          .select(
-            "id, question_text, options, correct_answer, explanation"
-          )
-          .in("id", questionIds);
+      if (!answersExpired && examId) {
+        const questionIds = Object.keys(userAnswers);
 
-        if (questionError) throw questionError;
+        if (questionIds.length > 0) {
+          const { data: questionData, error: questionError } = await supabase
+            .from("questions")
+            .select(
+              "id, question_text, options, correct_answer, explanation"
+            )
+            .in("id", questionIds);
 
-        questionList = (questionData ?? []).map((question) => ({
-          id: String(question.id),
-          text: String(
-            question.question_text ?? "Pertanyaan tidak tersedia"
-          ),
-          options: parseOptions(question.options),
-          correctIndex: getCorrectIndex(question.correct_answer),
-          explanation: String(
-            question.explanation ?? ""
-          ),
-        }));
+          if (questionError) throw new Error(questionError.message);
 
-        // Susun kembali sesuai urutan ID pada answers.
-        const questionMap = new Map(
-          questionList.map((question) => [question.id, question])
-        );
+          if (questionData) {
+            // Pertahankan urutan soal berdasarkan urutan jawaban siswa.
+            const questionMap = new Map(
+              questionData.map((question: any) => [
+                String(question.id),
+                question,
+              ])
+            );
 
-        questionList = questionIds
-          .map((id) => questionMap.get(id))
-          .filter(
-            (question): question is QuestionItem => Boolean(question)
-          );
+            questionList = questionIds
+              .map((id) => questionMap.get(id))
+              .filter(Boolean)
+              .map((question: any) => {
+                let rawText = question.question_text || "Pertanyaan";
+                if (typeof rawText === "object" && rawText !== null) {
+                  rawText =
+                    rawText.text ||
+                    rawText.question ||
+                    JSON.stringify(rawText);
+                }
+
+                let rawExplanation =
+                  question.explanation || "Belum ada pembahasan.";
+
+                if (
+                  typeof rawExplanation === "object" &&
+                  rawExplanation !== null
+                ) {
+                  rawExplanation =
+                    rawExplanation.text || JSON.stringify(rawExplanation);
+                }
+
+                return {
+                  id: String(question.id),
+                  text: String(rawText),
+                  options: parseOptions(question.options),
+                  correctIndex: getCorrectIndex(question.correct_answer),
+                  explanation: String(rawExplanation),
+                };
+              });
+          }
+        }
       }
 
       setQuestions(questionList);
 
-      // 6. Hitung statistik berdasarkan data yang tersedia.
-      const totalQuestions = Math.max(
+      // 5. Gunakan statistik yang tersimpan di database.
+      // Statistik ini tetap tersedia meskipun answers sudah NULL.
+      const totalQuestions =
+        Number(attempt.total_questions) || questionList.length || 0;
+
+      const correct = Number(attempt.correct_count) || 0;
+
+      // Skema GradeUp menggunakan wrong_count.
+      // incorrect_count disediakan sebagai fallback untuk data lama.
+      const incorrect =
+        Number(attempt.wrong_count ?? attempt.incorrect_count) || 0;
+
+      const unanswered = Math.max(
         0,
-        Number(attempt.total_questions ?? questionList.length)
+        totalQuestions - correct - incorrect
       );
 
-      let correct = 0;
+      const score = Number(attempt.score) || 0;
 
-      questionList.forEach((question) => {
-        const selectedIndex = userAnswers[question.id];
-
-        if (
-          selectedIndex !== null &&
-          selectedIndex !== undefined &&
-          selectedIndex === question.correctIndex &&
-          question.correctIndex >= 0
-        ) {
-          correct++;
-        }
-      });
-
-      const answeredCount = Object.values(userAnswers).filter(
-        (answer) => answer !== null && answer !== undefined
-      ).length;
-
-      const incorrect = Math.max(0, answeredCount - correct);
-      const unanswered = Math.max(0, totalQuestions - answeredCount);
-      const score = Number(attempt.score ?? 0);
+      const durationUsed = Math.ceil(
+        (Number(attempt.duration_seconds) || 0) / 60
+      );
 
       setResult({
         id: String(attempt.id),
+        examId: examId ? String(examId) : "",
         examTitle,
-        date: attempt.created_at ?? new Date().toISOString(),
+        date: attempt.created_at || new Date().toISOString(),
         score,
         correct,
         incorrect,
         unanswered,
-        totalQuestions,
-        durationUsed: null,
+        durationUsed,
         passed:
-          typeof attempt.is_passed === "boolean"
-            ? attempt.is_passed
+          attempt.is_passed !== null && attempt.is_passed !== undefined
+            ? Boolean(attempt.is_passed)
             : score >= passingScore,
         userAnswers,
+        answersExpired,
       });
-    } catch (err) {
-      console.error("Fetch result detail error:", err);
 
-      setError(
-        err instanceof Error
-          ? err.message
-          : "Gagal memuat rincian hasil ujian."
-      );
+      // 6. Pemicu otomatis pencapaian.
+      if (attempt.user_id) {
+        checkAndUnlockAchievements(attempt.user_id);
+      }
+    } catch (err: any) {
+      setError(err.message || "Gagal memuat rincian hasil.");
     } finally {
       setLoading(false);
     }
-  }, [resultId]);
+  };
 
   useEffect(() => {
     fetchData();
-  }, [fetchData]);
+  }, [resultId]);
 
   if (loading) return <PageSkeleton />;
 
   if (error || !result) {
     return (
       <ErrorState
-        message={error || "Hasil ujian tidak ditemukan."}
+        message={error || "Hasil tidak ditemukan"}
         onRetry={fetchData}
       />
     );
@@ -314,61 +324,47 @@ export default function ResultDetailPage() {
   const dangerColor = CHART_COLORS?.danger || "#ef4444";
   const mutedColor = CHART_COLORS?.muted || "#6b7280";
 
-  const pieData = [
-    {
-      name: "Benar",
-      value: result.correct,
-      color: secondaryColor,
-    },
-    {
-      name: "Salah",
-      value: result.incorrect,
-      color: dangerColor,
-    },
-    {
-      name: "Kosong",
-      value: result.unanswered,
-      color: mutedColor,
-    },
+  const rawPie = [
+    { name: "Benar", value: result.correct, color: secondaryColor },
+    { name: "Salah", value: result.incorrect, color: dangerColor },
+    { name: "Kosong", value: result.unanswered, color: mutedColor },
   ].filter((item) => item.value > 0);
 
-  const chartData =
-    pieData.length > 0
-      ? pieData
-      : [{ name: "Belum tersedia", value: 1, color: mutedColor }];
+  const pieData =
+    rawPie.length > 0
+      ? rawPie
+      : [{ name: "Kosong", value: 1, color: mutedColor }];
 
   return (
-    <div className="mx-auto w-full max-w-7xl space-y-6 pb-8">
+    <div className="space-y-6">
       <Link
         to="/dashboard/results"
-        className="inline-flex items-center gap-2 text-sm font-semibold text-muted-foreground transition-colors hover:text-primary"
+        className="inline-flex items-center gap-1.5 text-sm font-semibold text-muted-foreground hover:text-foreground"
       >
         <ArrowLeft className="h-4 w-4" />
         Kembali ke Hasil Belajar
       </Link>
 
       <div className="grid gap-6 lg:grid-cols-3">
-        {/* RINGKASAN HASIL */}
-        <Card className="h-fit overflow-hidden border-border/70 shadow-sm lg:sticky lg:top-6">
-          <div className="h-1.5 bg-gradient-to-r from-emerald-600 to-emerald-400" />
-
-          <CardContent className="flex flex-col items-center p-6 text-center">
+        {/* RINGKASAN SKOR */}
+        <Card className="lg:col-span-1">
+          <CardContent className="flex flex-col items-center p-6 pt-6 text-center">
             <div className="relative h-48 w-48">
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
                   <Pie
-                    data={chartData}
+                    data={pieData}
                     dataKey="value"
-                    innerRadius={65}
-                    outerRadius={88}
+                    innerRadius={62}
+                    outerRadius={84}
                     paddingAngle={3}
                     stroke="none"
                     startAngle={90}
                     endAngle={-270}
                   >
-                    {chartData.map((entry, index) => (
+                    {pieData.map((entry, index) => (
                       <Cell
-                        key={`result-chart-${index}`}
+                        key={`cell-${index}`}
                         fill={entry.color}
                       />
                     ))}
@@ -377,16 +373,16 @@ export default function ResultDetailPage() {
               </ResponsiveContainer>
 
               <div className="absolute inset-0 flex flex-col items-center justify-center">
-                <span className="text-4xl font-black tracking-tight">
+                <span className="text-4xl font-extrabold">
                   {result.score}
                 </span>
-                <span className="text-xs font-medium text-muted-foreground">
+                <span className="text-xs text-muted-foreground">
                   dari 100
                 </span>
               </div>
             </div>
 
-            <h1 className="mt-3 text-lg font-extrabold leading-snug">
+            <h1 className="mt-4 text-lg font-extrabold leading-snug">
               {result.examTitle}
             </h1>
 
@@ -394,388 +390,242 @@ export default function ResultDetailPage() {
               {formatDate(result.date)}
             </p>
 
-            <div className="mt-4">
+            <div className="mt-3">
               {result.passed ? (
-                <Badge className="border-emerald-500/20 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400">
-                  <CheckCircle2 className="mr-1 h-3.5 w-3.5" />
-                  Lulus
-                </Badge>
+                <Badge variant="success">Lulus</Badge>
               ) : (
                 <Badge variant="danger">Belum lulus</Badge>
               )}
             </div>
 
-            <div className="mt-6 grid w-full grid-cols-3 gap-2">
-              <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-3">
-                <p className="text-xs font-medium text-muted-foreground">
-                  Benar
-                </p>
-                <p className="mt-1 text-xl font-extrabold text-emerald-600 dark:text-emerald-400">
+            <dl className="mt-6 grid w-full grid-cols-3 gap-2 text-center">
+              <div className="rounded-xl bg-emerald-50 p-3 dark:bg-emerald-500/10">
+                <dt className="text-xs text-muted-foreground">Benar</dt>
+                <dd className="text-lg font-extrabold text-emerald-600 dark:text-emerald-400">
                   {result.correct}
-                </p>
+                </dd>
               </div>
 
-              <div className="rounded-xl border border-red-500/20 bg-red-500/5 p-3">
-                <p className="text-xs font-medium text-muted-foreground">
-                  Salah
-                </p>
-                <p className="mt-1 text-xl font-extrabold text-red-600 dark:text-red-400">
+              <div className="rounded-xl bg-red-50 p-3 dark:bg-red-500/10">
+                <dt className="text-xs text-muted-foreground">Salah</dt>
+                <dd className="text-lg font-extrabold text-red-500">
                   {result.incorrect}
-                </p>
+                </dd>
               </div>
 
-              <div className="rounded-xl border border-border bg-muted/40 p-3">
-                <p className="text-xs font-medium text-muted-foreground">
-                  Kosong
-                </p>
-                <p className="mt-1 text-xl font-extrabold">
+              <div className="rounded-xl bg-muted p-3">
+                <dt className="text-xs text-muted-foreground">Kosong</dt>
+                <dd className="text-lg font-extrabold">
                   {result.unanswered}
-                </p>
+                </dd>
               </div>
-            </div>
+            </dl>
 
-            <div className="mt-5 flex w-full items-center justify-center gap-2 rounded-xl bg-muted/40 px-3 py-3 text-xs text-muted-foreground">
-              <Clock className="h-4 w-4 shrink-0" />
-              Durasi pengerjaan belum tercatat
-            </div>
-
-            <div className="mt-4 w-full space-y-1 text-left">
-              <div className="flex justify-between text-xs text-muted-foreground">
-                <span>Total soal</span>
-                <span className="font-bold text-foreground">
-                  {result.totalQuestions}
-                </span>
-              </div>
-
-              <div className="flex justify-between text-xs text-muted-foreground">
-                <span>Sudah dijawab</span>
-                <span className="font-bold text-foreground">
-                  {result.correct + result.incorrect}
-                </span>
-              </div>
-            </div>
+            <p className="mt-4 inline-flex items-center gap-1.5 text-xs text-muted-foreground">
+              <Clock className="h-3.5 w-3.5" />
+              Waktu terpakai {result.durationUsed} menit
+            </p>
           </CardContent>
         </Card>
 
-        {/* TINJAUAN DAN PEMBAHASAN */}
-        <div className="min-w-0 space-y-4 lg:col-span-2">
-          <div>
-            <h2 className="text-xl font-extrabold tracking-tight">
-              Evaluasi Ujian
-            </h2>
-            <p className="mt-1 text-sm text-muted-foreground">
-              Pelajari jawaban dan pembahasan untuk meningkatkan pemahamanmu.
-            </p>
-          </div>
+        {/* DETAIL JAWABAN DAN PEMBAHASAN */}
+        <div className="space-y-4 lg:col-span-2">
+          {result.answersExpired ? (
+            <Card className="border-blue-200 bg-blue-50/70 dark:border-blue-900 dark:bg-blue-950/20">
+              <CardContent className="flex flex-col items-center px-6 py-12 text-center">
+                <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-blue-100 text-blue-600 dark:bg-blue-900/50 dark:text-blue-300">
+                  <Info className="h-7 w-7" />
+                </div>
 
-          <Tabs defaultValue="review" className="w-full">
-            <TabsList className="grid h-11 w-full grid-cols-2">
-              <TabsTrigger value="review">
-                Tinjauan Jawaban
-              </TabsTrigger>
+                <h2 className="text-lg font-bold text-foreground">
+                  Detail Evaluasi Tidak Tersedia
+                </h2>
 
-              <TabsTrigger value="discussion">
-                <MessageSquareText className="mr-1.5 h-4 w-4" />
-                Pembahasan
-              </TabsTrigger>
-            </TabsList>
+                <p className="mt-3 max-w-lg text-sm leading-relaxed text-muted-foreground">
+                  Detail jawaban dan pembahasan sudah melewati masa
+                  penyimpanan. Nilai dan hasil ujian tetap tersimpan
+                  dalam riwayat belajar Anda.
+                </p>
 
-            {/* TAB TINJAUAN */}
-            <TabsContent value="review" className="mt-4 space-y-4">
-              {questions.length === 0 ? (
-                <EmptyState
-                  title="Tinjauan soal belum tersedia"
-                  description="ID soal tidak ditemukan dalam data jawaban ujian ini."
-                />
-              ) : (
-                questions.map((question, index) => {
-                  const chosen = result.userAnswers[question.id] ?? null;
+                <Badge variant="outline" className="mt-5">
+                  Riwayat nilai tetap tersimpan
+                </Badge>
+              </CardContent>
+            </Card>
+          ) : (
+            <Tabs defaultValue="review" className="w-full">
+              <TabsList>
+                <TabsTrigger value="review">
+                  Tinjauan Jawaban
+                </TabsTrigger>
 
-                  const isAnswered =
-                    chosen !== null && chosen !== undefined;
+                <TabsTrigger value="discussion">
+                  <MessageSquareText className="mr-1 inline h-4 w-4" />
+                  Pembahasan
+                </TabsTrigger>
+              </TabsList>
 
-                  const isCorrect =
-                    isAnswered &&
-                    chosen === question.correctIndex &&
-                    question.correctIndex >= 0;
+              {/* TAB TINJAUAN JAWABAN */}
+              <TabsContent value="review" className="space-y-4">
+                {questions.length === 0 && (
+                  <EmptyState title="Tinjauan soal belum tersedia" />
+                )}
 
-                  const status = !isAnswered
-                    ? "blank"
-                    : isCorrect
+                {questions.map((question, index) => {
+                  const chosen =
+                    result.userAnswers[question.id] ?? null;
+
+                  const status =
+                    chosen === null
+                      ? "blank"
+                      : chosen === question.correctIndex
                       ? "correct"
                       : "wrong";
 
                   return (
-                    <Card
-                      key={question.id}
-                      className="overflow-hidden border-border/70 shadow-sm"
-                    >
-                      <CardHeader className="flex-row items-start gap-3 space-y-0 pb-3">
+                    <Card key={question.id || index}>
+                      <CardHeader className="flex-row items-start gap-3 space-y-0">
                         <span
                           className={cn(
-                            "flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-sm font-extrabold",
-                            status === "correct" &&
-                              "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400",
-                            status === "wrong" &&
-                              "bg-red-500/10 text-red-600 dark:text-red-400",
-                            status === "blank" &&
-                              "bg-muted text-muted-foreground"
+                            "flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-sm font-extrabold",
+                            status === "correct"
+                              ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300"
+                              : status === "wrong"
+                              ? "bg-red-100 text-red-700 dark:bg-red-500/15 dark:text-red-300"
+                              : "bg-muted text-muted-foreground"
                           )}
                         >
                           {index + 1}
                         </span>
 
-                        <div className="min-w-0 flex-1">
-                          <CardTitle className="text-sm font-bold leading-relaxed">
-                            {question.text}
-                          </CardTitle>
-
-                          <p className="mt-1 text-xs text-muted-foreground">
-                            {status === "correct"
-                              ? "Jawaban benar"
-                              : status === "wrong"
-                                ? "Jawaban belum tepat"
-                                : "Tidak dijawab"}
-                          </p>
-                        </div>
+                        <CardTitle className="text-sm leading-relaxed">
+                          {question.text}
+                        </CardTitle>
                       </CardHeader>
 
                       <CardContent className="space-y-2">
-                        {question.options.map((option, optionIndex) => {
-                          const correctOption =
+                        {(question.options || []).map((option, optionIndex) => {
+                          const isCorrect =
                             optionIndex === question.correctIndex;
-
-                          const selectedOption =
-                            optionIndex === chosen;
+                          const isChosen = optionIndex === chosen;
 
                           return (
                             <div
-                              key={option.id}
+                              key={optionIndex}
                               className={cn(
-                                "flex items-center gap-3 rounded-xl border px-3.5 py-3 text-sm",
-                                correctOption &&
-                                  "border-emerald-500/40 bg-emerald-500/5",
-                                selectedOption &&
-                                  !correctOption &&
-                                  "border-red-500/40 bg-red-500/5"
+                                "flex items-center gap-3 rounded-xl border px-3.5 py-2.5 text-sm",
+                                isCorrect &&
+                                  "border-emerald-400/60 bg-emerald-50 dark:bg-emerald-500/10",
+                                isChosen &&
+                                  !isCorrect &&
+                                  "border-red-400/60 bg-red-50 dark:bg-red-500/10"
                               )}
                             >
                               <span className="font-bold text-muted-foreground">
-                                {option.id}.
+                                {String.fromCharCode(65 + optionIndex)}.
                               </span>
 
-                              <span className="min-w-0 flex-1">
-                                {option.text}
-                              </span>
+                              <span className="flex-1">{option}</span>
 
-                              {correctOption && (
-                                <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-600" />
+                              {isCorrect && (
+                                <CheckCircle2 className="h-4 w-4 text-emerald-600" />
                               )}
 
-                              {selectedOption && !correctOption && (
-                                <XCircle className="h-4 w-4 shrink-0 text-red-500" />
+                              {isChosen && !isCorrect && (
+                                <XCircle className="h-4 w-4 text-red-500" />
                               )}
                             </div>
                           );
                         })}
 
-                        {!isAnswered && (
-                          <p className="flex items-center gap-2 pt-1 text-xs text-muted-foreground">
-                            <MinusCircle className="h-4 w-4" />
-                            Kamu belum memilih jawaban.
+                        {status === "blank" && (
+                          <p className="flex items-center gap-1.5 pt-1 text-xs text-muted-foreground">
+                            <MinusCircle className="h-3.5 w-3.5" />
+                            Tidak dijawab
                           </p>
                         )}
                       </CardContent>
                     </Card>
                   );
-                })
-              )}
-            </TabsContent>
+                })}
+              </TabsContent>
 
-            {/* TAB PEMBAHASAN */}
-            <TabsContent value="discussion" className="mt-4 space-y-4">
-              {questions.length === 0 ? (
-                <EmptyState
-                  title="Pembahasan belum tersedia"
-                  description="Belum ada data soal yang dapat ditampilkan."
-                />
-              ) : (
-                questions.map((question, index) => {
-                  const chosen = result.userAnswers[question.id] ?? null;
+              {/* TAB PEMBAHASAN */}
+              <TabsContent value="discussion" className="space-y-4">
+                {questions.length === 0 && (
+                  <EmptyState title="Pembahasan belum tersedia" />
+                )}
 
-                  const isAnswered = chosen !== null;
+                {questions.map((question, index) => (
+                  <Card key={question.id || index}>
+                    <CardHeader className="flex-row items-start gap-3 space-y-0 pb-3">
+                      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-emerald-500/15 text-sm font-extrabold text-emerald-400">
+                        {index + 1}
+                      </span>
 
-                  const isCorrect =
-                    isAnswered &&
-                    chosen === question.correctIndex &&
-                    question.correctIndex >= 0;
+                      <CardTitle className="text-base font-semibold leading-relaxed text-foreground">
+                        {question.text}
+                      </CardTitle>
+                    </CardHeader>
 
-                  const status = !isAnswered
-                    ? "blank"
-                    : isCorrect
-                      ? "correct"
-                      : "wrong";
+                    <CardContent className="space-y-4">
+                      <div className="grid gap-2 sm:grid-cols-2">
+                        {(question.options || []).map((option, optionIndex) => {
+                          const isCorrect =
+                            optionIndex === question.correctIndex;
 
-                  const selectedOption =
-                    isAnswered &&
-                    chosen >= 0 &&
-                    chosen < question.options.length
-                      ? question.options[chosen]
-                      : null;
+                          return (
+                            <div
+                              key={optionIndex}
+                              className={cn(
+                                "flex items-center gap-2.5 rounded-lg border px-3.5 py-2.5 text-xs transition-colors",
+                                isCorrect
+                                  ? "border-emerald-500/60 bg-emerald-500/10 font-semibold text-emerald-700 dark:text-emerald-300"
+                                  : "border-border/60 bg-muted/20 text-muted-foreground"
+                              )}
+                            >
+                              <span className="font-bold">
+                                {String.fromCharCode(65 + optionIndex)}.
+                              </span>
 
-                  const correctOption =
-                    question.correctIndex >= 0 &&
-                    question.correctIndex < question.options.length
-                      ? question.options[question.correctIndex]
-                      : null;
+                              <span className="flex-1">{option}</span>
 
-                  return (
-                    <Card
-                      key={question.id}
-                      className="overflow-hidden border-border/70 shadow-sm"
-                    >
-                      <CardHeader className="flex-row items-start gap-3 space-y-0 pb-3">
-                        <span
-                          className={cn(
-                            "flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-sm font-extrabold",
-                            status === "correct" &&
-                              "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400",
-                            status === "wrong" &&
-                              "bg-red-500/10 text-red-600 dark:text-red-400",
-                            status === "blank" &&
-                              "bg-muted text-muted-foreground"
-                          )}
-                        >
-                          {index + 1}
-                        </span>
+                              {isCorrect && (
+                                <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-500" />
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
 
-                        <div className="min-w-0 flex-1">
-                          <CardTitle className="text-sm font-bold leading-relaxed">
-                            {question.text}
-                          </CardTitle>
+                      <div className="space-y-2 rounded-xl border border-emerald-500/30 bg-emerald-50 p-4 dark:bg-emerald-950/30">
+                        <p className="flex items-center gap-1.5 text-sm font-bold text-emerald-700 dark:text-emerald-400">
+                          <MessageSquareText className="h-4 w-4" />
+                          Pembahasan:
+                        </p>
 
-                          <div className="mt-2">
-                            {status === "correct" ? (
-                              <Badge className="border-emerald-500/20 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400">
-                                <CheckCircle2 className="mr-1 h-3.5 w-3.5" />
-                                Jawaban benar
-                              </Badge>
-                            ) : status === "wrong" ? (
-                              <Badge variant="danger">
-                                <XCircle className="mr-1 h-3.5 w-3.5" />
-                                Jawaban salah
-                              </Badge>
-                            ) : (
-                              <Badge variant="muted">
-                                <MinusCircle className="mr-1 h-3.5 w-3.5" />
-                                Tidak dijawab
-                              </Badge>
+                        <p className="text-sm font-normal leading-relaxed text-foreground">
+                          {question.explanation}
+                        </p>
+
+                        <div className="pt-1">
+                          <Badge
+                            variant="default"
+                            className="bg-emerald-600 font-semibold text-white hover:bg-emerald-700"
+                          >
+                            Kunci Jawaban:{" "}
+                            {String.fromCharCode(
+                              65 + question.correctIndex
                             )}
-                          </div>
+                          </Badge>
                         </div>
-                      </CardHeader>
-
-                      <CardContent className="space-y-4">
-                        {/* PILIHAN JAWABAN */}
-                        <div className="space-y-2">
-                          <p className="text-xs font-bold uppercase tracking-wide text-muted-foreground">
-                            Pilihan jawaban
-                          </p>
-
-                          {question.options.map((option, optionIndex) => {
-                            const isCorrect =
-                              optionIndex === question.correctIndex;
-
-                            const isSelected =
-                              optionIndex === chosen;
-
-                            return (
-                              <div
-                                key={option.id}
-                                className={cn(
-                                  "flex items-center gap-3 rounded-xl border px-3.5 py-3 text-sm",
-                                  isCorrect &&
-                                    "border-emerald-500/40 bg-emerald-500/5",
-                                  isSelected &&
-                                    !isCorrect &&
-                                    "border-red-500/40 bg-red-500/5"
-                                )}
-                              >
-                                <span className="font-bold text-muted-foreground">
-                                  {option.id}.
-                                </span>
-
-                                <span className="min-w-0 flex-1">
-                                  {option.text}
-                                </span>
-
-                                {isCorrect && (
-                                  <Badge className="border-emerald-500/20 bg-emerald-600 text-white">
-                                    Kunci jawaban
-                                  </Badge>
-                                )}
-
-                                {isSelected && !isCorrect && (
-                                  <Badge variant="danger">
-                                    Jawabanmu
-                                  </Badge>
-                                )}
-
-                                {isSelected && isCorrect && (
-                                  <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-600" />
-                                )}
-                              </div>
-                            );
-                          })}
-                        </div>
-
-                        {/* PERBANDINGAN JAWABAN */}
-                        <div className="grid gap-3 sm:grid-cols-2">
-                          <div className="rounded-xl border border-border bg-muted/30 p-3">
-                            <p className="text-xs font-medium text-muted-foreground">
-                              Jawabanmu
-                            </p>
-
-                            <p className="mt-1 text-sm font-bold">
-                              {selectedOption
-                                ? `${selectedOption.id}. ${selectedOption.text}`
-                                : "Tidak menjawab"}
-                            </p>
-                          </div>
-
-                          <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/5 p-3">
-                            <p className="text-xs font-medium text-emerald-700 dark:text-emerald-400">
-                              Jawaban yang benar
-                            </p>
-
-                            <p className="mt-1 text-sm font-bold">
-                              {correctOption
-                                ? `${correctOption.id}. ${correctOption.text}`
-                                : "Kunci jawaban belum tersedia"}
-                            </p>
-                          </div>
-                        </div>
-
-                        {/* PEMBAHASAN */}
-                        <div className="space-y-2 rounded-xl border border-primary/20 bg-primary/5 p-4">
-                          <div className="flex items-center gap-2 text-sm font-bold text-primary">
-                            <MessageSquareText className="h-4 w-4" />
-                            Pembahasan Soal
-                          </div>
-
-                          <p className="whitespace-pre-line text-sm leading-relaxed text-foreground">
-                            {question.explanation?.trim()
-                              ? question.explanation
-                              : "Pembahasan untuk soal ini belum tersedia. Silakan hubungi pengajar atau administrator."}
-                          </p>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  );
-                })
-              )}
-            </TabsContent>
-          </Tabs>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </TabsContent>
+            </Tabs>
+          )}
         </div>
       </div>
     </div>
