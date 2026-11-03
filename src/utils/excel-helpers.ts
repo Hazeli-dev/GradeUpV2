@@ -1,3 +1,4 @@
+
 import * as XLSX from "xlsx";
 
 export interface ExcelQuestionRow {
@@ -11,7 +12,64 @@ export interface ExcelQuestionRow {
   explanation?: string;
 }
 
-// 1. Download Template Excel Soal
+type ParsedExamQuestion = {
+  exam_package_id: string;
+  category: string;
+  question_text: string;
+  options: { id: string; text: string }[];
+  correct_answer: string;
+  explanation: string | null;
+};
+
+const normalize = (value: unknown): string =>
+  value === null || value === undefined ? "" : String(value).trim();
+
+const readExcelRows = (file: File): Promise<ExcelQuestionRow[]> => {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+
+    reader.onload = (event) => {
+      try {
+        const result = event.target?.result;
+
+        if (!result) {
+          throw new Error("File Excel kosong atau tidak dapat dibaca.");
+        }
+
+        const workbook = XLSX.read(new Uint8Array(result as ArrayBuffer), {
+          type: "array",
+        });
+
+        const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+
+        if (!firstSheet) {
+          throw new Error("Sheet Excel tidak ditemukan.");
+        }
+
+        const rows = XLSX.utils.sheet_to_json<ExcelQuestionRow>(firstSheet, {
+          defval: "",
+        });
+
+        if (rows.length === 0) {
+          throw new Error("File Excel belum berisi soal.");
+        }
+
+        resolve(rows);
+      } catch (error) {
+        reject(
+          error instanceof Error
+            ? error
+            : new Error("Format file Excel tidak valid.")
+        );
+      }
+    };
+
+    reader.onerror = () => reject(new Error("Gagal membaca file Excel."));
+    reader.readAsArrayBuffer(file);
+  });
+};
+
+// Download template Excel.
 export const downloadQuestionTemplate = () => {
   const templateData = [
     {
@@ -38,93 +96,100 @@ export const downloadQuestionTemplate = () => {
 
   const worksheet = XLSX.utils.json_to_sheet(templateData);
   const workbook = XLSX.utils.book_new();
+
   XLSX.utils.book_append_sheet(workbook, worksheet, "Template Soal");
+
   XLSX.writeFile(workbook, "Template_Import_Soal_GradeUp.xlsx");
 };
 
-// 2. Parse File Excel untuk Bank Soal (Digunakan di questions-page.tsx)
-export const parseQuestionsExcel = (file: File): Promise<any[]> => {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
+// Parser bank soal lama.
+// Dipertahankan agar questions-page.tsx tetap kompatibel.
+export const parseQuestionsExcel = async (file: File): Promise<any[]> => {
+  const rows = await readExcelRows(file);
 
-    reader.onload = (e) => {
-      try {
-        const data = new Uint8Array(e.target?.result as ArrayBuffer);
-        const workbook = XLSX.read(data, { type: "array" });
-        const firstSheetName = workbook.SheetNames[0];
-        const worksheet = workbook.Sheets[firstSheetName];
+  return rows.map((row, index) => {
+    const questionText = normalize(row.question_text);
+    const options = [
+      { id: "A", text: normalize(row.option_a) },
+      { id: "B", text: normalize(row.option_b) },
+      { id: "C", text: normalize(row.option_c) },
+      { id: "D", text: normalize(row.option_d) },
+    ];
 
-        const jsonData = XLSX.utils.sheet_to_json<ExcelQuestionRow>(worksheet);
+    const correctAnswer = normalize(row.correct_answer).toUpperCase();
 
-        const formattedQuestions = jsonData.map((row) => ({
-          category: row.category?.toString().trim() || "Umum",
-          question_text: row.question_text?.toString().trim() || "",
-          options: [
-            { id: "A", text: row.option_a?.toString().trim() || "" },
-            { id: "B", text: row.option_b?.toString().trim() || "" },
-            { id: "C", text: row.option_c?.toString().trim() || "" },
-            { id: "D", text: row.option_d?.toString().trim() || "" },
-          ],
-          correct_answer: row.correct_answer?.toString().trim().toUpperCase() || "A",
-          explanation: row.explanation?.toString().trim() || null,
-        }));
+    if (
+      !questionText ||
+      options.some((option) => !option.text) ||
+      !["A", "B", "C", "D"].includes(correctAnswer)
+    ) {
+      throw new Error(
+        `Data soal pada baris ${index + 2} tidak lengkap atau kunci jawaban tidak valid.`
+      );
+    }
 
-        const validQuestions = formattedQuestions.filter(
-          (q) => q.question_text && q.options[0].text && q.options[1].text
-        );
-
-        resolve(validQuestions);
-      } catch (err) {
-        reject(new Error("Format file Excel tidak valid."));
-      }
+    return {
+      category: normalize(row.category) || "Umum",
+      question_text: questionText,
+      options,
+      correct_answer: correctAnswer,
+      explanation: normalize(row.explanation) || null,
     };
-
-    reader.onerror = () => reject(new Error("Gagal membaca file."));
-    reader.readAsArrayBuffer(file);
   });
 };
 
-// 3. Parse File Excel Terikat Paket Ujian (Digunakan di exams-page.tsx)
-export const parseQuestionsExcelForExam = (
+// Parser khusus paket ujian.
+// Semua soal wajib valid dan terikat ke satu paket.
+export const parseQuestionsExcelForExam = async (
   file: File,
   examPackageId: string,
   category: string
-): Promise<any[]> => {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
+): Promise<ParsedExamQuestion[]> => {
+  const rows = await readExcelRows(file);
 
-    reader.onload = (e) => {
-      try {
-        const data = new Uint8Array(e.target?.result as ArrayBuffer);
-        const workbook = XLSX.read(data, { type: "array" });
-        const worksheet = workbook.Sheets[workbook.SheetNames[0]];
-        const jsonData = XLSX.utils.sheet_to_json<ExcelQuestionRow>(worksheet);
+  if (!examPackageId) {
+    throw new Error("ID paket ujian tidak ditemukan.");
+  }
 
-        const formattedQuestions = jsonData.map((row) => ({
-          exam_package_id: examPackageId,
-          category: category,
-          question_text: row.question_text?.toString().trim() || "",
-          options: [
-            { id: "A", text: row.option_a?.toString().trim() || "" },
-            { id: "B", text: row.option_b?.toString().trim() || "" },
-            { id: "C", text: row.option_c?.toString().trim() || "" },
-            { id: "D", text: row.option_d?.toString().trim() || "" },
-          ],
-          correct_answer: row.correct_answer?.toString().trim().toUpperCase() || "A",
-          explanation: row.explanation?.toString().trim() || null,
-        }));
+  const questions: ParsedExamQuestion[] = rows.map((row, index) => {
+    const questionText = normalize(row.question_text);
 
-        const validQuestions = formattedQuestions.filter(
-          (q) => q.question_text && q.options[0].text && q.options[1].text
-        );
+    const options = [
+      { id: "A", text: normalize(row.option_a) },
+      { id: "B", text: normalize(row.option_b) },
+      { id: "C", text: normalize(row.option_c) },
+      { id: "D", text: normalize(row.option_d) },
+    ];
 
-        resolve(validQuestions);
-      } catch (err) {
-        reject(new Error("Format file Excel tidak valid."));
-      }
+    const correctAnswer = normalize(row.correct_answer).toUpperCase();
+
+    if (!questionText) {
+      throw new Error(`Pertanyaan pada baris ${index + 2} masih kosong.`);
+    }
+
+    const missingOption = options.find((option) => !option.text);
+
+    if (missingOption) {
+      throw new Error(
+        `Pilihan ${missingOption.id} pada baris ${index + 2} masih kosong.`
+      );
+    }
+
+    if (!["A", "B", "C", "D"].includes(correctAnswer)) {
+      throw new Error(
+        `Kunci jawaban pada baris ${index + 2} harus A, B, C, atau D.`
+      );
+    }
+
+    return {
+      exam_package_id: examPackageId,
+      category,
+      question_text: questionText,
+      options,
+      correct_answer: correctAnswer,
+      explanation: normalize(row.explanation) || null,
     };
-
-    reader.onerror = () => reject(new Error("Gagal membaca file."));
-    reader.readAsArrayBuffer(file);
   });
+
+  return questions;
 };
