@@ -77,7 +77,6 @@ interface ExamSchedule {
   category: string;
   level: string;
   dateStr: string;
-  status: ExamStatus;
 }
 
 interface DailyActivity {
@@ -104,14 +103,6 @@ interface ExamAttempt {
 const DAY_LABELS = ["Min", "Sen", "Sel", "Rab", "Kam", "Jum", "Sab"];
 const TIME_ZONE = "Asia/Jakarta";
 
-function getDateKey(date: Date): string {
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const day = String(date.getDate()).padStart(2, "0");
-
-  return `${year}-${month}-${day}`;
-}
-
 function getJakartaDateKey(date: Date | string): string {
   const parts = new Intl.DateTimeFormat("en-CA", {
     timeZone: TIME_ZONE,
@@ -127,12 +118,26 @@ function getJakartaDateKey(date: Date | string): string {
   return `${year}-${month}-${day}`;
 }
 
+// Tanggal kalender juga menggunakan zona waktu WIB.
+function getDateKey(date: Date): string {
+  return getJakartaDateKey(date);
+}
+
 function formatTime(date: string): string {
   return new Date(date).toLocaleTimeString("id-ID", {
     timeZone: TIME_ZONE,
     hour: "2-digit",
     minute: "2-digit",
     hour12: false,
+  });
+}
+
+function formatDate(date: string): string {
+  return new Date(date).toLocaleDateString("id-ID", {
+    timeZone: TIME_ZONE,
+    day: "numeric",
+    month: "long",
+    year: "numeric",
   });
 }
 
@@ -283,7 +288,7 @@ export default function StudentOverviewPage() {
 
   const [clockNow, setClockNow] = useState(Date.now());
 
-  // Memperbarui countdown setiap menit.
+  // Countdown dan status ujian diperbarui setiap menit.
   useEffect(() => {
     const timer = window.setInterval(() => {
       setClockNow(Date.now());
@@ -293,23 +298,23 @@ export default function StudentOverviewPage() {
   }, []);
 
   const nextMonth = () => {
-    setCurrentMonth(
-      new Date(
-        currentMonth.getFullYear(),
-        currentMonth.getMonth() + 1,
+    setCurrentMonth((current) => {
+      return new Date(
+        current.getFullYear(),
+        current.getMonth() + 1,
         1
-      )
-    );
+      );
+    });
   };
 
   const prevMonth = () => {
-    setCurrentMonth(
-      new Date(
-        currentMonth.getFullYear(),
-        currentMonth.getMonth() - 1,
+    setCurrentMonth((current) => {
+      return new Date(
+        current.getFullYear(),
+        current.getMonth() - 1,
         1
-      )
-    );
+      );
+    });
   };
 
   const getDaysInMonth = (date: Date) => {
@@ -365,42 +370,41 @@ export default function StudentOverviewPage() {
         } = await supabase.auth.getUser();
 
         if (authError) throw authError;
+
         if (!user) {
           if (!cancelled) setLoading(false);
           return;
         }
 
-        const [
-          profRes,
-          examsRes,
-          attempts,
-          coursesRes,
-        ] = await Promise.all([
-          supabase
-            .from("profiles")
-            .select(
-              "id, email, full_name, is_premium, premium_until, target_exams, total_xp, total_articles_read, total_exams_passed"
-            )
-            .eq("id", user.id)
-            .single(),
+        const [profRes, examsRes, attempts, coursesRes] =
+          await Promise.all([
+            supabase
+              .from("profiles")
+              .select(
+                "id, email, full_name, is_premium, premium_until, target_exams, total_xp, total_articles_read, total_exams_passed"
+              )
+              .eq("id", user.id)
+              .single(),
 
-          supabase
-            .from("exam_packages")
-            .select(
-              "id, title, start_time, end_time, instructor_name, is_published, category, level"
-            )
-            .eq("is_published", true)
-            .not("start_time", "is", null)
-            .order("start_time", { ascending: true }),
+            // Mengambil semua jadwal ujian yang dipublikasikan.
+            // Tidak menggunakan limit 20.
+            supabase
+              .from("exam_packages")
+              .select(
+                "id, title, start_time, end_time, instructor_name, is_published, category, level"
+              )
+              .eq("is_published", true)
+              .not("start_time", "is", null)
+              .order("start_time", { ascending: true }),
 
-          fetchAllAttempts(user.id),
+            fetchAllAttempts(user.id),
 
-          supabase
-            .from("courses")
-            .select("id, title, category, progress")
-            .order("created_at", { ascending: false })
-            .limit(3),
-        ]);
+            supabase
+              .from("courses")
+              .select("id, title, category, progress")
+              .order("created_at", { ascending: false })
+              .limit(3),
+          ]);
 
         if (cancelled) return;
 
@@ -472,34 +476,30 @@ export default function StudentOverviewPage() {
         setCourses(fetchedCourses);
 
         // JADWAL UJIAN
-        const now = Date.now();
-
         const formattedSchedules: ExamSchedule[] = (examsRes.data || [])
-          .filter((exam: any) => exam.start_time)
-          .map((exam: any) => {
-            const start = new Date(exam.start_time);
-
-            return {
-              id: exam.id,
-              title: exam.title || "Ujian",
-              start_time: exam.start_time,
-              end_time: exam.end_time || null,
-              instructor: exam.instructor_name || "Tim Academic GradeUp",
-              category: exam.category || "Umum",
-              level: exam.level || "Semua Jenjang",
-              dateStr: getJakartaDateKey(start),
-              status: getExamStatus(
-                exam.start_time,
-                exam.end_time || null,
-                now
-              ),
-            };
+          .filter((exam: any) => {
+            return (
+              exam.start_time &&
+              !Number.isNaN(new Date(exam.start_time).getTime())
+            );
           })
+          .map((exam: any) => ({
+            id: exam.id,
+            title: exam.title || "Ujian",
+            start_time: exam.start_time,
+            end_time: exam.end_time || null,
+            instructor: exam.instructor_name || "Tim Academic GradeUp",
+            category: exam.category || "Umum",
+            level: exam.level || "Semua Jenjang",
+            dateStr: getJakartaDateKey(exam.start_time),
+          }))
           .sort(
             (a, b) =>
               new Date(a.start_time).getTime() -
               new Date(b.start_time).getTime()
           );
+
+        console.log("Jadwal ujian berhasil dimuat:", formattedSchedules);
 
         setSchedules(formattedSchedules);
 
@@ -537,8 +537,8 @@ export default function StudentOverviewPage() {
           )
         );
 
-        // AKTIVITAS MINGGUAN DARI duration_seconds
-        // Pengelompokan menggunakan tanggal pembuatan attempt dalam WIB.
+        // AKTIVITAS MINGGUAN BERDASARKAN duration_seconds
+        // Tanggal pengelompokan menggunakan WIB.
         const todayKey = getJakartaDateKey(new Date());
         const todayDate = new Date(`${todayKey}T00:00:00Z`);
         const dayOfWeek = todayDate.getUTCDay();
@@ -595,15 +595,30 @@ export default function StudentOverviewPage() {
 
   const totalDurationLabel = formatDuration(totalDurationSeconds);
 
-  // Jadwal untuk tanggal yang dipilih.
+  // SELURUH LOGIKA KALENDER MENGGUNAKAN WIB
   const selectedDateKey = getDateKey(selectedDate);
 
-  const selectedSchedules = schedules.filter(
-    (schedule) => schedule.dateStr === selectedDateKey
-  );
+  // Status dihitung ulang berdasarkan waktu terbaru.
+  const schedulesWithCurrentStatus = schedules.map((schedule) => ({
+    ...schedule,
+    status: getExamStatus(
+      schedule.start_time,
+      schedule.end_time,
+      clockNow
+    ),
+  }));
 
-  // Ujian yang belum selesai, diurutkan berdasarkan waktu terdekat.
-  const upcomingSchedules = schedules
+  // Jadwal untuk tanggal yang dipilih.
+  const selectedSchedules = schedulesWithCurrentStatus
+    .filter((schedule) => schedule.dateStr === selectedDateKey)
+    .sort(
+      (a, b) =>
+        new Date(a.start_time).getTime() -
+        new Date(b.start_time).getTime()
+    );
+
+  // Ujian mendatang dan ujian yang sedang aktif.
+  const upcomingSchedules = schedulesWithCurrentStatus
     .filter(
       (schedule) =>
         schedule.status === "upcoming" ||
@@ -616,6 +631,18 @@ export default function StudentOverviewPage() {
     );
 
   const nextExam = upcomingSchedules[0];
+
+  const upcomingCount = schedulesWithCurrentStatus.filter(
+    (item) => item.status === "upcoming"
+  ).length;
+
+  const activeCount = schedulesWithCurrentStatus.filter(
+    (item) => item.status === "active"
+  ).length;
+
+  const finishedCount = schedulesWithCurrentStatus.filter(
+    (item) => item.status === "finished"
+  ).length;
 
   const getRarityBadge = (rarity: DynamicBadgeItem["rarity"]) => {
     switch (rarity) {
@@ -753,15 +780,7 @@ export default function StudentOverviewPage() {
 
                 <p className="mt-1 flex items-center gap-1.5 text-xs text-muted-foreground">
                   <Clock className="h-3.5 w-3.5" />
-                  {new Date(nextExam.start_time).toLocaleDateString(
-                    "id-ID",
-                    {
-                      timeZone: TIME_ZONE,
-                      day: "numeric",
-                      month: "long",
-                      year: "numeric",
-                    }
-                  )}
+                  {formatDate(nextExam.start_time)}
                   {" · "}
                   {formatTime(nextExam.start_time)} WIB
                 </p>
@@ -1155,6 +1174,7 @@ export default function StudentOverviewPage() {
               <CardTitle className="flex items-center gap-2 text-sm font-bold">
                 <CalendarIcon className="h-4 w-4 text-primary" />
                 {currentMonth.toLocaleDateString("id-ID", {
+                  timeZone: TIME_ZONE,
                   month: "long",
                   year: "numeric",
                 })}
@@ -1211,11 +1231,13 @@ export default function StudentOverviewPage() {
                   const dateString = getDateKey(thisDate);
 
                   const today = new Date();
-                  const isToday = dateString === getDateKey(today);
-                  const isSelected =
-                    dateString === getDateKey(selectedDate);
+                  const isToday =
+                    dateString === getDateKey(today);
 
-                  const hasEvent = schedules.some(
+                  const isSelected =
+                    dateString === selectedDateKey;
+
+                  const hasEvent = schedulesWithCurrentStatus.some(
                     (schedule) => schedule.dateStr === dateString
                   );
 
@@ -1226,7 +1248,11 @@ export default function StudentOverviewPage() {
                       onClick={() => setSelectedDate(thisDate)}
                       aria-label={`${day} ${currentMonth.toLocaleDateString(
                         "id-ID",
-                        { month: "long", year: "numeric" }
+                        {
+                          timeZone: TIME_ZONE,
+                          month: "long",
+                          year: "numeric",
+                        }
                       )}${hasEvent ? ", ada jadwal ujian" : ""}`}
                       className={`relative flex h-8 w-full items-center justify-center rounded-lg transition-all ${
                         isSelected
@@ -1240,6 +1266,10 @@ export default function StudentOverviewPage() {
 
                       {hasEvent && !isSelected && (
                         <span className="absolute bottom-1 h-1 w-1 rounded-full bg-emerald-500" />
+                      )}
+
+                      {hasEvent && isSelected && (
+                        <span className="absolute bottom-1 h-1 w-1 rounded-full bg-emerald-300" />
                       )}
                     </button>
                   );
@@ -1265,6 +1295,7 @@ export default function StudentOverviewPage() {
 
                 <p className="text-xs text-muted-foreground">
                   {selectedDate.toLocaleDateString("id-ID", {
+                    timeZone: TIME_ZONE,
                     day: "numeric",
                     month: "long",
                     year: "numeric",
@@ -1349,7 +1380,7 @@ export default function StudentOverviewPage() {
                   </span>
                 </div>
                 <span className="text-sm font-extrabold">
-                  {schedules.filter((item) => item.status === "upcoming").length}
+                  {upcomingCount}
                 </span>
               </div>
 
@@ -1361,7 +1392,7 @@ export default function StudentOverviewPage() {
                   </span>
                 </div>
                 <span className="text-sm font-extrabold">
-                  {schedules.filter((item) => item.status === "active").length}
+                  {activeCount}
                 </span>
               </div>
 
@@ -1373,7 +1404,7 @@ export default function StudentOverviewPage() {
                   </span>
                 </div>
                 <span className="text-sm font-extrabold">
-                  {schedules.filter((item) => item.status === "finished").length}
+                  {finishedCount}
                 </span>
               </div>
             </CardContent>
