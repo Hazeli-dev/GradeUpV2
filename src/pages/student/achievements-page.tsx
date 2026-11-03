@@ -509,7 +509,7 @@ export default function StudentAchievementsPage() {
                     key={c}
                     type="button"
                     size="sm"
-                    variant={categoryFilter === c ? "secondary" : "outline"}
+                    variant={categoryFilter === c ? "soft" : "outline"}
                     aria-pressed={categoryFilter === c}
                     onClick={() => {
                       setCategoryFilter(c);
