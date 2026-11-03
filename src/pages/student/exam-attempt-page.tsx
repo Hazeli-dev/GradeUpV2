@@ -51,6 +51,8 @@ interface ExamPackage {
   passing_score: number;
 }
 
+type SavedAnswers = Record<string, number | null>;
+
 export default function ExamAttemptPage() {
   const { examId } = useParams();
   const navigate = useNavigate();
@@ -71,6 +73,9 @@ export default function ExamAttemptPage() {
 
   const [finalScore, setFinalScore] = useState(0);
   const [earnedXp, setEarnedXp] = useState(0);
+  const [finalCorrect, setFinalCorrect] = useState(0);
+  const [finalWrong, setFinalWrong] = useState(0);
+  const [finalUnanswered, setFinalUnanswered] = useState(0);
 
   // 1. Fetch data ujian dan soal
   const fetchData = async () => {
@@ -105,7 +110,7 @@ export default function ExamAttemptPage() {
       setExam(normalizedExam);
       setSecondsLeft(normalizedExam.duration * 60);
 
-      // Mengambil soal berdasarkan kategori seperti alur CBT sebelumnya
+      // Mengambil soal berdasarkan kategori seperti alur CBT sebelumnya.
       const { data: qData, error: questionError } = await supabase
         .from("questions")
         .select(
@@ -125,12 +130,20 @@ export default function ExamAttemptPage() {
       }
 
       const normalizedQuestions: QuestionItem[] = qData.map(
-        (question: any) => {
-          const options = Array.isArray(question.options)
-            ? question.options
-            : typeof question.options === "string"
-              ? JSON.parse(question.options)
-              : [];
+        (question) => {
+          let parsedOptions: unknown = question.options;
+
+          if (typeof parsedOptions === "string") {
+            try {
+              parsedOptions = JSON.parse(parsedOptions);
+            } catch {
+              parsedOptions = [];
+            }
+          }
+
+          const options = Array.isArray(parsedOptions)
+            ? parsedOptions
+            : [];
 
           return {
             id: String(question.id),
@@ -148,10 +161,16 @@ export default function ExamAttemptPage() {
       );
 
       setQuestions(normalizedQuestions);
-    } catch (err: any) {
+      setAnswers({});
+      setCurrent(0);
+      setFlagged(new Set());
+    } catch (err: unknown) {
       console.error("Fetch exam error:", err);
+
       setError(
-        err.message || "Gagal memuat ujian dari Supabase."
+        err instanceof Error
+          ? err.message
+          : "Gagal memuat ujian dari Supabase."
       );
     } finally {
       setLoading(false);
@@ -172,7 +191,7 @@ export default function ExamAttemptPage() {
       setSubmitting(true);
 
       try {
-        // Pastikan pengguna sudah login
+        // Pastikan pengguna sudah login.
         const {
           data: userData,
           error: userError,
@@ -188,35 +207,46 @@ export default function ExamAttemptPage() {
           );
         }
 
-        // Hitung jumlah jawaban benar
+        // SIMPAN SEMUA ID SOAL, TERMASUK YANG TIDAK DIJAWAB.
+        // Jawaban kosong akan memiliki nilai null.
+        const savedAnswers: SavedAnswers = {};
+
+        questions.forEach((question) => {
+          savedAnswers[question.id] =
+            answers[question.id] !== undefined
+              ? answers[question.id]
+              : null;
+        });
+
+        // Hitung benar, salah, dan kosong secara terpisah.
         let correctCount = 0;
         let answeredTotal = 0;
 
         questions.forEach((question) => {
-          const selectedIndex = answers[question.id];
+          const selectedIndex = savedAnswers[question.id];
 
-          if (selectedIndex !== undefined) {
-            answeredTotal++;
+          if (selectedIndex === null) {
+            return;
+          }
 
-            const selectedOption =
-              question.options[selectedIndex];
+          answeredTotal++;
 
-            if (
-              selectedOption &&
-              selectedOption.id === question.correct_answer
-            ) {
-              correctCount++;
-            }
+          const selectedOption =
+            question.options[selectedIndex];
+
+          if (
+            selectedOption &&
+            selectedOption.id === question.correct_answer
+          ) {
+            correctCount++;
           }
         });
 
-        // Hitung salah dan kosong secara terpisah
         const totalQuestions = questions.length;
         const wrongCount = answeredTotal - correctCount;
-        const unansweredCount =
-          totalQuestions - answeredTotal;
+        const unansweredCount = totalQuestions - answeredTotal;
 
-        // Hitung nilai akhir
+        // Hitung nilai akhir berdasarkan jumlah seluruh soal.
         const score = Math.round(
           (correctCount / totalQuestions) * 100
         );
@@ -225,16 +255,11 @@ export default function ExamAttemptPage() {
         const isPassed = score >= passingScore;
 
         setFinalScore(score);
+        setFinalCorrect(correctCount);
+        setFinalWrong(wrongCount);
+        setFinalUnanswered(unansweredCount);
 
-        // Hitung durasi pengerjaan
-        const totalDuration = exam.duration * 60;
-
-        const durationSeconds = Math.max(
-          0,
-          totalDuration - (secondsLeft ?? 0)
-        );
-
-        // Hitung XP
+        // Hitung XP.
         const baseXP = 250;
         const performanceXP = Math.round(score * 5);
         const bonusPerfectXP = score === 100 ? 500 : 0;
@@ -243,12 +268,12 @@ export default function ExamAttemptPage() {
           baseXP + performanceXP + bonusPerfectXP;
 
         const failedXP = Math.round(score * 2);
-
         const actualXP = isPassed ? passedXP : failedXP;
 
         setEarnedXp(actualXP);
 
-        // Simpan hasil ujian ke Supabase
+        // Simpan hasil ujian ke Supabase.
+        // Hanya menggunakan kolom yang tersedia pada exam_attempts.
         const { error: insertError } = await supabase
           .from("exam_attempts")
           .insert({
@@ -258,9 +283,7 @@ export default function ExamAttemptPage() {
             correct_count: correctCount,
             wrong_count: wrongCount,
             total_questions: totalQuestions,
-            answers,
-            question_ids: questions.map((question) => question.id),
-            duration_seconds: durationSeconds,
+            answers: savedAnswers,
             is_passed: isPassed,
             status: "completed",
           });
@@ -269,7 +292,7 @@ export default function ExamAttemptPage() {
           throw insertError;
         }
 
-        // Proses XP setelah hasil berhasil disimpan
+        // Proses XP setelah hasil berhasil disimpan.
         if (isPassed) {
           const { error: xpError } = await supabase.rpc(
             "complete_exam_attempt",
@@ -312,12 +335,14 @@ export default function ExamAttemptPage() {
             ? "Waktu habis, ujian otomatis dikumpulkan!"
             : "Ujian berhasil dikumpulkan! Hasil dapat dilihat di menu Hasil Belajar."
         );
-      } catch (err: any) {
+      } catch (err: unknown) {
         console.error("Submit exam error:", err);
 
         toast.error(
           "Gagal menyimpan hasil: " +
-            (err.message || "Terjadi kesalahan.")
+            (err instanceof Error
+              ? err.message
+              : "Terjadi kesalahan.")
         );
       } finally {
         setSubmitting(false);
@@ -329,7 +354,6 @@ export default function ExamAttemptPage() {
       answers,
       submitting,
       submitted,
-      secondsLeft,
     ]
   );
 
@@ -447,38 +471,21 @@ export default function ExamAttemptPage() {
               <div className="rounded-xl bg-emerald-500/10 p-3">
                 <p className="text-xs text-muted-foreground">Benar</p>
                 <p className="text-lg font-bold text-emerald-600">
-                  {questions.filter(
-                    (question) => {
-                      const selected = answers[question.id];
-                      return (
-                        selected !== undefined &&
-                        question.options[selected]?.id ===
-                          question.correct_answer
-                      );
-                    }
-                  ).length}
+                  {finalCorrect}
                 </p>
               </div>
 
               <div className="rounded-xl bg-red-500/10 p-3">
                 <p className="text-xs text-muted-foreground">Salah</p>
                 <p className="text-lg font-bold text-red-500">
-                  {answeredCount -
-                    questions.filter((question) => {
-                      const selected = answers[question.id];
-                      return (
-                        selected !== undefined &&
-                        question.options[selected]?.id ===
-                          question.correct_answer
-                      );
-                    }).length}
+                  {finalWrong}
                 </p>
               </div>
 
               <div className="rounded-xl bg-muted p-3">
                 <p className="text-xs text-muted-foreground">Kosong</p>
                 <p className="text-lg font-bold">
-                  {unanswered}
+                  {finalUnanswered}
                 </p>
               </div>
             </div>
