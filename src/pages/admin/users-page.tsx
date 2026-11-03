@@ -480,7 +480,7 @@ export function AdminUsersPage() {
                           Premium Aktif
                         </Badge>
                       ) : packageStatus === "expired" ? (
-                        <Badge variant="destructive">Kedaluwarsa</Badge>
+                        <Badge variant="danger">Kedaluwarsa</Badge>
                       ) : packageStatus === "missing-date" ? (
                         <Badge variant="outline">Perlu Pemeriksaan</Badge>
                       ) : (
