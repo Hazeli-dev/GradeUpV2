@@ -110,20 +110,24 @@ export default function AdminExamsPage() {
     fetchData();
   }, []);
 
-  // Helper Penentu Status Real-time Berdasarkan Tanggal
+  // Helper Penentu Status Real-time Berdasarkan Tanggal (Safe Cast `as any`)
   const getExamStatus = (e: ExamPackage): "Aktif" | "Akan Datang" | "Arsip" => {
-    if (e.status === "Draft" || (e as any).is_published === false) return "Arsip";
+    const itemAny = e as any;
+    if (e.status === "Draft" || itemAny.is_published === false) return "Arsip";
     
     const now = new Date().getTime();
-    const start = e.start_time ? new Date(e.start_time).getTime() : now;
-    const end = e.end_time ? new Date(e.end_time).getTime() : Infinity;
+    const startTimeVal = itemAny.start_time;
+    const endTimeVal = itemAny.end_time;
+
+    const start = startTimeVal ? new Date(startTimeVal).getTime() : now;
+    const end = endTimeVal ? new Date(endTimeVal).getTime() : Infinity;
 
     if (now < start) return "Akan Datang";
     if (now > end) return "Arsip";
     return "Aktif";
   };
 
-  // Ringkasan Jumlah Status untuk Stat Cards (Tersinkron dengan tanggal real-time)
+  // Ringkasan Jumlah Status untuk Stat Cards
   const counts = useMemo(() => {
     let aktif = 0;
     let akanDatang = 0;
@@ -389,9 +393,10 @@ export default function AdminExamsPage() {
               </thead>
               <tbody className="divide-y divide-border">
                 {filtered.map((e) => {
+                  const itemAny = e as any;
                   const status = getExamStatus(e);
-                  const startDateStr = e.start_time ? new Date(e.start_time).toLocaleDateString("id-ID", { day: "numeric", month: "short", year: "numeric" }) : "-";
-                  const endDateStr = e.end_time ? new Date(e.end_time).toLocaleDateString("id-ID", { day: "numeric", month: "short", year: "numeric" }) : "Tanpa Batas";
+                  const startDateStr = itemAny.start_time ? new Date(itemAny.start_time).toLocaleDateString("id-ID", { day: "numeric", month: "short", year: "numeric" }) : "-";
+                  const endDateStr = itemAny.end_time ? new Date(itemAny.end_time).toLocaleDateString("id-ID", { day: "numeric", month: "short", year: "numeric" }) : "Tanpa Batas";
 
                   return (
                     <tr key={e.id} className="hover:bg-muted/30 transition-colors">
@@ -401,7 +406,7 @@ export default function AdminExamsPage() {
                           <div>
                             <p className="font-extrabold text-sm text-foreground">{e.title}</p>
                             <p className="text-[11px] text-muted-foreground">
-                              {e.category} • {(e as any).question_count || e.questionCount || 0} Soal {e.premium && <Badge variant="warning" className="ml-1 text-[9px] px-1.5 py-0">Premium</Badge>}
+                              {e.category} • {itemAny.question_count || e.questionCount || 0} Soal {e.premium && <Badge variant="warning" className="ml-1 text-[9px] px-1.5 py-0">Premium</Badge>}
                             </p>
                           </div>
                         </div>
@@ -445,11 +450,11 @@ export default function AdminExamsPage() {
                                   level: e.level,
                                   difficulty: e.difficulty,
                                   duration: e.duration,
-                                  questionCount: (e as any).question_count || e.questionCount || 10,
+                                  questionCount: itemAny.question_count || e.questionCount || 10,
                                   premium: e.premium,
-                                  published: e.status === "Published" || (e as any).is_published,
-                                  startTime: e.start_time ? new Date(e.start_time).toISOString().slice(0, 16) : nowIso,
-                                  endTime: e.end_time ? new Date(e.end_time).toISOString().slice(0, 16) : defaultEndIso,
+                                  published: e.status === "Published" || itemAny.is_published,
+                                  startTime: itemAny.start_time ? new Date(itemAny.start_time).toISOString().slice(0, 16) : nowIso,
+                                  endTime: itemAny.end_time ? new Date(itemAny.end_time).toISOString().slice(0, 16) : defaultEndIso,
                                   excelFile: null,
                                 });
                               }}
@@ -471,7 +476,7 @@ export default function AdminExamsPage() {
         )}
       </Card>
 
-      {/* 6. MODAL DIALOG FORM (TAMBAH / EDIT PAKET PAKAI PERIODE TANGGAL) */}
+      {/* 6. MODAL DIALOG FORM (TAMBAH / EDIT PAKET) */}
       <Dialog open={!!draft} onOpenChange={(o) => !o && setDraft(null)}>
         <DialogContent className="max-w-xl max-h-[90vh] overflow-y-auto rounded-2xl">
           {draft && (
@@ -507,7 +512,7 @@ export default function AdminExamsPage() {
                   />
                 </div>
 
-                {/* INPUT PERIODE TANGGAL UNTUK MEMBUAT "AKAN DATANG" ATAU "AKTIF" */}
+                {/* INPUT PERIODE TANGGAL */}
                 <div className="grid gap-3 sm:grid-cols-2 p-3 rounded-xl border bg-muted/20">
                   <div className="space-y-1">
                     <Label htmlFor="x-start" className="font-bold text-emerald-600 dark:text-emerald-400">
