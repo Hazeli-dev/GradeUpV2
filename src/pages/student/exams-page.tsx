@@ -37,12 +37,10 @@ interface ExamPackageItem {
   status: ExamStatus;
   days_left?: number;
   start_date_str?: string;
-  /** 0–100, persentase waktu ujian yang sudah berjalan */
   time_progress?: number;
 }
 
 const CATEGORIES = ["Semua", "Harian", "Tryout", "PTS/UTS", "PAS/UAS"] as const;
-
 const STATUS_ORDER: ExamStatus[] = ["Aktif", "Akan Datang", "Selesai"];
 
 const STATUS_SECTION: Record<ExamStatus, { title: string; hint: string }> = {
@@ -133,10 +131,10 @@ export default function StudentExamsPage() {
   const [examPackages, setExamPackages] = useState<ExamPackageItem[]>([]);
 
   // State Profile Siswa & Level GAMIFIKASI
-  const [studentName, setStudentName] = useState("Andi Pratama");
+  const [studentName, setStudentName] = useState("Siswa");
   const [userClass] = useState("Kelas 6 SD");
-  const [level, setLevel] = useState(5);
-  const [currentXp, setCurrentXp] = useState(750);
+  const [level, setLevel] = useState(1);
+  const [currentXp, setCurrentXp] = useState(10);
   const [maxXp] = useState(1000);
 
   const fetchExamsData = useCallback(async () => {
@@ -148,22 +146,20 @@ export default function StudentExamsPage() {
       } = await supabase.auth.getUser();
 
       if (user) {
-        // 1. Fetch Data Profile Siswa dari Supabase
         const { data: profile } = await supabase
           .from("profiles")
-          .select("full_name, total_xp, level, target_exams")
+          .select("full_name, total_xp, level")
           .eq("id", user.id)
           .single();
 
         if (profile) {
           setStudentName(profile.full_name || user.email?.split("@")[0] || "Siswa GradeUp");
-          const totalXp = profile.total_xp || 750;
+          const totalXp = profile.total_xp || 10;
           setCurrentXp(totalXp % 1000);
           setLevel(profile.level || Math.floor(totalXp / 1000) + 1);
         }
       }
 
-      // 2. Fetch Exam Packages (published & disinkronkan dengan status real-time)
       const { data: packages, error } = await supabase
         .from("exam_packages")
         .select("*")
@@ -220,7 +216,6 @@ export default function StudentExamsPage() {
 
         setExamPackages(formattedPackages);
       } else {
-        // Fallback UI mockup jika data kosong
         setExamPackages(FALLBACK_PACKAGES);
       }
     } catch (err) {
@@ -280,31 +275,39 @@ export default function StudentExamsPage() {
   if (loading) return <PageSkeleton />;
 
   return (
-    <div className="mx-auto max-w-4xl space-y-8 pb-12">
+    /* PERBAIKAN: Melebarkan container utama dari max-w-4xl ke w-full */
+    <div className="w-full space-y-8 pb-12">
       {/* 1. HERO: SAPAAN, LEVEL & XP */}
       <Card className="relative overflow-hidden rounded-3xl border-none bg-gradient-to-br from-emerald-600 via-teal-600 to-emerald-700 text-white shadow-xl">
         <Trophy
-          className="pointer-events-none absolute -bottom-6 -right-4 h-44 w-44 rotate-12 text-white/10"
+          className="pointer-events-none absolute -bottom-6 -right-4 h-56 w-56 rotate-12 text-white/10"
           aria-hidden
         />
         <CardContent className="relative z-10 space-y-6 p-6 sm:p-8">
-          <div className="flex items-start gap-4">
-            <div
-              className="flex h-16 w-16 shrink-0 flex-col items-center justify-center rounded-2xl border border-amber-300/40 bg-amber-300/15"
-              aria-label={`Level ${level}`}
-            >
-              <Star className="h-4 w-4 fill-amber-300 text-amber-300" aria-hidden />
-              <span className="text-2xl font-black leading-none text-amber-200">{level}</span>
+          <div className="flex items-start justify-between gap-4">
+            <div className="flex items-start gap-4">
+              <div
+                className="flex h-16 w-16 shrink-0 flex-col items-center justify-center rounded-2xl border border-amber-300/40 bg-amber-300/15"
+                aria-label={`Level ${level}`}
+              >
+                <Star className="h-4 w-4 fill-amber-300 text-amber-300" aria-hidden />
+                <span className="text-2xl font-black leading-none text-amber-200">{level}</span>
+              </div>
+              <div className="min-w-0">
+                <h1 className="text-xl font-black tracking-tight sm:text-3xl">
+                  Selamat belajar, {studentName}! 👋
+                </h1>
+                <p className="mt-1 text-sm font-medium text-emerald-100">{userClass}</p>
+              </div>
             </div>
-            <div className="min-w-0">
-              <h1 className="text-xl font-black tracking-tight sm:text-3xl">
-                Selamat belajar, {studentName}! 👋
-              </h1>
-              <p className="mt-1 text-sm font-medium text-emerald-100">{userClass}</p>
+
+            {/* Aksen Tropi untuk layar besar */}
+            <div className="hidden lg:flex h-20 w-20 shrink-0 items-center justify-center rounded-2xl bg-white/10 border border-white/20">
+              <Trophy className="h-10 w-10 text-amber-300" />
             </div>
           </div>
 
-          <div className="max-w-md space-y-2">
+          <div className="max-w-xl space-y-2">
             <div className="flex items-baseline justify-between text-xs font-semibold">
               <span className="text-emerald-50">
                 {xpRemaining} XP lagi menuju Level {level + 1}
@@ -321,7 +324,7 @@ export default function StudentExamsPage() {
           </div>
 
           {/* Ringkasan status paket */}
-          <dl className="grid max-w-md grid-cols-3 gap-2 sm:gap-3">
+          <dl className="grid max-w-xl grid-cols-3 gap-3">
             {[
               { label: "Aktif", value: statusCounts.Aktif },
               { label: "Akan datang", value: statusCounts["Akan Datang"] },
@@ -329,10 +332,10 @@ export default function StudentExamsPage() {
             ].map((s) => (
               <div
                 key={s.label}
-                className="rounded-2xl border border-white/15 bg-white/10 px-3 py-2.5 backdrop-blur-sm"
+                className="rounded-2xl border border-white/15 bg-white/10 px-4 py-3 backdrop-blur-sm"
               >
-                <dd className="text-xl font-black tabular-nums leading-none">{s.value}</dd>
-                <dt className="mt-1 text-[11px] font-medium text-emerald-100">{s.label}</dt>
+                <dd className="text-2xl font-black tabular-nums leading-none">{s.value}</dd>
+                <dt className="mt-1 text-xs font-medium text-emerald-100">{s.label}</dt>
               </div>
             ))}
           </dl>
@@ -351,7 +354,7 @@ export default function StudentExamsPage() {
             </p>
           </div>
 
-          <div className="relative w-full sm:w-64">
+          <div className="relative w-full sm:w-80">
             <Search
               className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground"
               aria-hidden
@@ -360,14 +363,14 @@ export default function StudentExamsPage() {
               type="search"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Cari paket ujian"
+              placeholder="Cari paket ujian..."
               aria-label="Cari paket ujian"
               className="h-10 w-full rounded-xl border border-border/70 bg-card pl-9 pr-3 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/60"
             />
           </div>
         </div>
 
-        {/* PILL FILTERS dengan jumlah */}
+        {/* PILL FILTERS */}
         <div
           role="group"
           aria-label="Filter kategori"
@@ -426,7 +429,7 @@ export default function StudentExamsPage() {
         </div>
       )}
 
-      {/* 3. DAFTAR PAKET UJIAN, DIKELOMPOKKAN PER STATUS */}
+      {/* 3. DAFTAR PAKET UJIAN */}
       <div className="space-y-8">
         {!loadError && totalShown === 0 ? (
           <div className="rounded-2xl border border-dashed bg-card p-10 text-center">
@@ -477,7 +480,7 @@ export default function StudentExamsPage() {
                     <li key={pkg.id}>
                       <Card
                         className={cn(
-                          "relative overflow-hidden rounded-2xl border border-border/80 bg-card shadow-sm transition-shadow hover:shadow-md",
+                          "relative overflow-hidden rounded-2xl border border-border/80 bg-card shadow-sm transition-all hover:shadow-md hover:border-emerald-500/40",
                           isDone && "opacity-75"
                         )}
                       >
@@ -591,7 +594,7 @@ export default function StudentExamsPage() {
                               <Button
                                 size="sm"
                                 onClick={() => navigate(`/dashboard/exams/${pkg.id}`)}
-                                className="h-10 w-full gap-1.5 rounded-xl bg-emerald-600 px-5 text-xs font-extrabold text-white shadow-md hover:bg-emerald-700 focus-visible:ring-2 focus-visible:ring-emerald-500/60 sm:w-auto sm:min-w-[130px]"
+                                className="h-10 w-full gap-1.5 rounded-xl bg-emerald-600 px-6 text-xs font-extrabold text-white shadow-md hover:bg-emerald-700 focus-visible:ring-2 focus-visible:ring-emerald-500/60 sm:w-auto sm:min-w-[140px]"
                               >
                                 <Play className="h-3.5 w-3.5 fill-current" aria-hidden /> Mulai Ujian
                               </Button>
@@ -600,7 +603,7 @@ export default function StudentExamsPage() {
                                 size="sm"
                                 disabled
                                 variant="outline"
-                                className="h-10 w-full gap-1.5 rounded-xl px-5 text-xs font-bold sm:w-auto sm:min-w-[130px]"
+                                className="h-10 w-full gap-1.5 rounded-xl px-6 text-xs font-bold sm:w-auto sm:min-w-[140px]"
                               >
                                 {isDone ? (
                                   <>
