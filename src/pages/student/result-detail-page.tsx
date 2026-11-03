@@ -189,69 +189,72 @@ export default function ResultDetailPage() {
       // Cron mengubah kolom answers menjadi NULL setelah 6 bulan.
       const answersExpired = attempt.answers === null;
 
-      const userAnswers = parseUserAnswers(attempt.answers);
+      let userAnswers = parseUserAnswers(attempt.answers);
 
-      // 4. Ambil soal hanya jika detail jawaban masih tersedia.
+
+      // 4. Ambil soal dan pembahasan melalui RPC yang aman.
       let questionList: QuestionItem[] = [];
 
       if (!answersExpired && examId) {
-        const questionIds = Object.keys(userAnswers);
+        const { data: reviewData, error: reviewError } =
+          await supabase.rpc("get_exam_attempt_review", {
+            p_attempt_id: resultId,
+          });
 
-        if (questionIds.length > 0) {
-          const { data: questionData, error: questionError } = await supabase
-            .from("questions")
-            .select(
-              "id, question_text, options, correct_answer, explanation"
-            )
-            .in("id", questionIds);
+        if (reviewError) throw new Error(reviewError.message);
 
-          if (questionError) throw new Error(questionError.message);
+        if (reviewData && Array.isArray(reviewData)) {
+          const reviewAnswers: Record<string, unknown> = {};
 
-          if (questionData) {
-            // Pertahankan urutan soal berdasarkan urutan jawaban siswa.
-            const questionMap = new Map(
-              questionData.map((question: any) => [
-                String(question.id),
-                question,
-              ])
-            );
+          questionList = reviewData.map((question: any) => {
+            const id = String(question.question_id);
 
-            questionList = questionIds
-              .map((id) => questionMap.get(id))
-              .filter(Boolean)
-              .map((question: any) => {
-                let rawText = question.question_text || "Pertanyaan";
-                if (typeof rawText === "object" && rawText !== null) {
-                  rawText =
-                    rawText.text ||
-                    rawText.question ||
-                    JSON.stringify(rawText);
-                }
+            if (question.user_answer !== null) {
+              reviewAnswers[id] = question.user_answer;
+            }
 
-                let rawExplanation =
-                  question.explanation || "Belum ada pembahasan.";
+            let rawText = question.question_text || "Pertanyaan";
 
-                if (
-                  typeof rawExplanation === "object" &&
-                  rawExplanation !== null
-                ) {
-                  rawExplanation =
-                    rawExplanation.text || JSON.stringify(rawExplanation);
-                }
+            if (typeof rawText === "object" && rawText !== null) {
+              rawText =
+                rawText.text ||
+                rawText.question ||
+                JSON.stringify(rawText);
+            }
 
-                return {
-                  id: String(question.id),
-                  text: String(rawText),
-                  options: parseOptions(question.options),
-                  correctIndex: getCorrectIndex(question.correct_answer),
-                  explanation: String(rawExplanation),
-                };
-              });
-          }
+            let rawExplanation =
+              question.explanation || "Belum ada pembahasan.";
+
+            if (
+              typeof rawExplanation === "object" &&
+              rawExplanation !== null
+            ) {
+              rawExplanation =
+                rawExplanation.text || JSON.stringify(rawExplanation);
+            }
+
+            return {
+              id,
+              text: String(rawText),
+              options: parseOptions(question.options),
+              correctIndex: getCorrectIndex(question.correct_answer),
+              explanation: String(rawExplanation),
+            };
+          });
+
+          // Gunakan jawaban dari RPC agar format lama dan baru didukung.
+          const rpcUserAnswers = parseUserAnswers(reviewAnswers);
+
+          Object.keys(userAnswers).forEach((key) => {
+  delete userAnswers[key];
+});
+
+Object.assign(userAnswers, rpcUserAnswers);
         }
       }
 
       setQuestions(questionList);
+
 
       // 5. Gunakan statistik yang tersimpan di database.
       // Statistik ini tetap tersedia meskipun answers sudah NULL.
