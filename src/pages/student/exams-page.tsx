@@ -34,7 +34,7 @@ type ExamStatus = "Aktif" | "Akan Datang" | "Selesai";
 interface ExamPackageItem {
   id: string;
   title: string;
-  category: "Harian" | "Tryout" | "PTS/UTS" | "PAS/UAS" | string;
+  category: string;
   class_info: string;
   bab_info?: string;
   start_time?: string;
@@ -43,9 +43,9 @@ interface ExamPackageItem {
   days_left?: number;
   start_date_str?: string;
   time_progress?: number;
+  premium?: boolean;
 }
 
-const CATEGORIES = ["Semua", "Harian", "Tryout", "PTS/UTS", "PAS/UAS"] as const;
 const STATUS_ORDER: ExamStatus[] = ["Aktif", "Akan Datang", "Selesai"];
 
 const STATUS_SECTION: Record<ExamStatus, { title: string; hint: string; icon: React.ReactNode }> = {
@@ -53,13 +53,6 @@ const STATUS_SECTION: Record<ExamStatus, { title: string; hint: string; icon: Re
   "Akan Datang": { title: "Segera dibuka", hint: "Siapkan dirimu, jadwalkan belajarmu", icon: <Calendar className="h-4 w-4" /> },
   Selesai: { title: "Sudah berakhir", hint: "Lihat riwayat pengerjaan", icon: <CheckCircle2 className="h-4 w-4" /> },
 };
-
-const FALLBACK_PACKAGES: ExamPackageItem[] = [
-  { id: "1", title: "Ulangan Harian Matematika", category: "Harian", class_info: "Kelas 6", bab_info: "Bab: Pecahan", status: "Aktif", days_left: 12 },
-  { id: "2", title: "Tryout Literasi Numerasi", category: "Tryout", class_info: "SD", bab_info: "Semua Kelas", status: "Aktif", days_left: 45 },
-  { id: "3", title: "Penilaian Tengah Semester", category: "PTS/UTS", class_info: "Kelas 6", bab_info: "Semua Mapel", status: "Akan Datang", start_date_str: "10 Apr 2026" },
-  { id: "4", title: "Penilaian Akhir Semester", category: "PAS/UAS", class_info: "Kelas 6", bab_info: "Semua Mapel", status: "Akan Datang", start_date_str: "25 Jun 2026" },
-];
 
 function getCategoryTheme(category: string) {
   switch (category) {
@@ -73,6 +66,7 @@ function getCategoryTheme(category: string) {
         ring: "group-hover:ring-sky-200 dark:group-hover:ring-sky-800",
         glow: "group-hover:shadow-sky-500/10 dark:group-hover:shadow-sky-500/20",
       };
+    case "PTS":
     case "PTS/UTS":
       return {
         icon: <FileText className="h-5 w-5" />,
@@ -83,6 +77,7 @@ function getCategoryTheme(category: string) {
         ring: "group-hover:ring-violet-200 dark:group-hover:ring-violet-800",
         glow: "group-hover:shadow-violet-500/10 dark:group-hover:shadow-violet-500/20",
       };
+    case "PAS":
     case "PAS/UAS":
       return {
         icon: <Award className="h-5 w-5" />,
@@ -94,6 +89,7 @@ function getCategoryTheme(category: string) {
         glow: "group-hover:shadow-blue-500/10 dark:group-hover:shadow-blue-500/20",
       };
     case "Harian":
+    case "Matematika":
     default:
       return {
         icon: <BookOpen className="h-5 w-5" />,
@@ -119,13 +115,14 @@ export default function StudentExamsPage() {
   const [level, setLevel] = useState(1);
   const [currentXp, setCurrentXp] = useState(10);
   const [maxXp] = useState(1000);
-  // Manual toggle for demo - remove if you use next-themes
   const [isDark, setIsDark] = useState(false);
 
   const fetchExamsData = useCallback(async () => {
     try {
       setLoading(true);
       setLoadError(false);
+
+      // 1. Fetch User Profile
       const { data: { user } } = await supabase.auth.getUser();
       if (user) {
         const { data: profile } = await supabase.from("profiles").select("full_name, total_xp, level").eq("id", user.id).single();
@@ -136,19 +133,32 @@ export default function StudentExamsPage() {
           setLevel(profile.level || Math.floor(totalXp / 1000) + 1);
         }
       }
-      const { data: packages, error } = await supabase.from("exam_packages").select("*").or("is_published.eq.true,status.eq.Published").order("start_time", { ascending: true });
+
+      // 2. Fetch Exam Packages dari Supabase
+      const { data: packages, error } = await supabase
+        .from("exam_packages")
+        .select("*")
+        .or("is_published.eq.true,status.eq.Published")
+        .order("created_at", { ascending: false });
+
       if (error) throw error;
       const now = new Date().getTime();
+
       if (packages && packages.length > 0) {
         const formattedPackages: ExamPackageItem[] = packages.map((pkg: any) => {
           const startDate = pkg.start_time ? new Date(pkg.start_time) : new Date(pkg.created_at || Date.now());
           const endDate = pkg.end_time ? new Date(pkg.end_time) : null;
-          let status: ExamStatus = "Akan Datang";
+          
+          let status: ExamStatus = "Aktif";
           let daysLeft: number | undefined;
           let timeProgress: number | undefined;
-          if (startDate.getTime() > now) status = "Akan Datang";
-          else if (endDate && now > endDate.getTime()) status = "Selesai";
-          else {
+
+          // Sinkronisasi Kondisi Status Real-time
+          if (startDate.getTime() > now) {
+            status = "Akan Datang";
+          } else if (endDate && now > endDate.getTime()) {
+            status = "Selesai";
+          } else {
             status = "Aktif";
             if (endDate) {
               const diffMs = endDate.getTime() - now;
@@ -157,23 +167,26 @@ export default function StudentExamsPage() {
               if (total > 0) timeProgress = Math.min(100, Math.max(0, ((now - startDate.getTime()) / total) * 100));
             }
           }
+
           return {
             id: pkg.id,
             title: pkg.title || "Paket Ujian",
             category: pkg.category || "Harian",
-            class_info: pkg.class_info || pkg.level || "Kelas 6",
-            bab_info: pkg.bab_info || pkg.description || "Semua Materi",
+            class_info: pkg.level || pkg.class_info || "Semua Jenjang",
+            bab_info: pkg.description || pkg.bab_info || "Materi Ujian",
             start_time: pkg.start_time,
             end_time: pkg.end_time,
             status,
             days_left: daysLeft,
             time_progress: timeProgress,
-            start_date_str: startDate.toLocaleDateString("id-ID", { day: "numeric", month: "short", year: "numeric" }),
+            premium: pkg.premium,
+            start_date_str: startDate.toLocaleDateString("id-ID", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" }),
           };
         });
+
         setExamPackages(formattedPackages);
       } else {
-        setExamPackages(FALLBACK_PACKAGES);
+        setExamPackages([]);
       }
     } catch (err) {
       console.error("Gagal mengambil data paket ujian:", err);
@@ -185,14 +198,11 @@ export default function StudentExamsPage() {
 
   useEffect(() => { fetchExamsData(); }, [fetchExamsData]);
 
-  // Detect system dark mode - optional
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      setIsDark(window.matchMedia('(prefers-color-scheme: dark)').matches);
-      // If using Tailwind darkMode: 'class', you would toggle document.documentElement class here
-      // For this file we use local state + conditional classes to demonstrate both modes
-    }
-  }, []);
+  // Daftar Kategori Dinamis berdasarkan Data dari Supabase
+  const categoriesList = useMemo(() => {
+    const cats = Array.from(new Set(examPackages.map((p) => p.category)));
+    return ["Semua", ...cats];
+  }, [examPackages]);
 
   const categoryCounts = useMemo(() => {
     const counts: Record<string, number> = { Semua: examPackages.length };
@@ -213,6 +223,7 @@ export default function StudentExamsPage() {
       const matchSearch = !q || pkg.title.toLowerCase().includes(q) || pkg.class_info.toLowerCase().includes(q) || (pkg.bab_info || "").toLowerCase().includes(q);
       return matchCategory && matchSearch;
     });
+
     return STATUS_ORDER.map((status) => ({
       status,
       items: filtered.filter((p) => p.status === status).sort((a, b) => status === "Aktif" ? (a.days_left ?? Infinity) - (b.days_left ?? Infinity) : 0),
@@ -228,17 +239,17 @@ export default function StudentExamsPage() {
     <div className={cn("w-full space-y-8 pb-16 transition-colors duration-300", isDark ? "dark" : "")}>
       <div className="dark:bg-slate-950 bg-transparent space-y-8 rounded-[2rem] p-1">
         
-        {/* Theme Toggle - Hapus kalau udah pakai next-themes */}
+        {/* Toggle Mode Gelap / Terang */}
         <div className="flex justify-end">
           <button
             onClick={() => setIsDark(!isDark)}
             className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-bold text-slate-700 shadow-sm transition-all hover:bg-slate-50 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800"
           >
-            {isDark ? <><Moon className="h-3.5 w-3.5" /> Dark</> : <><Sun className="h-3.5 w-3.5" /> Light</>}
+            {isDark ? <><Moon className="h-3.5 w-3.5" /> Dark Mode</> : <><Sun className="h-3.5 w-3.5" /> Light Mode</>}
           </button>
         </div>
 
-        {/* HERO - Works in both modes */}
+        {/* HERO BANNER & XP PROGRESS */}
         <div className="relative overflow-hidden rounded-[2rem] border border-white/10 bg-[#0f172a] shadow-[0_20px_60px_-15px_rgba(16,185,129,0.3)] dark:shadow-[0_20px_60px_-15px_rgba(0,0,0,0.5)]">
           <div className="absolute inset-0 bg-gradient-to-br from-emerald-600 via-teal-600 to-cyan-700 dark:from-emerald-700 dark:via-teal-800 dark:to-slate-900" />
           <div className="absolute -top-24 -right-24 h-96 w-96 rounded-full bg-white/10 blur-[80px] dark:bg-emerald-500/10" />
@@ -254,7 +265,7 @@ export default function StudentExamsPage() {
                 </div>
                 <div className="min-w-0">
                   <div className="inline-flex items-center gap-1.5 rounded-full bg-white/10 px-2.5 py-1 text-[10px] font-bold uppercase tracking-widest text-emerald-100 ring-1 ring-white/10 backdrop-blur-md">
-                    <Sparkles className="h-3 w-3" /> Student Dashboard
+                    <Sparkles className="h-3 w-3" /> Dashboard Siswa
                   </div>
                   <h1 className="mt-2 text-[22px] font-extrabold leading-tight tracking-tight text-white sm:text-3xl">
                     Selamat belajar,<br className="sm:hidden" /> {studentName}! 👋
@@ -287,7 +298,7 @@ export default function StudentExamsPage() {
               <div className="grid grid-cols-3 gap-2.5">
                 {[
                   { label: "Aktif", value: statusCounts.Aktif, icon: <Play className="h-3.5 w-3.5" />, color: "bg-emerald-400" },
-                  { label: "Akan datang", value: statusCounts["Akan Datang"], icon: <Calendar className="h-3.5 w-3.5" />, color: "bg-amber-400" },
+                  { label: "Akan datang", value: statusCounts["Akan Datang"], icon: <Calendar className="h-3.5 w-3.5" />, color: "bg-sky-400" },
                   { label: "Selesai", value: statusCounts.Selesai, icon: <CheckCircle2 className="h-3.5 w-3.5" />, color: "bg-slate-400" },
                 ].map((s) => (
                   <div key={s.label} className="group relative overflow-hidden rounded-2xl bg-white/[0.08] p-3 ring-1 ring-white/10 backdrop-blur-md transition-all hover:bg-white/[0.12] hover:ring-white/20">
@@ -303,7 +314,7 @@ export default function StudentExamsPage() {
           </div>
         </div>
 
-        {/* SEARCH & FILTER - Light/Dark aware sticky */}
+        {/* STICKY SEARCH & FILTER CATEGORIES */}
         <div className="sticky top-0 z-20 -mx-4 border-b border-slate-200/60 bg-white/80 px-4 py-4 backdrop-blur-xl supports-[backdrop-filter]:bg-white/60 dark:border-slate-800 dark:bg-slate-900/80 dark:supports-[backdrop-filter]:bg-slate-900/60 sm:mx-0 sm:rounded-2xl sm:border sm:px-6">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div>
@@ -319,7 +330,7 @@ export default function StudentExamsPage() {
                 type="search"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Cari judul, kelas, bab..."
+                placeholder="Cari judul, jenjang, deskripsi..."
                 className="h-11 w-full rounded-xl border border-slate-200 bg-slate-50/50 pl-10 pr-10 text-sm font-medium text-slate-900 shadow-sm outline-none transition-all placeholder:text-slate-400 hover:border-slate-300 hover:bg-white focus:border-emerald-500 focus:bg-white focus:ring-4 focus:ring-emerald-500/10 dark:border-slate-700 dark:bg-slate-800/50 dark:text-white dark:placeholder:text-slate-500 dark:hover:border-slate-600 dark:hover:bg-slate-800 dark:focus:border-emerald-500 dark:focus:bg-slate-800"
               />
               {searchQuery && (
@@ -331,7 +342,7 @@ export default function StudentExamsPage() {
           </div>
 
           <div className="mt-4 flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none">
-            {CATEGORIES.map((cat) => {
+            {categoriesList.map((cat) => {
               const active = selectedCategory === cat;
               const count = categoryCounts[cat] || 0;
               return (
@@ -360,30 +371,30 @@ export default function StudentExamsPage() {
           </div>
         </div>
 
-        {/* ERROR */}
+        {/* ERROR STATE */}
         {loadError && (
           <div className="flex items-center justify-between gap-4 rounded-2xl border border-rose-200 bg-gradient-to-r from-rose-50 to-orange-50 p-4 shadow-sm dark:border-rose-900/50 dark:from-rose-950/50 dark:to-orange-950/30">
             <div className="flex gap-3">
               <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-white text-rose-600 shadow-sm dark:bg-slate-900"><AlertCircle className="h-5 w-5" /></div>
-              <div><p className="text-sm font-bold text-slate-900 dark:text-white">Gagal memuat paket</p><p className="text-xs text-slate-600 dark:text-slate-400">Periksa koneksi dan coba lagi</p></div>
+              <div><p className="text-sm font-bold text-slate-900 dark:text-white">Gagal memuat paket ujian</p><p className="text-xs text-slate-600 dark:text-slate-400">Periksa koneksi internet kamu dan coba lagi</p></div>
             </div>
             <Button size="sm" onClick={fetchExamsData} className="gap-1.5 rounded-xl"><RefreshCw className="h-4 w-4" /> Coba lagi</Button>
           </div>
         )}
 
-        {/* LIST */}
+        {/* DAFTAR PAKET UJIAN */}
         <div className="space-y-10">
           {!loadError && totalShown === 0 ? (
             <div className="rounded-[1.75rem] border border-dashed border-slate-300 bg-gradient-to-b from-white to-slate-50/50 px-6 py-16 text-center shadow-sm dark:border-slate-700 dark:from-slate-900 dark:to-slate-900/50">
               <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-slate-900 text-white shadow-lg dark:bg-white dark:text-slate-900"><Search className="h-7 w-7" /></div>
-              <h3 className="mt-5 text-lg font-black text-slate-900 dark:text-white">Tidak ada paket ditemukan</h3>
+              <h3 className="mt-5 text-lg font-black text-slate-900 dark:text-white">Tidak ada paket ujian ditemukan</h3>
               <p className="mx-auto mt-2 max-w-sm text-sm text-slate-500 dark:text-slate-400">{searchQuery ? `Tidak ada hasil untuk "${searchQuery}". Coba kata kunci lain.` : "Belum ada paket ujian untuk filter ini."}</p>
             </div>
           ) : (
             groupedPackages.map(({ status, items }) => (
               <section key={status} className="space-y-4">
                 <div className="flex items-center gap-3">
-                  <div className={cn("flex h-9 w-9 items-center justify-center rounded-xl border shadow-sm", status === "Aktif" ? "border-emerald-200 bg-emerald-50 text-emerald-600 dark:border-emerald-900 dark:bg-emerald-950/50 dark:text-emerald-400" : status === "Akan Datang" ? "border-amber-200 bg-amber-50 text-amber-600 dark:border-amber-900 dark:bg-amber-950/50 dark:text-amber-400" : "border-slate-200 bg-slate-50 text-slate-500 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-400")}>
+                  <div className={cn("flex h-9 w-9 items-center justify-center rounded-xl border shadow-sm", status === "Aktif" ? "border-emerald-200 bg-emerald-50 text-emerald-600 dark:border-emerald-900 dark:bg-emerald-950/50 dark:text-emerald-400" : status === "Akan Datang" ? "border-sky-200 bg-sky-50 text-sky-600 dark:border-sky-900 dark:bg-sky-950/50 dark:text-sky-400" : "border-slate-200 bg-slate-50 text-slate-500 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-400")}>
                     {STATUS_SECTION[status].icon}
                   </div>
                   <div className="flex-1">
@@ -416,6 +427,7 @@ export default function StudentExamsPage() {
                                 <div className="flex flex-wrap items-center gap-2">
                                   <h4 className="text-[15px] font-extrabold leading-tight text-slate-900 group-hover:text-slate-950 dark:text-white dark:group-hover:text-white sm:text-[16px]">{pkg.title}</h4>
                                   <span className={cn("inline-flex items-center rounded-full border px-2.5 py-0.5 text-[11px] font-bold tracking-wide", theme.badge)}>{pkg.category}</span>
+                                  {pkg.premium && <span className="inline-flex items-center rounded-full bg-amber-500/15 text-amber-700 border border-amber-300 px-2 py-0.5 text-[10px] font-black dark:text-amber-300">PREMIUM</span>}
                                   {isUrgent && <span className="inline-flex animate-pulse items-center gap-1 rounded-full bg-rose-500 px-2 py-0.5 text-[10px] font-black text-white"><AlertCircle className="h-3 w-3" /> SEGERA</span>}
                                 </div>
 
@@ -437,7 +449,7 @@ export default function StudentExamsPage() {
                                     )}
                                   </div>
                                 ) : pkg.status === "Akan Datang" ? (
-                                  <div className="mt-2.5 inline-flex items-center gap-1.5 rounded-full bg-amber-50 px-3 py-1 text-xs font-bold text-amber-800 ring-1 ring-amber-200 dark:bg-amber-950/50 dark:text-amber-300 dark:ring-amber-900/50">
+                                  <div className="mt-2.5 inline-flex items-center gap-1.5 rounded-full bg-sky-50 px-3 py-1 text-xs font-bold text-sky-800 ring-1 ring-sky-200 dark:bg-sky-950/50 dark:text-sky-300 dark:ring-sky-900/50">
                                     <Calendar className="h-3.5 w-3.5" /> Mulai {pkg.start_date_str}
                                   </div>
                                 ) : (
@@ -469,13 +481,14 @@ export default function StudentExamsPage() {
           )}
         </div>
 
+        {/* INFO FOOTER CARD */}
         <div className="relative overflow-hidden rounded-[1.5rem] border border-emerald-200/60 bg-gradient-to-br from-emerald-50 via-white to-teal-50/50 p-5 shadow-sm dark:border-emerald-900/50 dark:from-emerald-950/30 dark:via-slate-900 dark:to-teal-950/20">
           <div className="absolute -right-10 -top-10 h-32 w-32 rounded-full bg-emerald-200/30 blur-2xl dark:bg-emerald-800/20" />
           <div className="relative flex gap-4">
             <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-600 text-white shadow-md dark:bg-emerald-500"><Info className="h-5 w-5" /></div>
             <div>
               <h4 className="text-sm font-black text-slate-900 dark:text-white">Info Paket Ujian</h4>
-              <p className="mt-1 max-w-2xl text-[13px] leading-relaxed font-medium text-slate-600 dark:text-slate-400">Paket ujian diperbarui setiap 3 bulan sesuai kalender akademik. Selesaikan ujian aktif sebelum batas waktu untuk mendapatkan XP dan naik level. Gunakan filter kategori untuk fokus pada target belajarmu.</p>
+              <p className="mt-1 max-w-2xl text-[13px] leading-relaxed font-medium text-slate-600 dark:text-slate-400">Paket ujian diperbarui secara real-time dari sistem. Selesaikan ujian aktif sebelum batas waktu berakhir untuk mendapatkan XP dan menaikkan level belajarmu!</p>
             </div>
           </div>
         </div>
