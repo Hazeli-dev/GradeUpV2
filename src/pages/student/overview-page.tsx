@@ -591,9 +591,15 @@ export default function StudentOverviewPage() {
   if (loading) return <PageSkeleton />;
 
   const studentName = profile?.full_name || "Siswa";
-  const isPremium = profile?.is_premium || false;
 
-  const totalDurationLabel = formatDuration(totalDurationSeconds);
+// Status Premium aktif hanya jika masa berlakunya belum habis.
+const isPremium = Boolean(
+  profile?.is_premium &&
+  profile?.premium_until &&
+  new Date(profile.premium_until).getTime() > clockNow
+);
+
+const totalDurationLabel = formatDuration(totalDurationSeconds);
 
   // SELURUH LOGIKA KALENDER MENGGUNAKAN WIB
   const selectedDateKey = getDateKey(selectedDate);
