@@ -1,3 +1,4 @@
+```tsx
 import { useEffect, useState } from "react";
 import {
   Search,
@@ -51,6 +52,20 @@ interface UserProfile {
 
 type DurationUnit = "days" | "months" | "years" | "custom";
 
+// Pemeriksaan Premium berdasarkan status dan tanggal kedaluwarsa.
+function isPremiumActive(user: UserProfile): boolean {
+  if (user.role === "admin") return false;
+
+  if (!user.is_premium || !user.premium_until) return false;
+
+  const expiryTime = new Date(user.premium_until).getTime();
+
+  return (
+    !Number.isNaN(expiryTime) &&
+    expiryTime > Date.now()
+  );
+}
+
 export function AdminUsersPage() {
   const [users, setUsers] = useState<UserProfile[]>([]);
   const [loading, setLoading] = useState(true);
@@ -96,6 +111,13 @@ export function AdminUsersPage() {
     void fetchUsers();
   }, []);
 
+  // Statistik Premium aktif dan Gratis.
+  const premiumUsers = users.filter(isPremiumActive);
+
+  const freeUsers = users.filter(
+    (user) => user.role !== "admin" && !isPremiumActive(user)
+  );
+
   // Pencarian pengguna
   const filteredUsers = users.filter((user) => {
     const keyword = search.toLowerCase();
@@ -108,6 +130,8 @@ export function AdminUsersPage() {
 
   // Membuka dialog pengaturan
   const handleOpenSetting = (user: UserProfile) => {
+    if (user.role === "admin") return;
+
     setSelectedUser(user);
     setDurationUnit("months");
     setDurationValue(1);
@@ -157,9 +181,35 @@ export function AdminUsersPage() {
     if (durationUnit === "days") {
       targetDate.setDate(targetDate.getDate() + durationValue);
     } else if (durationUnit === "months") {
+      const originalDay = targetDate.getDate();
+
+      targetDate.setDate(1);
       targetDate.setMonth(targetDate.getMonth() + durationValue);
+
+      const lastDay = new Date(
+        targetDate.getFullYear(),
+        targetDate.getMonth() + 1,
+        0
+      ).getDate();
+
+      targetDate.setDate(Math.min(originalDay, lastDay));
     } else if (durationUnit === "years") {
-      targetDate.setFullYear(targetDate.getFullYear() + durationValue);
+      const originalMonth = targetDate.getMonth();
+      const originalDay = targetDate.getDate();
+
+      targetDate.setDate(1);
+      targetDate.setFullYear(
+        targetDate.getFullYear() + durationValue
+      );
+      targetDate.setMonth(originalMonth);
+
+      const lastDay = new Date(
+        targetDate.getFullYear(),
+        originalMonth + 1,
+        0
+      ).getDate();
+
+      targetDate.setDate(Math.min(originalDay, lastDay));
     }
 
     return targetDate.toISOString();
@@ -167,7 +217,7 @@ export function AdminUsersPage() {
 
   // Mengaktifkan Premium melalui RPC
   const handleSavePremium = async () => {
-    if (!selectedUser || saving) return;
+    if (!selectedUser || saving || selectedUser.role === "admin") return;
 
     setErrorMessage("");
 
@@ -213,7 +263,7 @@ export function AdminUsersPage() {
 
   // Mencabut Premium melalui RPC
   const handleRevokePremium = async () => {
-    if (!selectedUser || saving) return;
+    if (!selectedUser || saving || selectedUser.role === "admin") return;
 
     const confirmed = window.confirm(
       `Cabut akses Premium untuk ${
@@ -262,10 +312,32 @@ export function AdminUsersPage() {
     if (Number.isNaN(parsedDate.getTime())) return "-";
 
     return parsedDate.toLocaleDateString("id-ID", {
+      timeZone: "Asia/Jakarta",
       day: "numeric",
       month: "short",
       year: "numeric",
     });
+  };
+
+  // Label status paket
+  const getPackageStatus = (user: UserProfile) => {
+    if (user.role === "admin") {
+      return "admin";
+    }
+
+    if (isPremiumActive(user)) {
+      return "premium";
+    }
+
+    if (user.is_premium && !user.premium_until) {
+      return "missing-date";
+    }
+
+    if (user.is_premium && user.premium_until) {
+      return "expired";
+    }
+
+    return "free";
   };
 
   return (
@@ -303,16 +375,20 @@ export function AdminUsersPage() {
         </div>
 
         <div className="rounded-xl border bg-card p-4 shadow-sm">
-          <p className="text-sm text-muted-foreground">Pengguna Premium</p>
+          <p className="text-sm text-muted-foreground">
+            Premium Aktif
+          </p>
           <p className="mt-2 text-2xl font-bold text-amber-600">
-            {users.filter((user) => user.is_premium).length}
+            {premiumUsers.length}
           </p>
         </div>
 
         <div className="rounded-xl border bg-card p-4 shadow-sm">
-          <p className="text-sm text-muted-foreground">Pengguna Gratis</p>
+          <p className="text-sm text-muted-foreground">
+            Pengguna Gratis
+          </p>
           <p className="mt-2 text-2xl font-bold">
-            {users.filter((user) => !user.is_premium).length}
+            {freeUsers.length}
           </p>
         </div>
       </div>
@@ -377,73 +453,102 @@ export function AdminUsersPage() {
                 </TableCell>
               </TableRow>
             ) : (
-              filteredUsers.map((user) => (
-                <TableRow key={user.id}>
-                  <TableCell>
-                    <div className="flex flex-col gap-1">
-                      <span className="font-semibold">
-                        {user.full_name || "Tanpa Nama"}
-                      </span>
-                      <span className="text-xs text-muted-foreground">
-                        {user.email || "-"}
-                      </span>
-                    </div>
-                  </TableCell>
+              filteredUsers.map((user) => {
+                const packageStatus = getPackageStatus(user);
 
-                  <TableCell>
-                    {user.role === "admin" ? (
-                      <Badge className="gap-1">
-                        <Shield className="h-3 w-3" />
-                        Admin
-                      </Badge>
-                    ) : (
-                      <Badge variant="outline" className="gap-1">
-                        <UserCheck className="h-3 w-3" />
-                        Siswa
-                      </Badge>
-                    )}
-                  </TableCell>
+                return (
+                  <TableRow key={user.id}>
+                    <TableCell>
+                      <div className="flex flex-col gap-1">
+                        <span className="font-semibold">
+                          {user.full_name || "Tanpa Nama"}
+                        </span>
+                        <span className="text-xs text-muted-foreground">
+                          {user.email || "-"}
+                        </span>
+                      </div>
+                    </TableCell>
 
-                  <TableCell>
-                    {user.is_premium ? (
-                      <Badge className="gap-1 bg-amber-500 text-white hover:bg-amber-600">
-                        <Crown className="h-3 w-3" />
-                        Premium
-                      </Badge>
-                    ) : (
-                      <Badge variant="outline">Gratis</Badge>
-                    )}
-                  </TableCell>
+                    <TableCell>
+                      {user.role === "admin" ? (
+                        <Badge className="gap-1">
+                          <Shield className="h-3 w-3" />
+                          Admin
+                        </Badge>
+                      ) : (
+                        <Badge variant="outline" className="gap-1">
+                          <UserCheck className="h-3 w-3" />
+                          Siswa
+                        </Badge>
+                      )}
+                    </TableCell>
 
-                  <TableCell>
-                    {user.is_premium && user.premium_until ? (
-                      <span className="flex items-center gap-1.5 text-xs font-medium">
-                        <Calendar className="h-3.5 w-3.5 text-muted-foreground" />
-                        {formatDate(user.premium_until)}
-                      </span>
-                    ) : (
-                      <span className="text-xs text-muted-foreground">-</span>
-                    )}
-                  </TableCell>
+                    <TableCell>
+                      {packageStatus === "admin" ? (
+                        <Badge className="gap-1">
+                          <Shield className="h-3 w-3" />
+                          Akses Admin
+                        </Badge>
+                      ) : packageStatus === "premium" ? (
+                        <Badge className="gap-1 bg-amber-500 text-white hover:bg-amber-600">
+                          <Crown className="h-3 w-3" />
+                          Premium Aktif
+                        </Badge>
+                      ) : packageStatus === "expired" ? (
+                        <Badge variant="destructive">
+                          Kedaluwarsa
+                        </Badge>
+                      ) : packageStatus === "missing-date" ? (
+                        <Badge variant="outline">
+                          Perlu Pemeriksaan
+                        </Badge>
+                      ) : (
+                        <Badge variant="outline">Gratis</Badge>
+                      )}
+                    </TableCell>
 
-                  <TableCell className="text-xs text-muted-foreground">
-                    {formatDate(user.created_at)}
-                  </TableCell>
+                    <TableCell>
+                      {user.role === "admin" ? (
+                        <span className="text-xs text-muted-foreground">
+                          Tidak dibatasi
+                        </span>
+                      ) : user.premium_until ? (
+                        <span className="flex items-center gap-1.5 text-xs font-medium">
+                          <Calendar className="h-3.5 w-3.5 text-muted-foreground" />
+                          {formatDate(user.premium_until)}
+                        </span>
+                      ) : (
+                        <span className="text-xs text-muted-foreground">
+                          -
+                        </span>
+                      )}
+                    </TableCell>
 
-                  <TableCell className="text-right">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => handleOpenSetting(user)}
-                      disabled={saving}
-                      className="gap-1.5"
-                    >
-                      <Sliders className="h-3.5 w-3.5" />
-                      Atur Paket
-                    </Button>
-                  </TableCell>
-                </TableRow>
-              ))
+                    <TableCell className="text-xs text-muted-foreground">
+                      {formatDate(user.created_at)}
+                    </TableCell>
+
+                    <TableCell className="text-right">
+                      {user.role === "admin" ? (
+                        <span className="text-xs text-muted-foreground">
+                          Khusus Admin
+                        </span>
+                      ) : (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleOpenSetting(user)}
+                          disabled={saving}
+                          className="gap-1.5"
+                        >
+                          <Sliders className="h-3.5 w-3.5" />
+                          Atur Paket
+                        </Button>
+                      )}
+                    </TableCell>
+                  </TableRow>
+                );
+              })
             )}
           </TableBody>
         </Table>
@@ -487,16 +592,24 @@ export function AdminUsersPage() {
 
             <div className="mt-1 flex items-center justify-between">
               <span className="text-sm font-semibold">
-                {selectedUser?.is_premium ? "Premium" : "Gratis"}
+                {selectedUser && isPremiumActive(selectedUser)
+                  ? "Premium Aktif"
+                  : selectedUser?.is_premium
+                    ? selectedUser.premium_until
+                      ? "Premium Kedaluwarsa"
+                      : "Perlu Pemeriksaan"
+                    : "Gratis"}
               </span>
 
-              {selectedUser?.is_premium ? (
+              {selectedUser && isPremiumActive(selectedUser) ? (
                 <Badge className="bg-amber-500 text-white">
                   <Crown className="mr-1 h-3 w-3" />
                   Aktif
                 </Badge>
               ) : (
-                <Badge variant="outline">Free</Badge>
+                <Badge variant="outline">
+                  {selectedUser?.is_premium ? "Tidak Aktif" : "Free"}
+                </Badge>
               )}
             </div>
 
@@ -629,3 +742,4 @@ export function AdminUsersPage() {
 }
 
 export default AdminUsersPage;
+```
