@@ -136,69 +136,51 @@ const ParagraphLayout = Extension.create({
         attributes: {
           textIndent: {
             default: null,
-            parseHTML: (element) =>
-              element.style.textIndent || null,
-            renderHTML: (attributes) => {
-              if (!attributes.textIndent) return {};
-              return {
-                style: `text-indent: ${attributes.textIndent}`,
-              };
-            },
+            parseHTML: (element) => element.style.textIndent || null,
+            renderHTML: (attributes) =>
+              attributes.textIndent
+                ? { style: `text-indent: ${attributes.textIndent}` }
+                : {},
           },
           leftIndent: {
             default: null,
-            parseHTML: (element) =>
-              element.style.marginLeft || null,
-            renderHTML: (attributes) => {
-              if (!attributes.leftIndent) return {};
-              return {
-                style: `margin-left: ${attributes.leftIndent}`,
-              };
-            },
+            parseHTML: (element) => element.style.marginLeft || null,
+            renderHTML: (attributes) =>
+              attributes.leftIndent
+                ? { style: `margin-left: ${attributes.leftIndent}` }
+                : {},
           },
           rightIndent: {
             default: null,
-            parseHTML: (element) =>
-              element.style.marginRight || null,
-            renderHTML: (attributes) => {
-              if (!attributes.rightIndent) return {};
-              return {
-                style: `margin-right: ${attributes.rightIndent}`,
-              };
-            },
+            parseHTML: (element) => element.style.marginRight || null,
+            renderHTML: (attributes) =>
+              attributes.rightIndent
+                ? { style: `margin-right: ${attributes.rightIndent}` }
+                : {},
           },
           lineHeight: {
             default: null,
-            parseHTML: (element) =>
-              element.style.lineHeight || null,
-            renderHTML: (attributes) => {
-              if (!attributes.lineHeight) return {};
-              return {
-                style: `line-height: ${attributes.lineHeight}`,
-              };
-            },
+            parseHTML: (element) => element.style.lineHeight || null,
+            renderHTML: (attributes) =>
+              attributes.lineHeight
+                ? { style: `line-height: ${attributes.lineHeight}` }
+                : {},
           },
           marginTop: {
             default: null,
-            parseHTML: (element) =>
-              element.style.marginTop || null,
-            renderHTML: (attributes) => {
-              if (!attributes.marginTop) return {};
-              return {
-                style: `margin-top: ${attributes.marginTop}`,
-              };
-            },
+            parseHTML: (element) => element.style.marginTop || null,
+            renderHTML: (attributes) =>
+              attributes.marginTop
+                ? { style: `margin-top: ${attributes.marginTop}` }
+                : {},
           },
           marginBottom: {
             default: null,
-            parseHTML: (element) =>
-              element.style.marginBottom || null,
-            renderHTML: (attributes) => {
-              if (!attributes.marginBottom) return {};
-              return {
-                style: `margin-bottom: ${attributes.marginBottom}`,
-              };
-            },
+            parseHTML: (element) => element.style.marginBottom || null,
+            renderHTML: (attributes) =>
+              attributes.marginBottom
+                ? { style: `margin-bottom: ${attributes.marginBottom}` }
+                : {},
           },
         },
       },
@@ -248,9 +230,7 @@ export default function LessonLearningPage() {
   const [learningProgress, setLearningProgress] =
     useState<LearningProgress | null>(null);
 
-  const [selectedSectionIndex, setSelectedSectionIndex] =
-    useState(0);
-
+  const [selectedSectionIndex, setSelectedSectionIndex] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
@@ -261,14 +241,12 @@ export default function LessonLearningPage() {
   const [currentQuestion, setCurrentQuestion] =
     useState<AssessmentQuestion | null>(null);
 
-  // Soal berikutnya disimpan sementara sampai siswa klik Lanjutkan.
   const [pendingNextQuestion, setPendingNextQuestion] =
     useState<AssessmentQuestion | null>(null);
 
   const [selectedAnswer, setSelectedAnswer] = useState("");
   const [submitting, setSubmitting] = useState(false);
-  const [startingAssessment, setStartingAssessment] =
-    useState(false);
+  const [startingAssessment, setStartingAssessment] = useState(false);
 
   const [answerFeedback, setAnswerFeedback] = useState<{
     correct: boolean;
@@ -293,9 +271,7 @@ export default function LessonLearningPage() {
     editable: false,
     extensions: [
       StarterKit.configure({
-        heading: {
-          levels: [1, 2, 3],
-        },
+        heading: { levels: [1, 2, 3] },
       }),
       ParagraphLayout,
       Underline,
@@ -312,9 +288,7 @@ export default function LessonLearningPage() {
         inline: false,
         allowBase64: false,
       }),
-      Table.configure({
-        resizable: false,
-      }),
+      Table.configure({ resizable: false }),
       TableRow,
       TableHeader,
       TableCell,
@@ -345,26 +319,25 @@ export default function LessonLearningPage() {
     setError("");
 
     try {
-      const { data: lessonData, error: lessonError } =
-        await supabase
-          .from("course_lessons")
-          .select(`
+      const { data: lessonData, error: lessonError } = await supabase
+        .from("course_lessons")
+        .select(`
+          id,
+          title,
+          description,
+          estimated_minutes,
+          module:course_modules!inner (
             id,
             title,
-            description,
-            estimated_minutes,
-            module:course_modules!inner (
+            course:courses!inner (
               id,
               title,
-              course:courses!inner (
-                id,
-                title,
-                premium
-              )
+              premium
             )
-          `)
-          .eq("id", lessonId)
-          .single();
+          )
+        `)
+        .eq("id", lessonId)
+        .single();
 
       if (lessonError) throw lessonError;
 
@@ -403,9 +376,7 @@ export default function LessonLearningPage() {
 
         supabase
           .from("lesson_assessments")
-          .select(
-            "id,section_id,assessment_type,title,sort_order"
-          )
+          .select("id,section_id,assessment_type,title,sort_order")
           .eq("lesson_id", lessonId)
           .order("sort_order", { ascending: true }),
 
@@ -420,21 +391,21 @@ export default function LessonLearningPage() {
 
       const progress = progressData as LearningProgress;
 
-      const mappedSections: LessonSection[] = (
-        progress.sections || []
-      ).map((item) => {
-        const sectionContent = (sectionData || []).find(
-          (section) => section.id === item.section_id
-        );
+      const mappedSections: LessonSection[] = (progress.sections || []).map(
+        (item) => {
+          const sectionContent = (sectionData || []).find(
+            (section) => section.id === item.section_id
+          );
 
-        return {
-          ...item,
-          content_json: sectionContent?.content_json || {
-            type: "doc",
-            content: [{ type: "paragraph" }],
-          },
-        };
-      });
+          return {
+            ...item,
+            content_json: sectionContent?.content_json || {
+              type: "doc",
+              content: [{ type: "paragraph" }],
+            },
+          };
+        }
+      );
 
       setSections(mappedSections);
       setAssessments((assessmentData || []) as AssessmentInfo[]);
@@ -481,21 +452,16 @@ export default function LessonLearningPage() {
   // ASSESSMENT HELPERS
   // ===================================================
 
-  const getCheckpointAssessment = (
-    section: LessonSection
-  ) => {
-    return assessments.find(
+  const getCheckpointAssessment = (section: LessonSection) =>
+    assessments.find(
       (item) =>
         item.assessment_type === "checkpoint" &&
         item.section_id === section.section_id
     );
-  };
 
   const finalAssessment = useMemo(
     () =>
-      assessments.find(
-        (item) => item.assessment_type === "final"
-      ) || null,
+      assessments.find((item) => item.assessment_type === "final") || null,
     [assessments]
   );
 
@@ -504,9 +470,7 @@ export default function LessonLearningPage() {
 
     const { data, error: progressError } = await supabase.rpc(
       "get_lesson_learning_progress",
-      {
-        p_lesson_id: lessonId,
-      }
+      { p_lesson_id: lessonId }
     );
 
     if (progressError) throw progressError;
@@ -523,8 +487,7 @@ export default function LessonLearningPage() {
         return updated
           ? {
               ...section,
-              checkpoint_completed:
-                updated.checkpoint_completed,
+              checkpoint_completed: updated.checkpoint_completed,
             }
           : section;
       })
@@ -532,7 +495,7 @@ export default function LessonLearningPage() {
   }, [lessonId]);
 
   // ===================================================
-  // START CHECKPOINT / FINAL ASSESSMENT
+  // START ASSESSMENT
   // ===================================================
 
   const startAssessment = async (assessment: AssessmentInfo) => {
@@ -546,9 +509,7 @@ export default function LessonLearningPage() {
     try {
       const { data, error: startError } = await supabase.rpc(
         "start_lesson_assessment",
-        {
-          p_assessment_id: assessment.id,
-        }
+        { p_assessment_id: assessment.id }
       );
 
       if (startError) throw startError;
@@ -617,13 +578,9 @@ export default function LessonLearningPage() {
       };
 
       if (!result.success) {
-        throw new Error(
-          result.message || "Jawaban gagal disimpan."
-        );
+        throw new Error(result.message || "Jawaban gagal disimpan.");
       }
 
-      // Jika jawaban ternyata sudah pernah benar,
-      // sinkronkan posisi dari backend.
       if (result.already_correct) {
         const { data: progressData, error: progressError } =
           await supabase.rpc("get_lesson_assessment_progress", {
@@ -648,21 +605,15 @@ export default function LessonLearningPage() {
         return;
       }
 
-      // JAWABAN SALAH
-      // Pertahankan soal yang sama agar dapat dicoba kembali.
       if (!result.is_correct) {
         setAnswerFeedback({
           correct: false,
           message: result.message,
           explanation: null,
         });
-
         return;
       }
 
-      // JAWABAN BENAR
-      // Tampilkan pembahasan soal saat ini.
-      // Soal berikutnya hanya disimpan di pendingNextQuestion.
       setAnswerFeedback({
         correct: true,
         message: result.message,
@@ -671,8 +622,7 @@ export default function LessonLearningPage() {
 
       setAssessmentStats((previous) => ({
         ...previous,
-        correct:
-          result.correct_answers ?? previous.correct + 1,
+        correct: result.correct_answers ?? previous.correct + 1,
         total: result.total_questions ?? previous.total,
         completed: result.completed === true,
       }));
@@ -683,7 +633,6 @@ export default function LessonLearningPage() {
       } else if (result.next_question) {
         setPendingNextQuestion(result.next_question);
       } else {
-        // Fallback jika backend tidak mengirim next_question.
         const { data: progressData, error: progressError } =
           await supabase.rpc("get_lesson_assessment_progress", {
             p_attempt_id: attemptId,
@@ -718,17 +667,14 @@ export default function LessonLearningPage() {
 
     if (answerFeedback.correct) {
       if (assessmentStats.completed) {
-        // Soal terakhir selesai. Tampilkan layar penyelesaian.
         setCurrentQuestion(null);
         setPendingNextQuestion(null);
       } else if (pendingNextQuestion) {
-        // Baru sekarang soal berikutnya ditampilkan.
         setCurrentQuestion(pendingNextQuestion);
         setPendingNextQuestion(null);
       }
     }
 
-    // Pada jawaban salah, currentQuestion tidak berubah.
     setSelectedAnswer("");
     setAnswerFeedback(null);
   };
@@ -756,7 +702,7 @@ export default function LessonLearningPage() {
   };
 
   // ===================================================
-  // SECTION ACCESS
+  // SECTION ACCESS & PROGRESS
   // ===================================================
 
   const isSectionAccessible = (index: number) => {
@@ -781,36 +727,45 @@ export default function LessonLearningPage() {
     sections.every((section) => section.checkpoint_completed);
 
   // ===================================================
-  // LOADING / ERROR
+  // LOADING
   // ===================================================
 
   if (loading) {
     return (
-      <div className="min-h-[60vh] flex flex-col items-center justify-center gap-3">
-        <Loader2 className="w-8 h-8 animate-spin text-emerald-600" />
-        <p className="text-sm text-gray-500">
-          Menyiapkan ruang belajar...
-        </p>
+      <div className="gu-learning-page min-h-[60vh] flex flex-col items-center justify-center gap-4 bg-background text-foreground">
+        <div className="rounded-2xl bg-emerald-500/10 p-4">
+          <Loader2 className="h-8 w-8 animate-spin text-emerald-600" />
+        </div>
+        <div className="text-center">
+          <p className="font-semibold">Menyiapkan ruang belajar</p>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Mohon tunggu sebentar...
+          </p>
+        </div>
       </div>
     );
   }
 
+  // ===================================================
+  // ERROR
+  // ===================================================
+
   if (error || !lesson) {
     return (
-      <div className="max-w-2xl mx-auto p-6">
-        <div className="rounded-2xl border border-red-200 bg-red-50 p-6">
-          <XCircle className="w-8 h-8 text-red-500 mb-3" />
-          <h2 className="font-semibold text-gray-900">
-            Materi tidak dapat dibuka
-          </h2>
-          <p className="text-sm text-gray-600 mt-2">
+      <div className="gu-learning-page min-h-[60vh] bg-background px-4 py-10 text-foreground">
+        <div className="mx-auto max-w-xl rounded-3xl border border-border bg-card p-6 shadow-sm md:p-8">
+          <div className="mb-4 inline-flex rounded-2xl bg-red-500/10 p-3">
+            <XCircle className="h-8 w-8 text-red-500" />
+          </div>
+          <h2 className="text-xl font-bold">Materi tidak dapat dibuka</h2>
+          <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
             {error || "Data materi tidak ditemukan."}
           </p>
           <button
             onClick={() => navigate(`/dashboard/courses/${courseId}`)}
-            className="mt-5 inline-flex items-center gap-2 text-sm font-semibold text-emerald-700"
+            className="mt-6 inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-emerald-700"
           >
-            <ArrowLeft className="w-4 h-4" />
+            <ArrowLeft className="h-4 w-4" />
             Kembali ke kursus
           </button>
         </div>
@@ -837,226 +792,260 @@ export default function LessonLearningPage() {
         : 0;
 
     return (
-      <div className="max-w-4xl mx-auto px-4 py-6 md:py-10">
-        <button
-          onClick={closeAssessment}
-          className="inline-flex items-center gap-2 text-sm text-gray-500 hover:text-gray-900 mb-6"
-        >
-          <ArrowLeft className="w-4 h-4" />
-          Kembali ke materi
-        </button>
+      <div className="gu-learning-page min-h-screen bg-background px-4 py-6 text-foreground md:py-10">
+        <div className="mx-auto max-w-4xl">
+          <button
+            onClick={closeAssessment}
+            className="mb-6 inline-flex items-center gap-2 rounded-lg text-sm font-medium text-muted-foreground transition hover:text-foreground"
+          >
+            <ArrowLeft className="h-4 w-4" />
+            Kembali ke materi
+          </button>
 
-        <div className="rounded-3xl border border-gray-200 bg-white shadow-sm overflow-hidden">
-          <div className="bg-gradient-to-r from-emerald-700 to-teal-600 p-6 md:p-8 text-white">
-            <div className="flex items-center gap-2 text-emerald-100 text-sm mb-3">
-              <ShieldCheck className="w-4 h-4" />
-              {activeAssessment.assessment_type === "checkpoint"
-                ? "Checkpoint Materi"
-                : "Evaluasi Akhir Sesi"}
-            </div>
+          <div className="overflow-hidden rounded-3xl border border-border bg-card shadow-sm">
+            <div className="relative overflow-hidden bg-gradient-to-br from-emerald-700 via-emerald-600 to-teal-600 p-6 text-white md:p-9">
+              <div className="absolute -right-12 -top-16 h-48 w-48 rounded-full bg-white/10" />
+              <div className="absolute -bottom-20 right-24 h-40 w-40 rounded-full bg-white/10" />
 
-            <h1 className="text-2xl md:text-3xl font-bold">
-              {activeAssessment.title}
-            </h1>
-
-            <p className="text-sm text-emerald-50 mt-2">
-              Jawab semua pertanyaan dengan benar untuk
-              melanjutkan pembelajaran.
-            </p>
-          </div>
-
-          <div className="p-5 md:p-8">
-            <div className="flex items-center justify-between gap-4 mb-3">
-              <span className="text-sm font-medium text-gray-600">
-                Progres pengerjaan
-              </span>
-              <span className="text-sm font-bold text-emerald-700">
-                {assessmentStats.correct}/{assessmentStats.total}
-              </span>
-            </div>
-
-            <div className="h-2.5 bg-gray-100 rounded-full overflow-hidden mb-8">
-              <div
-                className="h-full bg-emerald-500 rounded-full transition-all"
-                style={{ width: `${percentage}%` }}
-              />
-            </div>
-
-            {assessmentError && (
-              <div className="mb-5 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
-                {assessmentError}
-              </div>
-            )}
-
-            {assessmentStats.completed && !answerFeedback ? (
-              <div className="text-center py-10">
-                <div className="w-20 h-20 rounded-full bg-emerald-100 flex items-center justify-center mx-auto mb-5">
-                  <Trophy className="w-10 h-10 text-emerald-600" />
+              <div className="relative">
+                <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/10 px-3 py-1.5 text-xs font-semibold text-white">
+                  <ShieldCheck className="h-4 w-4" />
+                  {activeAssessment.assessment_type === "checkpoint"
+                    ? "Checkpoint Materi"
+                    : "Evaluasi Akhir Sesi"}
                 </div>
 
-                <h2 className="text-2xl font-bold text-gray-900">
-                  Evaluasi berhasil diselesaikan!
-                </h2>
+                <h1 className="text-2xl font-bold leading-tight md:text-3xl">
+                  {activeAssessment.title}
+                </h1>
 
-                <p className="text-gray-500 mt-3">
-                  Semua pertanyaan telah dijawab dengan benar.
+                <p className="mt-3 max-w-2xl text-sm leading-relaxed text-emerald-50 md:text-base">
+                  Jawab semua pertanyaan dengan benar untuk melanjutkan
+                  pembelajaran. Jika jawaban belum tepat, kamu dapat mencoba
+                  kembali.
                 </p>
-
-                <div className="mt-6 inline-flex items-center gap-2 rounded-xl bg-emerald-50 px-5 py-3 text-emerald-800 font-semibold">
-                  <CheckCircle2 className="w-5 h-5" />
-                  {assessmentStats.correct} dari {assessmentStats.total} jawaban benar
-                </div>
-
-                <div>
-                  <button
-                    onClick={closeAssessment}
-                    className="mt-8 inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-6 py-3 font-semibold text-white hover:bg-emerald-700"
-                  >
-                    Lanjutkan belajar
-                    <ArrowRight className="w-4 h-4" />
-                  </button>
-                </div>
               </div>
-            ) : currentQuestion ? (
-              <div>
-                <div className="text-sm font-semibold text-emerald-700 mb-3">
-                  Pertanyaan {questionNumber}
+            </div>
+
+            <div className="p-5 md:p-9">
+              <div className="mb-3 flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-sm font-semibold">Progres pengerjaan</p>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    Jawaban benar yang sudah tersimpan
+                  </p>
                 </div>
+                <span className="rounded-xl bg-emerald-500/10 px-3 py-2 text-sm font-bold tabular-nums text-emerald-600 dark:text-emerald-400">
+                  {assessmentStats.correct}/{assessmentStats.total}
+                </span>
+              </div>
 
-                <h2 className="text-lg md:text-xl font-semibold leading-relaxed text-gray-900">
-                  {currentQuestion.question_text}
-                </h2>
+              <div
+                className="mb-8 h-2.5 overflow-hidden rounded-full bg-muted"
+                role="progressbar"
+                aria-valuenow={percentage}
+                aria-valuemin={0}
+                aria-valuemax={100}
+              >
+                <div
+                  className="h-full rounded-full bg-emerald-500 transition-all duration-500"
+                  style={{ width: `${percentage}%` }}
+                />
+              </div>
 
-                <div className="grid gap-3 mt-6">
-                  {options.map((option) => {
-                    const isSelected = selectedAnswer === option.id;
+              {assessmentError && (
+                <div className="mb-5 flex items-start gap-3 rounded-xl border border-red-500/20 bg-red-500/10 p-4 text-sm text-red-600 dark:text-red-400">
+                  <XCircle className="mt-0.5 h-5 w-5 shrink-0" />
+                  <p>{assessmentError}</p>
+                </div>
+              )}
 
-                    return (
-                      <button
-                        key={option.id}
-                        disabled={!!answerFeedback || submitting}
-                        onClick={() => setSelectedAnswer(option.id)}
-                        className={`w-full flex items-start gap-3 rounded-xl border p-4 text-left transition ${
-                          isSelected
-                            ? "border-emerald-500 bg-emerald-50 ring-1 ring-emerald-500"
-                            : "border-gray-200 hover:border-emerald-300 hover:bg-gray-50"
-                        } ${
-                          answerFeedback
-                            ? "cursor-default"
-                            : "cursor-pointer"
-                        }`}
-                      >
-                        <span
-                          className={`flex-shrink-0 w-8 h-8 rounded-lg flex items-center justify-center text-sm font-bold ${
+              {assessmentStats.completed && !answerFeedback ? (
+                <div className="py-8 text-center md:py-12">
+                  <div className="mx-auto mb-5 flex h-20 w-20 items-center justify-center rounded-3xl bg-emerald-500/10">
+                    <Trophy className="h-10 w-10 text-emerald-600 dark:text-emerald-400" />
+                  </div>
+
+                  <p className="mb-2 text-sm font-semibold uppercase tracking-wider text-emerald-600 dark:text-emerald-400">
+                    Evaluasi selesai
+                  </p>
+                  <h2 className="text-2xl font-bold md:text-3xl">
+                    Hebat! Kamu berhasil!
+                  </h2>
+                  <p className="mx-auto mt-3 max-w-md text-sm leading-relaxed text-muted-foreground">
+                    Semua pertanyaan telah dijawab dengan benar. Kamu dapat
+                    melanjutkan pembelajaran.
+                  </p>
+
+                  <div className="mt-7 inline-flex items-center gap-2 rounded-2xl border border-emerald-500/20 bg-emerald-500/10 px-5 py-3 font-semibold text-emerald-700 dark:text-emerald-300">
+                    <CheckCircle2 className="h-5 w-5" />
+                    {assessmentStats.correct} dari {assessmentStats.total}{" "}
+                    jawaban benar
+                  </div>
+
+                  <div>
+                    <button
+                      onClick={closeAssessment}
+                      className="mt-8 inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-6 py-3 font-semibold text-white shadow-sm transition hover:bg-emerald-700"
+                    >
+                      Lanjutkan belajar
+                      <ArrowRight className="h-4 w-4" />
+                    </button>
+                  </div>
+                </div>
+              ) : currentQuestion ? (
+                <div>
+                  <div className="mb-4 flex items-center justify-between gap-3">
+                    <span className="inline-flex items-center gap-2 rounded-full bg-emerald-500/10 px-3 py-1.5 text-xs font-bold text-emerald-700 dark:text-emerald-300">
+                      <FileText className="h-4 w-4" />
+                      Pertanyaan {questionNumber}
+                    </span>
+                    <span className="text-xs text-muted-foreground">
+                      Pilih satu jawaban
+                    </span>
+                  </div>
+
+                  <h2 className="text-lg font-bold leading-relaxed md:text-xl">
+                    {currentQuestion.question_text}
+                  </h2>
+
+                  <div className="mt-6 grid gap-3">
+                    {options.map((option) => {
+                      const isSelected = selectedAnswer === option.id;
+
+                      return (
+                        <button
+                          key={option.id}
+                          type="button"
+                          disabled={!!answerFeedback || submitting}
+                          onClick={() => setSelectedAnswer(option.id)}
+                          className={`group flex w-full items-start gap-3 rounded-2xl border p-4 text-left transition-all duration-200 ${
                             isSelected
-                              ? "bg-emerald-600 text-white"
-                              : "bg-gray-100 text-gray-600"
+                              ? "border-emerald-500 bg-emerald-500/10 ring-2 ring-emerald-500/20"
+                              : "border-border bg-card hover:border-emerald-500/50 hover:bg-muted/60"
+                          } ${
+                            answerFeedback || submitting
+                              ? "cursor-default"
+                              : "cursor-pointer"
                           }`}
                         >
-                          {option.id}
-                        </span>
-
-                        <span className="text-sm md:text-base text-gray-800 pt-1">
-                          {option.text}
-                        </span>
-                      </button>
-                    );
-                  })}
-                </div>
-
-                {answerFeedback && (
-                  <div
-                    className={`mt-6 rounded-xl border p-5 ${
-                      answerFeedback.correct
-                        ? "border-emerald-200 bg-emerald-50"
-                        : "border-amber-200 bg-amber-50"
-                    }`}
-                  >
-                    <div className="flex items-center gap-2 font-semibold">
-                      {answerFeedback.correct ? (
-                        <>
-                          <CheckCircle2 className="w-5 h-5 text-emerald-600" />
-                          <span className="text-emerald-800">
-                            Jawaban benar!
+                          <span
+                            className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-sm font-bold transition ${
+                              isSelected
+                                ? "bg-emerald-600 text-white"
+                                : "bg-muted text-muted-foreground group-hover:bg-emerald-500/10 group-hover:text-emerald-600"
+                            }`}
+                          >
+                            {option.id}
                           </span>
+
+                          <span className="min-w-0 flex-1 pt-1 text-sm leading-relaxed text-foreground md:text-base">
+                            {option.text}
+                          </span>
+
+                          {isSelected && (
+                            <CheckCircle2 className="mt-1 h-5 w-5 shrink-0 text-emerald-600 dark:text-emerald-400" />
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  {answerFeedback && (
+                    <div
+                      className={`mt-6 rounded-2xl border p-5 ${
+                        answerFeedback.correct
+                          ? "border-emerald-500/25 bg-emerald-500/10"
+                          : "border-amber-500/25 bg-amber-500/10"
+                      }`}
+                    >
+                      <div className="flex items-center gap-2 font-bold">
+                        {answerFeedback.correct ? (
+                          <>
+                            <CheckCircle2 className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
+                            <span className="text-emerald-700 dark:text-emerald-300">
+                              Jawaban benar!
+                            </span>
+                          </>
+                        ) : (
+                          <>
+                            <RefreshCw className="h-5 w-5 text-amber-600 dark:text-amber-400" />
+                            <span className="text-amber-700 dark:text-amber-300">
+                              Belum tepat, coba lagi.
+                            </span>
+                          </>
+                        )}
+                      </div>
+
+                      <p
+                        className={`mt-2 text-sm leading-relaxed ${
+                          answerFeedback.correct
+                            ? "text-emerald-800 dark:text-emerald-200"
+                            : "text-amber-800 dark:text-amber-200"
+                        }`}
+                      >
+                        {answerFeedback.message}
+                      </p>
+
+                      {answerFeedback.correct &&
+                        answerFeedback.explanation && (
+                          <div className="mt-4 border-t border-emerald-500/20 pt-4">
+                            <p className="mb-1 text-sm font-bold text-emerald-800 dark:text-emerald-200">
+                              Pembahasan
+                            </p>
+                            <p className="text-sm leading-relaxed text-emerald-800 dark:text-emerald-100">
+                              {answerFeedback.explanation}
+                            </p>
+                          </div>
+                        )}
+
+                      <button
+                        onClick={continueAfterFeedback}
+                        className={`mt-5 inline-flex items-center gap-2 rounded-xl px-5 py-3 text-sm font-semibold text-white transition ${
+                          answerFeedback.correct
+                            ? "bg-emerald-600 hover:bg-emerald-700"
+                            : "bg-amber-600 hover:bg-amber-700"
+                        }`}
+                      >
+                        {answerFeedback.correct
+                          ? assessmentStats.completed
+                            ? "Selesaikan evaluasi"
+                            : "Lanjutkan"
+                          : "Coba kembali"}
+                        <ArrowRight className="h-4 w-4" />
+                      </button>
+                    </div>
+                  )}
+
+                  {!answerFeedback && (
+                    <button
+                      onClick={submitAnswer}
+                      disabled={!selectedAnswer || submitting}
+                      className="mt-7 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-600 px-7 py-3.5 font-semibold text-white shadow-sm transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50 md:w-auto"
+                    >
+                      {submitting ? (
+                        <>
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                          Memeriksa jawaban...
                         </>
                       ) : (
                         <>
-                          <RefreshCw className="w-5 h-5 text-amber-600" />
-                          <span className="text-amber-800">
-                            Belum tepat, coba lagi.
-                          </span>
+                          Periksa jawaban
+                          <ArrowRight className="h-4 w-4" />
                         </>
                       )}
-                    </div>
-
-                    <p
-                      className={`text-sm mt-2 ${
-                        answerFeedback.correct
-                          ? "text-emerald-800"
-                          : "text-amber-800"
-                      }`}
-                    >
-                      {answerFeedback.message}
-                    </p>
-
-                    {answerFeedback.correct &&
-                      answerFeedback.explanation && (
-                        <div className="mt-4 border-t border-emerald-200 pt-4">
-                          <p className="text-sm font-semibold text-emerald-900 mb-1">
-                            Pembahasan
-                          </p>
-                          <p className="text-sm leading-relaxed text-emerald-900">
-                            {answerFeedback.explanation}
-                          </p>
-                        </div>
-                      )}
-
-                    <button
-                      onClick={continueAfterFeedback}
-                      className={`mt-4 rounded-xl px-5 py-2.5 text-sm font-semibold ${
-                        answerFeedback.correct
-                          ? "bg-emerald-600 text-white hover:bg-emerald-700"
-                          : "bg-amber-600 text-white hover:bg-amber-700"
-                      }`}
-                    >
-                      {answerFeedback.correct
-                        ? assessmentStats.completed
-                          ? "Selesaikan evaluasi"
-                          : "Lanjutkan"
-                        : "Coba kembali"}
                     </button>
-                  </div>
-                )}
-
-                {!answerFeedback && (
-                  <button
-                    onClick={submitAnswer}
-                    disabled={!selectedAnswer || submitting}
-                    className="mt-7 w-full md:w-auto inline-flex justify-center items-center gap-2 rounded-xl bg-emerald-600 px-7 py-3 font-semibold text-white hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    {submitting ? (
-                      <>
-                        <Loader2 className="w-4 h-4 animate-spin" />
-                        Memeriksa jawaban...
-                      </>
-                    ) : (
-                      <>
-                        Periksa jawaban
-                        <ArrowRight className="w-4 h-4" />
-                      </>
-                    )}
-                  </button>
-                )}
-              </div>
-            ) : (
-              <div className="text-center py-10">
-                <Loader2 className="w-8 h-8 animate-spin text-emerald-600 mx-auto" />
-                <p className="text-sm text-gray-500 mt-3">
-                  Memuat pertanyaan berikutnya...
-                </p>
-              </div>
-            )}
+                  )}
+                </div>
+              ) : (
+                <div className="py-12 text-center">
+                  <Loader2 className="mx-auto h-8 w-8 animate-spin text-emerald-600" />
+                  <p className="mt-3 text-sm text-muted-foreground">
+                    Memuat pertanyaan berikutnya...
+                  </p>
+                </div>
+              )}
+            </div>
           </div>
         </div>
       </div>
@@ -1068,30 +1057,28 @@ export default function LessonLearningPage() {
   // ===================================================
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="gu-learning-page min-h-screen bg-background text-foreground">
       {/* TOP BAR */}
-      <div className="sticky top-0 z-30 border-b border-gray-200 bg-white/95 backdrop-blur">
-        <div className="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between gap-3">
+      <header className="sticky top-0 z-30 border-b border-border bg-background/90 backdrop-blur-xl">
+        <div className="mx-auto flex max-w-7xl items-center justify-between gap-3 px-4 py-3">
           <button
             onClick={() => navigate(`/dashboard/courses/${courseId}`)}
-            className="inline-flex items-center gap-2 text-sm font-medium text-gray-600 hover:text-emerald-700"
+            className="inline-flex items-center gap-2 rounded-lg text-sm font-semibold text-muted-foreground transition hover:text-emerald-600"
           >
-            <ArrowLeft className="w-4 h-4" />
-            <span className="hidden sm:inline">
-              Kembali ke kursus
-            </span>
+            <ArrowLeft className="h-4 w-4" />
+            <span className="hidden sm:inline">Kembali ke kursus</span>
           </button>
 
-          <div className="flex-1 max-w-md">
-            <div className="flex items-center justify-between text-xs text-gray-500 mb-1.5">
-              <span>Progres sesi</span>
-              <span className="font-semibold text-emerald-700">
+          <div className="max-w-md flex-1">
+            <div className="mb-1.5 flex items-center justify-between text-xs">
+              <span className="text-muted-foreground">Progres sesi</span>
+              <span className="font-bold text-emerald-600 dark:text-emerald-400">
                 {completedSections}/{sections.length} bagian
               </span>
             </div>
-            <div className="h-1.5 rounded-full bg-gray-100 overflow-hidden">
+            <div className="h-2 overflow-hidden rounded-full bg-muted">
               <div
-                className="h-full rounded-full bg-emerald-500 transition-all"
+                className="h-full rounded-full bg-emerald-500 transition-all duration-500"
                 style={{ width: `${progressPercentage}%` }}
               />
             </div>
@@ -1100,49 +1087,47 @@ export default function LessonLearningPage() {
           <button
             onClick={loadLearningData}
             title="Muat ulang progres"
-            className="p-2 rounded-lg text-gray-500 hover:bg-gray-100"
+            className="rounded-xl border border-border p-2.5 text-muted-foreground transition hover:bg-muted hover:text-foreground"
           >
-            <RefreshCw className="w-4 h-4" />
+            <RefreshCw className="h-4 w-4" />
           </button>
         </div>
-      </div>
+      </header>
 
-      <div className="max-w-7xl mx-auto px-4 py-6 md:py-8">
+      <div className="mx-auto max-w-7xl px-4 py-6 md:py-8">
         {/* BREADCRUMB */}
-        <div className="text-xs text-gray-500 flex flex-wrap items-center gap-2 mb-5">
+        <nav className="mb-6 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
           <span>{lesson.module.course.title}</span>
-          <ChevronRight className="w-3 h-3" />
+          <ChevronRight className="h-3 w-3" />
           <span>{lesson.module.title}</span>
-          <ChevronRight className="w-3 h-3" />
-          <span className="text-emerald-700 font-medium">
+          <ChevronRight className="h-3 w-3" />
+          <span className="font-semibold text-emerald-600 dark:text-emerald-400">
             {lesson.title}
           </span>
-        </div>
+        </nav>
 
-        <div className="grid grid-cols-1 lg:grid-cols-[280px_minmax(0,1fr)] gap-6 items-start">
-          {/* SIDEBAR OUTLINE */}
-          <aside className="rounded-2xl border border-gray-200 bg-white overflow-hidden lg:sticky lg:top-24">
+        <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-[280px_minmax(0,1fr)]">
+          {/* SIDEBAR */}
+          <aside className="overflow-hidden rounded-2xl border border-border bg-card shadow-sm lg:sticky lg:top-24">
             <button
               onClick={() => setShowOutline((value) => !value)}
-              className="w-full flex items-center justify-between p-5 text-left"
+              className="flex w-full items-center justify-between p-5 text-left transition hover:bg-muted/40"
             >
               <div>
-                <p className="text-xs font-semibold uppercase tracking-wider text-emerald-700">
+                <p className="text-xs font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400">
                   Struktur belajar
                 </p>
-                <h2 className="font-bold text-gray-900 mt-1">
-                  Daftar bagian
-                </h2>
+                <h2 className="mt-1 font-bold">Daftar bagian</h2>
               </div>
               <ChevronDown
-                className={`w-5 h-5 text-gray-400 transition ${
+                className={`h-5 w-5 text-muted-foreground transition-transform ${
                   showOutline ? "" : "-rotate-90"
                 }`}
               />
             </button>
 
             {showOutline && (
-              <div className="border-t border-gray-100 p-3">
+              <div className="border-t border-border p-3">
                 {sections.map((section, index) => {
                   const accessible = isSectionAccessible(index);
                   const completed = section.checkpoint_completed;
@@ -1153,71 +1138,69 @@ export default function LessonLearningPage() {
                       key={section.section_id}
                       disabled={!accessible}
                       onClick={() => setSelectedSectionIndex(index)}
-                      className={`w-full flex items-start gap-3 rounded-xl p-3 text-left mb-1 transition ${
+                      className={`mb-1 flex w-full items-start gap-3 rounded-xl border p-3 text-left transition ${
                         active
-                          ? "bg-emerald-50 border border-emerald-200"
+                          ? "border-emerald-500/30 bg-emerald-500/10"
                           : accessible
-                          ? "hover:bg-gray-50"
-                          : "opacity-50 cursor-not-allowed"
+                            ? "border-transparent hover:bg-muted"
+                            : "cursor-not-allowed border-transparent opacity-50"
                       }`}
                     >
-                      <div className="mt-0.5">
+                      <div className="mt-0.5 shrink-0">
                         {completed ? (
-                          <CheckCircle2 className="w-5 h-5 text-emerald-600" />
+                          <CheckCircle2 className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
                         ) : accessible ? (
-                          <Circle className="w-5 h-5 text-gray-400" />
+                          <Circle className="h-5 w-5 text-muted-foreground" />
                         ) : (
-                          <Lock className="w-5 h-5 text-gray-400" />
+                          <Lock className="h-5 w-5 text-muted-foreground" />
                         )}
                       </div>
 
                       <div className="min-w-0">
-                        <p className="text-xs text-gray-400">
+                        <p className="text-xs text-muted-foreground">
                           Bagian {index + 1}
                         </p>
                         <p
-                          className={`text-sm font-semibold mt-0.5 ${
+                          className={`mt-0.5 text-sm font-semibold ${
                             active
-                              ? "text-emerald-800"
-                              : "text-gray-800"
+                              ? "text-emerald-700 dark:text-emerald-300"
+                              : "text-foreground"
                           }`}
                         >
                           {section.title}
                         </p>
-                        <p className="text-xs text-gray-500 mt-1">
+                        <p className="mt-1 text-xs text-muted-foreground">
                           {completed
                             ? "Checkpoint selesai"
                             : accessible
-                            ? "Materi tersedia"
-                            : "Selesaikan bagian sebelumnya"}
+                              ? "Materi tersedia"
+                              : "Selesaikan bagian sebelumnya"}
                         </p>
                       </div>
                     </button>
                   );
                 })}
 
-                <div className="border-t border-gray-100 mt-3 pt-3">
+                <div className="mt-3 border-t border-border pt-3">
                   <div className="flex items-start gap-3 rounded-xl p-3">
-                    <div className="mt-0.5">
+                    <div className="mt-0.5 shrink-0">
                       {learningProgress?.final_assessment?.completed ? (
-                        <CheckCircle2 className="w-5 h-5 text-emerald-600" />
+                        <CheckCircle2 className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
                       ) : canOpenFinalAssessment ? (
-                        <Trophy className="w-5 h-5 text-amber-500" />
+                        <Trophy className="h-5 w-5 text-amber-500" />
                       ) : (
-                        <Lock className="w-5 h-5 text-gray-400" />
+                        <Lock className="h-5 w-5 text-muted-foreground" />
                       )}
                     </div>
 
                     <div>
-                      <p className="text-sm font-semibold text-gray-800">
-                        Evaluasi Akhir
-                      </p>
-                      <p className="text-xs text-gray-500 mt-1">
+                      <p className="text-sm font-semibold">Evaluasi Akhir</p>
+                      <p className="mt-1 text-xs text-muted-foreground">
                         {learningProgress?.final_assessment?.completed
                           ? "Sudah diselesaikan"
                           : canOpenFinalAssessment
-                          ? "Siap dikerjakan"
-                          : "Selesaikan semua checkpoint"}
+                            ? "Siap dikerjakan"
+                            : "Selesaikan semua checkpoint"}
                       </p>
                     </div>
                   </div>
@@ -1228,36 +1211,38 @@ export default function LessonLearningPage() {
 
           {/* MAIN CONTENT */}
           <main className="min-w-0">
-            <div className="rounded-2xl border border-gray-200 bg-white overflow-hidden">
-              <div className="p-5 md:p-8 border-b border-gray-100">
-                <div className="flex flex-wrap items-center gap-2 mb-4">
-                  <span className="rounded-full bg-emerald-50 text-emerald-700 px-3 py-1 text-xs font-semibold">
+            <section className="overflow-hidden rounded-2xl border border-border bg-card shadow-sm">
+              {/* LESSON HEADER */}
+              <div className="border-b border-border p-5 md:p-8">
+                <div className="mb-4 flex flex-wrap items-center gap-2">
+                  <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/10 px-3 py-1.5 text-xs font-semibold text-emerald-700 dark:text-emerald-300">
+                    <BookOpen className="h-3.5 w-3.5" />
                     Materi pembelajaran
                   </span>
                   {lesson.module.course.premium && (
-                    <span className="rounded-full bg-amber-50 text-amber-700 px-3 py-1 text-xs font-semibold">
+                    <span className="rounded-full bg-amber-500/10 px-3 py-1.5 text-xs font-semibold text-amber-700 dark:text-amber-300">
                       Premium
                     </span>
                   )}
                 </div>
 
-                <h1 className="text-2xl md:text-3xl font-bold text-gray-900 leading-tight">
+                <h1 className="text-2xl font-bold leading-tight tracking-tight md:text-3xl">
                   {lesson.title}
                 </h1>
 
                 {lesson.description && (
-                  <p className="text-gray-500 leading-relaxed mt-3">
+                  <p className="mt-3 max-w-3xl text-sm leading-relaxed text-muted-foreground md:text-base">
                     {lesson.description}
                   </p>
                 )}
 
-                <div className="flex flex-wrap items-center gap-4 mt-5 text-xs text-gray-500">
+                <div className="mt-5 flex flex-wrap items-center gap-4 text-xs text-muted-foreground">
                   <span className="inline-flex items-center gap-1.5">
-                    <BookOpen className="w-4 h-4" />
+                    <BookOpen className="h-4 w-4" />
                     {sections.length} bagian materi
                   </span>
                   <span className="inline-flex items-center gap-1.5">
-                    <Clock3 className="w-4 h-4" />
+                    <Clock3 className="h-4 w-4" />
                     Estimasi {lesson.estimated_minutes || 0} menit
                   </span>
                 </div>
@@ -1265,42 +1250,46 @@ export default function LessonLearningPage() {
 
               {selectedSection ? (
                 <>
-                  <div className="px-5 md:px-8 pt-7">
-                    <div className="flex items-center gap-2 text-xs font-semibold text-emerald-700 uppercase tracking-wider">
-                      <FileText className="w-4 h-4" />
+                  {/* SECTION TITLE */}
+                  <div className="px-5 pt-7 md:px-8">
+                    <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400">
+                      <FileText className="h-4 w-4" />
                       Bagian {selectedSectionIndex + 1}
                     </div>
-
-                    <h2 className="text-xl md:text-2xl font-bold text-gray-900 mt-2">
+                    <h2 className="mt-2 text-xl font-bold tracking-tight md:text-2xl">
                       {selectedSection.title}
                     </h2>
                   </div>
 
-                  <div className="px-5 md:px-8 py-7">
-                    <div className="gu-student-content">
+                  {/* LESSON CONTENT */}
+                  <div className="px-5 py-7 md:px-8">
+                    <div className="gu-student-content min-w-0 text-foreground">
                       <EditorContent editor={editor} />
                     </div>
                   </div>
 
-                  <div className="border-t border-gray-100 bg-gray-50 p-5 md:px-8 md:py-6">
+                  {/* CHECKPOINT AREA */}
+                  <div className="border-t border-border bg-muted/40 p-5 md:px-8 md:py-6">
                     {selectedSection.checkpoint_completed ? (
-                      <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4">
-                        <div className="flex items-center gap-2 text-emerald-800 font-semibold">
-                          <CheckCircle2 className="w-5 h-5" />
+                      <div className="rounded-2xl border border-emerald-500/20 bg-emerald-500/10 p-5">
+                        <div className="flex items-center gap-2 font-bold text-emerald-700 dark:text-emerald-300">
+                          <CheckCircle2 className="h-5 w-5" />
                           Checkpoint bagian ini sudah selesai
                         </div>
-                        <p className="text-sm text-emerald-700 mt-1">
+                        <p className="mt-2 text-sm leading-relaxed text-emerald-700 dark:text-emerald-200">
                           Kamu sudah menjawab semua pertanyaan dengan benar.
+                          Bagian berikutnya sekarang dapat dibuka.
                         </p>
                       </div>
                     ) : (
-                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                      <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
                         <div>
-                          <h3 className="font-semibold text-gray-900">
+                          <h3 className="font-bold">
                             Siap menguji pemahaman?
                           </h3>
-                          <p className="text-sm text-gray-500 mt-1">
-                            Selesaikan checkpoint untuk membuka bagian berikutnya.
+                          <p className="mt-1 text-sm leading-relaxed text-muted-foreground">
+                            Selesaikan checkpoint untuk membuka bagian
+                            berikutnya.
                           </p>
                         </div>
 
@@ -1318,12 +1307,12 @@ export default function LessonLearningPage() {
                               );
                             }
                           }}
-                          className="inline-flex justify-center items-center gap-2 rounded-xl bg-emerald-600 px-5 py-3 text-sm font-semibold text-white hover:bg-emerald-700 disabled:opacity-50"
+                          className="inline-flex shrink-0 items-center justify-center gap-2 rounded-xl bg-emerald-600 px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50"
                         >
                           {startingAssessment ? (
-                            <Loader2 className="w-4 h-4 animate-spin" />
+                            <Loader2 className="h-4 w-4 animate-spin" />
                           ) : (
-                            <ShieldCheck className="w-4 h-4" />
+                            <ShieldCheck className="h-4 w-4" />
                           )}
                           Mulai checkpoint
                         </button>
@@ -1331,7 +1320,7 @@ export default function LessonLearningPage() {
                     )}
 
                     {selectedSection.checkpoint_completed && (
-                      <div className="flex flex-wrap justify-between gap-3 mt-4">
+                      <div className="mt-4 flex flex-wrap justify-between gap-3">
                         <button
                           disabled={selectedSectionIndex === 0}
                           onClick={() =>
@@ -1339,9 +1328,9 @@ export default function LessonLearningPage() {
                               Math.max(0, index - 1)
                             )
                           }
-                          className="inline-flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm font-semibold text-gray-600 disabled:opacity-40"
+                          className="inline-flex items-center gap-2 rounded-xl border border-border bg-card px-4 py-2.5 text-sm font-semibold text-muted-foreground transition hover:bg-muted disabled:cursor-not-allowed disabled:opacity-40"
                         >
-                          <ArrowLeft className="w-4 h-4" />
+                          <ArrowLeft className="h-4 w-4" />
                           Bagian sebelumnya
                         </button>
 
@@ -1352,10 +1341,10 @@ export default function LessonLearningPage() {
                                 Math.min(sections.length - 1, index + 1)
                               )
                             }
-                            className="inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-emerald-700"
+                            className="inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-emerald-700"
                           >
                             Bagian berikutnya
-                            <ArrowRight className="w-4 h-4" />
+                            <ArrowRight className="h-4 w-4" />
                           </button>
                         ) : (
                           <button
@@ -1369,9 +1358,9 @@ export default function LessonLearningPage() {
                                 );
                               }
                             }}
-                            className="inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-emerald-700 disabled:opacity-50"
+                            className="inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50"
                           >
-                            <GraduationCap className="w-4 h-4" />
+                            <GraduationCap className="h-4 w-4" />
                             Evaluasi akhir
                           </button>
                         )}
@@ -1380,37 +1369,40 @@ export default function LessonLearningPage() {
                   </div>
                 </>
               ) : (
-                <div className="p-10 text-center">
-                  <BookOpen className="w-10 h-10 text-gray-300 mx-auto" />
-                  <h2 className="font-semibold text-gray-800 mt-4">
-                    Belum ada bagian materi
-                  </h2>
-                  <p className="text-sm text-gray-500 mt-2">
+                <div className="px-6 py-14 text-center">
+                  <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-muted">
+                    <BookOpen className="h-8 w-8 text-muted-foreground" />
+                  </div>
+                  <h2 className="mt-4 font-bold">Belum ada bagian materi</h2>
+                  <p className="mx-auto mt-2 max-w-sm text-sm leading-relaxed text-muted-foreground">
                     Admin belum menambahkan bagian materi untuk sesi ini.
                   </p>
                 </div>
               )}
-            </div>
+            </section>
 
+            {/* FINAL ASSESSMENT CARD */}
             {assessmentError && !activeAssessment && (
-              <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
-                {assessmentError}
+              <div className="mt-4 flex items-start gap-3 rounded-xl border border-amber-500/20 bg-amber-500/10 p-4 text-sm text-amber-700 dark:text-amber-300">
+                <XCircle className="mt-0.5 h-5 w-5 shrink-0" />
+                <p>{assessmentError}</p>
               </div>
             )}
 
             {canOpenFinalAssessment && finalAssessment && (
-              <div className="mt-5 rounded-2xl border border-emerald-200 bg-emerald-50 p-5 md:p-6">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <section className="mt-5 rounded-2xl border border-emerald-500/20 bg-emerald-500/5 p-5 md:p-6">
+                <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
                   <div className="flex items-start gap-3">
-                    <div className="rounded-xl bg-white p-3">
-                      <Trophy className="w-6 h-6 text-emerald-600" />
+                    <div className="rounded-xl bg-emerald-500/10 p-3">
+                      <Trophy className="h-6 w-6 text-emerald-600 dark:text-emerald-400" />
                     </div>
                     <div>
-                      <h3 className="font-bold text-emerald-900">
+                      <h3 className="font-bold text-emerald-800 dark:text-emerald-200">
                         Semua checkpoint telah selesai
                       </h3>
-                      <p className="text-sm text-emerald-800 mt-1">
-                        Lanjutkan dengan evaluasi akhir sesi.
+                      <p className="mt-1 text-sm leading-relaxed text-muted-foreground">
+                        Lanjutkan dengan evaluasi akhir untuk menyelesaikan
+                        sesi pembelajaran ini.
                       </p>
                     </div>
                   </div>
@@ -1418,17 +1410,17 @@ export default function LessonLearningPage() {
                   <button
                     onClick={() => startAssessment(finalAssessment)}
                     disabled={startingAssessment}
-                    className="inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-700 px-5 py-3 text-sm font-semibold text-white hover:bg-emerald-800 disabled:opacity-50"
+                    className="inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-700 px-5 py-3 text-sm font-semibold text-white transition hover:bg-emerald-800 disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     {startingAssessment ? (
-                      <Loader2 className="w-4 h-4 animate-spin" />
+                      <Loader2 className="h-4 w-4 animate-spin" />
                     ) : (
-                      <ArrowRight className="w-4 h-4" />
+                      <ArrowRight className="h-4 w-4" />
                     )}
                     Mulai evaluasi
                   </button>
                 </div>
-              </div>
+              </section>
             )}
           </main>
         </div>
