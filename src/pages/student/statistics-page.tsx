@@ -11,6 +11,7 @@ import {
   GraduationCap,
   Lightbulb,
   Medal,
+  Sparkles,
   Target,
   TrendingUp,
   Trophy,
