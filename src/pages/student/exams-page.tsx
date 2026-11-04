@@ -1,4 +1,4 @@
-
+```tsx
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
@@ -183,6 +183,7 @@ export default function StudentExamsPage() {
 
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
 
   const [examPackages, setExamPackages] = useState<ExamPackageItem[]>([]);
 
@@ -192,7 +193,6 @@ export default function StudentExamsPage() {
   const [profileLevel, setProfileLevel] = useState("");
   const [profileGrade, setProfileGrade] = useState<number | null>(null);
 
-  // Filter ujian
   const [selectedLevel, setSelectedLevel] = useState(ALL);
   const [selectedGrade, setSelectedGrade] = useState(ALL);
   const [selectedSubject, setSelectedSubject] = useState(ALL);
@@ -210,75 +210,108 @@ export default function StudentExamsPage() {
     try {
       setLoading(true);
       setLoadError(false);
+      setErrorMessage("");
 
+      // 1. Periksa sesi autentikasi
       const {
-        data: { user },
-        error: authError,
-      } = await supabase.auth.getUser();
+        data: { session },
+        error: sessionError,
+      } = await supabase.auth.getSession();
 
-      if (authError) throw authError;
-
-      if (user) {
-        const { data: profile, error: profileError } = await supabase
-          .from("profiles")
-          .select(
-            "full_name, name, total_xp, level, education_level, grade"
-          )
-          .eq("id", user.id)
-          .maybeSingle();
-
-        if (profileError) throw profileError;
-
-        if (profile) {
-          setStudentName(
-            profile.full_name ||
-              profile.name ||
-              user.email?.split("@")[0] ||
-              "Siswa GradeUp"
-          );
-
-          const educationLevel = profile.education_level || "";
-          const grade =
-            profile.grade != null ? Number(profile.grade) : null;
-
-          setProfileLevel(educationLevel);
-          setProfileGrade(grade);
-
-          // Filter awal mengikuti profil siswa.
-          // Jika profil belum lengkap, tampilkan semua jenjang.
-          setSelectedLevel(educationLevel || ALL);
-          setSelectedGrade(
-            grade != null ? String(grade) : ALL
-          );
-
-          setSelectedSubject(ALL);
-          setSelectedExamType(ALL);
-
-          setUserClass(
-            educationLevel
-              ? `${getLevelLabel(educationLevel)}${
-                  grade != null ? ` • Kelas ${grade}` : ""
-                }`
-              : "Profil pendidikan belum dilengkapi"
-          );
-
-          const totalXp = profile.total_xp ?? 10;
-
-          setCurrentXp(totalXp % maxXp);
-          setLevel(
-            profile.level ||
-              Math.floor(totalXp / maxXp) + 1
-          );
-        }
+      if (sessionError) {
+        throw sessionError;
       }
 
-      const { data: packages, error } = await supabase
+      const user = session?.user;
+
+      if (!user) {
+        throw new Error(
+          "Sesi login tidak ditemukan. Silakan login kembali."
+        );
+      }
+
+      // 2. Ambil profil siswa secara terpisah
+      const {
+        data: profile,
+        error: profileError,
+      } = await supabase
+        .from("profiles")
+        .select(
+          "full_name, name, total_xp, level, education_level, grade"
+        )
+        .eq("id", user.id)
+        .maybeSingle();
+
+      // Kegagalan membaca profil tidak menghentikan pengambilan ujian.
+      if (profileError) {
+        console.error("Gagal mengambil profil siswa:", profileError);
+      }
+
+      if (profile) {
+        setStudentName(
+          profile.full_name ||
+            profile.name ||
+            user.email?.split("@")[0] ||
+            "Siswa GradeUp"
+        );
+
+        const educationLevel = profile.education_level || "";
+        const grade =
+          profile.grade != null ? Number(profile.grade) : null;
+
+        setProfileLevel(educationLevel);
+        setProfileGrade(grade);
+
+        // Filter awal mengikuti profil siswa.
+        setSelectedLevel(educationLevel || ALL);
+        setSelectedGrade(
+          grade != null ? String(grade) : ALL
+        );
+
+        setSelectedSubject(ALL);
+        setSelectedExamType(ALL);
+
+        setUserClass(
+          educationLevel
+            ? `${getLevelLabel(educationLevel)}${
+                grade != null ? ` • Kelas ${grade}` : ""
+              }`
+            : "Profil pendidikan belum dilengkapi"
+        );
+
+        const totalXp = profile.total_xp ?? 10;
+
+        setCurrentXp(totalXp % maxXp);
+        setLevel(
+          profile.level ||
+            Math.floor(totalXp / maxXp) + 1
+        );
+      } else {
+        setStudentName(
+          user.email?.split("@")[0] || "Siswa GradeUp"
+        );
+        setProfileLevel("");
+        setProfileGrade(null);
+        setSelectedLevel(ALL);
+        setSelectedGrade(ALL);
+        setSelectedSubject(ALL);
+        setSelectedExamType(ALL);
+        setUserClass("Profil pendidikan belum dilengkapi");
+      }
+
+      // 3. Ambil paket ujian secara independen dari profil
+      const {
+        data: packages,
+        error: packagesError,
+      } = await supabase
         .from("exam_packages")
         .select("*")
         .or("is_published.eq.true,status.eq.Published")
         .order("created_at", { ascending: false });
 
-      if (error) throw error;
+      if (packagesError) {
+        throw packagesError;
+      }
 
       const now = Date.now();
 
@@ -345,8 +378,7 @@ export default function StudentExamsPage() {
                   : ""
               }`
             : "Semua Jenjang",
-          bab_info:
-            pkg.description || "Materi Ujian",
+          bab_info: pkg.description || "Materi Ujian",
           start_time: pkg.start_time,
           end_time: pkg.end_time,
           status,
@@ -362,7 +394,13 @@ export default function StudentExamsPage() {
       setExamPackages(formattedPackages);
     } catch (error) {
       console.error("Gagal mengambil data paket ujian:", error);
+
       setLoadError(true);
+      setErrorMessage(
+        error instanceof Error
+          ? error.message
+          : "Terjadi kesalahan saat mengambil data ujian."
+      );
     } finally {
       setLoading(false);
     }
@@ -453,19 +491,6 @@ export default function StudentExamsPage() {
       a.localeCompare(b, "id")
     );
   }, [examPackages, selectedLevel, selectedGrade]);
-
-  const categoryCounts = useMemo(() => {
-    const counts: Record<string, number> = {
-      Semua: examPackages.length,
-    };
-
-    examPackages.forEach((item) => {
-      counts[item.category] =
-        (counts[item.category] || 0) + 1;
-    });
-
-    return counts;
-  }, [examPackages]);
 
   const statusCounts = useMemo(
     () => ({
@@ -986,7 +1011,7 @@ export default function StudentExamsPage() {
                 Gagal memuat paket ujian
               </p>
               <p className="mt-1 text-xs text-muted-foreground">
-                Periksa koneksi internet dan coba muat ulang data.
+                {errorMessage || "Periksa koneksi internet dan coba muat ulang data."}
               </p>
             </div>
           </div>
@@ -1288,3 +1313,4 @@ export default function StudentExamsPage() {
     </div>
   );
 }
+```
