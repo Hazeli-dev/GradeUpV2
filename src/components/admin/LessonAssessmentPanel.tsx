@@ -551,7 +551,7 @@ export default function LessonAssessmentPanel({
                 Judul Evaluasi
               </Label>
 
-              <Badge variant="secondary">
+              <Badge variant="muted">
                 {questions.length} soal
               </Badge>
             </div>
