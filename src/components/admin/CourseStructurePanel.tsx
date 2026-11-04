@@ -42,6 +42,11 @@ interface CourseStructurePanelProps {
   onLessonSelect: (lessonId: string) => void;
 }
 
+const EMPTY_CONTENT = {
+  type: "doc",
+  content: [{ type: "paragraph" }],
+};
+
 export default function CourseStructurePanel({
   courseId,
   activeModuleId,
@@ -60,19 +65,20 @@ export default function CourseStructurePanel({
   const [newLessonTitle, setNewLessonTitle] = useState("");
 
   const [showModuleInput, setShowModuleInput] = useState(false);
-  const [showLessonInput, setShowLessonInput] = useState(false);
+  const [showLessonInputFor, setShowLessonInputFor] = useState<string | null>(
+    null
+  );
 
   const fetchStructure = useCallback(async () => {
     setLoading(true);
     setError(null);
 
     try {
-      const { data: moduleData, error: moduleError } =
-        await supabase
-          .from("course_modules")
-          .select("id, title, description, sort_order, is_published")
-          .eq("course_id", courseId)
-          .order("sort_order", { ascending: true });
+      const { data: moduleData, error: moduleError } = await supabase
+        .from("course_modules")
+        .select("id, title, description, sort_order, is_published")
+        .eq("course_id", courseId)
+        .order("sort_order", { ascending: true });
 
       if (moduleError) throw moduleError;
 
@@ -87,12 +93,11 @@ export default function CourseStructurePanel({
 
       const moduleIds = loadedModules.map((module) => module.id);
 
-      const { data: lessonData, error: lessonError } =
-        await supabase
-          .from("course_lessons")
-          .select("id, module_id, title, sort_order, is_published")
-          .in("module_id", moduleIds)
-          .order("sort_order", { ascending: true });
+      const { data: lessonData, error: lessonError } = await supabase
+        .from("course_lessons")
+        .select("id, module_id, title, sort_order, is_published")
+        .in("module_id", moduleIds)
+        .order("sort_order", { ascending: true });
 
       if (lessonError) throw lessonError;
 
@@ -132,6 +137,8 @@ export default function CourseStructurePanel({
       return;
     }
 
+    if (working) return;
+
     setWorking(true);
 
     try {
@@ -163,6 +170,8 @@ export default function CourseStructurePanel({
 
       toast.success("Modul berhasil ditambahkan.");
     } catch (err: unknown) {
+      console.error("Create module error:", err);
+
       toast.error(
         "Gagal menambahkan modul: " +
           (err instanceof Error ? err.message : "Terjadi kesalahan")
@@ -185,12 +194,18 @@ export default function CourseStructurePanel({
       return;
     }
 
+    if (working) return;
+
     setWorking(true);
 
     try {
+      const currentLessons = lessons.filter(
+        (lesson) => lesson.module_id === activeModuleId
+      );
+
       const nextOrder =
-        moduleLessons.length > 0
-          ? Math.max(...moduleLessons.map((item) => item.sort_order)) + 1
+        currentLessons.length > 0
+          ? Math.max(...currentLessons.map((item) => item.sort_order)) + 1
           : 0;
 
       const { data, error: insertError } = await supabase
@@ -199,10 +214,7 @@ export default function CourseStructurePanel({
           module_id: activeModuleId,
           title,
           description: "",
-          content_json: {
-            type: "doc",
-            content: [{ type: "paragraph" }],
-          },
+          content_json: EMPTY_CONTENT,
           estimated_minutes: 10,
           xp_reward: 10,
           sort_order: nextOrder,
@@ -218,10 +230,12 @@ export default function CourseStructurePanel({
       onLessonSelect(data.id);
 
       setNewLessonTitle("");
-      setShowLessonInput(false);
+      setShowLessonInputFor(null);
 
       toast.success("Sesi pembelajaran berhasil ditambahkan.");
     } catch (err: unknown) {
+      console.error("Create lesson error:", err);
+
       toast.error(
         "Gagal menambahkan sesi: " +
           (err instanceof Error ? err.message : "Terjadi kesalahan")
@@ -231,10 +245,18 @@ export default function CourseStructurePanel({
     }
   };
 
+  const toggleLessonInput = (moduleId: string) => {
+    setNewLessonTitle("");
+
+    setShowLessonInputFor((current) =>
+      current === moduleId ? null : moduleId
+    );
+  };
+
   return (
     <Card className="overflow-hidden">
       <div className="flex items-center justify-between gap-2 border-b p-4">
-        <div>
+        <div className="min-w-0">
           <h3 className="font-semibold">Struktur Pembelajaran</h3>
           <p className="text-xs text-muted-foreground">
             Kelola modul dan sesi kursus
@@ -271,13 +293,12 @@ export default function CourseStructurePanel({
             <Input
               autoFocus
               value={newModuleTitle}
-              onChange={(event) =>
-                setNewModuleTitle(event.target.value)
-              }
+              onChange={(event) => setNewModuleTitle(event.target.value)}
               placeholder="Nama modul baru..."
               disabled={working}
               onKeyDown={(event) => {
                 if (event.key === "Enter") {
+                  event.preventDefault();
                   void createModule();
                 }
               }}
@@ -287,7 +308,7 @@ export default function CourseStructurePanel({
               <Button
                 size="sm"
                 onClick={() => void createModule()}
-                disabled={working}
+                disabled={working || !newModuleTitle.trim()}
               >
                 {working ? (
                   <Loader2 className="h-4 w-4 animate-spin" />
@@ -324,6 +345,7 @@ export default function CourseStructurePanel({
               size="sm"
               variant="outline"
               onClick={() => void fetchStructure()}
+              disabled={working}
             >
               Coba Lagi
             </Button>
@@ -331,9 +353,7 @@ export default function CourseStructurePanel({
         ) : modules.length === 0 ? (
           <div className="py-8 text-center">
             <Folder className="mx-auto mb-2 h-8 w-8 text-muted-foreground" />
-            <p className="text-sm font-medium">
-              Belum ada modul
-            </p>
+            <p className="text-sm font-medium">Belum ada modul</p>
             <p className="mt-1 text-xs text-muted-foreground">
               Tambahkan modul untuk mulai menyusun pembelajaran.
             </p>
@@ -369,7 +389,9 @@ export default function CourseStructurePanel({
 
                     <Folder
                       className={`h-4 w-4 shrink-0 ${
-                        isActive ? "text-primary" : "text-muted-foreground"
+                        isActive
+                          ? "text-primary"
+                          : "text-muted-foreground"
                       }`}
                     />
 
@@ -378,12 +400,26 @@ export default function CourseStructurePanel({
                     </span>
 
                     <Badge variant="outline" className="text-xs">
-                      {moduleLessonItems.length}
+                      {moduleLessonItems.length} sesi
                     </Badge>
                   </button>
 
                   {isActive && (
                     <div className="space-y-2 border-t bg-muted/20 p-2">
+                      <div className="flex items-center justify-between gap-2 px-2 py-1">
+                        <span className="text-xs font-medium text-muted-foreground">
+                          Daftar sesi
+                        </span>
+
+                        <Badge
+                          variant={
+                            module.is_published ? "success" : "muted"
+                          }
+                        >
+                          {module.is_published ? "Terbit" : "Draft"}
+                        </Badge>
+                      </div>
+
                       {moduleLessonItems.length === 0 ? (
                         <p className="px-2 py-3 text-center text-xs text-muted-foreground">
                           Belum ada sesi pembelajaran.
@@ -408,12 +444,22 @@ export default function CourseStructurePanel({
 
                             {activeLessonId === lesson.id && (
                               <Badge
-                                variant="secondary"
+                                variant="muted"
                                 className="shrink-0"
                               >
                                 Aktif
                               </Badge>
                             )}
+
+                            <span
+                              className={`shrink-0 text-[10px] ${
+                                activeLessonId === lesson.id
+                                  ? "text-primary-foreground/80"
+                                  : "text-muted-foreground"
+                              }`}
+                            >
+                              {lesson.is_published ? "Terbit" : "Draft"}
+                            </span>
                           </button>
                         ))
                       )}
@@ -422,14 +468,14 @@ export default function CourseStructurePanel({
                         size="sm"
                         variant="ghost"
                         className="w-full justify-start gap-2"
-                        onClick={() => setShowLessonInput((value) => !value)}
+                        onClick={() => toggleLessonInput(module.id)}
                         disabled={working}
                       >
                         <Plus className="h-4 w-4" />
                         Tambah Sesi
                       </Button>
 
-                      {showLessonInput && (
+                      {showLessonInputFor === module.id && (
                         <div className="space-y-2 rounded-lg border bg-card p-3">
                           <Input
                             autoFocus
@@ -441,6 +487,7 @@ export default function CourseStructurePanel({
                             disabled={working}
                             onKeyDown={(event) => {
                               if (event.key === "Enter") {
+                                event.preventDefault();
                                 void createLesson();
                               }
                             }}
@@ -450,7 +497,7 @@ export default function CourseStructurePanel({
                             <Button
                               size="sm"
                               onClick={() => void createLesson()}
-                              disabled={working}
+                              disabled={working || !newLessonTitle.trim()}
                             >
                               {working ? (
                                 <Loader2 className="h-4 w-4 animate-spin" />
@@ -463,7 +510,7 @@ export default function CourseStructurePanel({
                               size="sm"
                               variant="ghost"
                               onClick={() => {
-                                setShowLessonInput(false);
+                                setShowLessonInputFor(null);
                                 setNewLessonTitle("");
                               }}
                               disabled={working}
