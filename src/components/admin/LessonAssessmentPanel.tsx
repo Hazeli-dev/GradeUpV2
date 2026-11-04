@@ -754,7 +754,7 @@ export default function LessonAssessmentPanel({
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0 flex-1">
                         <div className="mb-2 flex flex-wrap items-center gap-2">
-                          <Badge variant="secondary">
+                          <Badge variant="muted">
                             Soal {index + 1}
                           </Badge>
 
