@@ -28,6 +28,7 @@ import type { JSONContent } from "@tiptap/core";
 
 import EditorCanvas from "@/components/admin/EditorCanvas";
 import CourseStructurePanel from "@/components/admin/CourseStructurePanel";
+import LessonAssessmentPanel from "@/components/admin/LessonAssessmentPanel";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -210,9 +211,6 @@ export default function AdminCoursesPage() {
 
   /* =========================================
      STUDIO REFS
-
-     Ref dipakai agar proses async selalu
-     membaca identitas dan revisi terbaru.
   ========================================= */
 
   const saveQueueRef = useRef<Promise<void>>(
@@ -424,14 +422,6 @@ export default function AdminCoursesPage() {
 
   /* =========================================
      SAVE ACTIVE LESSON + SECTION
-
-     - Judul sesi disimpan ke course_lessons.
-     - Judul bagian disimpan ke lesson_sections.
-     - Konten bagian disimpan ke lesson_sections.
-     - Konten bagian pertama disinkronkan ke
-       course_lessons.content_json.
-     - Bagian selain bagian pertama tidak
-       mengubah konten legacy.
   ========================================= */
 
   const saveLesson = useCallback(
@@ -487,10 +477,6 @@ export default function AdminCoursesPage() {
           let currentLessonId = targetLessonId;
           let currentSectionId = targetSectionId;
 
-          /* -----------------------------
-             SAVE LESSON
-          ----------------------------- */
-
           if (currentLessonId) {
             const { error: updateLessonError } =
               await supabase
@@ -537,10 +523,6 @@ export default function AdminCoursesPage() {
             );
           }
 
-          /* -----------------------------
-             SAVE SECTION
-          ----------------------------- */
-
           if (!currentSectionId) {
             const { data: newSection, error: insertSectionError } =
               await supabase
@@ -581,12 +563,6 @@ export default function AdminCoursesPage() {
 
             if (updateSectionError) throw updateSectionError;
           }
-
-          /* -----------------------------
-             LEGACY CONTENT SYNC
-
-             Hanya bagian pertama.
-          ----------------------------- */
 
           if (sectionOrderRef.current === 0) {
             const { error: legacyUpdateError } =
@@ -653,9 +629,6 @@ export default function AdminCoursesPage() {
 
   /* =========================================
      LOAD SECTION
-
-     Memuat bagian berdasarkan ID dan memastikan
-     bagian tersebut masih milik sesi aktif.
   ========================================= */
 
   const loadSection = useCallback(
@@ -729,8 +702,6 @@ export default function AdminCoursesPage() {
 
   /* =========================================
      LOAD LESSON
-
-     Memuat sesi dan bagian pertama.
   ========================================= */
 
   const loadLesson = useCallback(
@@ -1262,9 +1233,6 @@ export default function AdminCoursesPage() {
 
   /* =========================================
      SECTION TITLE SYNC FROM STRUCTURE PANEL
-
-     Dipanggil ketika judul bagian diubah
-     langsung dari panel struktur.
   ========================================= */
 
   const handlePanelSectionTitleChange = useCallback(
@@ -1336,9 +1304,6 @@ export default function AdminCoursesPage() {
 
   /* =========================================
      BACK TO COURSE LIST
-
-     Editor tidak ditutup jika masih ada
-     perubahan yang belum berhasil disimpan.
   ========================================= */
 
   const closeStudio = async () => {
@@ -1507,7 +1472,7 @@ export default function AdminCoursesPage() {
               </h2>
 
               <p className="text-xs text-muted-foreground">
-                Susun modul, sesi, dan materi pembelajaran
+                Susun modul, sesi, materi, dan evaluasi pembelajaran
               </p>
             </div>
           </div>
@@ -1699,6 +1664,19 @@ export default function AdminCoursesPage() {
                     )}
                     Simpan Materi
                   </Button>
+                </div>
+
+                {/* =====================================
+                    CHECKPOINT DAN EVALUASI AKHIR
+                ====================================== */}
+
+                <div className="pt-2">
+                  <LessonAssessmentPanel
+                    key={`${activeLessonId}-${activeSectionId}`}
+                    lessonId={activeLessonId}
+                    sectionId={activeSectionId}
+                    sectionTitle={sectionTitle}
+                  />
                 </div>
               </>
             )}
