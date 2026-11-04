@@ -1,5 +1,5 @@
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   BookOpen,
   ChevronDown,
@@ -13,6 +13,7 @@ import {
   Check,
   X,
   FileText,
+  Layers3,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -94,9 +95,20 @@ export default function CourseStructurePanel({
     null
   );
   const [editingSectionTitle, setEditingSectionTitle] = useState("");
+
   const [deletingSectionId, setDeletingSectionId] = useState<string | null>(
     null
   );
+
+  // Mencegah hasil fetch lama menimpa data sesi yang baru dipilih.
+  const sectionFetchRequestRef = useRef(0);
+  const activeLessonIdRef = useRef<string | null>(activeLessonId);
+
+  activeLessonIdRef.current = activeLessonId;
+
+  // =========================================================
+  // LOAD MODULES AND LESSONS
+  // =========================================================
 
   const fetchStructure = useCallback(async () => {
     setLoading(true);
@@ -112,11 +124,11 @@ export default function CourseStructurePanel({
       if (moduleError) throw moduleError;
 
       const loadedModules = (moduleData ?? []) as ModuleItem[];
+
       setModules(loadedModules);
 
       if (loadedModules.length === 0) {
         setLessons([]);
-        setSections([]);
         return;
       }
 
@@ -146,51 +158,94 @@ export default function CourseStructurePanel({
     }
   }, [courseId]);
 
-  const fetchSections = useCallback(async () => {
-    if (!activeLessonId) {
-      setSections([]);
-      return;
-    }
+  // =========================================================
+  // LOAD SECTIONS FOR SELECTED LESSON
+  // =========================================================
 
-    setSectionsLoading(true);
+  const fetchSections = useCallback(
+    async (lessonId?: string) => {
+      const targetLessonId = lessonId ?? activeLessonId;
 
-    try {
-      const { data, error: sectionError } = await supabase
-        .from("lesson_sections")
-        .select("id, lesson_id, title, sort_order, is_published")
-        .eq("lesson_id", activeLessonId)
-        .order("sort_order", { ascending: true });
+      if (!targetLessonId) {
+        sectionFetchRequestRef.current += 1;
+        setSections([]);
+        setSectionsLoading(false);
+        return;
+      }
 
-      if (sectionError) throw sectionError;
+      const requestId = ++sectionFetchRequestRef.current;
 
-      setSections((data ?? []) as SectionItem[]);
-    } catch (err: unknown) {
-      console.error("Fetch lesson sections error:", err);
+      setSectionsLoading(true);
 
-      toast.error(
-        "Gagal memuat bagian materi: " +
-          (err instanceof Error ? err.message : "Terjadi kesalahan")
-      );
-    } finally {
-      setSectionsLoading(false);
-    }
-  }, [activeLessonId]);
+      try {
+        const { data, error: sectionError } = await supabase
+          .from("lesson_sections")
+          .select("id, lesson_id, title, sort_order, is_published")
+          .eq("lesson_id", targetLessonId)
+          .order("sort_order", { ascending: true });
+
+        if (sectionError) throw sectionError;
+
+        // Abaikan hasil jika pengguna sudah berpindah sesi.
+        if (
+          requestId !== sectionFetchRequestRef.current ||
+          activeLessonIdRef.current !== targetLessonId
+        ) {
+          return;
+        }
+
+        setSections((data ?? []) as SectionItem[]);
+      } catch (err: unknown) {
+        if (
+          requestId !== sectionFetchRequestRef.current ||
+          activeLessonIdRef.current !== targetLessonId
+        ) {
+          return;
+        }
+
+        console.error("Fetch lesson sections error:", err);
+
+        toast.error(
+          "Gagal memuat bagian materi: " +
+            (err instanceof Error ? err.message : "Terjadi kesalahan")
+        );
+      } finally {
+        if (
+          requestId === sectionFetchRequestRef.current &&
+          activeLessonIdRef.current === targetLessonId
+        ) {
+          setSectionsLoading(false);
+        }
+      }
+    },
+    [activeLessonId]
+  );
 
   useEffect(() => {
     void fetchStructure();
   }, [fetchStructure]);
 
   useEffect(() => {
+    setSections([]);
+    setEditingSectionId(null);
+    setDeletingSectionId(null);
+    setShowSectionInput(false);
+    setNewSectionTitle("");
+
     void fetchSections();
   }, [fetchSections]);
 
-  const selectedModule = modules.find(
-    (module) => module.id === activeModuleId
-  );
+  // =========================================================
+  // DERIVED DATA
+  // =========================================================
 
   const moduleLessons = lessons.filter(
     (lesson) => lesson.module_id === activeModuleId
   );
+
+  // =========================================================
+  // CREATE MODULE
+  // =========================================================
 
   const createModule = async () => {
     const title = newModuleTitle.trim();
@@ -225,6 +280,7 @@ export default function CourseStructurePanel({
       if (insertError) throw insertError;
 
       await fetchStructure();
+
       onModuleChange(data.id);
 
       setNewModuleTitle("");
@@ -242,6 +298,10 @@ export default function CourseStructurePanel({
       setWorking(false);
     }
   };
+
+  // =========================================================
+  // CREATE LESSON
+  // =========================================================
 
   const createLesson = async () => {
     if (!activeModuleId) {
@@ -288,6 +348,7 @@ export default function CourseStructurePanel({
       if (insertError) throw insertError;
 
       await fetchStructure();
+
       onLessonSelect(data.id);
 
       setNewLessonTitle("");
@@ -306,8 +367,14 @@ export default function CourseStructurePanel({
     }
   };
 
+  // =========================================================
+  // CREATE SECTION
+  // =========================================================
+
   const createSection = async () => {
-    if (!activeLessonId) {
+    const targetLessonId = activeLessonId;
+
+    if (!targetLessonId) {
       toast.error("Pilih sesi pembelajaran terlebih dahulu.");
       return;
     }
@@ -332,7 +399,7 @@ export default function CourseStructurePanel({
       const { data, error: insertError } = await supabase
         .from("lesson_sections")
         .insert({
-          lesson_id: activeLessonId,
+          lesson_id: targetLessonId,
           title,
           content_json: EMPTY_CONTENT,
           sort_order: nextOrder,
@@ -343,9 +410,12 @@ export default function CourseStructurePanel({
 
       if (insertError) throw insertError;
 
-      await fetchSections();
+      await fetchSections(targetLessonId);
 
-      onSectionSelect?.(data.id);
+      // Jangan mengganti editor jika pengguna sudah pindah sesi.
+      if (activeLessonIdRef.current === targetLessonId) {
+        onSectionSelect?.(data.id);
+      }
 
       setNewSectionTitle("");
       setShowSectionInput(false);
@@ -363,8 +433,18 @@ export default function CourseStructurePanel({
     }
   };
 
+  // =========================================================
+  // UPDATE SECTION TITLE
+  // =========================================================
+
   const saveSectionTitle = async (sectionId: string) => {
+    const targetLessonId = activeLessonId;
     const title = editingSectionTitle.trim();
+
+    if (!targetLessonId) {
+      toast.error("Sesi pembelajaran tidak ditemukan.");
+      return;
+    }
 
     if (!title) {
       toast.error("Judul bagian materi tidak boleh kosong.");
@@ -380,11 +460,11 @@ export default function CourseStructurePanel({
         .from("lesson_sections")
         .update({ title })
         .eq("id", sectionId)
-        .eq("lesson_id", activeLessonId);
+        .eq("lesson_id", targetLessonId);
 
       if (updateError) throw updateError;
 
-      await fetchSections();
+      await fetchSections(targetLessonId);
 
       setEditingSectionId(null);
       setEditingSectionTitle("");
@@ -402,8 +482,32 @@ export default function CourseStructurePanel({
     }
   };
 
+  // =========================================================
+  // DELETE SECTION
+  // =========================================================
+
   const deleteSection = async (sectionId: string) => {
-    if (working || !activeLessonId) return;
+    const targetLessonId = activeLessonId;
+
+    if (working || !targetLessonId) return;
+
+    // Lindungi konten editor yang mungkin belum tersimpan.
+    if (activeSectionId === sectionId) {
+      toast.error(
+        "Pilih bagian materi lain terlebih dahulu sebelum menghapus bagian ini."
+      );
+      setDeletingSectionId(null);
+      return;
+    }
+
+    // Setiap sesi harus tetap memiliki minimal satu bagian materi.
+    if (sections.length <= 1) {
+      toast.error(
+        "Bagian materi terakhir tidak dapat dihapus. Tambahkan bagian baru terlebih dahulu."
+      );
+      setDeletingSectionId(null);
+      return;
+    }
 
     setWorking(true);
 
@@ -412,23 +516,15 @@ export default function CourseStructurePanel({
         .from("lesson_sections")
         .delete()
         .eq("id", sectionId)
-        .eq("lesson_id", activeLessonId);
+        .eq("lesson_id", targetLessonId);
 
       if (deleteError) throw deleteError;
 
-      const remainingSections = sections.filter(
-        (section) => section.id !== sectionId
+      setSections((current) =>
+        current.filter((section) => section.id !== sectionId)
       );
 
-      setSections(remainingSections);
       setDeletingSectionId(null);
-
-      if (activeSectionId === sectionId) {
-        const nextSection = remainingSections[0];
-        if (nextSection) {
-          onSectionSelect?.(nextSection.id);
-        }
-      }
 
       toast.success("Bagian materi berhasil dihapus.");
     } catch (err: unknown) {
@@ -443,6 +539,10 @@ export default function CourseStructurePanel({
     }
   };
 
+  // =========================================================
+  // INPUT HELPERS
+  // =========================================================
+
   const toggleLessonInput = (moduleId: string) => {
     setNewLessonTitle("");
 
@@ -451,8 +551,18 @@ export default function CourseStructurePanel({
     );
   };
 
+  const cancelSectionEditing = () => {
+    setEditingSectionId(null);
+    setEditingSectionTitle("");
+  };
+
+  // =========================================================
+  // RENDER
+  // =========================================================
+
   return (
     <Card className="overflow-hidden">
+      {/* PANEL HEADER */}
       <div className="flex items-center justify-between gap-2 border-b p-4">
         <div className="min-w-0">
           <h3 className="font-semibold">Struktur Pembelajaran</h3>
@@ -468,16 +578,20 @@ export default function CourseStructurePanel({
             void fetchStructure();
             void fetchSections();
           }}
-          disabled={loading || working}
+          disabled={loading || sectionsLoading || working}
           aria-label="Refresh struktur"
+          title="Muat ulang struktur"
         >
           <RefreshCw
-            className={`h-4 w-4 ${loading ? "animate-spin" : ""}`}
+            className={`h-4 w-4 ${
+              loading || sectionsLoading ? "animate-spin" : ""
+            }`}
           />
         </Button>
       </div>
 
       <div className="space-y-3 p-3">
+        {/* ADD MODULE BUTTON */}
         <Button
           variant="outline"
           size="sm"
@@ -489,6 +603,7 @@ export default function CourseStructurePanel({
           Tambah Modul
         </Button>
 
+        {/* MODULE INPUT */}
         {showModuleInput && (
           <div className="space-y-2 rounded-lg border bg-muted/30 p-3">
             <Input
@@ -533,6 +648,7 @@ export default function CourseStructurePanel({
           </div>
         )}
 
+        {/* LOADING */}
         {loading ? (
           <div className="flex items-center justify-center gap-2 py-8 text-sm text-muted-foreground">
             <Loader2 className="h-4 w-4 animate-spin" />
@@ -554,7 +670,9 @@ export default function CourseStructurePanel({
         ) : modules.length === 0 ? (
           <div className="py-8 text-center">
             <Folder className="mx-auto mb-2 h-8 w-8 text-muted-foreground" />
+
             <p className="text-sm font-medium">Belum ada modul</p>
+
             <p className="mt-1 text-xs text-muted-foreground">
               Tambahkan modul untuk mulai menyusun pembelajaran.
             </p>
@@ -573,6 +691,7 @@ export default function CourseStructurePanel({
                   key={module.id}
                   className="overflow-hidden rounded-lg border"
                 >
+                  {/* MODULE ITEM */}
                   <button
                     type="button"
                     onClick={() => onModuleChange(module.id)}
@@ -605,6 +724,7 @@ export default function CourseStructurePanel({
                     </Badge>
                   </button>
 
+                  {/* ACTIVE MODULE CONTENT */}
                   {isActive && (
                     <div className="space-y-2 border-t bg-muted/20 p-2">
                       <div className="flex items-center justify-between gap-2 px-2 py-1">
@@ -626,330 +746,431 @@ export default function CourseStructurePanel({
                           Belum ada sesi pembelajaran.
                         </p>
                       ) : (
-                        moduleLessonItems.map((lesson, lessonIndex) => (
-                          <div key={lesson.id} className="space-y-1">
-                            <button
-                              type="button"
-                              onClick={() => onLessonSelect(lesson.id)}
-                              className={`flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm transition-colors ${
-                                activeLessonId === lesson.id
-                                  ? "bg-primary text-primary-foreground"
-                                  : "hover:bg-muted"
-                              }`}
-                            >
-                              <BookOpen className="h-4 w-4 shrink-0" />
+                        moduleLessonItems.map((lesson, lessonIndex) => {
+                          const isLessonActive =
+                            activeLessonId === lesson.id;
 
-                              <span className="min-w-0 flex-1 truncate">
-                                {lessonIndex + 1}. {lesson.title}
-                              </span>
-
-                              {activeLessonId === lesson.id && (
-                                <Badge
-                                  variant="muted"
-                                  className="shrink-0"
-                                >
-                                  Aktif
-                                </Badge>
-                              )}
-
-                              <span
-                                className={`shrink-0 text-[10px] ${
-                                  activeLessonId === lesson.id
-                                    ? "text-primary-foreground/80"
-                                    : "text-muted-foreground"
+                          return (
+                            <div key={lesson.id} className="space-y-1">
+                              {/* LESSON ITEM */}
+                              <button
+                                type="button"
+                                onClick={() => onLessonSelect(lesson.id)}
+                                className={`flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm transition-colors ${
+                                  isLessonActive
+                                    ? "bg-primary text-primary-foreground"
+                                    : "hover:bg-muted"
                                 }`}
                               >
-                                {lesson.is_published ? "Terbit" : "Draft"}
-                              </span>
-                            </button>
+                                <BookOpen className="h-4 w-4 shrink-0" />
 
-                            {activeLessonId === lesson.id && (
-                              <div className="ml-3 space-y-2 border-l-2 border-primary/20 py-2 pl-3">
-                                <div className="flex items-center justify-between gap-2">
-                                  <span className="text-xs font-semibold text-muted-foreground">
-                                    Bagian Materi
-                                  </span>
+                                <span className="min-w-0 flex-1 truncate">
+                                  {lessonIndex + 1}. {lesson.title}
+                                </span>
 
-                                  <Badge variant="outline">
-                                    {sections.length}
+                                {isLessonActive && (
+                                  <Badge
+                                    variant="muted"
+                                    className="shrink-0"
+                                  >
+                                    Aktif
                                   </Badge>
-                                </div>
-
-                                {sectionsLoading ? (
-                                  <div className="flex items-center gap-2 py-3 text-xs text-muted-foreground">
-                                    <Loader2 className="h-3 w-3 animate-spin" />
-                                    Memuat bagian materi...
-                                  </div>
-                                ) : sections.length === 0 ? (
-                                  <p className="py-2 text-center text-xs text-muted-foreground">
-                                    Belum ada bagian materi.
-                                  </p>
-                                ) : (
-                                  <div className="space-y-1">
-                                    {sections.map((section, sectionIndex) => {
-                                      const isSectionActive =
-                                        activeSectionId === section.id;
-
-                                      const isEditing =
-                                        editingSectionId === section.id;
-
-                                      const isDeleting =
-                                        deletingSectionId === section.id;
-
-                                      return (
-                                        <div
-                                          key={section.id}
-                                          className={`rounded-md border p-2 ${
-                                            isSectionActive
-                                              ? "border-primary/40 bg-primary/5"
-                                              : "border-transparent bg-card"
-                                          }`}
-                                        >
-                                          {isEditing ? (
-                                            <div className="space-y-2">
-                                              <Input
-                                                autoFocus
-                                                value={editingSectionTitle}
-                                                onChange={(event) =>
-                                                  setEditingSectionTitle(
-                                                    event.target.value
-                                                  )
-                                                }
-                                                disabled={working}
-                                                onKeyDown={(event) => {
-                                                  if (event.key === "Enter") {
-                                                    event.preventDefault();
-                                                    void saveSectionTitle(
-                                                      section.id
-                                                    );
-                                                  }
-
-                                                  if (event.key === "Escape") {
-                                                    setEditingSectionId(null);
-                                                  }
-                                                }}
-                                              />
-
-                                              <div className="flex gap-1">
-                                                <Button
-                                                  size="sm"
-                                                  onClick={() =>
-                                                    void saveSectionTitle(
-                                                      section.id
-                                                    )
-                                                  }
-                                                  disabled={
-                                                    working ||
-                                                    !editingSectionTitle.trim()
-                                                  }
-                                                >
-                                                  <Check className="mr-1 h-3 w-3" />
-                                                  Simpan
-                                                </Button>
-
-                                                <Button
-                                                  size="sm"
-                                                  variant="ghost"
-                                                  onClick={() =>
-                                                    setEditingSectionId(null)
-                                                  }
-                                                  disabled={working}
-                                                >
-                                                  <X className="mr-1 h-3 w-3" />
-                                                  Batal
-                                                </Button>
-                                              </div>
-                                            </div>
-                                          ) : isDeleting ? (
-                                            <div className="space-y-2">
-                                              <p className="text-xs font-medium text-destructive">
-                                                Hapus bagian materi ini?
-                                              </p>
-                                              <p className="text-[11px] text-muted-foreground">
-                                                Tindakan ini tidak dapat
-                                                dibatalkan.
-                                              </p>
-
-                                              <div className="flex gap-1">
-                                                <Button
-                                                  size="sm"
-                                                  variant="destructive"
-                                                  onClick={() =>
-                                                    void deleteSection(
-                                                      section.id
-                                                    )
-                                                  }
-                                                  disabled={working}
-                                                >
-                                                  {working ? (
-                                                    <Loader2 className="h-3 w-3 animate-spin" />
-                                                  ) : (
-                                                    "Ya, Hapus"
-                                                  )}
-                                                </Button>
-
-                                                <Button
-                                                  size="sm"
-                                                  variant="ghost"
-                                                  onClick={() =>
-                                                    setDeletingSectionId(null)
-                                                  }
-                                                  disabled={working}
-                                                >
-                                                  Batal
-                                                </Button>
-                                              </div>
-                                            </div>
-                                          ) : (
-                                            <div className="flex items-center gap-1">
-                                              <button
-                                                type="button"
-                                                onClick={() =>
-                                                  onSectionSelect?.(section.id)
-                                                }
-                                                className="flex min-w-0 flex-1 items-center gap-2 text-left"
-                                              >
-                                                <FileText
-                                                  className={`h-3.5 w-3.5 shrink-0 ${
-                                                    isSectionActive
-                                                      ? "text-primary"
-                                                      : "text-muted-foreground"
-                                                  }`}
-                                                />
-
-                                                <span className="min-w-0 flex-1 truncate text-xs font-medium">
-                                                  {sectionIndex + 1}.{" "}
-                                                  {section.title}
-                                                </span>
-
-                                                {isSectionActive && (
-                                                  <Badge
-                                                    variant="muted"
-                                                    className="text-[10px]"
-                                                  >
-                                                    Aktif
-                                                  </Badge>
-                                                )}
-                                              </button>
-
-                                              <Button
-                                                size="icon"
-                                                variant="ghost"
-                                                className="h-7 w-7 shrink-0"
-                                                title="Ubah judul"
-                                                onClick={() => {
-                                                  setEditingSectionId(
-                                                    section.id
-                                                  );
-                                                  setEditingSectionTitle(
-                                                    section.title
-                                                  );
-                                                }}
-                                                disabled={working}
-                                              >
-                                                <Pencil className="h-3 w-3" />
-                                              </Button>
-
-                                              <Button
-                                                size="icon"
-                                                variant="ghost"
-                                                className="h-7 w-7 shrink-0 text-destructive hover:text-destructive"
-                                                title="Hapus bagian"
-                                                onClick={() =>
-                                                  setDeletingSectionId(
-                                                    section.id
-                                                  )
-                                                }
-                                                disabled={working}
-                                              >
-                                                <Trash2 className="h-3 w-3" />
-                                              </Button>
-                                            </div>
-                                          )}
-
-                                          <div className="mt-1 pl-6">
-                                            <span className="text-[10px] text-muted-foreground">
-                                              {section.is_published
-                                                ? "Terbit"
-                                                : "Draft"}
-                                            </span>
-                                          </div>
-                                        </div>
-                                      );
-                                    })}
-                                  </div>
                                 )}
 
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  className="w-full justify-start gap-2"
-                                  onClick={() => {
-                                    setShowSectionInput((value) => !value);
-                                    setNewSectionTitle("");
-                                  }}
-                                  disabled={working}
+                                <span
+                                  className={`shrink-0 text-[10px] ${
+                                    isLessonActive
+                                      ? "text-primary-foreground/80"
+                                      : "text-muted-foreground"
+                                  }`}
                                 >
-                                  <Plus className="h-3.5 w-3.5" />
-                                  Tambah Bagian Materi
-                                </Button>
+                                  {lesson.is_published ? "Terbit" : "Draft"}
+                                </span>
+                              </button>
 
-                                {showSectionInput && (
-                                  <div className="space-y-2 rounded-lg border bg-card p-3">
-                                    <Input
-                                      autoFocus
-                                      value={newSectionTitle}
-                                      onChange={(event) =>
-                                        setNewSectionTitle(event.target.value)
-                                      }
-                                      placeholder="Contoh: Pengertian Dasar..."
-                                      disabled={working}
-                                      onKeyDown={(event) => {
-                                        if (event.key === "Enter") {
-                                          event.preventDefault();
-                                          void createSection();
-                                        }
-                                      }}
-                                    />
+                              {/* ACTIVE LESSON SECTIONS */}
+                              {isLessonActive && (
+                                <div className="ml-3 space-y-2 border-l-2 border-primary/20 py-2 pl-3">
+                                  {/* SECTION HEADER */}
+                                  <div className="flex items-center justify-between gap-2">
+                                    <div className="flex min-w-0 items-center gap-2">
+                                      <Layers3 className="h-3.5 w-3.5 text-primary" />
 
-                                    <div className="flex gap-2">
-                                      <Button
-                                        size="sm"
-                                        onClick={() =>
-                                          void createSection()
-                                        }
-                                        disabled={
-                                          working ||
-                                          !newSectionTitle.trim()
-                                        }
-                                      >
-                                        {working ? (
-                                          <Loader2 className="h-4 w-4 animate-spin" />
-                                        ) : (
-                                          "Buat Bagian"
-                                        )}
-                                      </Button>
-
-                                      <Button
-                                        size="sm"
-                                        variant="ghost"
-                                        onClick={() => {
-                                          setShowSectionInput(false);
-                                          setNewSectionTitle("");
-                                        }}
-                                        disabled={working}
-                                      >
-                                        Batal
-                                      </Button>
+                                      <span className="text-xs font-semibold text-muted-foreground">
+                                        Bagian Materi
+                                      </span>
                                     </div>
+
+                                    <Badge variant="outline">
+                                      {sectionsLoading ? "..." : sections.length}
+                                    </Badge>
                                   </div>
-                                )}
-                              </div>
-                            )}
-                          </div>
-                        ))
+
+                                  {/* SECTION LOADING */}
+                                  {sectionsLoading ? (
+                                    <div className="flex items-center gap-2 py-3 text-xs text-muted-foreground">
+                                      <Loader2 className="h-3 w-3 animate-spin" />
+                                      Memuat bagian materi...
+                                    </div>
+                                  ) : sections.length === 0 ? (
+                                    <div className="rounded-md border border-dashed p-3 text-center">
+                                      <FileText className="mx-auto mb-2 h-5 w-5 text-muted-foreground" />
+
+                                      <p className="text-xs font-medium">
+                                        Belum ada bagian materi
+                                      </p>
+
+                                      <p className="mt-1 text-[11px] text-muted-foreground">
+                                        Tambahkan bagian pertama untuk mulai
+                                        menulis materi.
+                                      </p>
+                                    </div>
+                                  ) : (
+                                    <div className="space-y-1">
+                                      {sections.map(
+                                        (section, sectionIndex) => {
+                                          const isSectionActive =
+                                            activeSectionId === section.id;
+
+                                          const isEditing =
+                                            editingSectionId === section.id;
+
+                                          const isDeleting =
+                                            deletingSectionId === section.id;
+
+                                          const canDelete =
+                                            sections.length > 1 &&
+                                            !isSectionActive;
+
+                                          return (
+                                            <div
+                                              key={section.id}
+                                              className={`rounded-md border p-2 ${
+                                                isSectionActive
+                                                  ? "border-primary/40 bg-primary/5"
+                                                  : "border-transparent bg-card"
+                                              }`}
+                                            >
+                                              {/* EDIT SECTION TITLE */}
+                                              {isEditing ? (
+                                                <div className="space-y-2">
+                                                  <Input
+                                                    autoFocus
+                                                    value={editingSectionTitle}
+                                                    onChange={(event) =>
+                                                      setEditingSectionTitle(
+                                                        event.target.value
+                                                      )
+                                                    }
+                                                    disabled={working}
+                                                    placeholder="Judul bagian materi..."
+                                                    onKeyDown={(event) => {
+                                                      if (
+                                                        event.key === "Enter"
+                                                      ) {
+                                                        event.preventDefault();
+
+                                                        void saveSectionTitle(
+                                                          section.id
+                                                        );
+                                                      }
+
+                                                      if (
+                                                        event.key === "Escape"
+                                                      ) {
+                                                        cancelSectionEditing();
+                                                      }
+                                                    }}
+                                                  />
+
+                                                  <div className="flex gap-1">
+                                                    <Button
+                                                      size="sm"
+                                                      onClick={() =>
+                                                        void saveSectionTitle(
+                                                          section.id
+                                                        )
+                                                      }
+                                                      disabled={
+                                                        working ||
+                                                        !editingSectionTitle.trim()
+                                                      }
+                                                    >
+                                                      <Check className="mr-1 h-3 w-3" />
+                                                      Simpan
+                                                    </Button>
+
+                                                    <Button
+                                                      size="sm"
+                                                      variant="ghost"
+                                                      onClick={
+                                                        cancelSectionEditing
+                                                      }
+                                                      disabled={working}
+                                                    >
+                                                      <X className="mr-1 h-3 w-3" />
+                                                      Batal
+                                                    </Button>
+                                                  </div>
+                                                </div>
+                                              ) : isDeleting ? (
+                                                /* DELETE CONFIRMATION */
+                                                <div className="space-y-2">
+                                                  <p className="text-xs font-medium text-destructive">
+                                                    Hapus bagian materi ini?
+                                                  </p>
+
+                                                  <p className="text-[11px] text-muted-foreground">
+                                                    Penghapusan tidak dapat
+                                                    dibatalkan. Bagian yang
+                                                    memiliki aktivitas evaluasi
+                                                    dapat dilindungi database.
+                                                  </p>
+
+                                                  <div className="flex gap-1">
+                                                    <Button
+                                                      size="sm"
+                                                      variant="destructive"
+                                                      onClick={() =>
+                                                        void deleteSection(
+                                                          section.id
+                                                        )
+                                                      }
+                                                      disabled={working}
+                                                    >
+                                                      {working ? (
+                                                        <Loader2 className="h-3 w-3 animate-spin" />
+                                                      ) : (
+                                                        "Ya, Hapus"
+                                                      )}
+                                                    </Button>
+
+                                                    <Button
+                                                      size="sm"
+                                                      variant="ghost"
+                                                      onClick={() =>
+                                                        setDeletingSectionId(
+                                                          null
+                                                        )
+                                                      }
+                                                      disabled={working}
+                                                    >
+                                                      Batal
+                                                    </Button>
+                                                  </div>
+                                                </div>
+                                              ) : (
+                                                /* NORMAL SECTION ITEM */
+                                                <div className="flex items-center gap-1">
+                                                  <button
+                                                    type="button"
+                                                    onClick={() =>
+                                                      onSectionSelect?.(
+                                                        section.id
+                                                      )
+                                                    }
+                                                    className="flex min-w-0 flex-1 items-center gap-2 text-left"
+                                                    title={`Pilih ${section.title}`}
+                                                  >
+                                                    <FileText
+                                                      className={`h-3.5 w-3.5 shrink-0 ${
+                                                        isSectionActive
+                                                          ? "text-primary"
+                                                          : "text-muted-foreground"
+                                                      }`}
+                                                    />
+
+                                                    <span className="min-w-0 flex-1 truncate text-xs font-medium">
+                                                      {sectionIndex + 1}.{" "}
+                                                      {section.title}
+                                                    </span>
+
+                                                    {isSectionActive && (
+                                                      <Badge
+                                                        variant="muted"
+                                                        className="text-[10px]"
+                                                      >
+                                                        Aktif
+                                                      </Badge>
+                                                    )}
+                                                  </button>
+
+                                                  <Button
+                                                    size="icon"
+                                                    variant="ghost"
+                                                    className="h-7 w-7 shrink-0"
+                                                    title="Ubah judul"
+                                                    onClick={() => {
+                                                      setEditingSectionId(
+                                                        section.id
+                                                      );
+
+                                                      setEditingSectionTitle(
+                                                        section.title
+                                                      );
+
+                                                      setDeletingSectionId(
+                                                        null
+                                                      );
+                                                    }}
+                                                    disabled={working}
+                                                  >
+                                                    <Pencil className="h-3 w-3" />
+                                                  </Button>
+
+                                                  <Button
+                                                    size="icon"
+                                                    variant="ghost"
+                                                    className="h-7 w-7 shrink-0 text-destructive hover:text-destructive"
+                                                    title={
+                                                      !canDelete
+                                                        ? isSectionActive
+                                                          ? "Pilih bagian lain sebelum menghapus"
+                                                          : "Bagian terakhir tidak dapat dihapus"
+                                                        : "Hapus bagian"
+                                                    }
+                                                    onClick={() => {
+                                                      if (!canDelete) {
+                                                        if (isSectionActive) {
+                                                          toast.error(
+                                                            "Pilih bagian materi lain terlebih dahulu sebelum menghapus bagian ini."
+                                                          );
+                                                        } else {
+                                                          toast.error(
+                                                            "Bagian materi terakhir tidak dapat dihapus."
+                                                          );
+                                                        }
+
+                                                        return;
+                                                      }
+
+                                                      setDeletingSectionId(
+                                                        section.id
+                                                      );
+
+                                                      setEditingSectionId(
+                                                        null
+                                                      );
+                                                    }}
+                                                    disabled={working}
+                                                  >
+                                                    <Trash2 className="h-3 w-3" />
+                                                  </Button>
+                                                </div>
+                                              )}
+
+                                              {/* SECTION STATUS */}
+                                              {!isEditing && !isDeleting && (
+                                                <div className="mt-1 pl-6">
+                                                  <span className="text-[10px] text-muted-foreground">
+                                                    {section.is_published
+                                                      ? "Terbit"
+                                                      : "Draft"}
+                                                  </span>
+                                                </div>
+                                              )}
+                                            </div>
+                                          );
+                                        }
+                                      )}
+                                    </div>
+                                  )}
+
+                                  {/* ADD SECTION BUTTON */}
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    className="w-full justify-start gap-2"
+                                    onClick={() => {
+                                      setShowSectionInput((value) => !value);
+                                      setNewSectionTitle("");
+                                    }}
+                                    disabled={working || sectionsLoading}
+                                  >
+                                    <Plus className="h-3.5 w-3.5" />
+                                    Tambah Bagian Materi
+                                  </Button>
+
+                                  {/* ADD SECTION FORM */}
+                                  {showSectionInput && (
+                                    <div className="space-y-2 rounded-lg border bg-card p-3">
+                                      <div>
+                                        <p className="text-xs font-medium">
+                                          Bagian Materi Baru
+                                        </p>
+
+                                        <p className="mt-1 text-[11px] text-muted-foreground">
+                                          Bagian baru akan ditambahkan setelah
+                                          bagian terakhir.
+                                        </p>
+                                      </div>
+
+                                      <Input
+                                        autoFocus
+                                        value={newSectionTitle}
+                                        onChange={(event) =>
+                                          setNewSectionTitle(
+                                            event.target.value
+                                          )
+                                        }
+                                        placeholder="Contoh: Pengertian Dasar..."
+                                        disabled={working}
+                                        onKeyDown={(event) => {
+                                          if (event.key === "Enter") {
+                                            event.preventDefault();
+                                            void createSection();
+                                          }
+
+                                          if (event.key === "Escape") {
+                                            setShowSectionInput(false);
+                                            setNewSectionTitle("");
+                                          }
+                                        }}
+                                      />
+
+                                      <div className="flex gap-2">
+                                        <Button
+                                          size="sm"
+                                          onClick={() =>
+                                            void createSection()
+                                          }
+                                          disabled={
+                                            working ||
+                                            !newSectionTitle.trim()
+                                          }
+                                        >
+                                          {working ? (
+                                            <Loader2 className="h-4 w-4 animate-spin" />
+                                          ) : (
+                                            <>
+                                              <Plus className="mr-1 h-3.5 w-3.5" />
+                                              Buat Bagian
+                                            </>
+                                          )}
+                                        </Button>
+
+                                        <Button
+                                          size="sm"
+                                          variant="ghost"
+                                          onClick={() => {
+                                            setShowSectionInput(false);
+                                            setNewSectionTitle("");
+                                          }}
+                                          disabled={working}
+                                        >
+                                          Batal
+                                        </Button>
+                                      </div>
+                                    </div>
+                                  )}
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })
                       )}
 
+                      {/* ADD LESSON BUTTON */}
                       <Button
                         size="sm"
                         variant="ghost"
@@ -961,6 +1182,7 @@ export default function CourseStructurePanel({
                         Tambah Sesi
                       </Button>
 
+                      {/* ADD LESSON FORM */}
                       {showLessonInputFor === module.id && (
                         <div className="space-y-2 rounded-lg border bg-card p-3">
                           <Input
@@ -976,6 +1198,11 @@ export default function CourseStructurePanel({
                                 event.preventDefault();
                                 void createLesson();
                               }
+
+                              if (event.key === "Escape") {
+                                setShowLessonInputFor(null);
+                                setNewLessonTitle("");
+                              }
                             }}
                           />
 
@@ -988,7 +1215,10 @@ export default function CourseStructurePanel({
                               {working ? (
                                 <Loader2 className="h-4 w-4 animate-spin" />
                               ) : (
-                                "Buat Sesi"
+                                <>
+                                  <Plus className="mr-1 h-3.5 w-3.5" />
+                                  Buat Sesi
+                                </>
                               )}
                             </Button>
 
