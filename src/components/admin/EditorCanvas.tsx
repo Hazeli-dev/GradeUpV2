@@ -23,10 +23,18 @@ import {
   Underline as UnderlineIcon,
   Undo2,
   X,
+  Minus,
+  Plus,
+  Ruler,
 } from "lucide-react";
 
-import { EditorContent, useEditor, type Editor } from "@tiptap/react";
-import type { JSONContent } from "@tiptap/core";
+import {
+  Editor,
+  Extension,
+  type JSONContent,
+} from "@tiptap/core";
+
+import { EditorContent, useEditor } from "@tiptap/react";
 
 import StarterKit from "@tiptap/starter-kit";
 import Underline from "@tiptap/extension-underline";
@@ -53,6 +61,90 @@ interface ToolButtonProps {
   onClick: () => void;
   children: ReactNode;
 }
+
+/**
+ * Atribut tata letak paragraf.
+ * Nilainya ikut tersimpan dalam JSON Tiptap.
+ */
+const ParagraphLayout = Extension.create({
+  name: "paragraphLayout",
+
+  addGlobalAttributes() {
+    return [
+      {
+        types: ["paragraph", "heading"],
+
+        attributes: {
+          textIndent: {
+            default: 0,
+            parseHTML: (element) =>
+              parseFloat(element.style.textIndent) || 0,
+            renderHTML: (attributes) =>
+              attributes.textIndent
+                ? {
+                    style: `text-indent: ${attributes.textIndent}px`,
+                  }
+                : {},
+          },
+
+          leftIndent: {
+            default: 0,
+            parseHTML: (element) =>
+              parseFloat(element.style.paddingLeft) || 0,
+            renderHTML: (attributes) =>
+              attributes.leftIndent
+                ? {
+                    style: `padding-left: ${attributes.leftIndent}px`,
+                  }
+                : {},
+          },
+
+          rightIndent: {
+            default: 0,
+            parseHTML: (element) =>
+              parseFloat(element.style.paddingRight) || 0,
+            renderHTML: (attributes) =>
+              attributes.rightIndent
+                ? {
+                    style: `padding-right: ${attributes.rightIndent}px`,
+                  }
+                : {},
+          },
+
+          lineHeight: {
+            default: "1.5",
+            parseHTML: (element) =>
+              element.style.lineHeight || "1.5",
+            renderHTML: (attributes) => ({
+              style: `line-height: ${attributes.lineHeight}`,
+            }),
+          },
+
+          marginTop: {
+            default: 0,
+            parseHTML: (element) =>
+              parseFloat(element.style.marginTop) || 0,
+            renderHTML: (attributes) =>
+              attributes.marginTop
+                ? {
+                    style: `margin-top: ${attributes.marginTop}px`,
+                  }
+                : {},
+          },
+
+          marginBottom: {
+            default: 8,
+            parseHTML: (element) =>
+              parseFloat(element.style.marginBottom) || 8,
+            renderHTML: (attributes) => ({
+              style: `margin-bottom: ${attributes.marginBottom}px`,
+            }),
+          },
+        },
+      },
+    ];
+  },
+});
 
 function ToolButton({
   label,
@@ -113,6 +205,31 @@ export default function EditorCanvas({
   const [isCompact, setIsCompact] = useState(false);
   const [wordCount, setWordCount] = useState(0);
 
+  const [showRuler, setShowRuler] = useState(true);
+
+  const [leftIndent, setLeftIndent] = useState(0);
+  const [firstLineIndent, setFirstLineIndent] = useState(0);
+  const [rightIndent, setRightIndent] = useState(0);
+
+  const [lineHeight, setLineHeight] = useState("1.5");
+  const [marginTop, setMarginTop] = useState(0);
+  const [marginBottom, setMarginBottom] = useState(8);
+
+  const getBlockName = (instance: Editor) =>
+    instance.isActive("heading") ? "heading" : "paragraph";
+
+  const readLayout = (instance: Editor) => {
+    const block = getBlockName(instance);
+    const attrs = instance.getAttributes(block);
+
+    setLeftIndent(Number(attrs.leftIndent ?? 0));
+    setFirstLineIndent(Number(attrs.textIndent ?? 0));
+    setRightIndent(Number(attrs.rightIndent ?? 0));
+    setLineHeight(String(attrs.lineHeight ?? "1.5"));
+    setMarginTop(Number(attrs.marginTop ?? 0));
+    setMarginBottom(Number(attrs.marginBottom ?? 8));
+  };
+
   const editor = useEditor({
     extensions: [
       StarterKit.configure({
@@ -120,22 +237,31 @@ export default function EditorCanvas({
           levels: [1, 2, 3],
         },
       }),
+
+      ParagraphLayout,
+
       Underline,
+
       TextAlign.configure({
         types: ["heading", "paragraph"],
       }),
+
       Highlight,
+
       Link.configure({
         openOnClick: false,
         autolink: true,
       }),
+
       Image.configure({
         inline: false,
         allowBase64: false,
       }),
+
       Table.configure({
         resizable: true,
       }),
+
       TableRow,
       TableHeader,
       TableCell,
@@ -154,26 +280,80 @@ export default function EditorCanvas({
       onChange?.(editor.getJSON());
     },
 
+    onSelectionUpdate: ({ editor }) => {
+      readLayout(editor);
+    },
+
     editorProps: {
       attributes: {
         class: "gu-prose",
         spellcheck: "true",
         "aria-label": "Area penulisan materi pembelajaran",
       },
+
+      /**
+       * Tab untuk indentasi paragraf.
+       * Shift + Tab untuk mengurangi indentasi.
+       * Pada tabel, penanganan Tab diserahkan
+       * kepada extension tabel Tiptap.
+       */
+      handleKeyDown: (view, event) => {
+        if (event.key !== "Tab") return false;
+
+        const { state } = view;
+        const parent = state.selection.$from.parent;
+
+        if (
+          parent.type.name === "tableCell" ||
+          parent.type.name === "tableHeader"
+        ) {
+          return false;
+        }
+
+        const block = parent.type.name;
+
+        if (block !== "paragraph" && block !== "heading") {
+          return false;
+        }
+
+        const currentIndent = Number(
+          parent.attrs.textIndent ?? 0
+        );
+
+        const nextIndent = event.shiftKey
+          ? Math.max(0, currentIndent - 24)
+          : Math.min(240, currentIndent + 24);
+
+        const transaction = state.tr.setNodeMarkup(
+          state.selection.$from.before(),
+          undefined,
+          {
+            ...parent.attrs,
+            textIndent: nextIndent,
+          }
+        );
+
+        view.dispatch(transaction);
+
+        event.preventDefault();
+        return true;
+      },
     },
   });
 
   useEffect(() => {
-    if (editor) {
-      editor.setEditable(!isPreview);
-    }
+    if (!editor) return;
+
+    editor.setEditable(!isPreview);
   }, [editor, isPreview]);
 
   useEffect(() => {
-    if (editor) {
-      const text = editor.getText().trim();
-      setWordCount(text ? text.split(/\s+/).length : 0);
-    }
+    if (!editor) return;
+
+    const text = editor.getText().trim();
+    setWordCount(text ? text.split(/\s+/).length : 0);
+
+    readLayout(editor);
   }, [editor]);
 
   if (!editor) {
@@ -187,9 +367,55 @@ export default function EditorCanvas({
   const isActive = (name: string, attrs?: Record<string, unknown>) =>
     editor.isActive(name, attrs);
 
+  /**
+   * Mengubah atribut tata letak blok aktif.
+   */
+  const updateLayout = (attributes: Record<string, unknown>) => {
+    const block = getBlockName(editor);
+
+    editor
+      .chain()
+      .focus()
+      .updateAttributes(block, attributes)
+      .run();
+  };
+
+  const changeLeftIndent = (value: number) => {
+    setLeftIndent(value);
+    updateLayout({ leftIndent: value });
+  };
+
+  const changeFirstLineIndent = (value: number) => {
+    setFirstLineIndent(value);
+    updateLayout({ textIndent: value });
+  };
+
+  const changeRightIndent = (value: number) => {
+    setRightIndent(value);
+    updateLayout({ rightIndent: value });
+  };
+
+  const changeLineHeight = (value: string) => {
+    setLineHeight(value);
+    updateLayout({ lineHeight: value });
+  };
+
+  const changeMarginTop = (value: number) => {
+    setMarginTop(value);
+    updateLayout({ marginTop: value });
+  };
+
+  const changeMarginBottom = (value: number) => {
+    setMarginBottom(value);
+    updateLayout({ marginBottom: value });
+  };
+
   const addLink = () => {
     const previousUrl = editor.getAttributes("link").href ?? "";
-    const url = window.prompt("Masukkan alamat tautan:", previousUrl);
+    const url = window.prompt(
+      "Masukkan alamat tautan:",
+      previousUrl
+    );
 
     if (url === null) return;
 
@@ -233,7 +459,10 @@ export default function EditorCanvas({
       editor
         .chain()
         .focus()
-        .setImage({ src: parsed.href, alt: "Ilustrasi materi" })
+        .setImage({
+          src: parsed.href,
+          alt: "Ilustrasi materi",
+        })
         .run();
     } catch {
       window.alert("URL gambar tidak valid.");
@@ -308,7 +537,9 @@ export default function EditorCanvas({
         <ToolButton
           label="Garis bawah"
           active={isActive("underline")}
-          onClick={() => editor.chain().focus().toggleUnderline().run()}
+          onClick={() =>
+            editor.chain().focus().toggleUnderline().run()
+          }
         >
           <UnderlineIcon size={17} />
         </ToolButton>
@@ -324,7 +555,9 @@ export default function EditorCanvas({
         <ToolButton
           label="Highlight"
           active={isActive("highlight")}
-          onClick={() => editor.chain().focus().toggleHighlight().run()}
+          onClick={() =>
+            editor.chain().focus().toggleHighlight().run()
+          }
         >
           <span className="gu-highlight-icon">A</span>
         </ToolButton>
@@ -370,7 +603,9 @@ export default function EditorCanvas({
         <ToolButton
           label="Bullet list"
           active={isActive("bulletList")}
-          onClick={() => editor.chain().focus().toggleBulletList().run()}
+          onClick={() =>
+            editor.chain().focus().toggleBulletList().run()
+          }
         >
           <List size={18} />
         </ToolButton>
@@ -378,7 +613,9 @@ export default function EditorCanvas({
         <ToolButton
           label="Numbered list"
           active={isActive("orderedList")}
-          onClick={() => editor.chain().focus().toggleOrderedList().run()}
+          onClick={() =>
+            editor.chain().focus().toggleOrderedList().run()
+          }
         >
           <ListOrdered size={18} />
         </ToolButton>
@@ -411,7 +648,11 @@ export default function EditorCanvas({
         <ToolButton
           label="Catatan penting"
           onClick={() =>
-            insertCallout(editor, "Catatan penting", "Tuliskan catatan di sini")
+            insertCallout(
+              editor,
+              "Catatan penting",
+              "Tuliskan catatan di sini"
+            )
           }
         >
           <MessageSquareText size={18} />
@@ -421,7 +662,11 @@ export default function EditorCanvas({
         <ToolButton
           label="Contoh pembelajaran"
           onClick={() =>
-            insertCallout(editor, "Contoh", "Tuliskan contoh di sini")
+            insertCallout(
+              editor,
+              "Contoh",
+              "Tuliskan contoh di sini"
+            )
           }
         >
           <FileText size={18} />
@@ -431,7 +676,11 @@ export default function EditorCanvas({
         <ToolButton
           label="Perlu diingat"
           onClick={() =>
-            insertCallout(editor, "Perlu diingat", "Tuliskan poin penting di sini")
+            insertCallout(
+              editor,
+              "Perlu diingat",
+              "Tuliskan poin penting di sini"
+            )
           }
         >
           <Lightbulb size={18} />
@@ -441,23 +690,155 @@ export default function EditorCanvas({
     </>
   );
 
-  const renderLayoutToolbar = () => (
-    <div className="gu-tool-group">
-      <ToolButton
-        label="Lebar dokumen"
-        active={!isCompact}
-        onClick={() => setIsCompact(false)}
-      >
-        <span>Lebar</span>
-      </ToolButton>
+  const renderRuler = () => (
+    <div className="gu-ruler-wrapper">
+      <div className="gu-ruler-heading">
+        <Ruler size={15} />
+        <span>Penggaris horizontal</span>
+      </div>
 
-      <ToolButton
-        label="Lebar dokumen ringkas"
-        active={isCompact}
-        onClick={() => setIsCompact(true)}
-      >
-        <span>Ringkas</span>
-      </ToolButton>
+      <div className="gu-ruler">
+        {Array.from({ length: 17 }, (_, index) => (
+          <div className="gu-ruler-tick" key={index}>
+            <span>{index === 0 ? "0" : index}</span>
+            <i />
+          </div>
+        ))}
+      </div>
+
+      <div className="gu-ruler-controls">
+        <label>
+          <span>Indentasi kiri</span>
+          <input
+            type="range"
+            min="0"
+            max="120"
+            step="4"
+            value={leftIndent}
+            onChange={(event) =>
+              changeLeftIndent(Number(event.target.value))
+            }
+          />
+          <strong>{leftIndent} px</strong>
+        </label>
+
+        <label>
+          <span>Baris pertama</span>
+          <input
+            type="range"
+            min="0"
+            max="120"
+            step="4"
+            value={firstLineIndent}
+            onChange={(event) =>
+              changeFirstLineIndent(Number(event.target.value))
+            }
+          />
+          <strong>{firstLineIndent} px</strong>
+        </label>
+
+        <label>
+          <span>Indentasi kanan</span>
+          <input
+            type="range"
+            min="0"
+            max="120"
+            step="4"
+            value={rightIndent}
+            onChange={(event) =>
+              changeRightIndent(Number(event.target.value))
+            }
+          />
+          <strong>{rightIndent} px</strong>
+        </label>
+      </div>
+    </div>
+  );
+
+  const renderLayoutToolbar = () => (
+    <div className="gu-layout-panel">
+      <div className="gu-tool-group">
+        <ToolButton
+          label="Lebar dokumen"
+          active={!isCompact}
+          onClick={() => setIsCompact(false)}
+        >
+          <span>Lebar</span>
+        </ToolButton>
+
+        <ToolButton
+          label="Lebar dokumen ringkas"
+          active={isCompact}
+          onClick={() => setIsCompact(true)}
+        >
+          <span>Ringkas</span>
+        </ToolButton>
+      </div>
+
+      <ToolDivider />
+
+      <div className="gu-tool-group">
+        <ToolButton
+          label="Tampilkan penggaris"
+          active={showRuler}
+          onClick={() => setShowRuler(!showRuler)}
+        >
+          <Ruler size={17} />
+          <span>Penggaris</span>
+        </ToolButton>
+      </div>
+
+      <ToolDivider />
+
+      <div className="gu-layout-setting">
+        <label htmlFor="gu-line-height">Spasi baris</label>
+        <select
+          id="gu-line-height"
+          value={lineHeight}
+          onChange={(event) =>
+            changeLineHeight(event.target.value)
+          }
+        >
+          <option value="1">1.0</option>
+          <option value="1.15">1.15</option>
+          <option value="1.5">1.5</option>
+          <option value="2">2.0</option>
+        </select>
+      </div>
+
+      <div className="gu-layout-setting">
+        <label htmlFor="gu-margin-top">Sebelum paragraf</label>
+        <select
+          id="gu-margin-top"
+          value={marginTop}
+          onChange={(event) =>
+            changeMarginTop(Number(event.target.value))
+          }
+        >
+          {[0, 4, 8, 12, 16, 20, 24].map((value) => (
+            <option key={value} value={value}>
+              {value} px
+            </option>
+          ))}
+        </select>
+      </div>
+
+      <div className="gu-layout-setting">
+        <label htmlFor="gu-margin-bottom">Sesudah paragraf</label>
+        <select
+          id="gu-margin-bottom"
+          value={marginBottom}
+          onChange={(event) =>
+            changeMarginBottom(Number(event.target.value))
+          }
+        >
+          {[0, 4, 8, 12, 16, 20, 24].map((value) => (
+            <option key={value} value={value}>
+              {value} px
+            </option>
+          ))}
+        </select>
+      </div>
     </div>
   );
 
@@ -500,7 +881,9 @@ export default function EditorCanvas({
           <div className="gu-studio-eyebrow">
             GRADEUP LEARNING PLATFORM
           </div>
+
           <h1>GradeUp Studio</h1>
+
           <p>Ruang pembuatan materi pembelajaran</p>
         </div>
 
@@ -558,6 +941,8 @@ export default function EditorCanvas({
         </div>
       )}
 
+      {!isPreview && showRuler && renderRuler()}
+
       <div className="gu-document-workspace">
         <div
           className={`gu-document-page ${
@@ -581,6 +966,7 @@ export default function EditorCanvas({
             <FileText size={14} />
             {wordCount} kata
           </span>
+
           <span>Bahasa Indonesia</span>
         </div>
 
