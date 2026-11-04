@@ -1,9 +1,8 @@
 
-import { useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   BookOpen,
-  Search,
   SlidersHorizontal,
   RotateCcw,
   GraduationCap,
@@ -13,7 +12,11 @@ import {
 import { PageHeader } from "@/components/shared/page-header";
 import { SearchInput } from "@/components/shared/search-input";
 import { FilterSelect } from "@/components/shared/filter-select";
-import { CourseCard } from "@/components/shared/course-card";
+import {
+  CourseCard,
+  type StudentCatalogCourse,
+} from "@/components/shared/course-card";
+
 import {
   CardGridSkeleton,
   EmptyState,
@@ -21,63 +24,145 @@ import {
 } from "@/components/shared/states";
 
 import { Button } from "@/components/ui/button";
-import { useAsync } from "@/hooks/use-async";
-import {
-  listCategories,
-  listCourses,
-} from "@/services/catalog.service";
+import { supabase } from "@/lib/supabase";
 import { LEVELS } from "@/constants";
+
+interface CourseRow {
+  id: string;
+  title: string;
+  description: string | null;
+  category: string;
+  level: string | null;
+  instructor: string;
+  premium: boolean | null;
+  thumbnail: string | null;
+  course_modules: {
+    id: string;
+    course_lessons: {
+      id: string;
+    }[];
+  }[];
+}
 
 export default function StudentCoursesPage() {
   const navigate = useNavigate();
 
-  const {
-    data,
-    loading,
-    error,
-    reload,
-  } = useAsync(listCourses);
-
-  const {
-    data: categories,
-  } = useAsync(listCategories);
+  const [courses, setCourses] = useState<StudentCatalogCourse[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   const [q, setQ] = useState("");
   const [category, setCategory] = useState("all");
   const [level, setLevel] = useState("all");
 
-  // Hanya materi yang sudah dipublikasikan.
-  const publishedCourses = useMemo(
+  const loadCourses = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+
+    try {
+      const { data, error: queryError } = await supabase
+        .from("courses")
+        .select(`
+          id,
+          title,
+          description,
+          category,
+          level,
+          instructor,
+          premium,
+          thumbnail,
+          course_modules (
+            id,
+            course_lessons (
+              id
+            )
+          )
+        `)
+        .eq("status", "Published")
+        .order("created_at", { ascending: false });
+
+      if (queryError) {
+        throw queryError;
+      }
+
+      const rows = (data ?? []) as unknown as CourseRow[];
+
+      const mappedCourses: StudentCatalogCourse[] = rows.map((course) => {
+        const lessonCount = (course.course_modules ?? []).reduce(
+          (total, module) =>
+            total + (module.course_lessons?.length ?? 0),
+          0
+        );
+
+        return {
+          id: course.id,
+          title: course.title,
+          description: course.description,
+          category: course.category,
+          level: course.level || "Umum",
+          instructor: course.instructor,
+          premium: Boolean(course.premium),
+          thumbnail: course.thumbnail,
+          lessonCount,
+        };
+      });
+
+      setCourses(mappedCourses);
+    } catch (err) {
+      console.error("Gagal mengambil katalog materi:", err);
+
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Terjadi kesalahan saat mengambil data materi."
+      );
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void loadCourses();
+  }, [loadCourses]);
+
+  // Kategori diambil langsung dari data kursus Supabase.
+  const categories = useMemo(
     () =>
-      (data ?? []).filter(
-        (course) => course.status === "Published"
-      ),
-    [data]
+      Array.from(
+        new Set(
+          courses
+            .map((course) => course.category)
+            .filter(Boolean)
+        )
+      ).sort((a, b) => a.localeCompare(b, "id")),
+    [courses]
   );
 
-  // Filter materi berdasarkan pencarian, kategori, dan jenjang.
+  // Filter pencarian, kategori, dan jenjang.
   const filtered = useMemo(() => {
     const keyword = q.trim().toLocaleLowerCase("id-ID");
 
-    return publishedCourses
+    return courses
       .filter((course) => {
         if (!keyword) return true;
 
-        return course.title
-          .toLocaleLowerCase("id-ID")
-          .includes(keyword);
+        return (
+          course.title.toLocaleLowerCase("id-ID").includes(keyword) ||
+          (course.description ?? "")
+            .toLocaleLowerCase("id-ID")
+            .includes(keyword) ||
+          course.category.toLocaleLowerCase("id-ID").includes(keyword)
+        );
       })
       .filter(
         (course) =>
-          category === "all" ||
-          course.category === category
+          category === "all" || course.category === category
       )
       .filter(
         (course) =>
-          level === "all" ||
-          course.level === level
+          level === "all" || course.level === level
       );
-  }, [publishedCourses, q, category, level]);
+  }, [courses, q, category, level]);
 
   const hasActiveFilter =
     q.trim() !== "" ||
@@ -92,8 +177,6 @@ export default function StudentCoursesPage() {
 
   return (
     <div className="space-y-6 pb-6">
-
-      {/* HEADER HALAMAN */}
       <PageHeader
         title="Materi Belajar"
         description="Temukan materi pembelajaran sesuai jenjang dan mata pelajaran untuk meningkatkan pemahaman Anda."
@@ -112,7 +195,9 @@ export default function StudentCoursesPage() {
 
             <h2 className="text-xl font-extrabold tracking-tight sm:text-2xl">
               Belajar Lebih Terarah,
-              <span className="text-primary"> Raih Prestasi Lebih Tinggi.</span>
+              <span className="text-primary">
+                {" "}Raih Prestasi Lebih Tinggi.
+              </span>
             </h2>
 
             <p className="max-w-lg text-xs leading-relaxed text-muted-foreground sm:text-sm">
@@ -136,7 +221,7 @@ export default function StudentCoursesPage() {
 
           <div className="min-w-0">
             <p className="text-xl font-extrabold">
-              {loading ? "—" : publishedCourses.length}
+              {loading ? "—" : courses.length}
             </p>
             <p className="text-[11px] font-medium text-muted-foreground sm:text-xs">
               Total Materi
@@ -160,14 +245,12 @@ export default function StudentCoursesPage() {
         </div>
       </div>
 
-      {/* AREA PENCARIAN DAN FILTER */}
+      {/* PENCARIAN DAN FILTER */}
       <section className="space-y-4">
         <div className="flex flex-col gap-1">
           <div className="flex items-center gap-2">
             <SlidersHorizontal className="h-4 w-4 text-primary" />
-            <h3 className="text-sm font-bold">
-              Temukan Materi
-            </h3>
+            <h3 className="text-sm font-bold">Temukan Materi</h3>
           </div>
 
           <p className="text-xs text-muted-foreground">
@@ -177,17 +260,13 @@ export default function StudentCoursesPage() {
 
         <div className="rounded-2xl border bg-card p-4 shadow-sm sm:p-5">
           <div className="flex flex-col gap-3">
-            {/* PENCARIAN */}
-            <div className="relative">
-              <SearchInput
-                value={q}
-                onChange={setQ}
-                placeholder="Cari judul materi..."
-                className="w-full"
-              />
-            </div>
+            <SearchInput
+              value={q}
+              onChange={setQ}
+              placeholder="Cari judul atau deskripsi materi..."
+              className="w-full"
+            />
 
-            {/* FILTER */}
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <div className="space-y-1.5">
                 <label className="text-xs font-semibold text-muted-foreground">
@@ -197,9 +276,7 @@ export default function StudentCoursesPage() {
                 <FilterSelect
                   value={category}
                   onChange={setCategory}
-                  options={(categories ?? []).map(
-                    (item) => item.name
-                  )}
+                  options={categories}
                   allLabel="Semua kategori"
                 />
               </div>
@@ -218,7 +295,6 @@ export default function StudentCoursesPage() {
               </div>
             </div>
 
-            {/* FILTER AKTIF */}
             <div className="flex flex-wrap items-center justify-between gap-2 border-t pt-3">
               <div className="flex flex-wrap items-center gap-2">
                 <span className="text-xs text-muted-foreground">
@@ -291,7 +367,7 @@ export default function StudentCoursesPage() {
         ) : error ? (
           <ErrorState
             message={error}
-            onRetry={reload}
+            onRetry={loadCourses}
           />
         ) : filtered.length === 0 ? (
           <div className="rounded-2xl border border-dashed bg-muted/10 px-4 py-10">
@@ -322,7 +398,6 @@ export default function StudentCoursesPage() {
                 <CourseCard
                   key={course.id}
                   course={course}
-                  showProgress
                   onClick={() =>
                     navigate(`/dashboard/courses/${course.id}`)
                   }
@@ -331,8 +406,7 @@ export default function StudentCoursesPage() {
             </div>
 
             <p className="border-t pt-4 text-center text-[11px] text-muted-foreground">
-              Menampilkan {filtered.length} dari{" "}
-              {publishedCourses.length} materi yang tersedia.
+              Menampilkan {filtered.length} dari {courses.length} materi yang tersedia.
             </p>
           </>
         )}
