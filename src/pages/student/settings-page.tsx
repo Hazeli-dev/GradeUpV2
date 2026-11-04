@@ -1,67 +1,148 @@
+
 import { useEffect, useState, type FormEvent } from "react";
-import { Bell, Palette, ShieldCheck, SlidersHorizontal, User } from "lucide-react";
+import {
+  Bell,
+  Palette,
+  ShieldCheck,
+  SlidersHorizontal,
+  User,
+  GraduationCap,
+  School,
+} from "lucide-react";
 import { toast } from "sonner";
+
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+
 import { PageHeader } from "@/components/shared/page-header";
 import { ThemePicker } from "@/components/shared/theme-picker";
 import { SettingRow } from "@/components/shared/setting-row";
 import { PasswordInput } from "@/components/auth/password-input";
 import { FieldError } from "@/components/auth/auth-bits";
+
 import { isValidEmail } from "@/utils/format";
 import { supabase } from "@/lib/supabase";
+
+const GRADES_BY_LEVEL: Record<string, number[]> = {
+  SD: [1, 2, 3, 4, 5, 6],
+  SMP: [7, 8, 9],
+  SMA: [10, 11, 12],
+  SMK: [10, 11, 12],
+};
+
+const EDUCATION_LEVELS = [
+  { value: "SD", label: "SD / MI" },
+  { value: "SMP", label: "SMP / MTs" },
+  { value: "SMA", label: "SMA / MA" },
+  { value: "SMK", label: "SMK" },
+  { value: "Kedinasan", label: "Kedinasan" },
+  { value: "Umum", label: "Umum" },
+];
+
+const NO_SELECTION = "belum-dipilih";
 
 export default function StudentSettingsPage() {
   const [loading, setLoading] = useState(true);
   const [savingProfile, setSavingProfile] = useState(false);
   const [savingPassword, setSavingPassword] = useState(false);
 
-  // State Profile dari Supabase
+  // Profil siswa
   const [profile, setProfile] = useState({
     name: "",
     email: "",
     school: "",
-    level: "SMA",
+    educationLevel: "",
+    grade: "",
     targetExams: 10,
   });
+
   const [profileErr, setProfileErr] = useState<Record<string, string>>({});
 
-  // State Password
-  const [pw, setPw] = useState({ current: "", next: "", confirm: "" });
+  // Kata sandi
+  const [pw, setPw] = useState({
+    current: "",
+    next: "",
+    confirm: "",
+  });
+
   const [pwErr, setPwErr] = useState<Record<string, string>>({});
 
-  // State Preferensi & Notifikasi
-  const [prefs, setPrefs] = useState({ language: "id", dailyGoal: "30", autoplay: true, showTimer: true });
-  const [notif, setNotif] = useState({ email: true, reminder: true, results: true, promo: false });
+  // Preferensi
+  const [prefs, setPrefs] = useState({
+    language: "id",
+    dailyGoal: "30",
+    autoplay: true,
+    showTimer: true,
+  });
 
-  // Load Data User Aktif dari Supabase
+  // Notifikasi
+  const [notif, setNotif] = useState({
+    email: true,
+    reminder: true,
+    results: true,
+    promo: false,
+  });
+
+  const availableGrades = GRADES_BY_LEVEL[profile.educationLevel] || [];
+
+  const requiresGrade = Boolean(GRADES_BY_LEVEL[profile.educationLevel]);
+
+  // Memuat profil dari Supabase
   useEffect(() => {
     async function loadUserData() {
       try {
         setLoading(true);
-        const { data: { user } } = await supabase.auth.getUser();
+
+        const {
+          data: { user },
+          error: authError,
+        } = await supabase.auth.getUser();
+
+        if (authError) throw authError;
 
         if (user) {
-          const { data: profData } = await supabase
+          const { data: profData, error } = await supabase
             .from("profiles")
             .select("*")
             .eq("id", user.id)
-            .single();
+            .maybeSingle();
+
+          if (error) throw error;
 
           setProfile({
-            name: profData?.full_name || user.user_metadata?.full_name || "",
+            name:
+              profData?.full_name ||
+              user.user_metadata?.full_name ||
+              "",
             email: user.email || "",
             school: profData?.school || "",
-            level: profData?.level || "SMA",
-            targetExams: profData?.target_exams || 10,
+            educationLevel: profData?.education_level || "",
+            grade:
+              profData?.grade != null
+                ? String(profData.grade)
+                : "",
+            targetExams: profData?.target_exams ?? 10,
           });
         }
       } catch (err) {
         console.error("Gagal memuat profil user:", err);
+        toast.error("Gagal memuat data profil.");
       } finally {
         setLoading(false);
       }
@@ -70,62 +151,155 @@ export default function StudentSettingsPage() {
     loadUserData();
   }, []);
 
-  // Simpan Profil ke Supabase Database
-  const saveProfile = async (e: FormEvent) => {
-    e.preventDefault();
+  // Mengubah jenjang dan menyesuaikan pilihan kelas
+  const handleEducationLevelChange = (value: string) => {
+    const nextLevel = value === NO_SELECTION ? "" : value;
+    const grades = GRADES_BY_LEVEL[nextLevel] || [];
+
+    setProfile((prev) => ({
+      ...prev,
+      educationLevel: nextLevel,
+      grade: grades.length ? "" : "",
+    }));
+
+    setProfileErr((prev) => ({
+      ...prev,
+      educationLevel: "",
+      grade: "",
+    }));
+  };
+
+  // Menyimpan profil ke Supabase
+  const saveProfile = async (e?: FormEvent) => {
+    e?.preventDefault();
+
     const err: Record<string, string> = {};
-    if (profile.name.trim().length < 3) err.name = "Nama minimal 3 karakter.";
-    if (!isValidEmail(profile.email)) err.email = "Email tidak valid.";
-    if (profile.targetExams < 1) err.targetExams = "Target minimal 1 ujian.";
+
+    if (profile.name.trim().length < 3) {
+      err.name = "Nama minimal 3 karakter.";
+    }
+
+    if (!isValidEmail(profile.email)) {
+      err.email = "Email tidak valid.";
+    }
+
+    if (!profile.educationLevel) {
+      err.educationLevel = "Silakan pilih jenjang pendidikan.";
+    }
+
+    if (requiresGrade && !profile.grade) {
+      err.grade = "Silakan pilih kelas.";
+    }
+
+    if (
+      profile.grade &&
+      requiresGrade &&
+      !availableGrades.includes(Number(profile.grade))
+    ) {
+      err.grade = "Kelas tidak sesuai dengan jenjang pendidikan.";
+    }
+
+    if (
+      !Number.isInteger(profile.targetExams) ||
+      profile.targetExams < 1 ||
+      profile.targetExams > 100
+    ) {
+      err.targetExams = "Target ujian harus antara 1–100.";
+    }
 
     setProfileErr(err);
-    if (Object.keys(err).length) return;
+
+    if (Object.keys(err).length > 0) return;
 
     try {
       setSavingProfile(true);
-      const { data: { user } } = await supabase.auth.getUser();
 
-      if (user) {
-        const { error } = await supabase.from("profiles").upsert({
-          id: user.id,
-          full_name: profile.name,
-          school: profile.school,
-          level: profile.level,
-          target_exams: profile.targetExams,
-          updated_at: new Date().toISOString(),
-        });
+      const {
+        data: { user },
+        error: authError,
+      } = await supabase.auth.getUser();
 
-        if (error) throw error;
-        toast.success("Profil berhasil diperbarui di database!");
-      }
+      if (authError) throw authError;
+      if (!user) throw new Error("Sesi login tidak ditemukan.");
+
+      const { error } = await supabase
+        .from("profiles")
+        .upsert(
+          {
+            id: user.id,
+            full_name: profile.name.trim(),
+            school: profile.school.trim() || null,
+
+            // Jenjang pendidikan disimpan terpisah dari level XP.
+            education_level: profile.educationLevel,
+
+            // Kelas disimpan sebagai angka 1–12.
+            grade: requiresGrade ? Number(profile.grade) : null,
+
+            target_exams: profile.targetExams,
+            updated_at: new Date().toISOString(),
+          },
+          { onConflict: "id" }
+        );
+
+      if (error) throw error;
+
+      toast.success("Profil berhasil diperbarui!");
+
+      setProfileErr({});
     } catch (error: any) {
-      toast.error("Gagal menyimpan profil: " + (error.message || "Terjadi kesalahan"));
+      console.error("Gagal menyimpan profil:", error);
+
+      toast.error(
+        "Gagal menyimpan profil: " +
+          (error.message || "Terjadi kesalahan.")
+      );
     } finally {
       setSavingProfile(false);
     }
   };
 
-  // Perbarui Kata Sandi via Supabase Auth API
+  // Mengubah kata sandi melalui Supabase Auth
   const savePassword = async (e: FormEvent) => {
     e.preventDefault();
+
     const err: Record<string, string> = {};
-    if (pw.next.length < 8) err.next = "Kata sandi baru minimal 8 karakter.";
-    if (pw.confirm !== pw.next) err.confirm = "Konfirmasi kata sandi tidak cocok.";
+
+    if (pw.next.length < 8) {
+      err.next = "Kata sandi baru minimal 8 karakter.";
+    }
+
+    if (pw.confirm !== pw.next) {
+      err.confirm = "Konfirmasi kata sandi tidak cocok.";
+    }
+
     setPwErr(err);
-    if (Object.keys(err).length) return;
+
+    if (Object.keys(err).length > 0) return;
 
     try {
       setSavingPassword(true);
+
       const { error } = await supabase.auth.updateUser({
         password: pw.next,
       });
 
       if (error) throw error;
 
-      setPw({ current: "", next: "", confirm: "" });
+      setPw({
+        current: "",
+        next: "",
+        confirm: "",
+      });
+
+      setPwErr({});
+
       toast.success("Kata sandi berhasil diperbarui!");
     } catch (error: any) {
-      toast.error("Gagal memperbarui kata sandi: " + (error.message || "Terjadi kesalahan"));
+      toast.error(
+        "Gagal memperbarui kata sandi: " +
+          (error.message || "Terjadi kesalahan.")
+      );
     } finally {
       setSavingPassword(false);
     }
@@ -133,54 +307,238 @@ export default function StudentSettingsPage() {
 
   return (
     <div className="space-y-6">
-      <PageHeader title="Pengaturan" description="Kelola profil, target belajar, akun, dan tampilan." />
+      <PageHeader
+        title="Pengaturan"
+        description="Kelola profil, target belajar, akun, dan tampilan."
+      />
 
       <Tabs defaultValue="profile">
-        <TabsList>
-          <TabsTrigger value="profile"><User className="h-4 w-4 mr-1.5" /> Profil</TabsTrigger>
-          <TabsTrigger value="account"><ShieldCheck className="h-4 w-4 mr-1.5" /> Akun</TabsTrigger>
-          <TabsTrigger value="preferences"><SlidersHorizontal className="h-4 w-4 mr-1.5" /> Preferensi</TabsTrigger>
-          <TabsTrigger value="notifications"><Bell className="h-4 w-4 mr-1.5" /> Notifikasi</TabsTrigger>
-          <TabsTrigger value="appearance"><Palette className="h-4 w-4 mr-1.5" /> Tampilan</TabsTrigger>
+        <TabsList className="h-auto flex-wrap justify-start gap-1">
+          <TabsTrigger value="profile">
+            <User className="mr-1.5 h-4 w-4" />
+            Profil
+          </TabsTrigger>
+
+          <TabsTrigger value="account">
+            <ShieldCheck className="mr-1.5 h-4 w-4" />
+            Akun
+          </TabsTrigger>
+
+          <TabsTrigger value="preferences">
+            <SlidersHorizontal className="mr-1.5 h-4 w-4" />
+            Preferensi
+          </TabsTrigger>
+
+          <TabsTrigger value="notifications">
+            <Bell className="mr-1.5 h-4 w-4" />
+            Notifikasi
+          </TabsTrigger>
+
+          <TabsTrigger value="appearance">
+            <Palette className="mr-1.5 h-4 w-4" />
+            Tampilan
+          </TabsTrigger>
         </TabsList>
 
-        {/* TAB PROFIL */}
+        {/* PROFIL */}
         <TabsContent value="profile">
           <Card>
             <CardHeader>
-              <CardTitle>Informasi Profil</CardTitle>
-              <CardDescription>Data ini digunakan untuk laporan pencapaian dan sertifikat Anda.</CardDescription>
+              <div className="flex items-center gap-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 text-primary">
+                  <GraduationCap className="h-5 w-5" />
+                </div>
+
+                <div>
+                  <CardTitle>Informasi Profil</CardTitle>
+                  <CardDescription>
+                    Lengkapi data pendidikan agar GradeUp dapat
+                    menampilkan ujian sesuai jenjang dan kelas Anda.
+                  </CardDescription>
+                </div>
+              </div>
             </CardHeader>
+
             <CardContent>
-              <form onSubmit={saveProfile} noValidate className="grid max-w-2xl gap-4 sm:grid-cols-2">
-                <div className="space-y-2">
-                  <Label htmlFor="p-name">Nama lengkap</Label>
-                  <Input id="p-name" value={profile.name} onChange={(e) => setProfile({ ...profile, name: e.target.value })} disabled={loading} />
-                  <FieldError message={profileErr.name} />
+              <form
+                onSubmit={saveProfile}
+                noValidate
+                className="max-w-2xl space-y-6"
+              >
+                <div className="grid gap-5 sm:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label htmlFor="p-name">Nama lengkap</Label>
+
+                    <Input
+                      id="p-name"
+                      value={profile.name}
+                      onChange={(e) =>
+                        setProfile({
+                          ...profile,
+                          name: e.target.value,
+                        })
+                      }
+                      disabled={loading}
+                      placeholder="Masukkan nama lengkap"
+                    />
+
+                    <FieldError message={profileErr.name} />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="p-email">Email</Label>
+
+                    <Input
+                      id="p-email"
+                      type="email"
+                      value={profile.email}
+                      disabled
+                      className="bg-muted opacity-70"
+                    />
+
+                    <p className="text-xs text-muted-foreground">
+                      Email terikat pada akun dan tidak dapat diubah
+                      langsung.
+                    </p>
+                  </div>
+
+                  <div className="space-y-2 sm:col-span-2">
+                    <Label htmlFor="p-school">
+                      <span className="inline-flex items-center gap-2">
+                        <School className="h-4 w-4" />
+                        Nama Sekolah / Instansi
+                      </span>
+                    </Label>
+
+                    <Input
+                      id="p-school"
+                      value={profile.school}
+                      onChange={(e) =>
+                        setProfile({
+                          ...profile,
+                          school: e.target.value,
+                        })
+                      }
+                      disabled={loading}
+                      placeholder="Contoh: SMP Negeri 1 Jakarta"
+                    />
+
+                    <p className="text-xs text-muted-foreground">
+                      Masukkan nama sekolah atau instansi Anda.
+                    </p>
+                  </div>
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="p-email">Email</Label>
-                  <Input id="p-email" type="email" value={profile.email} disabled className="bg-muted opacity-70" />
-                  <p className="text-[11px] text-muted-foreground">Email terikat pada akun Anda dan tidak dapat diubah langsung.</p>
+
+                <div className="space-y-4 rounded-xl border bg-muted/20 p-4">
+                  <div>
+                    <h3 className="font-semibold">
+                      Informasi Pendidikan
+                    </h3>
+
+                    <p className="mt-1 text-sm text-muted-foreground">
+                      Data ini digunakan untuk menyesuaikan rekomendasi
+                      dan filter paket ujian.
+                    </p>
+                  </div>
+
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <div className="space-y-2">
+                      <Label>Jenjang Pendidikan</Label>
+
+                      <Select
+                        value={
+                          profile.educationLevel || NO_SELECTION
+                        }
+                        onValueChange={handleEducationLevelChange}
+                        disabled={loading}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Pilih jenjang" />
+                        </SelectTrigger>
+
+                        <SelectContent>
+                          <SelectItem value={NO_SELECTION}>
+                            Pilih jenjang pendidikan
+                          </SelectItem>
+
+                          {EDUCATION_LEVELS.map((item) => (
+                            <SelectItem
+                              key={item.value}
+                              value={item.value}
+                            >
+                              {item.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+
+                      <FieldError
+                        message={profileErr.educationLevel}
+                      />
+                    </div>
+
+                    {requiresGrade && (
+                      <div className="space-y-2">
+                        <Label>Kelas</Label>
+
+                        <Select
+                          value={profile.grade || NO_SELECTION}
+                          onValueChange={(value) =>
+                            setProfile({
+                              ...profile,
+                              grade:
+                                value === NO_SELECTION ? "" : value,
+                            })
+                          }
+                          disabled={loading}
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder="Pilih kelas" />
+                          </SelectTrigger>
+
+                          <SelectContent>
+                            <SelectItem value={NO_SELECTION}>
+                              Pilih kelas
+                            </SelectItem>
+
+                            {availableGrades.map((grade) => (
+                              <SelectItem
+                                key={grade}
+                                value={String(grade)}
+                              >
+                                Kelas {grade}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+
+                        <FieldError message={profileErr.grade} />
+                      </div>
+                    )}
+                  </div>
+
+                  {!requiresGrade &&
+                    profile.educationLevel && (
+                      <p className="text-xs text-muted-foreground">
+                        Jenjang ini tidak memerlukan pilihan kelas
+                        sekolah formal.
+                      </p>
+                    )}
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="p-school">Sekolah / Instansi</Label>
-                  <Input id="p-school" value={profile.school} onChange={(e) => setProfile({ ...profile, school: e.target.value })} disabled={loading} />
-                </div>
-                <div className="space-y-2">
-                  <Label>Jenjang Pendidikan</Label>
-                  <Select value={profile.level} onValueChange={(v) => setProfile({ ...profile, level: v })} disabled={loading}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      {["SD", "SMP", "SMA", "Kedinasan", "Umum"].map((l) => (
-                        <SelectItem key={l} value={l}>{l}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="sm:col-span-2 pt-2">
-                  <Button type="submit" disabled={savingProfile || loading}>
-                    {savingProfile ? "Menyimpan..." : "Simpan Perubahan"}
+
+                <div className="flex flex-wrap items-center justify-between gap-3 border-t pt-4">
+                  <p className="max-w-md text-xs text-muted-foreground">
+                    Pastikan jenjang dan kelas sudah benar agar
+                    rekomendasi ujian lebih sesuai.
+                  </p>
+
+                  <Button
+                    type="submit"
+                    disabled={savingProfile || loading}
+                  >
+                    {savingProfile
+                      ? "Menyimpan..."
+                      : "Simpan Perubahan"}
                   </Button>
                 </div>
               </form>
@@ -188,101 +546,238 @@ export default function StudentSettingsPage() {
           </Card>
         </TabsContent>
 
-        {/* TAB AKUN & KATA SANDI */}
+        {/* AKUN */}
         <TabsContent value="account">
           <Card>
             <CardHeader>
               <CardTitle>Ubah Kata Sandi</CardTitle>
-              <CardDescription>Perbarui kata sandi akun Anda untuk menjaga keamanan data.</CardDescription>
+              <CardDescription>
+                Perbarui kata sandi akun Anda untuk menjaga keamanan
+                data.
+              </CardDescription>
             </CardHeader>
+
             <CardContent>
-              <form onSubmit={savePassword} noValidate className="max-w-md space-y-4">
+              <form
+                onSubmit={savePassword}
+                noValidate
+                className="max-w-md space-y-4"
+              >
                 <div className="space-y-2">
                   <Label htmlFor="pw-next">Kata sandi baru</Label>
-                  <PasswordInput id="pw-next" value={pw.next} onChange={(e) => setPw({ ...pw, next: e.target.value })} />
+
+                  <PasswordInput
+                    id="pw-next"
+                    value={pw.next}
+                    onChange={(e) =>
+                      setPw({ ...pw, next: e.target.value })
+                    }
+                  />
+
                   <FieldError message={pwErr.next} />
                 </div>
+
                 <div className="space-y-2">
-                  <Label htmlFor="pw-confirm">Konfirmasi kata sandi baru</Label>
-                  <PasswordInput id="pw-confirm" value={pw.confirm} onChange={(e) => setPw({ ...pw, confirm: e.target.value })} />
+                  <Label htmlFor="pw-confirm">
+                    Konfirmasi kata sandi baru
+                  </Label>
+
+                  <PasswordInput
+                    id="pw-confirm"
+                    value={pw.confirm}
+                    onChange={(e) =>
+                      setPw({ ...pw, confirm: e.target.value })
+                    }
+                  />
+
                   <FieldError message={pwErr.confirm} />
                 </div>
+
                 <Button type="submit" disabled={savingPassword}>
-                  {savingPassword ? "Memperbarui..." : "Perbarui Kata Sandi"}
+                  {savingPassword
+                    ? "Memperbarui..."
+                    : "Perbarui Kata Sandi"}
                 </Button>
               </form>
             </CardContent>
           </Card>
         </TabsContent>
 
-        {/* TAB PREFERENSI & TARGET UJIAN */}
+        {/* PREFERENSI */}
         <TabsContent value="preferences">
           <Card>
             <CardHeader>
               <CardTitle>Preferensi Belajar & Target</CardTitle>
-              <CardDescription>Atur target belajar pribadi Anda yang akan ditampilkan pada statistik dashboard.</CardDescription>
+
+              <CardDescription>
+                Atur target belajar pribadi Anda.
+              </CardDescription>
             </CardHeader>
+
             <CardContent className="max-w-2xl divide-y">
               <div className="grid gap-4 pb-5 sm:grid-cols-2">
                 <div className="space-y-2">
-                  <Label htmlFor="p-target">Target Paket Ujian (Bulan Ini)</Label>
+                  <Label htmlFor="p-target">
+                    Target Paket Ujian (Bulan Ini)
+                  </Label>
+
                   <Input
                     id="p-target"
                     type="number"
                     min={1}
                     max={100}
                     value={profile.targetExams}
-                    onChange={(e) => setProfile({ ...profile, targetExams: Number(e.target.value) })}
+                    onChange={(e) =>
+                      setProfile({
+                        ...profile,
+                        targetExams: Number(e.target.value),
+                      })
+                    }
                   />
-                  <p className="text-[11px] text-muted-foreground">Digunakan untuk menghitung % Ketercapaian Target di Dashboard.</p>
+
+                  <FieldError message={profileErr.targetExams} />
+
+                  <p className="text-xs text-muted-foreground">
+                    Digunakan untuk menghitung ketercapaian target
+                    di Dashboard.
+                  </p>
                 </div>
+
                 <div className="space-y-2">
                   <Label>Target Waktu Belajar Harian</Label>
-                  <Select value={prefs.dailyGoal} onValueChange={(v) => setPrefs({ ...prefs, dailyGoal: v })}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
+
+                  <Select
+                    value={prefs.dailyGoal}
+                    onValueChange={(v) =>
+                      setPrefs({ ...prefs, dailyGoal: v })
+                    }
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+
                     <SelectContent>
                       {["15", "30", "60", "90"].map((m) => (
-                        <SelectItem key={m} value={m}>{m} menit / hari</SelectItem>
+                        <SelectItem key={m} value={m}>
+                          {m} menit / hari
+                        </SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
                 </div>
               </div>
-              <SettingRow id="autoplay" title="Putar pelajaran berikutnya otomatis" description="Lanjut ke pembahasan berikutnya secara otomatis." checked={prefs.autoplay} onChange={(v) => setPrefs({ ...prefs, autoplay: v })} />
-              <SettingRow id="timer" title="Tampilkan timer saat ujian" description="Timer selalu terlihat di ruang ujian." checked={prefs.showTimer} onChange={(v) => setPrefs({ ...prefs, showTimer: v })} />
+
+              <SettingRow
+                id="autoplay"
+                title="Putar pelajaran berikutnya otomatis"
+                description="Lanjut ke pembahasan berikutnya secara otomatis."
+                checked={prefs.autoplay}
+                onChange={(v) =>
+                  setPrefs({ ...prefs, autoplay: v })
+                }
+              />
+
+              <SettingRow
+                id="timer"
+                title="Tampilkan timer saat ujian"
+                description="Timer selalu terlihat di ruang ujian."
+                checked={prefs.showTimer}
+                onChange={(v) =>
+                  setPrefs({ ...prefs, showTimer: v })
+                }
+              />
+
               <div className="pt-5">
-                <Button onClick={saveProfile} disabled={savingProfile}>
-                  {savingProfile ? "Menyimpan Target..." : "Simpan Preferensi & Target"}
+                <Button
+                  onClick={() => saveProfile()}
+                  disabled={savingProfile || loading}
+                >
+                  {savingProfile
+                    ? "Menyimpan Target..."
+                    : "Simpan Preferensi & Target"}
                 </Button>
               </div>
             </CardContent>
           </Card>
         </TabsContent>
 
-        {/* TAB NOTIFIKASI */}
+        {/* NOTIFIKASI */}
         <TabsContent value="notifications">
           <Card>
             <CardHeader>
               <CardTitle>Notifikasi</CardTitle>
-              <CardDescription>Atur pemberitahuan yang ingin Anda terima.</CardDescription>
+
+              <CardDescription>
+                Atur pemberitahuan yang ingin Anda terima.
+              </CardDescription>
             </CardHeader>
+
             <CardContent className="max-w-2xl divide-y">
-              <SettingRow id="n-email" title="Notifikasi email" description="Terima ringkasan aktivitas melalui email." checked={notif.email} onChange={(v) => setNotif({ ...notif, email: v })} />
-              <SettingRow id="n-reminder" title="Pengingat belajar" description="Ingatkan saya agar menjaga streak harian." checked={notif.reminder} onChange={(v) => setNotif({ ...notif, reminder: v })} />
-              <SettingRow id="n-results" title="Hasil ujian" description="Beritahu saya saat hasil ujian tersedia." checked={notif.results} onChange={(v) => setNotif({ ...notif, results: v })} />
-              <SettingRow id="n-promo" title="Info promo" description="Kabar tentang fitur baru dan penawaran." checked={notif.promo} onChange={(v) => setNotif({ ...notif, promo: v })} />
-              <div className="pt-5"><Button onClick={() => toast.success("Preferensi notifikasi diperbarui")}>Simpan Notifikasi</Button></div>
+              <SettingRow
+                id="n-email"
+                title="Notifikasi email"
+                description="Terima ringkasan aktivitas melalui email."
+                checked={notif.email}
+                onChange={(v) =>
+                  setNotif({ ...notif, email: v })
+                }
+              />
+
+              <SettingRow
+                id="n-reminder"
+                title="Pengingat belajar"
+                description="Ingatkan saya agar menjaga streak harian."
+                checked={notif.reminder}
+                onChange={(v) =>
+                  setNotif({ ...notif, reminder: v })
+                }
+              />
+
+              <SettingRow
+                id="n-results"
+                title="Hasil ujian"
+                description="Beritahu saya saat hasil ujian tersedia."
+                checked={notif.results}
+                onChange={(v) =>
+                  setNotif({ ...notif, results: v })
+                }
+              />
+
+              <SettingRow
+                id="n-promo"
+                title="Info promo"
+                description="Kabar tentang fitur baru dan penawaran."
+                checked={notif.promo}
+                onChange={(v) =>
+                  setNotif({ ...notif, promo: v })
+                }
+              />
+
+              <div className="pt-5">
+                <Button
+                  onClick={() =>
+                    toast.success("Preferensi notifikasi diperbarui")
+                  }
+                >
+                  Simpan Notifikasi
+                </Button>
+              </div>
             </CardContent>
           </Card>
         </TabsContent>
 
-        {/* TAB TAMPILAN */}
+        {/* TAMPILAN */}
         <TabsContent value="appearance">
           <Card>
             <CardHeader>
               <CardTitle>Tampilan</CardTitle>
-              <CardDescription>Pilih mode terang atau gelap. Pilihan disimpan di perangkat ini.</CardDescription>
+
+              <CardDescription>
+                Pilih mode terang atau gelap. Pilihan disimpan di
+                perangkat ini.
+              </CardDescription>
             </CardHeader>
+
             <CardContent className="max-w-2xl">
               <ThemePicker />
             </CardContent>
