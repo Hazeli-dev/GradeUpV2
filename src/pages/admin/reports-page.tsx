@@ -23,7 +23,6 @@ import {
   ClipboardCheck,
   Sparkles,
   Activity,
-  ArrowUpRight,
   CalendarDays,
   ChartNoAxesCombined,
   Info,
@@ -33,6 +32,7 @@ import {
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { PageHeader } from "@/components/shared/page-header";
 import {
   ChartCard,
@@ -177,8 +177,8 @@ export default function AdminReportsPage() {
     ? totalRevenue / revenue.length
     : 0;
 
-  const latestRevenue = revenue.at(-1);
-  const previousRevenue = revenue.at(-2);
+  const latestRevenue = revenue[revenue.length - 1];
+  const previousRevenue = revenue[revenue.length - 2];
 
   const revenueChange =
     latestRevenue && previousRevenue && Number(previousRevenue.pendapatan) > 0
@@ -188,8 +188,8 @@ export default function AdminReportsPage() {
         100
       : null;
 
-  const latestGrowth = growth.at(-1);
-  const previousGrowth = growth.at(-2);
+  const latestGrowth = growth[growth.length - 1];
+  const previousGrowth = growth[growth.length - 2];
 
   const userIncrease =
     latestGrowth && previousGrowth
@@ -197,8 +197,8 @@ export default function AdminReportsPage() {
         Number(previousGrowth.pengguna)
       : null;
 
-  const latestConversion = conversion.at(-1);
-  const previousConversion = conversion.at(-2);
+  const latestConversion = conversion[conversion.length - 1];
+  const previousConversion = conversion[conversion.length - 2];
 
   const conversionChange =
     latestConversion && previousConversion
@@ -310,7 +310,6 @@ export default function AdminReportsPage() {
 
   return (
     <div className="min-h-full space-y-6 p-4 md:space-y-8 md:p-6">
-      {/* Header */}
       <PageHeader
         title="Laporan & Analitik"
         description="Pantau perkembangan bisnis, pengguna, keanggotaan Premium, dan aktivitas pembelajaran GradeUp."
@@ -341,7 +340,6 @@ export default function AdminReportsPage() {
         contoh. Ekspor CSV juga menghasilkan data demo, bukan data produksi.
       </DemoBanner>
 
-      {/* Periode */}
       <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border bg-card px-4 py-3">
         <div className="flex items-center gap-2">
           <CalendarDays className="h-4 w-4 text-primary" />
@@ -353,7 +351,6 @@ export default function AdminReportsPage() {
         <BadgePeriod range={range} />
       </div>
 
-      {/* KPI */}
       <section>
         <div className="mb-4 flex items-center gap-2">
           <ChartNoAxesCombined className="h-5 w-5 text-primary" />
@@ -422,7 +419,6 @@ export default function AdminReportsPage() {
         </div>
       </section>
 
-      {/* Pendapatan */}
       <section>
         <div className="mb-4 flex items-center gap-2">
           <Wallet className="h-5 w-5 text-primary" />
@@ -481,7 +477,6 @@ export default function AdminReportsPage() {
         </div>
       </section>
 
-      {/* Grafik utama */}
       <section>
         <div className="mb-4 flex items-center gap-2">
           <Activity className="h-5 w-5 text-primary" />
@@ -647,7 +642,6 @@ export default function AdminReportsPage() {
         </div>
       </section>
 
-      {/* Detail indikator */}
       <section className="grid gap-6 lg:grid-cols-2">
         <div className="rounded-2xl border bg-card p-5 shadow-sm">
           <div className="flex items-center justify-between gap-3">
@@ -776,7 +770,6 @@ export default function AdminReportsPage() {
         </div>
       </section>
 
-      {/* Insight */}
       <section>
         <div className="mb-4 flex items-center gap-2">
           <Sparkles className="h-5 w-5 text-primary" />
@@ -800,7 +793,6 @@ export default function AdminReportsPage() {
         </div>
       </section>
 
-      {/* Catatan */}
       <div className="flex items-start gap-3 rounded-xl border bg-muted/20 p-4">
         <Info className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
         <div>
