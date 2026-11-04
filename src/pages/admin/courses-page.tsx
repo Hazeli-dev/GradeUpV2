@@ -128,13 +128,6 @@ type Draft = {
 
 type SaveStatus = "saved" | "dirty" | "saving" | "error";
 
-interface LessonData {
-  id: string;
-  module_id: string;
-  title: string;
-  content_json: JSONContent;
-}
-
 interface SectionData {
   id: string;
   lesson_id: string;
@@ -217,6 +210,9 @@ export default function AdminCoursesPage() {
 
   /* =========================================
      STUDIO REFS
+
+     Ref dipakai agar proses async selalu
+     membaca identitas dan revisi terbaru.
   ========================================= */
 
   const saveQueueRef = useRef<Promise<void>>(
@@ -429,11 +425,13 @@ export default function AdminCoursesPage() {
   /* =========================================
      SAVE ACTIVE LESSON + SECTION
 
-     - Judul sesi -> course_lessons.title
-     - Konten bagian -> lesson_sections.content_json
-     - Judul bagian -> lesson_sections.title
-     - Bagian pertama juga disinkronkan ke
+     - Judul sesi disimpan ke course_lessons.
+     - Judul bagian disimpan ke lesson_sections.
+     - Konten bagian disimpan ke lesson_sections.
+     - Konten bagian pertama disinkronkan ke
        course_lessons.content_json.
+     - Bagian selain bagian pertama tidak
+       mengubah konten legacy.
   ========================================= */
 
   const saveLesson = useCallback(
@@ -489,6 +487,10 @@ export default function AdminCoursesPage() {
           let currentLessonId = targetLessonId;
           let currentSectionId = targetSectionId;
 
+          /* -----------------------------
+             SAVE LESSON
+          ----------------------------- */
+
           if (currentLessonId) {
             const { error: updateLessonError } =
               await supabase
@@ -520,18 +522,24 @@ export default function AdminCoursesPage() {
             if (insertLessonError) throw insertLessonError;
 
             currentLessonId = newLesson.id;
-            lessonIdRef.current = newLesson.id;
 
             if (studioSessionRef.current !== sessionId) {
               throw new Error("Sesi editor telah berubah.");
             }
 
+            lessonIdRef.current = newLesson.id;
             setActiveLessonId(newLesson.id);
           }
 
           if (!currentLessonId) {
-            throw new Error("ID sesi pembelajaran tidak ditemukan.");
+            throw new Error(
+              "ID sesi pembelajaran tidak ditemukan."
+            );
           }
+
+          /* -----------------------------
+             SAVE SECTION
+          ----------------------------- */
 
           if (!currentSectionId) {
             const { data: newSection, error: insertSectionError } =
@@ -539,7 +547,8 @@ export default function AdminCoursesPage() {
                 .from("lesson_sections")
                 .insert({
                   lesson_id: currentLessonId,
-                  title: snapshotSectionTitle || "Bagian Materi 1",
+                  title:
+                    snapshotSectionTitle || "Bagian Materi 1",
                   content_json: snapshotContent,
                   sort_order: 0,
                   is_published: false,
@@ -550,12 +559,13 @@ export default function AdminCoursesPage() {
             if (insertSectionError) throw insertSectionError;
 
             currentSectionId = newSection.id;
-            sectionIdRef.current = newSection.id;
-            sectionOrderRef.current = 0;
 
             if (studioSessionRef.current !== sessionId) {
               throw new Error("Sesi editor telah berubah.");
             }
+
+            sectionIdRef.current = newSection.id;
+            sectionOrderRef.current = 0;
 
             setActiveSectionId(newSection.id);
           } else {
@@ -572,7 +582,12 @@ export default function AdminCoursesPage() {
             if (updateSectionError) throw updateSectionError;
           }
 
-          // Sinkronisasi konten lama hanya untuk bagian pertama.
+          /* -----------------------------
+             LEGACY CONTENT SYNC
+
+             Hanya bagian pertama.
+          ----------------------------- */
+
           if (sectionOrderRef.current === 0) {
             const { error: legacyUpdateError } =
               await supabase
@@ -639,7 +654,8 @@ export default function AdminCoursesPage() {
   /* =========================================
      LOAD SECTION
 
-     Mengambil konten sesuai bagian yang dipilih.
+     Memuat bagian berdasarkan ID dan memastikan
+     bagian tersebut masih milik sesi aktif.
   ========================================= */
 
   const loadSection = useCallback(
@@ -653,7 +669,9 @@ export default function AdminCoursesPage() {
         const { data, error: sectionError } =
           await supabase
             .from("lesson_sections")
-            .select("id, lesson_id, title, content_json, sort_order")
+            .select(
+              "id, lesson_id, title, content_json, sort_order"
+            )
             .eq("id", sectionId)
             .eq("lesson_id", lessonId)
             .single();
@@ -661,6 +679,12 @@ export default function AdminCoursesPage() {
         if (sectionError) throw sectionError;
 
         if (requestId !== loadRequestRef.current) return;
+
+        if (lessonIdRef.current !== lessonId) {
+          throw new Error(
+            "Sesi pembelajaran berubah saat memuat bagian."
+          );
+        }
 
         const section = data as SectionData;
 
@@ -670,6 +694,7 @@ export default function AdminCoursesPage() {
         sectionOrderRef.current = section.sort_order;
 
         sectionTitleRef.current = section.title;
+
         contentRef.current =
           (section.content_json as JSONContent | null) ??
           emptyContent;
@@ -705,7 +730,7 @@ export default function AdminCoursesPage() {
   /* =========================================
      LOAD LESSON
 
-     Mengambil sesi dan bagian materi pertama.
+     Memuat sesi dan bagian pertama.
   ========================================= */
 
   const loadLesson = useCallback(
@@ -735,7 +760,9 @@ export default function AdminCoursesPage() {
         const { data: sectionData, error: sectionError } =
           await supabase
             .from("lesson_sections")
-            .select("id, lesson_id, title, content_json, sort_order")
+            .select(
+              "id, lesson_id, title, content_json, sort_order"
+            )
             .eq("lesson_id", lessonId)
             .order("sort_order", { ascending: true })
             .limit(1);
@@ -749,18 +776,22 @@ export default function AdminCoursesPage() {
             (lesson.content_json as JSONContent | null) ??
             emptyContent;
 
-          const { data: createdSection, error: createSectionError } =
-            await supabase
-              .from("lesson_sections")
-              .insert({
-                lesson_id: lessonId,
-                title: "Bagian Materi 1",
-                content_json: initialContent,
-                sort_order: 0,
-                is_published: false,
-              })
-              .select("id, lesson_id, title, content_json, sort_order")
-              .single();
+          const {
+            data: createdSection,
+            error: createSectionError,
+          } = await supabase
+            .from("lesson_sections")
+            .insert({
+              lesson_id: lessonId,
+              title: "Bagian Materi 1",
+              content_json: initialContent,
+              sort_order: 0,
+              is_published: false,
+            })
+            .select(
+              "id, lesson_id, title, content_json, sort_order"
+            )
+            .single();
 
           if (createSectionError) throw createSectionError;
 
@@ -782,6 +813,7 @@ export default function AdminCoursesPage() {
         sectionOrderRef.current = section?.sort_order ?? 0;
 
         titleRef.current = lesson.title;
+
         sectionTitleRef.current =
           section?.title ?? "Bagian Materi 1";
 
@@ -823,128 +855,238 @@ export default function AdminCoursesPage() {
      SAVE BEFORE SWITCHING
   ========================================= */
 
-  const ensureCurrentSaved = async (): Promise<boolean> => {
-    if (
-      !dirty &&
-      savedRevisionRef.current === revisionRef.current
-    ) {
+  const ensureCurrentSaved = useCallback(
+    async (): Promise<boolean> => {
+      if (
+        !dirty &&
+        savedRevisionRef.current === revisionRef.current
+      ) {
+        await saveQueueRef.current.catch(() => undefined);
+
+        return (
+          savedRevisionRef.current === revisionRef.current
+        );
+      }
+
+      const success = await saveLesson(true);
+
       await saveQueueRef.current.catch(() => undefined);
 
       return (
+        success &&
         savedRevisionRef.current === revisionRef.current
       );
-    }
-
-    const success = await saveLesson(true);
-
-    await saveQueueRef.current.catch(() => undefined);
-
-    return (
-      success &&
-      savedRevisionRef.current === revisionRef.current
-    );
-  };
+    },
+    [dirty, saveLesson]
+  );
 
   /* =========================================
      CHANGE SECTION
   ========================================= */
 
-  const handleSectionSelect = async (sectionId: string) => {
-    if (sectionId === activeSectionId) return;
+  const handleSectionSelect = useCallback(
+    async (sectionId: string) => {
+      if (sectionId === sectionIdRef.current) return;
 
-    if (
-      studioClosingRef.current ||
-      studioLoading ||
-      switchingRef.current ||
-      !activeLessonId
-    ) {
-      return;
-    }
-
-    switchingRef.current = true;
-
-    try {
-      const success = await ensureCurrentSaved();
-
-      if (!success) {
-        toast.error(
-          "Bagian materi tidak berpindah karena perubahan belum tersimpan."
-        );
-
+      if (
+        studioClosingRef.current ||
+        studioLoading ||
+        switchingRef.current ||
+        !lessonIdRef.current
+      ) {
         return;
       }
 
-      await loadSection(sectionId, activeLessonId);
-    } finally {
-      switchingRef.current = false;
-    }
-  };
+      switchingRef.current = true;
+
+      const targetLessonId = lessonIdRef.current;
+
+      try {
+        const success = await ensureCurrentSaved();
+
+        if (!success) {
+          toast.error(
+            "Bagian materi tidak berpindah karena perubahan belum tersimpan."
+          );
+
+          return;
+        }
+
+        if (
+          studioClosingRef.current ||
+          lessonIdRef.current !== targetLessonId
+        ) {
+          return;
+        }
+
+        await loadSection(sectionId, targetLessonId);
+      } finally {
+        switchingRef.current = false;
+      }
+    },
+    [
+      studioLoading,
+      ensureCurrentSaved,
+      loadSection,
+    ]
+  );
 
   /* =========================================
      CHANGE LESSON
   ========================================= */
 
-  const handleLessonSelect = async (lessonId: string) => {
-    if (lessonId === activeLessonId) return;
+  const handleLessonSelect = useCallback(
+    async (lessonId: string) => {
+      if (lessonId === lessonIdRef.current) return;
 
-    if (
-      studioClosingRef.current ||
-      studioLoading ||
-      switchingRef.current
-    ) {
-      return;
-    }
-
-    switchingRef.current = true;
-
-    try {
-      const success = await ensureCurrentSaved();
-
-      if (!success) {
-        toast.error(
-          "Sesi tidak berpindah karena perubahan sebelumnya belum tersimpan."
-        );
-
+      if (
+        studioClosingRef.current ||
+        studioLoading ||
+        switchingRef.current
+      ) {
         return;
       }
 
-      const targetModuleId = moduleIdRef.current;
+      switchingRef.current = true;
 
-      if (!targetModuleId) return;
+      try {
+        const success = await ensureCurrentSaved();
 
-      await loadLesson(lessonId, targetModuleId);
-    } finally {
-      switchingRef.current = false;
-    }
-  };
+        if (!success) {
+          toast.error(
+            "Sesi tidak berpindah karena perubahan sebelumnya belum tersimpan."
+          );
+
+          return;
+        }
+
+        const targetModuleId = moduleIdRef.current;
+
+        if (!targetModuleId) return;
+
+        await loadLesson(lessonId, targetModuleId);
+      } finally {
+        switchingRef.current = false;
+      }
+    },
+    [studioLoading, ensureCurrentSaved, loadLesson]
+  );
 
   /* =========================================
      CHANGE MODULE
   ========================================= */
 
-  const handleModuleChange = async (moduleId: string) => {
-    if (moduleId === activeModuleId) return;
+  const handleModuleChange = useCallback(
+    async (moduleId: string) => {
+      if (moduleId === moduleIdRef.current) return;
 
-    if (
-      studioClosingRef.current ||
-      studioLoading ||
-      switchingRef.current
-    ) {
-      return;
-    }
-
-    switchingRef.current = true;
-
-    try {
-      const success = await ensureCurrentSaved();
-
-      if (!success) {
-        toast.error(
-          "Modul tidak berpindah karena materi belum tersimpan."
-        );
-
+      if (
+        studioClosingRef.current ||
+        studioLoading ||
+        switchingRef.current
+      ) {
         return;
       }
+
+      switchingRef.current = true;
+
+      try {
+        const success = await ensureCurrentSaved();
+
+        if (!success) {
+          toast.error(
+            "Modul tidak berpindah karena materi belum tersimpan."
+          );
+
+          return;
+        }
+
+        const requestId = ++loadRequestRef.current;
+
+        setStudioLoading(true);
+        setStudioError(null);
+
+        try {
+          const { data: lessons, error: lessonsError } =
+            await supabase
+              .from("course_lessons")
+              .select(
+                "id, module_id, title, content_json"
+              )
+              .eq("module_id", moduleId)
+              .order("sort_order", { ascending: true });
+
+          if (lessonsError) throw lessonsError;
+
+          if (requestId !== loadRequestRef.current) return;
+
+          if (!lessons || lessons.length === 0) {
+            studioSessionRef.current += 1;
+
+            moduleIdRef.current = moduleId;
+            lessonIdRef.current = null;
+            sectionIdRef.current = null;
+
+            sectionOrderRef.current = 0;
+
+            titleRef.current = "";
+            sectionTitleRef.current = "";
+            contentRef.current = emptyContent;
+
+            revisionRef.current = 0;
+            savedRevisionRef.current = 0;
+
+            setActiveModuleId(moduleId);
+            setActiveLessonId(null);
+            setActiveSectionId(null);
+
+            setLessonTitle("");
+            setSectionTitle("");
+            setLessonContent(emptyContent);
+
+            setDirty(false);
+            setSaveStatus("saved");
+
+            return;
+          }
+
+          await loadLesson(lessons[0].id, moduleId);
+        } catch (err: unknown) {
+          console.error("Change module error:", err);
+
+          const message =
+            err instanceof Error
+              ? err.message
+              : "Gagal membuka modul.";
+
+          setStudioError(message);
+          toast.error(message);
+        } finally {
+          if (requestId === loadRequestRef.current) {
+            setStudioLoading(false);
+          }
+        }
+      } finally {
+        switchingRef.current = false;
+      }
+    },
+    [studioLoading, ensureCurrentSaved, loadLesson]
+  );
+
+  /* =========================================
+     OPEN GRADEUP STUDIO
+  ========================================= */
+
+  const openStudio = useCallback(
+    async (course: CourseItem) => {
+      if (
+        studioOpeningRef.current ||
+        studioClosingRef.current
+      ) {
+        return;
+      }
+
+      studioOpeningRef.current = true;
 
       const requestId = ++loadRequestRef.current;
 
@@ -952,21 +1094,75 @@ export default function AdminCoursesPage() {
       setStudioError(null);
 
       try {
-        const { data: lessons, error: lessonsError } =
-          await supabase
-            .from("course_lessons")
-            .select("id, module_id, title, content_json")
-            .eq("module_id", moduleId)
-            .order("sort_order", { ascending: true });
+        let moduleId: string | null = null;
 
-        if (lessonsError) throw lessonsError;
+        const { data: modules, error: moduleError } =
+          await supabase
+            .from("course_modules")
+            .select("id, title, sort_order")
+            .eq("course_id", course.id)
+            .order("sort_order", { ascending: true })
+            .limit(1);
+
+        if (moduleError) throw moduleError;
+
+        if (modules && modules.length > 0) {
+          moduleId = modules[0].id;
+        } else {
+          const {
+            data: newModule,
+            error: createModuleError,
+          } = await supabase
+            .from("course_modules")
+            .insert({
+              course_id: course.id,
+              title: "Materi Utama",
+              description: "Modul utama pembelajaran.",
+              sort_order: 0,
+              is_published: false,
+            })
+            .select("id")
+            .single();
+
+          if (createModuleError) throw createModuleError;
+
+          moduleId = newModule.id;
+
+          toast.success("Modul Materi Utama berhasil dibuat.");
+        }
 
         if (requestId !== loadRequestRef.current) return;
 
-        if (!lessons || lessons.length === 0) {
+        if (!moduleId) {
+          throw new Error(
+            "Modul pembelajaran tidak ditemukan."
+          );
+        }
+
+        setActiveCourse(course);
+        setActiveModuleId(moduleId);
+
+        moduleIdRef.current = moduleId;
+
+        const { data: lessons, error: lessonError } =
+          await supabase
+            .from("course_lessons")
+            .select(
+              "id, module_id, title, content_json"
+            )
+            .eq("module_id", moduleId)
+            .order("sort_order", { ascending: true })
+            .limit(1);
+
+        if (lessonError) throw lessonError;
+
+        if (requestId !== loadRequestRef.current) return;
+
+        if (lessons && lessons.length > 0) {
+          await loadLesson(lessons[0].id, moduleId);
+        } else {
           studioSessionRef.current += 1;
 
-          moduleIdRef.current = moduleId;
           lessonIdRef.current = null;
           sectionIdRef.current = null;
 
@@ -979,7 +1175,6 @@ export default function AdminCoursesPage() {
           revisionRef.current = 0;
           savedRevisionRef.current = 0;
 
-          setActiveModuleId(moduleId);
           setActiveLessonId(null);
           setActiveSectionId(null);
 
@@ -989,184 +1184,105 @@ export default function AdminCoursesPage() {
 
           setDirty(false);
           setSaveStatus("saved");
-
-          return;
         }
-
-        await loadLesson(lessons[0].id, moduleId);
       } catch (err: unknown) {
-        console.error("Change module error:", err);
+        console.error("Open GradeUp Studio error:", err);
 
         const message =
           err instanceof Error
             ? err.message
-            : "Gagal membuka modul.";
+            : "Gagal membuka editor.";
 
         setStudioError(message);
         toast.error(message);
       } finally {
+        studioOpeningRef.current = false;
+
         if (requestId === loadRequestRef.current) {
           setStudioLoading(false);
         }
       }
-    } finally {
-      switchingRef.current = false;
-    }
-  };
+    },
+    [loadLesson]
+  );
 
   /* =========================================
-     OPEN GRADEUP STUDIO
+     UPDATE DOCUMENT CONTENT
   ========================================= */
 
-  const openStudio = async (course: CourseItem) => {
-    if (
-      studioOpeningRef.current ||
-      studioClosingRef.current
-    ) {
-      return;
-    }
-
-    studioOpeningRef.current = true;
-    setStudioLoading(true);
-    setStudioError(null);
-
-    try {
-      let moduleId: string | null = null;
-
-      const { data: modules, error: moduleError } =
-        await supabase
-          .from("course_modules")
-          .select("id, title, sort_order")
-          .eq("course_id", course.id)
-          .order("sort_order", { ascending: true })
-          .limit(1);
-
-      if (moduleError) throw moduleError;
-
-      if (modules && modules.length > 0) {
-        moduleId = modules[0].id;
-      } else {
-        const { data: newModule, error: createModuleError } =
-          await supabase
-            .from("course_modules")
-            .insert({
-              course_id: course.id,
-              title: "Materi Utama",
-              description: "Modul utama pembelajaran.",
-              sort_order: 0,
-              is_published: false,
-            })
-            .select("id")
-            .single();
-
-        if (createModuleError) throw createModuleError;
-
-        moduleId = newModule.id;
-
-        toast.success("Modul Materi Utama berhasil dibuat.");
+  const handleContentChange = useCallback(
+    (content: JSONContent) => {
+      if (
+        studioClosingRef.current ||
+        studioLoading
+      ) {
+        return;
       }
 
-      if (!moduleId) {
-        throw new Error("Modul pembelajaran tidak ditemukan.");
-      }
+      contentRef.current = content;
 
-      setActiveCourse(course);
-      setActiveModuleId(moduleId);
+      revisionRef.current += 1;
 
-      moduleIdRef.current = moduleId;
+      setLessonContent(content);
+      setDirty(true);
+      setSaveStatus("dirty");
+    },
+    [studioLoading]
+  );
 
-      const { data: lessons, error: lessonError } =
-        await supabase
-          .from("course_lessons")
-          .select("id, module_id, title, content_json")
-          .eq("module_id", moduleId)
-          .order("sort_order", { ascending: true })
-          .limit(1);
+  const handleTitleChange = useCallback(
+    (value: string) => {
+      if (studioClosingRef.current) return;
 
-      if (lessonError) throw lessonError;
+      titleRef.current = value;
 
-      if (lessons && lessons.length > 0) {
-        await loadLesson(lessons[0].id, moduleId);
-      } else {
-        studioSessionRef.current += 1;
+      revisionRef.current += 1;
 
-        lessonIdRef.current = null;
-        sectionIdRef.current = null;
+      setLessonTitle(value);
+      setDirty(true);
+      setSaveStatus("dirty");
+    },
+    []
+  );
 
-        sectionOrderRef.current = 0;
+  const handleSectionTitleChange = useCallback(
+    (value: string) => {
+      if (studioClosingRef.current) return;
 
-        titleRef.current = "";
-        sectionTitleRef.current = "";
-        contentRef.current = emptyContent;
+      sectionTitleRef.current = value;
 
-        revisionRef.current = 0;
-        savedRevisionRef.current = 0;
+      revisionRef.current += 1;
 
-        setActiveLessonId(null);
-        setActiveSectionId(null);
-
-        setLessonTitle("");
-        setSectionTitle("");
-        setLessonContent(emptyContent);
-
-        setDirty(false);
-        setSaveStatus("saved");
-      }
-    } catch (err: unknown) {
-      console.error("Open GradeUp Studio error:", err);
-
-      const message =
-        err instanceof Error
-          ? err.message
-          : "Gagal membuka editor.";
-
-      setStudioError(message);
-      toast.error(message);
-    } finally {
-      studioOpeningRef.current = false;
-      setStudioLoading(false);
-    }
-  };
+      setSectionTitle(value);
+      setDirty(true);
+      setSaveStatus("dirty");
+    },
+    []
+  );
 
   /* =========================================
-     UPDATE DOCUMENT
+     SECTION TITLE SYNC FROM STRUCTURE PANEL
+
+     Dipanggil ketika judul bagian diubah
+     langsung dari panel struktur.
   ========================================= */
 
-  const handleContentChange = (content: JSONContent) => {
-    if (studioClosingRef.current) return;
+  const handlePanelSectionTitleChange = useCallback(
+    (sectionId: string, title: string) => {
+      if (sectionId !== sectionIdRef.current) return;
 
-    contentRef.current = content;
+      if (studioClosingRef.current) return;
 
-    revisionRef.current += 1;
+      sectionTitleRef.current = title;
 
-    setLessonContent(content);
-    setDirty(true);
-    setSaveStatus("dirty");
-  };
+      revisionRef.current += 1;
 
-  const handleTitleChange = (value: string) => {
-    if (studioClosingRef.current) return;
-
-    titleRef.current = value;
-
-    revisionRef.current += 1;
-
-    setLessonTitle(value);
-    setDirty(true);
-    setSaveStatus("dirty");
-  };
-
-  const handleSectionTitleChange = (value: string) => {
-    if (studioClosingRef.current) return;
-
-    sectionTitleRef.current = value;
-
-    revisionRef.current += 1;
-
-    setSectionTitle(value);
-    setDirty(true);
-    setSaveStatus("dirty");
-  };
+      setSectionTitle(title);
+      setDirty(true);
+      setSaveStatus("dirty");
+    },
+    []
+  );
 
   /* =========================================
      AUTOSAVE
@@ -1207,7 +1323,22 @@ export default function AdminCoursesPage() {
   ]);
 
   /* =========================================
+     MANUAL SAVE
+  ========================================= */
+
+  const handleManualSave = useCallback(async () => {
+    const success = await saveLesson(true);
+
+    if (success) {
+      toast.success("Materi berhasil disimpan.");
+    }
+  }, [saveLesson]);
+
+  /* =========================================
      BACK TO COURSE LIST
+
+     Editor tidak ditutup jika masih ada
+     perubahan yang belum berhasil disimpan.
   ========================================= */
 
   const closeStudio = async () => {
@@ -1247,7 +1378,9 @@ export default function AdminCoursesPage() {
         }
       }
 
-      if (savedRevisionRef.current !== revisionRef.current) {
+      if (
+        savedRevisionRef.current !== revisionRef.current
+      ) {
         toast.error(
           "Masih ada perubahan yang belum tersimpan."
         );
@@ -1385,7 +1518,7 @@ export default function AdminCoursesPage() {
             </div>
 
             <Button
-              onClick={() => void saveLesson(true)}
+              onClick={() => void handleManualSave()}
               disabled={
                 saveStatus === "saving" ||
                 studioClosing ||
@@ -1439,6 +1572,7 @@ export default function AdminCoursesPage() {
               onSectionSelect={(sectionId) => {
                 void handleSectionSelect(sectionId);
               }}
+              onSectionTitleChange={handlePanelSectionTitleChange}
             />
           </div>
 
@@ -1548,7 +1682,7 @@ export default function AdminCoursesPage() {
                   </div>
 
                   <Button
-                    onClick={() => void saveLesson(true)}
+                    onClick={() => void handleManualSave()}
                     disabled={
                       saveStatus === "saving" ||
                       studioClosing ||
@@ -1814,7 +1948,9 @@ export default function AdminCoursesPage() {
 
               <div className="space-y-4 py-2">
                 <div className="space-y-2">
-                  <Label htmlFor="c-title">Judul Kursus</Label>
+                  <Label htmlFor="c-title">
+                    Judul Kursus
+                  </Label>
 
                   <Input
                     id="c-title"
@@ -1831,7 +1967,9 @@ export default function AdminCoursesPage() {
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="c-desc">Deskripsi</Label>
+                  <Label htmlFor="c-desc">
+                    Deskripsi
+                  </Label>
 
                   <textarea
                     id="c-desc"
@@ -1900,7 +2038,10 @@ export default function AdminCoursesPage() {
 
                       <SelectContent>
                         {LEVELS.map((level) => (
-                          <SelectItem key={level} value={level}>
+                          <SelectItem
+                            key={level}
+                            value={level}
+                          >
                             {level}
                           </SelectItem>
                         ))}
@@ -1910,7 +2051,9 @@ export default function AdminCoursesPage() {
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="c-ins">Nama Pengajar</Label>
+                  <Label htmlFor="c-ins">
+                    Nama Pengajar
+                  </Label>
 
                   <Input
                     id="c-ins"
