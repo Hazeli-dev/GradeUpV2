@@ -594,3 +594,190 @@
     flex-direction: column;
   }
 }
+
+
+/* =========================================
+   GRADEUP STUDIO - TOOLBAR & RULER FIX
+========================================= */
+
+/* Pastikan area toolbar selalu terang */
+.gu-ribbon {
+  background: #ffffff !important;
+  color: #263936;
+}
+
+.gu-ribbon-tools {
+  background: #ffffff !important;
+  color: #263936;
+  min-height: 65px;
+  box-sizing: border-box;
+}
+
+.gu-tool-group {
+  background: transparent;
+}
+
+.gu-tool-button {
+  background-color: transparent;
+  color: #405450;
+}
+
+.gu-tool-button:hover:not(:disabled) {
+  background-color: #eff8f5;
+  color: #0f766e;
+}
+
+/* =========================================
+   PENGGARIS HORIZONTAL
+========================================= */
+
+.gu-ruler-wrapper {
+  width: 100%;
+  padding: 14px 20px;
+  background: #f8fafc;
+  color: #334155;
+  border-right: 1px solid #e2eae8;
+  border-left: 1px solid #e2eae8;
+  border-bottom: 1px solid #e2eae8;
+  box-sizing: border-box;
+  overflow: hidden;
+}
+
+.gu-ruler-heading {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin-bottom: 12px;
+  color: #475569;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.gu-ruler {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  width: 100%;
+  height: 36px;
+  padding: 0 5px;
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  border-radius: 5px;
+  box-sizing: border-box;
+}
+
+.gu-ruler-tick {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  height: 100%;
+  color: #64748b;
+  font-size: 10px;
+}
+
+.gu-ruler-tick i {
+  display: block;
+  width: 1px;
+  height: 9px;
+  margin-top: 3px;
+  background: #94a3b8;
+}
+
+.gu-ruler-tick:nth-child(2n) i {
+  height: 15px;
+}
+
+.gu-ruler-tick:nth-child(4n) i {
+  height: 20px;
+}
+
+/* =========================================
+   KONTROL INDENTASI
+========================================= */
+
+.gu-ruler-controls {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 18px;
+  margin-top: 15px;
+}
+
+.gu-ruler-controls label {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  min-width: 0;
+  color: #475569;
+  font-size: 12px;
+}
+
+.gu-ruler-controls input[type="range"] {
+  width: 100%;
+  accent-color: #0f766e;
+  cursor: pointer;
+}
+
+.gu-ruler-controls strong {
+  color: #0f766e;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+/* =========================================
+   PANEL LAYOUT
+========================================= */
+
+.gu-layout-panel {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  width: 100%;
+  background: #ffffff;
+}
+
+.gu-layout-setting {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  color: #475569;
+  font-size: 11px;
+}
+
+.gu-layout-setting select {
+  min-width: 105px;
+  height: 34px;
+  padding: 0 9px;
+  border: 1px solid #dce8e3;
+  border-radius: 6px;
+  background: #ffffff;
+  color: #334155;
+  font-size: 12px;
+  outline: none;
+}
+
+.gu-layout-setting select:focus {
+  border-color: #0f766e;
+  box-shadow: 0 0 0 2px rgba(15, 118, 110, 0.12);
+}
+
+/* =========================================
+   RESPONSIVE RULER
+========================================= */
+
+@media (max-width: 640px) {
+  .gu-ruler-wrapper {
+    padding: 12px;
+  }
+
+  .gu-ruler-controls {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+
+  .gu-layout-panel {
+    align-items: flex-start;
+  }
+}
