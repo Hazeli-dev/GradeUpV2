@@ -230,7 +230,7 @@ function getXpSourceLabel(source: string) {
     bonus: "Bonus XP",
   };
 
-  return labels[source] || source.replaceAll("_", " ");
+  return labels[source] || source.replace(/_/g, " ");
 }
 
 function RarityTag({
