@@ -4,7 +4,7 @@ import {
   AlignCenter,
   AlignLeft,
   AlignRight,
-  AlignJustify
+  AlignJustify,
   Bold,
   Eye,
   FileText,
@@ -24,8 +24,6 @@ import {
   Underline as UnderlineIcon,
   Undo2,
   X,
-  Minus,
-  Plus,
   Ruler,
 } from "lucide-react";
 
@@ -65,7 +63,7 @@ interface ToolButtonProps {
 
 /**
  * Atribut tata letak paragraf.
- * Nilainya ikut tersimpan dalam JSON Tiptap.
+ * Semua atribut disimpan dalam JSON Tiptap.
  */
 const ParagraphLayout = Extension.create({
   name: "paragraphLayout",
@@ -147,6 +145,9 @@ const ParagraphLayout = Extension.create({
   },
 });
 
+/**
+ * Tombol toolbar.
+ */
 function ToolButton({
   label,
   active = false,
@@ -172,6 +173,9 @@ function ToolDivider() {
   return <span className="gu-tool-divider" />;
 }
 
+/**
+ * Menyisipkan blok informasi pembelajaran.
+ */
 function insertCallout(
   editor: Editor,
   title: string,
@@ -216,9 +220,15 @@ export default function EditorCanvas({
   const [marginTop, setMarginTop] = useState(0);
   const [marginBottom, setMarginBottom] = useState(8);
 
+  /**
+   * Menentukan jenis blok aktif.
+   */
   const getBlockName = (instance: Editor) =>
     instance.isActive("heading") ? "heading" : "paragraph";
 
+  /**
+   * Membaca atribut tata letak blok aktif.
+   */
   const readLayout = (instance: Editor) => {
     const block = getBlockName(instance);
     const attrs = instance.getAttributes(block);
@@ -231,6 +241,9 @@ export default function EditorCanvas({
     setMarginBottom(Number(attrs.marginBottom ?? 8));
   };
 
+  /**
+   * Inisialisasi editor Tiptap.
+   */
   const editor = useEditor({
     extensions: [
       StarterKit.configure({
@@ -245,6 +258,8 @@ export default function EditorCanvas({
 
       TextAlign.configure({
         types: ["heading", "paragraph"],
+        alignments: ["left", "center", "right", "justify"],
+        defaultAlignment: "left",
       }),
 
       Highlight,
@@ -293,10 +308,9 @@ export default function EditorCanvas({
       },
 
       /**
-       * Tab untuk indentasi paragraf.
+       * Tab untuk menambah indentasi.
        * Shift + Tab untuk mengurangi indentasi.
-       * Pada tabel, penanganan Tab diserahkan
-       * kepada extension tabel Tiptap.
+       * Tab pada tabel tetap ditangani oleh Tiptap.
        */
       handleKeyDown: (view, event) => {
         if (event.key !== "Tab") return false;
@@ -342,16 +356,23 @@ export default function EditorCanvas({
     },
   });
 
+  /**
+   * Mengatur mode edit dan preview.
+   */
   useEffect(() => {
     if (!editor) return;
 
     editor.setEditable(!isPreview);
   }, [editor, isPreview]);
 
+  /**
+   * Memuat jumlah kata dan tata letak awal.
+   */
   useEffect(() => {
     if (!editor) return;
 
     const text = editor.getText().trim();
+
     setWordCount(text ? text.split(/\s+/).length : 0);
 
     readLayout(editor);
@@ -365,13 +386,17 @@ export default function EditorCanvas({
     );
   }
 
-  const isActive = (name: string, attrs?: Record<string, unknown>) =>
-    editor.isActive(name, attrs);
+  const isActive = (
+    name: string,
+    attrs?: Record<string, unknown>
+  ) => editor.isActive(name, attrs);
 
   /**
    * Mengubah atribut tata letak blok aktif.
    */
-  const updateLayout = (attributes: Record<string, unknown>) => {
+  const updateLayout = (
+    attributes: Record<string, unknown>
+  ) => {
     const block = getBlockName(editor);
 
     editor
@@ -411,8 +436,12 @@ export default function EditorCanvas({
     updateLayout({ marginBottom: value });
   };
 
+  /**
+   * Menambahkan tautan.
+   */
   const addLink = () => {
     const previousUrl = editor.getAttributes("link").href ?? "";
+
     const url = window.prompt(
       "Masukkan alamat tautan:",
       previousUrl
@@ -444,6 +473,9 @@ export default function EditorCanvas({
     }
   };
 
+  /**
+   * Menambahkan gambar melalui URL.
+   */
   const addImage = () => {
     const url = window.prompt("Masukkan URL gambar:");
 
@@ -470,6 +502,9 @@ export default function EditorCanvas({
     }
   };
 
+  /**
+   * Menambahkan tabel.
+   */
   const addTable = () => {
     editor
       .chain()
@@ -482,8 +517,12 @@ export default function EditorCanvas({
       .run();
   };
 
+  /**
+   * Toolbar Beranda.
+   */
   const renderHomeToolbar = () => (
     <>
+      {/* Heading */}
       <div className="gu-tool-group">
         <ToolButton
           label="Heading 1"
@@ -518,11 +557,14 @@ export default function EditorCanvas({
 
       <ToolDivider />
 
+      {/* Format teks */}
       <div className="gu-tool-group">
         <ToolButton
           label="Tebal"
           active={isActive("bold")}
-          onClick={() => editor.chain().focus().toggleBold().run()}
+          onClick={() =>
+            editor.chain().focus().toggleBold().run()
+          }
         >
           <Bold size={17} />
         </ToolButton>
@@ -530,7 +572,9 @@ export default function EditorCanvas({
         <ToolButton
           label="Miring"
           active={isActive("italic")}
-          onClick={() => editor.chain().focus().toggleItalic().run()}
+          onClick={() =>
+            editor.chain().focus().toggleItalic().run()
+          }
         >
           <Italic size={17} />
         </ToolButton>
@@ -548,7 +592,9 @@ export default function EditorCanvas({
         <ToolButton
           label="Coret"
           active={isActive("strike")}
-          onClick={() => editor.chain().focus().toggleStrike().run()}
+          onClick={() =>
+            editor.chain().focus().toggleStrike().run()
+          }
         >
           <Strikethrough size={17} />
         </ToolButton>
@@ -566,18 +612,8 @@ export default function EditorCanvas({
 
       <ToolDivider />
 
+      {/* Perataan paragraf */}
       <div className="gu-tool-group">
-        <ToolButton
-          label="Rata kiri"
-          active={editor.isActive({ textAlign: "left" })}
-          onClick={() =>
-            editor.chain().focus().setTextAlign("left").run()
-          }
-        >
-          <AlignLeft size={17} />
-        </ToolButton>
-
-              <div className="gu-tool-group">
         <ToolButton
           label="Rata kiri"
           active={editor.isActive({ textAlign: "left" })}
@@ -621,6 +657,7 @@ export default function EditorCanvas({
 
       <ToolDivider />
 
+      {/* Daftar */}
       <div className="gu-tool-group">
         <ToolButton
           label="Bullet list"
@@ -645,20 +682,32 @@ export default function EditorCanvas({
     </>
   );
 
+  /**
+   * Toolbar Insert.
+   */
   const renderInsertToolbar = () => (
     <>
       <div className="gu-tool-group">
-        <ToolButton label="Sisipkan tabel" onClick={addTable}>
+        <ToolButton
+          label="Sisipkan tabel"
+          onClick={addTable}
+        >
           <Table2 size={18} />
           <span>Tabel</span>
         </ToolButton>
 
-        <ToolButton label="Sisipkan gambar" onClick={addImage}>
+        <ToolButton
+          label="Sisipkan gambar"
+          onClick={addImage}
+        >
           <ImagePlus size={18} />
           <span>Gambar</span>
         </ToolButton>
 
-        <ToolButton label="Sisipkan tautan" onClick={addLink}>
+        <ToolButton
+          label="Sisipkan tautan"
+          onClick={addLink}
+        >
           <Link2 size={18} />
           <span>Tautan</span>
         </ToolButton>
@@ -712,6 +761,9 @@ export default function EditorCanvas({
     </>
   );
 
+  /**
+   * Penggaris horizontal.
+   */
   const renderRuler = () => (
     <div className="gu-ruler-wrapper">
       <div className="gu-ruler-heading">
@@ -731,6 +783,7 @@ export default function EditorCanvas({
       <div className="gu-ruler-controls">
         <label>
           <span>Indentasi kiri</span>
+
           <input
             type="range"
             min="0"
@@ -741,11 +794,13 @@ export default function EditorCanvas({
               changeLeftIndent(Number(event.target.value))
             }
           />
+
           <strong>{leftIndent} px</strong>
         </label>
 
         <label>
           <span>Baris pertama</span>
+
           <input
             type="range"
             min="0"
@@ -756,11 +811,13 @@ export default function EditorCanvas({
               changeFirstLineIndent(Number(event.target.value))
             }
           />
+
           <strong>{firstLineIndent} px</strong>
         </label>
 
         <label>
           <span>Indentasi kanan</span>
+
           <input
             type="range"
             min="0"
@@ -771,12 +828,16 @@ export default function EditorCanvas({
               changeRightIndent(Number(event.target.value))
             }
           />
+
           <strong>{rightIndent} px</strong>
         </label>
       </div>
     </div>
   );
 
+  /**
+   * Toolbar Layout.
+   */
   const renderLayoutToolbar = () => (
     <div className="gu-layout-panel">
       <div className="gu-tool-group">
@@ -813,7 +874,10 @@ export default function EditorCanvas({
       <ToolDivider />
 
       <div className="gu-layout-setting">
-        <label htmlFor="gu-line-height">Spasi baris</label>
+        <label htmlFor="gu-line-height">
+          Spasi baris
+        </label>
+
         <select
           id="gu-line-height"
           value={lineHeight}
@@ -829,7 +893,10 @@ export default function EditorCanvas({
       </div>
 
       <div className="gu-layout-setting">
-        <label htmlFor="gu-margin-top">Sebelum paragraf</label>
+        <label htmlFor="gu-margin-top">
+          Sebelum paragraf
+        </label>
+
         <select
           id="gu-margin-top"
           value={marginTop}
@@ -846,7 +913,10 @@ export default function EditorCanvas({
       </div>
 
       <div className="gu-layout-setting">
-        <label htmlFor="gu-margin-bottom">Sesudah paragraf</label>
+        <label htmlFor="gu-margin-bottom">
+          Sesudah paragraf
+        </label>
+
         <select
           id="gu-margin-bottom"
           value={marginBottom}
@@ -864,12 +934,17 @@ export default function EditorCanvas({
     </div>
   );
 
+  /**
+   * Toolbar Tinjau.
+   */
   const renderReviewToolbar = () => (
     <div className="gu-tool-group">
       <ToolButton
         label="Urungkan"
         disabled={!editor.can().undo()}
-        onClick={() => editor.chain().focus().undo().run()}
+        onClick={() =>
+          editor.chain().focus().undo().run()
+        }
       >
         <Undo2 size={18} />
         <span>Undo</span>
@@ -878,7 +953,9 @@ export default function EditorCanvas({
       <ToolButton
         label="Ulangi"
         disabled={!editor.can().redo()}
-        onClick={() => editor.chain().focus().redo().run()}
+        onClick={() =>
+          editor.chain().focus().redo().run()
+        }
       >
         <Redo2 size={18} />
         <span>Redo</span>
@@ -896,8 +973,12 @@ export default function EditorCanvas({
     </div>
   );
 
+  /**
+   * Tampilan utama GradeUp Studio.
+   */
   return (
     <section className="gu-studio">
+      {/* Header */}
       <div className="gu-studio-header">
         <div>
           <div className="gu-studio-eyebrow">
@@ -914,6 +995,7 @@ export default function EditorCanvas({
         </div>
       </div>
 
+      {/* Preview header */}
       {isPreview ? (
         <div className="gu-preview-header">
           <div>
@@ -931,6 +1013,7 @@ export default function EditorCanvas({
           </button>
         </div>
       ) : (
+        /* Ribbon toolbar */
         <div className="gu-ribbon">
           <div className="gu-ribbon-tabs">
             {(
@@ -963,13 +1046,17 @@ export default function EditorCanvas({
         </div>
       )}
 
+      {/* Penggaris */}
       {!isPreview && showRuler && renderRuler()}
 
+      {/* Area dokumen */}
       <div className="gu-document-workspace">
         <div
           className={`gu-document-page ${
             isCompact ? "gu-document-page--compact" : ""
-          } ${isPreview ? "gu-document-page--preview" : ""}`}
+          } ${
+            isPreview ? "gu-document-page--preview" : ""
+          }`}
         >
           {!isPreview && (
             <div className="gu-document-label">
@@ -982,6 +1069,7 @@ export default function EditorCanvas({
         </div>
       </div>
 
+      {/* Status bar */}
       <div className="gu-editor-statusbar">
         <div className="gu-status-left">
           <span>
@@ -993,7 +1081,9 @@ export default function EditorCanvas({
         </div>
 
         <div className="gu-status-right">
-          {isPreview ? "Tampilan siswa" : "Mode pengeditan"}
+          {isPreview
+            ? "Tampilan siswa"
+            : "Mode pengeditan"}
         </div>
       </div>
     </section>
