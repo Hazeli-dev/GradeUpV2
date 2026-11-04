@@ -403,7 +403,7 @@ export default function AdminCategoriesPage() {
           </div>
 
           {!loading && !error && (
-            <Badge variant="secondary" className="w-fit">
+            <Badge variant="muted" className="w-fit">
               {filteredItems.length} kategori
             </Badge>
           )}
@@ -506,7 +506,7 @@ export default function AdminCategoriesPage() {
                       </div>
 
                       <Badge
-                        variant={count > 0 ? "secondary" : "outline"}
+                        variant={count > 0 ? "success" : "outline"}
                         className="shrink-0"
                       >
                         {count} materi
