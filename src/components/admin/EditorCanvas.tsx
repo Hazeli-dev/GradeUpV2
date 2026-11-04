@@ -4,6 +4,7 @@ import {
   AlignCenter,
   AlignLeft,
   AlignRight,
+  AlignJustify
   Bold,
   Eye,
   FileText,
@@ -576,6 +577,17 @@ export default function EditorCanvas({
           <AlignLeft size={17} />
         </ToolButton>
 
+              <div className="gu-tool-group">
+        <ToolButton
+          label="Rata kiri"
+          active={editor.isActive({ textAlign: "left" })}
+          onClick={() =>
+            editor.chain().focus().setTextAlign("left").run()
+          }
+        >
+          <AlignLeft size={17} />
+        </ToolButton>
+
         <ToolButton
           label="Rata tengah"
           active={editor.isActive({ textAlign: "center" })}
@@ -594,6 +606,16 @@ export default function EditorCanvas({
           }
         >
           <AlignRight size={17} />
+        </ToolButton>
+
+        <ToolButton
+          label="Rata kanan-kiri (Justify)"
+          active={editor.isActive({ textAlign: "justify" })}
+          onClick={() =>
+            editor.chain().focus().setTextAlign("justify").run()
+          }
+        >
+          <AlignJustify size={17} />
         </ToolButton>
       </div>
 
