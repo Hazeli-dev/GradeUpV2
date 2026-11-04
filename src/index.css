@@ -781,3 +781,171 @@
     align-items: flex-start;
   }
 }
+
+
+/* =========================================
+   GRADEUP - STUDENT LEARNING CONTENT
+========================================= */
+
+.gu-student-content {
+  color: hsl(var(--foreground));
+  font-size: 15px;
+  line-height: 1.85;
+  overflow-wrap: anywhere;
+}
+
+.gu-student-content .ProseMirror {
+  color: inherit;
+  outline: none;
+}
+
+.gu-student-content p {
+  margin-top: 0.75em;
+  margin-bottom: 0.75em;
+  color: inherit;
+}
+
+.gu-student-content h1,
+.gu-student-content h2,
+.gu-student-content h3 {
+  color: hsl(var(--foreground));
+  font-weight: 700;
+  line-height: 1.35;
+  margin-top: 1.5em;
+  margin-bottom: 0.65em;
+}
+
+.gu-student-content h1 {
+  font-size: 1.8rem;
+}
+
+.gu-student-content h2 {
+  font-size: 1.5rem;
+}
+
+.gu-student-content h3 {
+  font-size: 1.2rem;
+}
+
+.gu-student-content ul,
+.gu-student-content ol {
+  padding-left: 1.6rem;
+  margin: 1rem 0;
+}
+
+.gu-student-content ul {
+  list-style: disc;
+}
+
+.gu-student-content ol {
+  list-style: decimal;
+}
+
+.gu-student-content li {
+  padding-left: 0.25rem;
+  margin: 0.35rem 0;
+  color: inherit;
+}
+
+.gu-student-content blockquote {
+  border-left: 4px solid #10b981;
+  background: rgba(16, 185, 129, 0.08);
+  border-radius: 0 0.75rem 0.75rem 0;
+  padding: 1rem 1.25rem;
+  margin: 1.25rem 0;
+  color: inherit;
+}
+
+.gu-student-content a {
+  color: #059669;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.dark .gu-student-content a {
+  color: #6ee7b7;
+}
+
+.gu-student-content img {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  border-radius: 0.875rem;
+  margin: 1.25rem auto;
+}
+
+.gu-student-content table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 1.25rem 0;
+  overflow: hidden;
+  border-radius: 0.75rem;
+}
+
+.gu-student-content th,
+.gu-student-content td {
+  border: 1px solid hsl(var(--border));
+  padding: 0.75rem;
+  text-align: left;
+  color: inherit;
+}
+
+.gu-student-content th {
+  background: hsl(var(--muted));
+  font-weight: 700;
+}
+
+.gu-student-content hr {
+  border: 0;
+  border-top: 1px solid hsl(var(--border));
+  margin: 1.5rem 0;
+}
+
+.gu-student-content pre {
+  overflow-x: auto;
+  border-radius: 0.75rem;
+  padding: 1rem;
+  background: hsl(var(--muted));
+  color: hsl(var(--foreground));
+}
+
+.gu-student-content code {
+  border-radius: 0.25rem;
+  background: hsl(var(--muted));
+  padding: 0.15rem 0.3rem;
+  color: inherit;
+}
+
+.gu-student-content mark {
+  border-radius: 0.2rem;
+  padding: 0.05rem 0.15rem;
+}
+
+.dark .gu-student-content blockquote {
+  background: rgba(16, 185, 129, 0.12);
+}
+
+@media (max-width: 640px) {
+  .gu-student-content {
+    font-size: 14px;
+    line-height: 1.8;
+  }
+
+  .gu-student-content h1 {
+    font-size: 1.5rem;
+  }
+
+  .gu-student-content h2 {
+    font-size: 1.3rem;
+  }
+
+  .gu-student-content h3 {
+    font-size: 1.1rem;
+  }
+
+  .gu-student-content table {
+    display: block;
+    overflow-x: auto;
+    white-space: nowrap;
+  }
+}
