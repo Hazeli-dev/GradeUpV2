@@ -1,4 +1,3 @@
-
 import { useEffect, useState, type FormEvent } from "react";
 import {
   Bell,
@@ -57,13 +56,22 @@ const EDUCATION_LEVELS = [
 
 const NO_SELECTION = "belum-dipilih";
 
+type ProfileData = {
+  name: string;
+  email: string;
+  school: string;
+  educationLevel: string;
+  grade: string;
+  targetExams: number;
+};
+
 export default function StudentSettingsPage() {
   const [loading, setLoading] = useState(true);
   const [savingProfile, setSavingProfile] = useState(false);
   const [savingPassword, setSavingPassword] = useState(false);
 
   // Profil siswa
-  const [profile, setProfile] = useState({
+  const [profile, setProfile] = useState<ProfileData>({
     name: "",
     email: "",
     school: "",
@@ -99,67 +107,96 @@ export default function StudentSettingsPage() {
     promo: false,
   });
 
-  const availableGrades = GRADES_BY_LEVEL[profile.educationLevel] || [];
+  const availableGrades =
+    GRADES_BY_LEVEL[profile.educationLevel] || [];
 
-  const requiresGrade = Boolean(GRADES_BY_LEVEL[profile.educationLevel]);
+  const requiresGrade = Boolean(
+    GRADES_BY_LEVEL[profile.educationLevel]
+  );
 
   // Memuat profil dari Supabase
   useEffect(() => {
+    let mounted = true;
+
     async function loadUserData() {
       try {
         setLoading(true);
 
         const {
-          data: { user },
-          error: authError,
-        } = await supabase.auth.getUser();
+          data: { session },
+          error: sessionError,
+        } = await supabase.auth.getSession();
 
-        if (authError) throw authError;
+        if (sessionError) throw sessionError;
 
-        if (user) {
-          const { data: profData, error } = await supabase
-            .from("profiles")
-            .select("*")
-            .eq("id", user.id)
-            .maybeSingle();
+        const user = session?.user;
 
-          if (error) throw error;
-
-          setProfile({
-            name:
-              profData?.full_name ||
-              user.user_metadata?.full_name ||
-              "",
-            email: user.email || "",
-            school: profData?.school || "",
-            educationLevel: profData?.education_level || "",
-            grade:
-              profData?.grade != null
-                ? String(profData.grade)
-                : "",
-            targetExams: profData?.target_exams ?? 10,
-          });
+        if (!user) {
+          throw new Error(
+            "Sesi login tidak ditemukan. Silakan login kembali."
+          );
         }
+
+        const { data: profData, error } = await supabase
+          .from("profiles")
+          .select(
+            "full_name, name, school, education_level, grade, target_exams"
+          )
+          .eq("id", user.id)
+          .maybeSingle();
+
+        if (error) throw error;
+
+        if (!mounted) return;
+
+        setProfile({
+          name:
+            profData?.full_name ||
+            profData?.name ||
+            user.user_metadata?.full_name ||
+            user.user_metadata?.name ||
+            "",
+          email: user.email || "",
+          school: profData?.school || "",
+          educationLevel: profData?.education_level || "",
+          grade:
+            profData?.grade != null
+              ? String(profData.grade)
+              : "",
+          targetExams: profData?.target_exams ?? 10,
+        });
       } catch (err) {
         console.error("Gagal memuat profil user:", err);
-        toast.error("Gagal memuat data profil.");
+
+        if (mounted) {
+          toast.error(
+            err instanceof Error
+              ? err.message
+              : "Gagal memuat data profil."
+          );
+        }
       } finally {
-        setLoading(false);
+        if (mounted) {
+          setLoading(false);
+        }
       }
     }
 
     loadUserData();
+
+    return () => {
+      mounted = false;
+    };
   }, []);
 
   // Mengubah jenjang dan menyesuaikan pilihan kelas
   const handleEducationLevelChange = (value: string) => {
     const nextLevel = value === NO_SELECTION ? "" : value;
-    const grades = GRADES_BY_LEVEL[nextLevel] || [];
 
     setProfile((prev) => ({
       ...prev,
       educationLevel: nextLevel,
-      grade: grades.length ? "" : "",
+      grade: "",
     }));
 
     setProfileErr((prev) => ({
@@ -169,10 +206,21 @@ export default function StudentSettingsPage() {
     }));
   };
 
-  // Menyimpan profil ke Supabase
-  const saveProfile = async (e?: FormEvent) => {
-    e?.preventDefault();
+  // Mengubah data profil
+  const updateProfile = (field: keyof ProfileData, value: string | number) => {
+    setProfile((prev) => ({
+      ...prev,
+      [field]: value,
+    }));
 
+    setProfileErr((prev) => ({
+      ...prev,
+      [field]: "",
+    }));
+  };
+
+  // Validasi profil
+  const validateProfile = () => {
     const err: Record<string, string> = {};
 
     if (profile.name.trim().length < 3) {
@@ -209,50 +257,67 @@ export default function StudentSettingsPage() {
 
     setProfileErr(err);
 
-    if (Object.keys(err).length > 0) return;
+    return Object.keys(err).length === 0;
+  };
+
+  // Menyimpan profil ke Supabase
+  const saveProfile = async (e?: FormEvent) => {
+    e?.preventDefault();
+
+    if (!validateProfile()) return;
 
     try {
       setSavingProfile(true);
 
       const {
-        data: { user },
-        error: authError,
-      } = await supabase.auth.getUser();
+        data: { session },
+        error: sessionError,
+      } = await supabase.auth.getSession();
 
-      if (authError) throw authError;
-      if (!user) throw new Error("Sesi login tidak ditemukan.");
+      if (sessionError) throw sessionError;
+
+      const user = session?.user;
+
+      if (!user) {
+        throw new Error(
+          "Sesi login tidak ditemukan. Silakan login kembali."
+        );
+      }
+
+      const profilePayload = {
+        id: user.id,
+        full_name: profile.name.trim(),
+        school: profile.school.trim() || null,
+
+        // Jenjang pendidikan disimpan di kolom khusus.
+        education_level: profile.educationLevel,
+
+        // Kelas disimpan sebagai angka.
+        grade: requiresGrade ? Number(profile.grade) : null,
+
+        target_exams: profile.targetExams,
+        updated_at: new Date().toISOString(),
+      };
 
       const { error } = await supabase
         .from("profiles")
-        .upsert(
-          {
-            id: user.id,
-            full_name: profile.name.trim(),
-            school: profile.school.trim() || null,
-
-            // Jenjang pendidikan disimpan terpisah dari level XP.
-            education_level: profile.educationLevel,
-
-            // Kelas disimpan sebagai angka 1–12.
-            grade: requiresGrade ? Number(profile.grade) : null,
-
-            target_exams: profile.targetExams,
-            updated_at: new Date().toISOString(),
-          },
-          { onConflict: "id" }
-        );
+        .upsert(profilePayload, {
+          onConflict: "id",
+        });
 
       if (error) throw error;
 
       toast.success("Profil berhasil diperbarui!");
 
       setProfileErr({});
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Gagal menyimpan profil:", error);
 
       toast.error(
         "Gagal menyimpan profil: " +
-          (error.message || "Terjadi kesalahan.")
+          (error instanceof Error
+            ? error.message
+            : "Terjadi kesalahan.")
       );
     } finally {
       setSavingProfile(false);
@@ -295,10 +360,12 @@ export default function StudentSettingsPage() {
       setPwErr({});
 
       toast.success("Kata sandi berhasil diperbarui!");
-    } catch (error: any) {
+    } catch (error: unknown) {
       toast.error(
         "Gagal memperbarui kata sandi: " +
-          (error.message || "Terjadi kesalahan.")
+          (error instanceof Error
+            ? error.message
+            : "Terjadi kesalahan.")
       );
     } finally {
       setSavingPassword(false);
@@ -373,10 +440,7 @@ export default function StudentSettingsPage() {
                       id="p-name"
                       value={profile.name}
                       onChange={(e) =>
-                        setProfile({
-                          ...profile,
-                          name: e.target.value,
-                        })
+                        updateProfile("name", e.target.value)
                       }
                       disabled={loading}
                       placeholder="Masukkan nama lengkap"
@@ -414,10 +478,7 @@ export default function StudentSettingsPage() {
                       id="p-school"
                       value={profile.school}
                       onChange={(e) =>
-                        setProfile({
-                          ...profile,
-                          school: e.target.value,
-                        })
+                        updateProfile("school", e.target.value)
                       }
                       disabled={loading}
                       placeholder="Contoh: SMP Negeri 1 Jakarta"
@@ -484,11 +545,10 @@ export default function StudentSettingsPage() {
                         <Select
                           value={profile.grade || NO_SELECTION}
                           onValueChange={(value) =>
-                            setProfile({
-                              ...profile,
-                              grade:
-                                value === NO_SELECTION ? "" : value,
-                            })
+                            updateProfile(
+                              "grade",
+                              value === NO_SELECTION ? "" : value
+                            )
                           }
                           disabled={loading}
                         >
@@ -628,10 +688,10 @@ export default function StudentSettingsPage() {
                     max={100}
                     value={profile.targetExams}
                     onChange={(e) =>
-                      setProfile({
-                        ...profile,
-                        targetExams: Number(e.target.value),
-                      })
+                      updateProfile(
+                        "targetExams",
+                        Number(e.target.value)
+                      )
                     }
                   />
 
