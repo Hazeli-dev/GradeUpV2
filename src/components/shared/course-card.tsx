@@ -16,47 +16,89 @@ import { cn } from "@/lib/utils";
 import { formatDuration } from "@/utils/format";
 import type { Course } from "@/types";
 
+export interface StudentCatalogCourse {
+  id: string;
+  title: string;
+  description?: string | null;
+  category: string;
+  level?: string | null;
+  instructor?: string;
+  thumbnail?: string | null;
+  premium: boolean;
+  lessonCount?: number;
+  duration?: number;
+  rating?: number;
+  students?: number;
+  progress?: number;
+}
+
+type CourseCardData = Course | StudentCatalogCourse;
+
 interface CourseCardProps {
-  course: Course;
+  course: CourseCardData;
   showProgress?: boolean;
   onClick?: () => void;
   className?: string;
+}
+
+function isLegacyCourse(course: CourseCardData): course is Course {
+  return "lessons" in course;
+}
+
+function getLessonCount(course: CourseCardData): number | undefined {
+  if (isLegacyCourse(course)) {
+    return course.lessons.length;
+  }
+
+  return course.lessonCount;
 }
 
 export function CourseThumbnail({
   course,
   className,
 }: {
-  course: Course;
+  course: CourseCardData;
   className?: string;
 }) {
+  const thumbnail = course.thumbnail;
+  const isImage =
+    typeof thumbnail === "string" &&
+    /^https?:\/\//i.test(thumbnail);
+
   return (
     <div
       className={cn(
-        "relative flex h-40 items-end overflow-hidden bg-gradient-to-br p-5 sm:h-44",
-        course.thumbnail,
+        "relative flex h-40 items-end overflow-hidden bg-gradient-to-br from-primary to-primary/70 p-5 sm:h-44",
+        !isImage && thumbnail,
         className
       )}
+      style={
+        isImage
+          ? {
+              backgroundImage: `url("${thumbnail}")`,
+              backgroundSize: "cover",
+              backgroundPosition: "center",
+            }
+          : undefined
+      }
     >
-      {/* DEKORASI BACKGROUND */}
+      <div className="pointer-events-none absolute inset-0 bg-black/10" />
+
       <div className="pointer-events-none absolute -right-10 -top-14 h-44 w-44 rounded-full border border-white/15" />
       <div className="pointer-events-none absolute -right-4 -top-8 h-32 w-32 rounded-full border border-white/15" />
       <div className="pointer-events-none absolute -bottom-16 left-1/3 h-36 w-36 rounded-full bg-white/10 blur-xl" />
 
-      {/* ICON UTAMA */}
       <div className="absolute right-5 top-5 flex h-14 w-14 items-center justify-center rounded-2xl border border-white/20 bg-white/15 shadow-lg backdrop-blur-sm transition-transform duration-300 group-hover:scale-110">
         <BookOpen className="h-7 w-7 text-white" />
       </div>
 
-      {/* LABEL KATEGORI */}
       <div className="relative z-10 flex max-w-[75%] items-center gap-2">
         <Badge className="max-w-full truncate border border-white/30 bg-white/95 px-3 py-1 text-[10px] font-bold text-primary shadow-sm hover:bg-white">
-          {course.category}
+          {course.category || "Materi Pembelajaran"}
         </Badge>
       </div>
 
-      {/* LAPISAN BAWAH */}
-      <div className="pointer-events-none absolute inset-x-0 bottom-0 h-20 bg-gradient-to-t from-black/15 to-transparent" />
+      <div className="pointer-events-none absolute inset-x-0 bottom-0 h-20 bg-gradient-to-t from-black/30 to-transparent" />
     </div>
   );
 }
@@ -77,6 +119,26 @@ export function CourseCard({
 
   const isCompleted = hasProgress && progress >= 100;
 
+  const lessonCount = getLessonCount(course);
+
+  const duration = isLegacyCourse(course)
+    ? course.duration
+    : course.duration;
+
+  const rating = isLegacyCourse(course)
+    ? course.rating
+    : course.rating;
+
+  const students = isLegacyCourse(course)
+    ? course.students
+    : course.students;
+
+  const level = course.level || "Umum";
+
+  const description =
+    course.description ||
+    "Pelajari materi ini untuk meningkatkan pemahaman dan kemampuan Anda.";
+
   return (
     <button
       type="button"
@@ -89,11 +151,9 @@ export function CourseCard({
         className
       )}
     >
-      {/* THUMBNAIL */}
       <div className="relative">
         <CourseThumbnail course={course} />
 
-        {/* LABEL PREMIUM / GRATIS */}
         <div className="absolute right-3 top-3 z-10">
           {course.premium ? (
             <Badge className="gap-1 border border-amber-300/30 bg-amber-400/95 px-2.5 py-1 text-[10px] font-bold text-amber-950 shadow-sm hover:bg-amber-400">
@@ -108,7 +168,6 @@ export function CourseCard({
           )}
         </div>
 
-        {/* INDIKATOR PROGRES */}
         {hasProgress && (
           <div className="absolute inset-x-0 bottom-0 h-1 bg-white/30">
             <div
@@ -119,15 +178,13 @@ export function CourseCard({
         )}
       </div>
 
-      {/* KONTEN KARTU */}
       <div className="flex flex-1 flex-col gap-3.5 p-4 sm:p-5">
-        {/* JENJANG */}
         <div className="flex items-center justify-between gap-2">
           <Badge
             variant="muted"
             className="max-w-full truncate text-[10px] font-semibold"
           >
-            {course.level}
+            {level}
           </Badge>
 
           {hasProgress && isCompleted && (
@@ -138,61 +195,62 @@ export function CourseCard({
           )}
         </div>
 
-        {/* JUDUL */}
         <div className="space-y-1.5">
           <h3 className="line-clamp-2 min-h-[2.75rem] text-base font-extrabold leading-snug tracking-tight text-foreground transition-colors group-hover:text-primary">
             {course.title}
           </h3>
 
           <p className="line-clamp-2 min-h-10 text-xs leading-relaxed text-muted-foreground sm:text-[13px]">
-            {course.description || "Pelajari materi ini untuk meningkatkan pemahaman dan kemampuan Anda."}
+            {description}
           </p>
         </div>
 
-        {/* INFORMASI MATERI */}
         <div className="grid grid-cols-2 gap-x-3 gap-y-2 border-t border-border/70 pt-3">
-          <div className="flex min-w-0 items-center gap-2 text-xs text-muted-foreground">
-            <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
-              <Play className="h-3.5 w-3.5" />
+          {lessonCount !== undefined && (
+            <div className="flex min-w-0 items-center gap-2 text-xs text-muted-foreground">
+              <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                <Play className="h-3.5 w-3.5" />
+              </div>
+              <span className="truncate">
+                {lessonCount} Pelajaran
+              </span>
             </div>
+          )}
 
-            <span className="truncate">
-              {course.lessons.length} Pelajaran
-            </span>
-          </div>
-
-          <div className="flex min-w-0 items-center gap-2 text-xs text-muted-foreground">
-            <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-blue-500/10 text-blue-600 dark:text-blue-400">
-              <Clock className="h-3.5 w-3.5" />
+          {typeof duration === "number" && duration > 0 && (
+            <div className="flex min-w-0 items-center gap-2 text-xs text-muted-foreground">
+              <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-blue-500/10 text-blue-600 dark:text-blue-400">
+                <Clock className="h-3.5 w-3.5" />
+              </div>
+              <span className="truncate">
+                {formatDuration(duration)}
+              </span>
             </div>
+          )}
 
-            <span className="truncate">
-              {formatDuration(course.duration)}
-            </span>
-          </div>
-
-          <div className="flex min-w-0 items-center gap-2 text-xs text-muted-foreground">
-            <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-amber-500/10 text-amber-500">
-              <Star className="h-3.5 w-3.5 fill-current" />
+          {typeof rating === "number" && rating > 0 && (
+            <div className="flex min-w-0 items-center gap-2 text-xs text-muted-foreground">
+              <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-amber-500/10 text-amber-500">
+                <Star className="h-3.5 w-3.5 fill-current" />
+              </div>
+              <span className="truncate font-semibold text-foreground">
+                {rating.toFixed(1)}
+              </span>
             </div>
+          )}
 
-            <span className="truncate font-semibold text-foreground">
-              {Number(course.rating || 0).toFixed(1)}
-            </span>
-          </div>
-
-          <div className="flex min-w-0 items-center gap-2 text-xs text-muted-foreground">
-            <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
-              <Users className="h-3.5 w-3.5" />
+          {typeof students === "number" && students > 0 && (
+            <div className="flex min-w-0 items-center gap-2 text-xs text-muted-foreground">
+              <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
+                <Users className="h-3.5 w-3.5" />
+              </div>
+              <span className="truncate">
+                {students.toLocaleString("id-ID")} Siswa
+              </span>
             </div>
-
-            <span className="truncate">
-              {Number(course.students || 0).toLocaleString("id-ID")} Siswa
-            </span>
-          </div>
+          )}
         </div>
 
-        {/* PROGRES BELAJAR */}
         {hasProgress && (
           <div className="space-y-2 border-t border-border/70 pt-3">
             <div className="flex items-center justify-between gap-2">
@@ -212,10 +270,7 @@ export function CourseCard({
               </span>
             </div>
 
-            <Progress
-              value={progress}
-              className="h-2"
-            />
+            <Progress value={progress} className="h-2" />
 
             <p className="text-[10px] text-muted-foreground">
               {isCompleted
@@ -227,7 +282,6 @@ export function CourseCard({
           </div>
         )}
 
-        {/* TOMBOL BUKA MATERI */}
         <div className="mt-auto flex items-center justify-between border-t border-border/70 pt-3">
           <span className="text-xs font-bold text-primary">
             {hasProgress && progress > 0 && !isCompleted
