@@ -1,4 +1,3 @@
-```tsx
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
@@ -67,7 +66,6 @@ const GRADES_BY_LEVEL: Record<string, number[]> = {
 };
 
 const EDUCATION_LEVELS = ["SD", "SMP", "SMA", "SMK"];
-
 const ALL = "Semua";
 
 const STATUS_CONFIG: Record<
@@ -212,7 +210,7 @@ export default function StudentExamsPage() {
       setLoadError(false);
       setErrorMessage("");
 
-      // 1. Periksa sesi autentikasi
+      // 1. Periksa sesi autentikasi Supabase.
       const {
         data: { session },
         error: sessionError,
@@ -230,7 +228,8 @@ export default function StudentExamsPage() {
         );
       }
 
-      // 2. Ambil profil siswa secara terpisah
+      // 2. Ambil profil siswa.
+      // Jika profil gagal dibaca, daftar ujian tetap dicoba.
       const {
         data: profile,
         error: profileError,
@@ -242,7 +241,6 @@ export default function StudentExamsPage() {
         .eq("id", user.id)
         .maybeSingle();
 
-      // Kegagalan membaca profil tidak menghentikan pengambilan ujian.
       if (profileError) {
         console.error("Gagal mengambil profil siswa:", profileError);
       }
@@ -262,7 +260,6 @@ export default function StudentExamsPage() {
         setProfileLevel(educationLevel);
         setProfileGrade(grade);
 
-        // Filter awal mengikuti profil siswa.
         setSelectedLevel(educationLevel || ALL);
         setSelectedGrade(
           grade != null ? String(grade) : ALL
@@ -279,17 +276,18 @@ export default function StudentExamsPage() {
             : "Profil pendidikan belum dilengkapi"
         );
 
-        const totalXp = profile.total_xp ?? 10;
+        const totalXp = Number(profile.total_xp ?? 10);
 
         setCurrentXp(totalXp % maxXp);
         setLevel(
-          profile.level ||
+          Number(profile.level) ||
             Math.floor(totalXp / maxXp) + 1
         );
       } else {
         setStudentName(
           user.email?.split("@")[0] || "Siswa GradeUp"
         );
+
         setProfileLevel("");
         setProfileGrade(null);
         setSelectedLevel(ALL);
@@ -299,7 +297,7 @@ export default function StudentExamsPage() {
         setUserClass("Profil pendidikan belum dilengkapi");
       }
 
-      // 3. Ambil paket ujian secara independen dari profil
+      // 3. Ambil paket ujian.
       const {
         data: packages,
         error: packagesError,
@@ -399,7 +397,7 @@ export default function StudentExamsPage() {
       setErrorMessage(
         error instanceof Error
           ? error.message
-          : "Terjadi kesalahan saat mengambil data ujian."
+          : "Terjadi kesalahan saat mengambil data paket ujian."
       );
     } finally {
       setLoading(false);
@@ -410,7 +408,6 @@ export default function StudentExamsPage() {
     fetchExamsData();
   }, [fetchExamsData]);
 
-  // Pilihan jenjang yang tersedia pada paket ujian.
   const availableLevels = useMemo(() => {
     const levels = new Set(
       examPackages
@@ -426,7 +423,6 @@ export default function StudentExamsPage() {
     ];
   }, [examPackages]);
 
-  // Pilihan kelas mengikuti jenjang yang dipilih.
   const availableGrades = useMemo(() => {
     if (selectedLevel === ALL) return [];
 
@@ -445,7 +441,6 @@ export default function StudentExamsPage() {
     ).sort((a, b) => a - b);
   }, [examPackages, selectedLevel]);
 
-  // Pilihan mata pelajaran mengikuti jenjang dan kelas.
   const availableSubjects = useMemo(() => {
     const subjects = examPackages
       .filter((item) => {
@@ -470,7 +465,6 @@ export default function StudentExamsPage() {
     );
   }, [examPackages, selectedLevel, selectedGrade]);
 
-  // Pilihan jenis ujian mengikuti jenjang dan kelas.
   const availableExamTypes = useMemo(() => {
     const types = examPackages
       .filter((item) => {
@@ -507,7 +501,6 @@ export default function StudentExamsPage() {
     [examPackages]
   );
 
-  // Reset filter ke data profil siswa.
   const resetToProfile = () => {
     setSelectedLevel(profileLevel || ALL);
     setSelectedGrade(
@@ -1011,7 +1004,7 @@ export default function StudentExamsPage() {
                 Gagal memuat paket ujian
               </p>
               <p className="mt-1 text-xs text-muted-foreground">
-                {errorMessage || "Periksa koneksi internet dan coba muat ulang data."}
+                {errorMessage}
               </p>
             </div>
           </div>
@@ -1313,4 +1306,3 @@ export default function StudentExamsPage() {
     </div>
   );
 }
-```
