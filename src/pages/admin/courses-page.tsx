@@ -26,7 +26,7 @@ import { toast } from "sonner";
 
 import type { JSONContent } from "@tiptap/core";
 
-import EditorCanvas from "@/components/admin/content-editor/EditorCanvas";
+import EditorCanvas from "@/components/admin/EditorCanvas";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
