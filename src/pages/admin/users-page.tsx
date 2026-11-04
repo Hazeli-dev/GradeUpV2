@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Search,
   Shield,
@@ -9,6 +9,14 @@ import {
   RefreshCw,
   Loader2,
   AlertCircle,
+  Users,
+  UserRound,
+  CheckCircle2,
+  Clock3,
+  X,
+  Sparkles,
+  Mail,
+  ArrowUpRight,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -51,7 +59,6 @@ interface UserProfile {
 
 type DurationUnit = "days" | "months" | "years" | "custom";
 
-// Memeriksa apakah akses Premium masih berlaku.
 function isPremiumActive(user: UserProfile): boolean {
   if (user.role === "admin") return false;
   if (!user.is_premium || !user.premium_until) return false;
@@ -59,6 +66,17 @@ function isPremiumActive(user: UserProfile): boolean {
   const expiryTime = new Date(user.premium_until).getTime();
 
   return !Number.isNaN(expiryTime) && expiryTime > Date.now();
+}
+
+function getInitials(name: string | null, email: string | null) {
+  const value = name?.trim() || email?.trim() || "U";
+
+  return value
+    .split(/[\s@._-]+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part.charAt(0).toUpperCase())
+    .join("");
 }
 
 export function AdminUsersPage() {
@@ -76,8 +94,7 @@ export function AdminUsersPage() {
 
   const [errorMessage, setErrorMessage] = useState("");
 
-  // Mengambil data pengguna.
-  const fetchUsers = async () => {
+  const fetchUsers = useCallback(async () => {
     setLoading(true);
 
     try {
@@ -100,30 +117,43 @@ export function AdminUsersPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
     void fetchUsers();
-  }, []);
+  }, [fetchUsers]);
 
-  // Statistik pengguna.
-  const premiumUsers = users.filter(isPremiumActive);
-
-  const freeUsers = users.filter(
-    (user) => user.role !== "admin" && !isPremiumActive(user)
+  const premiumUsers = useMemo(
+    () => users.filter(isPremiumActive),
+    [users]
   );
 
-  // Pencarian pengguna.
-  const filteredUsers = users.filter((user) => {
-    const keyword = search.toLowerCase();
+  const freeUsers = useMemo(
+    () =>
+      users.filter(
+        (user) => user.role !== "admin" && !isPremiumActive(user)
+      ),
+    [users]
+  );
 
-    return (
-      (user.full_name ?? "").toLowerCase().includes(keyword) ||
-      (user.email ?? "").toLowerCase().includes(keyword)
-    );
-  });
+  const adminUsers = useMemo(
+    () => users.filter((user) => user.role === "admin"),
+    [users]
+  );
 
-  // Membuka dialog pengaturan paket.
+  const filteredUsers = useMemo(() => {
+    const keyword = search.trim().toLowerCase();
+
+    if (!keyword) return users;
+
+    return users.filter((user) => {
+      return (
+        (user.full_name ?? "").toLowerCase().includes(keyword) ||
+        (user.email ?? "").toLowerCase().includes(keyword)
+      );
+    });
+  }, [users, search]);
+
   const handleOpenSetting = (user: UserProfile) => {
     if (user.role === "admin") return;
 
@@ -135,7 +165,6 @@ export function AdminUsersPage() {
     setIsDialogOpen(true);
   };
 
-  // Menghitung tanggal kedaluwarsa Premium.
   const calculateExpiryDate = (): string | null => {
     if (durationUnit === "custom") {
       if (!customDate) return null;
@@ -207,7 +236,6 @@ export function AdminUsersPage() {
     return targetDate.toISOString();
   };
 
-  // Mengaktifkan Premium melalui RPC.
   const handleSavePremium = async () => {
     if (!selectedUser || saving || selectedUser.role === "admin") {
       return;
@@ -255,7 +283,6 @@ export function AdminUsersPage() {
     }
   };
 
-  // Mencabut Premium melalui RPC.
   const handleRevokePremium = async () => {
     if (!selectedUser || saving || selectedUser.role === "admin") {
       return;
@@ -299,7 +326,6 @@ export function AdminUsersPage() {
     }
   };
 
-  // Format tanggal.
   const formatDate = (date: string | null) => {
     if (!date) return "-";
 
@@ -310,12 +336,11 @@ export function AdminUsersPage() {
     return parsedDate.toLocaleDateString("id-ID", {
       timeZone: "Asia/Jakarta",
       day: "numeric",
-      month: "short",
+      month: "long",
       year: "numeric",
     });
   };
 
-  // Menentukan status paket pengguna.
   const getPackageStatus = (user: UserProfile) => {
     if (user.role === "admin") return "admin";
     if (isPremiumActive(user)) return "premium";
@@ -331,209 +356,362 @@ export function AdminUsersPage() {
     return "free";
   };
 
-  return (
-    <div className="space-y-6 p-4 md:p-6">
-      {/* Header */}
-      <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight">
-            Manajemen Pengguna
-          </h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Kelola data pengguna dan akses paket Premium GradeUp.
-          </p>
-        </div>
+  const getRemainingDays = (date: string | null) => {
+    if (!date) return null;
 
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => void fetchUsers()}
-          disabled={loading || saving}
-          className="gap-2"
-        >
-          <RefreshCw
-            className={`h-4 w-4 ${loading ? "animate-spin" : ""}`}
-          />
-          Refresh Data
-        </Button>
-      </div>
+    const difference =
+      new Date(date).getTime() - Date.now();
+
+    if (!Number.isFinite(difference)) return null;
+
+    return Math.max(0, Math.ceil(difference / (1000 * 60 * 60 * 24)));
+  };
+
+  return (
+    <div className="min-h-full space-y-6 p-4 md:space-y-8 md:p-6">
+      {/* Header */}
+      <section className="relative overflow-hidden rounded-2xl border bg-gradient-to-br from-primary/[0.10] via-card to-card p-5 shadow-sm md:p-7">
+        <div className="pointer-events-none absolute -right-10 -top-16 h-52 w-52 rounded-full bg-primary/[0.07] blur-3xl" />
+
+        <div className="relative flex flex-col gap-5 md:flex-row md:items-center md:justify-between">
+          <div>
+            <div className="mb-3 flex items-center gap-2">
+              <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary/10 text-primary">
+                <Users className="h-5 w-5" />
+              </div>
+              <Badge variant="outline" className="text-primary">
+                ADMINISTRATION
+              </Badge>
+            </div>
+
+            <h1 className="text-2xl font-bold tracking-tight md:text-3xl">
+              Manajemen Pengguna
+            </h1>
+
+            <p className="mt-2 max-w-xl text-sm leading-relaxed text-muted-foreground">
+              Kelola akun, pantau status keanggotaan, dan atur akses
+              Premium seluruh pengguna GradeUp.
+            </p>
+          </div>
+
+          <Button
+            variant="outline"
+            onClick={() => void fetchUsers()}
+            disabled={loading || saving}
+            className="gap-2 self-start bg-background/80 md:self-center"
+          >
+            <RefreshCw
+              className={`h-4 w-4 ${loading ? "animate-spin" : ""}`}
+            />
+            Refresh Data
+          </Button>
+        </div>
+      </section>
 
       {/* Statistik */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-        <div className="rounded-xl border bg-card p-4 shadow-sm">
-          <p className="text-sm text-muted-foreground">Total Pengguna</p>
-          <p className="mt-2 text-2xl font-bold">{users.length}</p>
-        </div>
-
-        <div className="rounded-xl border bg-card p-4 shadow-sm">
-          <p className="text-sm text-muted-foreground">Premium Aktif</p>
-          <p className="mt-2 text-2xl font-bold text-amber-600">
-            {premiumUsers.length}
+      <section className="grid grid-cols-2 gap-3 xl:grid-cols-4">
+        <div className="rounded-2xl border bg-card p-4 shadow-sm transition-colors hover:bg-muted/20 md:p-5">
+          <div className="flex items-center justify-between">
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 text-primary">
+              <Users className="h-5 w-5" />
+            </div>
+            <ArrowUpRight className="h-4 w-4 text-muted-foreground" />
+          </div>
+          <p className="mt-4 text-sm text-muted-foreground">
+            Total Pengguna
+          </p>
+          <p className="mt-1 text-2xl font-bold tabular-nums">
+            {users.length}
+          </p>
+          <p className="mt-1 text-xs text-muted-foreground">
+            Seluruh akun terdaftar
           </p>
         </div>
 
-        <div className="rounded-xl border bg-card p-4 shadow-sm">
-          <p className="text-sm text-muted-foreground">Pengguna Gratis</p>
-          <p className="mt-2 text-2xl font-bold">{freeUsers.length}</p>
+        <div className="rounded-2xl border bg-card p-4 shadow-sm transition-colors hover:bg-muted/20 md:p-5">
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-amber-500/10 text-amber-600">
+            <Crown className="h-5 w-5" />
+          </div>
+          <p className="mt-4 text-sm text-muted-foreground">
+            Premium Aktif
+          </p>
+          <p className="mt-1 text-2xl font-bold tabular-nums text-amber-600">
+            {premiumUsers.length}
+          </p>
+          <p className="mt-1 text-xs text-muted-foreground">
+            Memiliki akses Premium
+          </p>
         </div>
-      </div>
 
-      {/* Pencarian */}
-      <div className="flex items-center gap-4">
-        <div className="relative w-full max-w-sm">
-          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            placeholder="Cari nama atau email pengguna..."
-            value={search}
-            onChange={(event) => setSearch(event.target.value)}
-            className="pl-9"
-          />
+        <div className="rounded-2xl border bg-card p-4 shadow-sm transition-colors hover:bg-muted/20 md:p-5">
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-600">
+            <UserCheck className="h-5 w-5" />
+          </div>
+          <p className="mt-4 text-sm text-muted-foreground">
+            Pengguna Gratis
+          </p>
+          <p className="mt-1 text-2xl font-bold tabular-nums text-emerald-600">
+            {freeUsers.length}
+          </p>
+          <p className="mt-1 text-xs text-muted-foreground">
+            Belum memiliki Premium aktif
+          </p>
         </div>
-      </div>
 
-      {/* Pesan Error */}
-      {errorMessage && !isDialogOpen && (
-        <div className="flex items-start gap-2 rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
-          <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
-          <span>{errorMessage}</span>
+        <div className="rounded-2xl border bg-card p-4 shadow-sm transition-colors hover:bg-muted/20 md:p-5">
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-violet-500/10 text-violet-600">
+            <Shield className="h-5 w-5" />
+          </div>
+          <p className="mt-4 text-sm text-muted-foreground">
+            Administrator
+          </p>
+          <p className="mt-1 text-2xl font-bold tabular-nums">
+            {adminUsers.length}
+          </p>
+          <p className="mt-1 text-xs text-muted-foreground">
+            Akun dengan hak admin
+          </p>
         </div>
-      )}
+      </section>
 
-      {/* Tabel Pengguna */}
-      <div className="overflow-hidden rounded-xl border bg-card shadow-sm">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Pengguna</TableHead>
-              <TableHead>Role</TableHead>
-              <TableHead>Status Paket</TableHead>
-              <TableHead>Masa Aktif Premium</TableHead>
-              <TableHead>Tanggal Daftar</TableHead>
-              <TableHead className="text-right">Aksi</TableHead>
-            </TableRow>
-          </TableHeader>
+      {/* Pencarian dan daftar */}
+      <section className="overflow-hidden rounded-2xl border bg-card shadow-sm">
+        <div className="flex flex-col gap-4 border-b p-4 md:flex-row md:items-center md:justify-between md:p-5">
+          <div>
+            <h2 className="font-semibold">Daftar Pengguna</h2>
+            <p className="mt-1 text-xs text-muted-foreground">
+              {filteredUsers.length} dari {users.length} pengguna ditampilkan
+            </p>
+          </div>
 
-          <TableBody>
-            {loading ? (
-              <TableRow>
-                <TableCell
-                  colSpan={6}
-                  className="py-12 text-center text-muted-foreground"
-                >
-                  <div className="flex items-center justify-center gap-2">
-                    <Loader2 className="h-5 w-5 animate-spin text-primary" />
-                    <span>Memuat data pengguna...</span>
-                  </div>
-                </TableCell>
-              </TableRow>
-            ) : filteredUsers.length === 0 ? (
-              <TableRow>
-                <TableCell
-                  colSpan={6}
-                  className="py-10 text-center text-muted-foreground"
-                >
-                  {search
-                    ? "Tidak ada pengguna yang cocok dengan pencarian."
-                    : "Belum ada data pengguna."}
-                </TableCell>
-              </TableRow>
-            ) : (
-              filteredUsers.map((user) => {
-                const packageStatus = getPackageStatus(user);
-
-                return (
-                  <TableRow key={user.id}>
-                    <TableCell>
-                      <div className="flex flex-col gap-1">
-                        <span className="font-semibold">
-                          {user.full_name || "Tanpa Nama"}
-                        </span>
-                        <span className="text-xs text-muted-foreground">
-                          {user.email || "-"}
-                        </span>
-                      </div>
-                    </TableCell>
-
-                    <TableCell>
-                      {user.role === "admin" ? (
-                        <Badge className="gap-1">
-                          <Shield className="h-3 w-3" />
-                          Admin
-                        </Badge>
-                      ) : (
-                        <Badge variant="outline" className="gap-1">
-                          <UserCheck className="h-3 w-3" />
-                          Siswa
-                        </Badge>
-                      )}
-                    </TableCell>
-
-                    <TableCell>
-                      {packageStatus === "admin" ? (
-                        <Badge className="gap-1">
-                          <Shield className="h-3 w-3" />
-                          Akses Admin
-                        </Badge>
-                      ) : packageStatus === "premium" ? (
-                        <Badge className="gap-1 bg-amber-500 text-white hover:bg-amber-600">
-                          <Crown className="h-3 w-3" />
-                          Premium Aktif
-                        </Badge>
-                      ) : packageStatus === "expired" ? (
-                        <Badge variant="danger">Kedaluwarsa</Badge>
-                      ) : packageStatus === "missing-date" ? (
-                        <Badge variant="outline">Perlu Pemeriksaan</Badge>
-                      ) : (
-                        <Badge variant="outline">Gratis</Badge>
-                      )}
-                    </TableCell>
-
-                    <TableCell>
-                      {user.role === "admin" ? (
-                        <span className="text-xs text-muted-foreground">
-                          Tidak dibatasi
-                        </span>
-                      ) : user.premium_until ? (
-                        <span className="flex items-center gap-1.5 text-xs font-medium">
-                          <Calendar className="h-3.5 w-3.5 text-muted-foreground" />
-                          {formatDate(user.premium_until)}
-                        </span>
-                      ) : (
-                        <span className="text-xs text-muted-foreground">
-                          -
-                        </span>
-                      )}
-                    </TableCell>
-
-                    <TableCell className="text-xs text-muted-foreground">
-                      {formatDate(user.created_at)}
-                    </TableCell>
-
-                    <TableCell className="text-right">
-                      {user.role === "admin" ? (
-                        <span className="text-xs text-muted-foreground">
-                          Khusus Admin
-                        </span>
-                      ) : (
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleOpenSetting(user)}
-                          disabled={saving}
-                          className="gap-1.5"
-                        >
-                          <Sliders className="h-3.5 w-3.5" />
-                          Atur Paket
-                        </Button>
-                      )}
-                    </TableCell>
-                  </TableRow>
-                );
-              })
+          <div className="relative w-full md:max-w-sm">
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              placeholder="Cari nama atau email..."
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+              className="h-10 rounded-xl pl-9 pr-9"
+            />
+            {search && (
+              <button
+                type="button"
+                onClick={() => setSearch("")}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground transition-colors hover:text-foreground"
+                aria-label="Hapus pencarian"
+              >
+                <X className="h-4 w-4" />
+              </button>
             )}
-          </TableBody>
-        </Table>
-      </div>
+          </div>
+        </div>
+
+        {errorMessage && !isDialogOpen && (
+          <div className="m-4 flex items-start gap-2 rounded-xl border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
+            <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+            <span>{errorMessage}</span>
+          </div>
+        )}
+
+        <div className="overflow-x-auto">
+          <Table>
+            <TableHeader>
+              <TableRow className="bg-muted/30 hover:bg-muted/30">
+                <TableHead className="min-w-[230px] pl-5">
+                  Pengguna
+                </TableHead>
+                <TableHead>Role</TableHead>
+                <TableHead>Status Paket</TableHead>
+                <TableHead className="min-w-[175px]">
+                  Masa Aktif Premium
+                </TableHead>
+                <TableHead className="min-w-[130px]">
+                  Tanggal Daftar
+                </TableHead>
+                <TableHead className="pr-5 text-right">
+                  Aksi
+                </TableHead>
+              </TableRow>
+            </TableHeader>
+
+            <TableBody>
+              {loading ? (
+                <TableRow>
+                  <TableCell
+                    colSpan={6}
+                    className="h-48 text-center"
+                  >
+                    <div className="flex flex-col items-center justify-center gap-3 text-muted-foreground">
+                      <Loader2 className="h-7 w-7 animate-spin text-primary" />
+                      <span className="text-sm">
+                        Memuat data pengguna...
+                      </span>
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ) : filteredUsers.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={6} className="h-48 text-center">
+                    <div className="flex flex-col items-center gap-3">
+                      <div className="flex h-12 w-12 items-center justify-center rounded-full bg-muted">
+                        <UserRound className="h-6 w-6 text-muted-foreground" />
+                      </div>
+                      <div>
+                        <p className="font-medium">
+                          {search
+                            ? "Pengguna tidak ditemukan"
+                            : "Belum ada pengguna"}
+                        </p>
+                        <p className="mt-1 text-sm text-muted-foreground">
+                          {search
+                            ? "Coba gunakan kata kunci pencarian lain."
+                            : "Data pengguna akan muncul di sini."}
+                        </p>
+                      </div>
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ) : (
+                filteredUsers.map((user) => {
+                  const packageStatus = getPackageStatus(user);
+                  const remainingDays = getRemainingDays(user.premium_until);
+
+                  return (
+                    <TableRow
+                      key={user.id}
+                      className="transition-colors hover:bg-muted/30"
+                    >
+                      <TableCell className="py-4 pl-5">
+                        <div className="flex items-center gap-3">
+                          <div
+                            className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-sm font-bold ${
+                              user.role === "admin"
+                                ? "bg-violet-500/10 text-violet-600"
+                                : isPremiumActive(user)
+                                  ? "bg-amber-500/10 text-amber-600"
+                                  : "bg-primary/10 text-primary"
+                            }`}
+                          >
+                            {getInitials(user.full_name, user.email)}
+                          </div>
+
+                          <div className="min-w-0">
+                            <p className="truncate font-semibold">
+                              {user.full_name || "Tanpa Nama"}
+                            </p>
+                            <p className="mt-0.5 flex items-center gap-1.5 truncate text-xs text-muted-foreground">
+                              <Mail className="h-3 w-3 shrink-0" />
+                              {user.email || "-"}
+                            </p>
+                          </div>
+                        </div>
+                      </TableCell>
+
+                      <TableCell>
+                        {user.role === "admin" ? (
+                          <Badge className="gap-1 bg-violet-600 text-white hover:bg-violet-700">
+                            <Shield className="h-3 w-3" />
+                            Admin
+                          </Badge>
+                        ) : (
+                          <Badge variant="outline" className="gap-1">
+                            <UserCheck className="h-3 w-3" />
+                            Siswa
+                          </Badge>
+                        )}
+                      </TableCell>
+
+                      <TableCell>
+                        {packageStatus === "admin" ? (
+                          <Badge variant="muted" className="gap-1">
+                            <Shield className="h-3 w-3" />
+                            Akses Admin
+                          </Badge>
+                        ) : packageStatus === "premium" ? (
+                          <Badge className="gap-1 border-0 bg-amber-500 text-white hover:bg-amber-600">
+                            <Crown className="h-3 w-3" />
+                            Premium Aktif
+                          </Badge>
+                        ) : packageStatus === "expired" ? (
+                          <Badge variant="danger">Kedaluwarsa</Badge>
+                        ) : packageStatus === "missing-date" ? (
+                          <Badge variant="warning">
+                            Perlu Pemeriksaan
+                          </Badge>
+                        ) : (
+                          <Badge variant="outline">Gratis</Badge>
+                        )}
+                      </TableCell>
+
+                      <TableCell>
+                        {user.role === "admin" ? (
+                          <span className="text-xs text-muted-foreground">
+                            Tidak dibatasi
+                          </span>
+                        ) : user.premium_until ? (
+                          <div className="space-y-1">
+                            <div className="flex items-center gap-1.5 text-xs font-medium">
+                              <Calendar className="h-3.5 w-3.5 text-muted-foreground" />
+                              {formatDate(user.premium_until)}
+                            </div>
+
+                            {isPremiumActive(user) &&
+                              remainingDays !== null && (
+                                <p className="text-[11px] text-emerald-600">
+                                  {remainingDays === 0
+                                    ? "Berakhir hari ini"
+                                    : `${remainingDays} hari tersisa`}
+                                </p>
+                              )}
+                          </div>
+                        ) : (
+                          <span className="text-xs text-muted-foreground">
+                            Belum berlangganan
+                          </span>
+                        )}
+                      </TableCell>
+
+                      <TableCell className="text-xs text-muted-foreground">
+                        {formatDate(user.created_at)}
+                      </TableCell>
+
+                      <TableCell className="pr-5 text-right">
+                        {user.role === "admin" ? (
+                          <span className="text-xs text-muted-foreground">
+                            Khusus Admin
+                          </span>
+                        ) : (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleOpenSetting(user)}
+                            disabled={saving}
+                            className="gap-1.5 rounded-lg"
+                          >
+                            <Sliders className="h-3.5 w-3.5" />
+                            Atur Paket
+                          </Button>
+                        )}
+                      </TableCell>
+                    </TableRow>
+                  );
+                })
+              )}
+            </TableBody>
+          </Table>
+        </div>
+
+        {!loading && users.length > 0 && (
+          <div className="flex flex-col gap-2 border-t bg-muted/20 px-5 py-3 text-xs text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
+            <span>
+              Menampilkan {filteredUsers.length} pengguna
+            </span>
+            <span className="flex items-center gap-1.5">
+              <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
+              Data dari database GradeUp
+            </span>
+          </div>
+        )}
+      </section>
 
       {/* Dialog Premium */}
       <Dialog
@@ -548,16 +726,18 @@ export function AdminUsersPage() {
           }
         }}
       >
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="max-h-[90vh] overflow-y-auto rounded-2xl sm:max-w-md">
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Crown className="h-5 w-5 text-amber-500" />
+            <DialogTitle className="flex items-center gap-2 text-lg">
+              <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-amber-500/10 text-amber-600">
+                <Crown className="h-5 w-5" />
+              </div>
               Atur Paket Premium
             </DialogTitle>
 
             <DialogDescription>
-              Kelola akses Premium untuk{" "}
-              <strong>
+              Kelola masa aktif Premium untuk{" "}
+              <strong className="text-foreground">
                 {selectedUser?.full_name ||
                   selectedUser?.email ||
                   "pengguna"}
@@ -565,26 +745,28 @@ export function AdminUsersPage() {
             </DialogDescription>
           </DialogHeader>
 
-          {/* Status Saat Ini */}
-          <div className="rounded-lg border bg-muted/30 p-3">
-            <p className="text-xs text-muted-foreground">
-              Status paket saat ini
-            </p>
+          {/* Status saat ini */}
+          <div className="rounded-xl border bg-muted/30 p-4">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <p className="text-xs text-muted-foreground">
+                  Status paket saat ini
+                </p>
 
-            <div className="mt-1 flex items-center justify-between">
-              <span className="text-sm font-semibold">
-                {selectedUser && isPremiumActive(selectedUser)
-                  ? "Premium Aktif"
-                  : selectedUser?.is_premium
-                    ? selectedUser.premium_until
-                      ? "Premium Kedaluwarsa"
-                      : "Perlu Pemeriksaan"
-                    : "Gratis"}
-              </span>
+                <p className="mt-1 font-semibold">
+                  {selectedUser && isPremiumActive(selectedUser)
+                    ? "Premium Aktif"
+                    : selectedUser?.is_premium
+                      ? selectedUser.premium_until
+                        ? "Premium Kedaluwarsa"
+                        : "Perlu Pemeriksaan"
+                      : "Paket Gratis"}
+                </p>
+              </div>
 
               {selectedUser && isPremiumActive(selectedUser) ? (
-                <Badge className="bg-amber-500 text-white">
-                  <Crown className="mr-1 h-3 w-3" />
+                <Badge className="gap-1 bg-amber-500 text-white">
+                  <Crown className="h-3 w-3" />
                   Aktif
                 </Badge>
               ) : (
@@ -595,16 +777,26 @@ export function AdminUsersPage() {
             </div>
 
             {selectedUser?.premium_until && (
-              <p className="mt-2 text-xs text-muted-foreground">
+              <div className="mt-3 flex items-center gap-2 border-t pt-3 text-xs text-muted-foreground">
+                <Clock3 className="h-3.5 w-3.5" />
                 Berakhir: {formatDate(selectedUser.premium_until)}
-              </p>
+              </div>
             )}
           </div>
 
-          {/* Pilihan Durasi */}
+          {/* Informasi Premium */}
+          <div className="flex items-start gap-2 rounded-xl border border-amber-500/20 bg-amber-500/5 p-3 text-xs leading-relaxed text-muted-foreground">
+            <Sparkles className="mt-0.5 h-4 w-4 shrink-0 text-amber-500" />
+            <span>
+              Akses Premium memberikan pengguna hak akses ke kursus
+              Premium sesuai ketentuan langganan GradeUp.
+            </span>
+          </div>
+
+          {/* Durasi */}
           <div className="space-y-4 py-2">
             <div className="space-y-2">
-              <label className="text-xs font-semibold">
+              <label className="text-sm font-medium">
                 Pilih Satuan Waktu
               </label>
 
@@ -615,7 +807,7 @@ export function AdminUsersPage() {
                 }
                 disabled={saving}
               >
-                <SelectTrigger>
+                <SelectTrigger className="h-11 rounded-xl">
                   <SelectValue placeholder="Pilih satuan..." />
                 </SelectTrigger>
 
@@ -632,7 +824,7 @@ export function AdminUsersPage() {
 
             {durationUnit !== "custom" ? (
               <div className="space-y-2">
-                <label className="text-xs font-semibold">
+                <label className="text-sm font-medium">
                   Jumlah Durasi (
                   {durationUnit === "days"
                     ? "Hari"
@@ -648,46 +840,60 @@ export function AdminUsersPage() {
                   step={1}
                   value={durationValue}
                   onChange={(event) =>
-                    setDurationValue(Number(event.target.value))
+                    setDurationValue(
+                      event.target.value === ""
+                        ? 0
+                        : Number(event.target.value)
+                    )
                   }
                   disabled={saving}
+                  className="h-11 rounded-xl"
                 />
               </div>
             ) : (
               <div className="space-y-2">
-                <label className="text-xs font-semibold">
+                <label className="text-sm font-medium">
                   Berlaku Sampai Tanggal
                 </label>
 
                 <Input
                   type="date"
                   value={customDate}
-                  min={new Date().toLocaleDateString("en-CA")}
+                  min={new Date().toLocaleDateString("en-CA", {
+                    timeZone: "Asia/Jakarta",
+                  })}
                   onChange={(event) => setCustomDate(event.target.value)}
                   disabled={saving}
+                  className="h-11 rounded-xl"
                 />
+                <p className="text-xs text-muted-foreground">
+                  Akses berlaku sampai akhir tanggal yang dipilih.
+                </p>
               </div>
             )}
           </div>
 
-          {/* Pesan Error */}
+          {/* Error */}
           {errorMessage && (
-            <div className="flex items-start gap-2 rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
+            <div className="flex items-start gap-2 rounded-xl border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
               <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
               <span>{errorMessage}</span>
             </div>
           )}
 
-          <DialogFooter className="flex-col gap-2 sm:flex-row sm:justify-between">
+          <DialogFooter className="flex-col gap-3 border-t pt-4 sm:flex-row sm:justify-between">
             {selectedUser?.is_premium ? (
               <Button
                 variant="destructive"
                 size="sm"
                 onClick={handleRevokePremium}
                 disabled={saving}
+                className="w-full sm:w-auto"
               >
-                {saving && (
+                {saving ? (
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : (
+                  <X className="mr-2 h-4 w-4" />
                 )}
                 Cabut Premium
               </Button>
@@ -695,23 +901,31 @@ export function AdminUsersPage() {
               <div />
             )}
 
-            <div className="flex gap-2">
+            <div className="flex w-full gap-2 sm:w-auto">
               <Button
                 variant="outline"
                 onClick={() => setIsDialogOpen(false)}
                 disabled={saving}
+                className="flex-1 sm:flex-none"
               >
                 Batal
               </Button>
 
-              <Button onClick={handleSavePremium} disabled={saving}>
+              <Button
+                onClick={handleSavePremium}
+                disabled={saving}
+                className="flex-1 gap-2 sm:flex-none"
+              >
                 {saving ? (
                   <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    <Loader2 className="h-4 w-4 animate-spin" />
                     Menyimpan...
                   </>
                 ) : (
-                  "Simpan Paket"
+                  <>
+                    <Crown className="h-4 w-4" />
+                    Simpan Paket
+                  </>
                 )}
               </Button>
             </div>
