@@ -56,6 +56,7 @@ interface CourseStructurePanelProps {
   onModuleChange: (moduleId: string) => void;
   onLessonSelect: (lessonId: string) => void;
   onSectionSelect?: (sectionId: string) => void;
+  onSectionTitleChange?: (sectionId: string, title: string) => void;
 }
 
 const EMPTY_CONTENT = {
@@ -71,6 +72,7 @@ export default function CourseStructurePanel({
   onModuleChange,
   onLessonSelect,
   onSectionSelect,
+  onSectionTitleChange,
 }: CourseStructurePanelProps) {
   const [modules, setModules] = useState<ModuleItem[]>([]);
   const [lessons, setLessons] = useState<LessonItem[]>([]);
@@ -86,22 +88,20 @@ export default function CourseStructurePanel({
   const [newSectionTitle, setNewSectionTitle] = useState("");
 
   const [showModuleInput, setShowModuleInput] = useState(false);
-  const [showLessonInputFor, setShowLessonInputFor] = useState<string | null>(
-    null
-  );
+  const [showLessonInputFor, setShowLessonInputFor] =
+    useState<string | null>(null);
   const [showSectionInput, setShowSectionInput] = useState(false);
 
-  const [editingSectionId, setEditingSectionId] = useState<string | null>(
-    null
-  );
+  const [editingSectionId, setEditingSectionId] =
+    useState<string | null>(null);
   const [editingSectionTitle, setEditingSectionTitle] = useState("");
 
-  const [deletingSectionId, setDeletingSectionId] = useState<string | null>(
-    null
-  );
+  const [deletingSectionId, setDeletingSectionId] =
+    useState<string | null>(null);
 
-  // Mencegah hasil fetch lama menimpa data sesi yang baru dipilih.
   const sectionFetchRequestRef = useRef(0);
+  const structureFetchRequestRef = useRef(0);
+
   const activeLessonIdRef = useRef<string | null>(activeLessonId);
 
   activeLessonIdRef.current = activeLessonId;
@@ -111,17 +111,22 @@ export default function CourseStructurePanel({
   // =========================================================
 
   const fetchStructure = useCallback(async () => {
+    const requestId = ++structureFetchRequestRef.current;
+
     setLoading(true);
     setError(null);
 
     try {
-      const { data: moduleData, error: moduleError } = await supabase
-        .from("course_modules")
-        .select("id, title, description, sort_order, is_published")
-        .eq("course_id", courseId)
-        .order("sort_order", { ascending: true });
+      const { data: moduleData, error: moduleError } =
+        await supabase
+          .from("course_modules")
+          .select("id, title, description, sort_order, is_published")
+          .eq("course_id", courseId)
+          .order("sort_order", { ascending: true });
 
       if (moduleError) throw moduleError;
+
+      if (requestId !== structureFetchRequestRef.current) return;
 
       const loadedModules = (moduleData ?? []) as ModuleItem[];
 
@@ -134,16 +139,21 @@ export default function CourseStructurePanel({
 
       const moduleIds = loadedModules.map((module) => module.id);
 
-      const { data: lessonData, error: lessonError } = await supabase
-        .from("course_lessons")
-        .select("id, module_id, title, sort_order, is_published")
-        .in("module_id", moduleIds)
-        .order("sort_order", { ascending: true });
+      const { data: lessonData, error: lessonError } =
+        await supabase
+          .from("course_lessons")
+          .select("id, module_id, title, sort_order, is_published")
+          .in("module_id", moduleIds)
+          .order("sort_order", { ascending: true });
 
       if (lessonError) throw lessonError;
 
+      if (requestId !== structureFetchRequestRef.current) return;
+
       setLessons((lessonData ?? []) as LessonItem[]);
     } catch (err: unknown) {
+      if (requestId !== structureFetchRequestRef.current) return;
+
       console.error("Fetch course structure error:", err);
 
       const message =
@@ -154,12 +164,14 @@ export default function CourseStructurePanel({
       setError(message);
       toast.error(message);
     } finally {
-      setLoading(false);
+      if (requestId === structureFetchRequestRef.current) {
+        setLoading(false);
+      }
     }
   }, [courseId]);
 
   // =========================================================
-  // LOAD SECTIONS FOR SELECTED LESSON
+  // LOAD SECTIONS
   // =========================================================
 
   const fetchSections = useCallback(
@@ -186,7 +198,6 @@ export default function CourseStructurePanel({
 
         if (sectionError) throw sectionError;
 
-        // Abaikan hasil jika pengguna sudah berpindah sesi.
         if (
           requestId !== sectionFetchRequestRef.current ||
           activeLessonIdRef.current !== targetLessonId
@@ -207,7 +218,9 @@ export default function CourseStructurePanel({
 
         toast.error(
           "Gagal memuat bagian materi: " +
-            (err instanceof Error ? err.message : "Terjadi kesalahan")
+            (err instanceof Error
+              ? err.message
+              : "Terjadi kesalahan")
         );
       } finally {
         if (
@@ -228,6 +241,7 @@ export default function CourseStructurePanel({
   useEffect(() => {
     setSections([]);
     setEditingSectionId(null);
+    setEditingSectionTitle("");
     setDeletingSectionId(null);
     setShowSectionInput(false);
     setNewSectionTitle("");
@@ -292,7 +306,9 @@ export default function CourseStructurePanel({
 
       toast.error(
         "Gagal menambahkan modul: " +
-          (err instanceof Error ? err.message : "Terjadi kesalahan")
+          (err instanceof Error
+            ? err.message
+            : "Terjadi kesalahan")
       );
     } finally {
       setWorking(false);
@@ -360,7 +376,9 @@ export default function CourseStructurePanel({
 
       toast.error(
         "Gagal menambahkan sesi: " +
-          (err instanceof Error ? err.message : "Terjadi kesalahan")
+          (err instanceof Error
+            ? err.message
+            : "Terjadi kesalahan")
       );
     } finally {
       setWorking(false);
@@ -412,7 +430,6 @@ export default function CourseStructurePanel({
 
       await fetchSections(targetLessonId);
 
-      // Jangan mengganti editor jika pengguna sudah pindah sesi.
       if (activeLessonIdRef.current === targetLessonId) {
         onSectionSelect?.(data.id);
       }
@@ -426,7 +443,9 @@ export default function CourseStructurePanel({
 
       toast.error(
         "Gagal menambahkan bagian materi: " +
-          (err instanceof Error ? err.message : "Terjadi kesalahan")
+          (err instanceof Error
+            ? err.message
+            : "Terjadi kesalahan")
       );
     } finally {
       setWorking(false);
@@ -464,7 +483,18 @@ export default function CourseStructurePanel({
 
       if (updateError) throw updateError;
 
-      await fetchSections(targetLessonId);
+      // Sinkronkan judul editor jika bagian yang diubah sedang aktif.
+      if (sectionId === activeSectionId) {
+        onSectionTitleChange?.(sectionId, title);
+      }
+
+      setSections((current) =>
+        current.map((section) =>
+          section.id === sectionId
+            ? { ...section, title }
+            : section
+        )
+      );
 
       setEditingSectionId(null);
       setEditingSectionTitle("");
@@ -475,7 +505,9 @@ export default function CourseStructurePanel({
 
       toast.error(
         "Gagal mengubah judul: " +
-          (err instanceof Error ? err.message : "Terjadi kesalahan")
+          (err instanceof Error
+            ? err.message
+            : "Terjadi kesalahan")
       );
     } finally {
       setWorking(false);
@@ -491,20 +523,20 @@ export default function CourseStructurePanel({
 
     if (working || !targetLessonId) return;
 
-    // Lindungi konten editor yang mungkin belum tersimpan.
     if (activeSectionId === sectionId) {
       toast.error(
         "Pilih bagian materi lain terlebih dahulu sebelum menghapus bagian ini."
       );
+
       setDeletingSectionId(null);
       return;
     }
 
-    // Setiap sesi harus tetap memiliki minimal satu bagian materi.
     if (sections.length <= 1) {
       toast.error(
         "Bagian materi terakhir tidak dapat dihapus. Tambahkan bagian baru terlebih dahulu."
       );
+
       setDeletingSectionId(null);
       return;
     }
@@ -562,7 +594,6 @@ export default function CourseStructurePanel({
 
   return (
     <Card className="overflow-hidden">
-      {/* PANEL HEADER */}
       <div className="flex items-center justify-between gap-2 border-b p-4">
         <div className="min-w-0">
           <h3 className="font-semibold">Struktur Pembelajaran</h3>
@@ -591,7 +622,6 @@ export default function CourseStructurePanel({
       </div>
 
       <div className="space-y-3 p-3">
-        {/* ADD MODULE BUTTON */}
         <Button
           variant="outline"
           size="sm"
@@ -603,7 +633,6 @@ export default function CourseStructurePanel({
           Tambah Modul
         </Button>
 
-        {/* MODULE INPUT */}
         {showModuleInput && (
           <div className="space-y-2 rounded-lg border bg-muted/30 p-3">
             <Input
@@ -648,7 +677,6 @@ export default function CourseStructurePanel({
           </div>
         )}
 
-        {/* LOADING */}
         {loading ? (
           <div className="flex items-center justify-center gap-2 py-8 text-sm text-muted-foreground">
             <Loader2 className="h-4 w-4 animate-spin" />
@@ -670,9 +698,7 @@ export default function CourseStructurePanel({
         ) : modules.length === 0 ? (
           <div className="py-8 text-center">
             <Folder className="mx-auto mb-2 h-8 w-8 text-muted-foreground" />
-
             <p className="text-sm font-medium">Belum ada modul</p>
-
             <p className="mt-1 text-xs text-muted-foreground">
               Tambahkan modul untuk mulai menyusun pembelajaran.
             </p>
@@ -691,7 +717,6 @@ export default function CourseStructurePanel({
                   key={module.id}
                   className="overflow-hidden rounded-lg border"
                 >
-                  {/* MODULE ITEM */}
                   <button
                     type="button"
                     onClick={() => onModuleChange(module.id)}
@@ -724,7 +749,6 @@ export default function CourseStructurePanel({
                     </Badge>
                   </button>
 
-                  {/* ACTIVE MODULE CONTENT */}
                   {isActive && (
                     <div className="space-y-2 border-t bg-muted/20 p-2">
                       <div className="flex items-center justify-between gap-2 px-2 py-1">
@@ -752,7 +776,6 @@ export default function CourseStructurePanel({
 
                           return (
                             <div key={lesson.id} className="space-y-1">
-                              {/* LESSON ITEM */}
                               <button
                                 type="button"
                                 onClick={() => onLessonSelect(lesson.id)}
@@ -788,25 +811,23 @@ export default function CourseStructurePanel({
                                 </span>
                               </button>
 
-                              {/* ACTIVE LESSON SECTIONS */}
                               {isLessonActive && (
                                 <div className="ml-3 space-y-2 border-l-2 border-primary/20 py-2 pl-3">
-                                  {/* SECTION HEADER */}
                                   <div className="flex items-center justify-between gap-2">
                                     <div className="flex min-w-0 items-center gap-2">
                                       <Layers3 className="h-3.5 w-3.5 text-primary" />
-
                                       <span className="text-xs font-semibold text-muted-foreground">
                                         Bagian Materi
                                       </span>
                                     </div>
 
                                     <Badge variant="outline">
-                                      {sectionsLoading ? "..." : sections.length}
+                                      {sectionsLoading
+                                        ? "..."
+                                        : sections.length}
                                     </Badge>
                                   </div>
 
-                                  {/* SECTION LOADING */}
                                   {sectionsLoading ? (
                                     <div className="flex items-center gap-2 py-3 text-xs text-muted-foreground">
                                       <Loader2 className="h-3 w-3 animate-spin" />
@@ -815,11 +836,9 @@ export default function CourseStructurePanel({
                                   ) : sections.length === 0 ? (
                                     <div className="rounded-md border border-dashed p-3 text-center">
                                       <FileText className="mx-auto mb-2 h-5 w-5 text-muted-foreground" />
-
                                       <p className="text-xs font-medium">
                                         Belum ada bagian materi
                                       </p>
-
                                       <p className="mt-1 text-[11px] text-muted-foreground">
                                         Tambahkan bagian pertama untuk mulai
                                         menulis materi.
@@ -851,7 +870,6 @@ export default function CourseStructurePanel({
                                                   : "border-transparent bg-card"
                                               }`}
                                             >
-                                              {/* EDIT SECTION TITLE */}
                                               {isEditing ? (
                                                 <div className="space-y-2">
                                                   <Input
@@ -865,19 +883,14 @@ export default function CourseStructurePanel({
                                                     disabled={working}
                                                     placeholder="Judul bagian materi..."
                                                     onKeyDown={(event) => {
-                                                      if (
-                                                        event.key === "Enter"
-                                                      ) {
+                                                      if (event.key === "Enter") {
                                                         event.preventDefault();
-
                                                         void saveSectionTitle(
                                                           section.id
                                                         );
                                                       }
 
-                                                      if (
-                                                        event.key === "Escape"
-                                                      ) {
+                                                      if (event.key === "Escape") {
                                                         cancelSectionEditing();
                                                       }
                                                     }}
@@ -903,9 +916,7 @@ export default function CourseStructurePanel({
                                                     <Button
                                                       size="sm"
                                                       variant="ghost"
-                                                      onClick={
-                                                        cancelSectionEditing
-                                                      }
+                                                      onClick={cancelSectionEditing}
                                                       disabled={working}
                                                     >
                                                       <X className="mr-1 h-3 w-3" />
@@ -914,7 +925,6 @@ export default function CourseStructurePanel({
                                                   </div>
                                                 </div>
                                               ) : isDeleting ? (
-                                                /* DELETE CONFIRMATION */
                                                 <div className="space-y-2">
                                                   <p className="text-xs font-medium text-destructive">
                                                     Hapus bagian materi ini?
@@ -949,9 +959,7 @@ export default function CourseStructurePanel({
                                                       size="sm"
                                                       variant="ghost"
                                                       onClick={() =>
-                                                        setDeletingSectionId(
-                                                          null
-                                                        )
+                                                        setDeletingSectionId(null)
                                                       }
                                                       disabled={working}
                                                     >
@@ -960,7 +968,6 @@ export default function CourseStructurePanel({
                                                   </div>
                                                 </div>
                                               ) : (
-                                                /* NORMAL SECTION ITEM */
                                                 <div className="flex items-center gap-1">
                                                   <button
                                                     type="button"
@@ -1004,14 +1011,10 @@ export default function CourseStructurePanel({
                                                       setEditingSectionId(
                                                         section.id
                                                       );
-
                                                       setEditingSectionTitle(
                                                         section.title
                                                       );
-
-                                                      setDeletingSectionId(
-                                                        null
-                                                      );
+                                                      setDeletingSectionId(null);
                                                     }}
                                                     disabled={working}
                                                   >
@@ -1031,26 +1034,18 @@ export default function CourseStructurePanel({
                                                     }
                                                     onClick={() => {
                                                       if (!canDelete) {
-                                                        if (isSectionActive) {
-                                                          toast.error(
-                                                            "Pilih bagian materi lain terlebih dahulu sebelum menghapus bagian ini."
-                                                          );
-                                                        } else {
-                                                          toast.error(
-                                                            "Bagian materi terakhir tidak dapat dihapus."
-                                                          );
-                                                        }
-
+                                                        toast.error(
+                                                          isSectionActive
+                                                            ? "Pilih bagian materi lain terlebih dahulu sebelum menghapus bagian ini."
+                                                            : "Bagian materi terakhir tidak dapat dihapus."
+                                                        );
                                                         return;
                                                       }
 
                                                       setDeletingSectionId(
                                                         section.id
                                                       );
-
-                                                      setEditingSectionId(
-                                                        null
-                                                      );
+                                                      setEditingSectionId(null);
                                                     }}
                                                     disabled={working}
                                                   >
@@ -1059,7 +1054,6 @@ export default function CourseStructurePanel({
                                                 </div>
                                               )}
 
-                                              {/* SECTION STATUS */}
                                               {!isEditing && !isDeleting && (
                                                 <div className="mt-1 pl-6">
                                                   <span className="text-[10px] text-muted-foreground">
@@ -1076,7 +1070,6 @@ export default function CourseStructurePanel({
                                     </div>
                                   )}
 
-                                  {/* ADD SECTION BUTTON */}
                                   <Button
                                     size="sm"
                                     variant="outline"
@@ -1091,14 +1084,12 @@ export default function CourseStructurePanel({
                                     Tambah Bagian Materi
                                   </Button>
 
-                                  {/* ADD SECTION FORM */}
                                   {showSectionInput && (
                                     <div className="space-y-2 rounded-lg border bg-card p-3">
                                       <div>
                                         <p className="text-xs font-medium">
                                           Bagian Materi Baru
                                         </p>
-
                                         <p className="mt-1 text-[11px] text-muted-foreground">
                                           Bagian baru akan ditambahkan setelah
                                           bagian terakhir.
@@ -1109,9 +1100,7 @@ export default function CourseStructurePanel({
                                         autoFocus
                                         value={newSectionTitle}
                                         onChange={(event) =>
-                                          setNewSectionTitle(
-                                            event.target.value
-                                          )
+                                          setNewSectionTitle(event.target.value)
                                         }
                                         placeholder="Contoh: Pengertian Dasar..."
                                         disabled={working}
@@ -1131,9 +1120,7 @@ export default function CourseStructurePanel({
                                       <div className="flex gap-2">
                                         <Button
                                           size="sm"
-                                          onClick={() =>
-                                            void createSection()
-                                          }
+                                          onClick={() => void createSection()}
                                           disabled={
                                             working ||
                                             !newSectionTitle.trim()
@@ -1170,7 +1157,6 @@ export default function CourseStructurePanel({
                         })
                       )}
 
-                      {/* ADD LESSON BUTTON */}
                       <Button
                         size="sm"
                         variant="ghost"
@@ -1182,7 +1168,6 @@ export default function CourseStructurePanel({
                         Tambah Sesi
                       </Button>
 
-                      {/* ADD LESSON FORM */}
                       {showLessonInputFor === module.id && (
                         <div className="space-y-2 rounded-lg border bg-card p-3">
                           <Input
