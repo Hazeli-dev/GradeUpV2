@@ -1,3 +1,4 @@
+
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
@@ -19,12 +20,14 @@ import {
   Sparkles,
   ArrowUpRight,
   X,
-  Sun,
-  Moon,
+  GraduationCap,
+  ChevronRight,
+  Target,
+  Layers3,
 } from "lucide-react";
+
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Progress } from "@/components/ui/progress";
 import { PageSkeleton } from "@/components/shared/states";
 import { supabase } from "@/lib/supabase";
 import { cn } from "@/lib/utils";
@@ -46,95 +49,162 @@ interface ExamPackageItem {
   premium?: boolean;
 }
 
-const STATUS_ORDER: ExamStatus[] = ["Aktif", "Akan Datang", "Selesai"];
+const STATUS_ORDER: ExamStatus[] = [
+  "Aktif",
+  "Akan Datang",
+  "Selesai",
+];
 
-const STATUS_SECTION: Record<ExamStatus, { title: string; hint: string; icon: React.ReactNode }> = {
-  Aktif: { title: "Bisa dikerjakan sekarang", hint: "Kerjakan sebelum waktunya habis", icon: <Play className="h-4 w-4" /> },
-  "Akan Datang": { title: "Segera dibuka", hint: "Siapkan dirimu, jadwalkan belajarmu", icon: <Calendar className="h-4 w-4" /> },
-  Selesai: { title: "Sudah berakhir", hint: "Lihat riwayat pengerjaan", icon: <CheckCircle2 className="h-4 w-4" /> },
+const STATUS_CONFIG: Record<
+  ExamStatus,
+  {
+    title: string;
+    subtitle: string;
+    icon: typeof Play;
+    color: string;
+    background: string;
+    border: string;
+  }
+> = {
+  Aktif: {
+    title: "Ujian tersedia",
+    subtitle: "Paket ujian yang dapat kamu kerjakan sekarang",
+    icon: Play,
+    color: "text-emerald-600 dark:text-emerald-400",
+    background: "bg-emerald-500/10",
+    border: "border-emerald-500/20",
+  },
+  "Akan Datang": {
+    title: "Segera dibuka",
+    subtitle: "Persiapkan dirimu sebelum jadwal ujian dimulai",
+    icon: Calendar,
+    color: "text-sky-600 dark:text-sky-400",
+    background: "bg-sky-500/10",
+    border: "border-sky-500/20",
+  },
+  Selesai: {
+    title: "Periode berakhir",
+    subtitle: "Paket ujian yang sudah melewati batas waktu",
+    icon: CheckCircle2,
+    color: "text-slate-500 dark:text-slate-400",
+    background: "bg-slate-500/10",
+    border: "border-slate-500/20",
+  },
 };
 
 function getCategoryTheme(category: string) {
   switch (category) {
     case "Tryout":
       return {
-        icon: <Zap className="h-5 w-5" />,
+        icon: Zap,
+        color: "text-sky-700 dark:text-sky-300",
+        badge: "border-sky-200 bg-sky-50 dark:border-sky-800 dark:bg-sky-950/50",
         gradient: "from-sky-500 to-cyan-500",
-        gradientDark: "dark:from-sky-600 dark:to-cyan-600",
-        light: "bg-sky-500/10 text-sky-700 border-sky-200 dark:bg-sky-500/15 dark:text-sky-300 dark:border-sky-500/20",
-        badge: "bg-sky-50 text-sky-700 border-sky-200 dark:bg-sky-950/50 dark:text-sky-300 dark:border-sky-800",
-        ring: "group-hover:ring-sky-200 dark:group-hover:ring-sky-800",
-        glow: "group-hover:shadow-sky-500/10 dark:group-hover:shadow-sky-500/20",
+        accent: "bg-sky-500",
       };
+
     case "PTS":
     case "PTS/UTS":
       return {
-        icon: <FileText className="h-5 w-5" />,
+        icon: FileText,
+        color: "text-violet-700 dark:text-violet-300",
+        badge: "border-violet-200 bg-violet-50 dark:border-violet-800 dark:bg-violet-950/50",
         gradient: "from-violet-500 to-purple-500",
-        gradientDark: "dark:from-violet-600 dark:to-purple-600",
-        light: "bg-violet-500/10 text-violet-700 border-violet-200 dark:bg-violet-500/15 dark:text-violet-300 dark:border-violet-500/20",
-        badge: "bg-violet-50 text-violet-700 border-violet-200 dark:bg-violet-950/50 dark:text-violet-300 dark:border-violet-800",
-        ring: "group-hover:ring-violet-200 dark:group-hover:ring-violet-800",
-        glow: "group-hover:shadow-violet-500/10 dark:group-hover:shadow-violet-500/20",
+        accent: "bg-violet-500",
       };
+
     case "PAS":
     case "PAS/UAS":
       return {
-        icon: <Award className="h-5 w-5" />,
+        icon: Award,
+        color: "text-blue-700 dark:text-blue-300",
+        badge: "border-blue-200 bg-blue-50 dark:border-blue-800 dark:bg-blue-950/50",
         gradient: "from-blue-500 to-indigo-500",
-        gradientDark: "dark:from-blue-600 dark:to-indigo-600",
-        light: "bg-blue-500/10 text-blue-700 border-blue-200 dark:bg-blue-500/15 dark:text-blue-300 dark:border-blue-500/20",
-        badge: "bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950/50 dark:text-blue-300 dark:border-blue-800",
-        ring: "group-hover:ring-blue-200 dark:group-hover:ring-blue-800",
-        glow: "group-hover:shadow-blue-500/10 dark:group-hover:shadow-blue-500/20",
+        accent: "bg-blue-500",
       };
-    case "Harian":
-    case "Matematika":
+
     default:
       return {
-        icon: <BookOpen className="h-5 w-5" />,
+        icon: BookOpen,
+        color: "text-emerald-700 dark:text-emerald-300",
+        badge: "border-emerald-200 bg-emerald-50 dark:border-emerald-800 dark:bg-emerald-950/50",
         gradient: "from-emerald-500 to-teal-500",
-        gradientDark: "dark:from-emerald-600 dark:to-teal-600",
-        light: "bg-emerald-500/10 text-emerald-700 border-emerald-200 dark:bg-emerald-500/15 dark:text-emerald-300 dark:border-emerald-500/20",
-        badge: "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/50 dark:text-emerald-300 dark:border-emerald-800",
-        ring: "group-hover:ring-emerald-200 dark:group-hover:ring-emerald-800",
-        glow: "group-hover:shadow-emerald-500/10 dark:group-hover:shadow-emerald-500/20",
+        accent: "bg-emerald-500",
       };
   }
 }
 
+function formatDate(value?: string) {
+  if (!value) return "-";
+
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) return "-";
+
+  return date.toLocaleDateString("id-ID", {
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
 export default function StudentExamsPage() {
   const navigate = useNavigate();
+
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
-  const [selectedCategory, setSelectedCategory] = useState<string>("Semua");
+
+  const [selectedCategory, setSelectedCategory] = useState("Semua");
   const [searchQuery, setSearchQuery] = useState("");
+
   const [examPackages, setExamPackages] = useState<ExamPackageItem[]>([]);
   const [studentName, setStudentName] = useState("Siswa");
-  const [userClass] = useState("Kelas 6 SD");
+  const [userClass, setUserClass] = useState("Peserta Didik");
+
   const [level, setLevel] = useState(1);
   const [currentXp, setCurrentXp] = useState(10);
-  const [maxXp] = useState(1000);
-  const [isDark, setIsDark] = useState(false);
+
+  const maxXp = 1000;
+  const xpRemaining = Math.max(0, maxXp - currentXp);
+  const xpPercentage = Math.min(100, (currentXp / maxXp) * 100);
 
   const fetchExamsData = useCallback(async () => {
     try {
       setLoading(true);
       setLoadError(false);
 
-      // 1. Fetch User Profile
-      const { data: { user } } = await supabase.auth.getUser();
+      // Profil siswa
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
       if (user) {
-        const { data: profile } = await supabase.from("profiles").select("full_name, total_xp, level").eq("id", user.id).single();
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("full_name, name, total_xp, level, class")
+          .eq("id", user.id)
+          .single();
+
         if (profile) {
-          setStudentName(profile.full_name || user.email?.split("@")[0] || "Siswa GradeUp");
-          const totalXp = profile.total_xp || 10;
-          setCurrentXp(totalXp % 1000);
-          setLevel(profile.level || Math.floor(totalXp / 1000) + 1);
+          setStudentName(
+            profile.full_name ||
+              profile.name ||
+              user.email?.split("@")[0] ||
+              "Siswa GradeUp"
+          );
+
+          setUserClass(profile.class || "Peserta Didik");
+
+          const totalXp = profile.total_xp ?? 10;
+
+          setCurrentXp(totalXp % maxXp);
+          setLevel(profile.level || Math.floor(totalXp / maxXp) + 1);
         }
       }
 
-      // 2. Fetch Exam Packages dari Supabase
+      // Paket ujian
       const { data: packages, error } = await supabase
         .from("exam_packages")
         .select("*")
@@ -142,29 +212,47 @@ export default function StudentExamsPage() {
         .order("created_at", { ascending: false });
 
       if (error) throw error;
-      const now = new Date().getTime();
 
-      if (packages && packages.length > 0) {
-        const formattedPackages: ExamPackageItem[] = packages.map((pkg: any) => {
-          const startDate = pkg.start_time ? new Date(pkg.start_time) : new Date(pkg.created_at || Date.now());
+      const now = Date.now();
+
+      const formattedPackages: ExamPackageItem[] = (packages || []).map(
+        (pkg: any) => {
+          const startDate = pkg.start_time
+            ? new Date(pkg.start_time)
+            : new Date(pkg.created_at || Date.now());
+
           const endDate = pkg.end_time ? new Date(pkg.end_time) : null;
-          
+
           let status: ExamStatus = "Aktif";
           let daysLeft: number | undefined;
           let timeProgress: number | undefined;
 
-          // Sinkronisasi Kondisi Status Real-time
           if (startDate.getTime() > now) {
             status = "Akan Datang";
           } else if (endDate && now > endDate.getTime()) {
             status = "Selesai";
           } else {
             status = "Aktif";
+
             if (endDate) {
               const diffMs = endDate.getTime() - now;
-              daysLeft = Math.max(1, Math.ceil(diffMs / (1000 * 60 * 60 * 24)));
+
+              daysLeft = Math.max(
+                1,
+                Math.ceil(diffMs / (1000 * 60 * 60 * 24))
+              );
+
               const total = endDate.getTime() - startDate.getTime();
-              if (total > 0) timeProgress = Math.min(100, Math.max(0, ((now - startDate.getTime()) / total) * 100));
+
+              if (total > 0) {
+                timeProgress = Math.min(
+                  100,
+                  Math.max(
+                    0,
+                    ((now - startDate.getTime()) / total) * 100
+                  )
+                );
+              }
             }
           }
 
@@ -180,319 +268,669 @@ export default function StudentExamsPage() {
             days_left: daysLeft,
             time_progress: timeProgress,
             premium: pkg.premium,
-            start_date_str: startDate.toLocaleDateString("id-ID", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" }),
+            start_date_str: formatDate(
+              pkg.start_time || pkg.created_at
+            ),
           };
-        });
+        }
+      );
 
-        setExamPackages(formattedPackages);
-      } else {
-        setExamPackages([]);
-      }
-    } catch (err) {
-      console.error("Gagal mengambil data paket ujian:", err);
+      setExamPackages(formattedPackages);
+    } catch (error) {
+      console.error("Gagal mengambil data paket ujian:", error);
       setLoadError(true);
     } finally {
       setLoading(false);
     }
   }, []);
 
-  useEffect(() => { fetchExamsData(); }, [fetchExamsData]);
+  useEffect(() => {
+    fetchExamsData();
+  }, [fetchExamsData]);
 
-  // Daftar Kategori Dinamis berdasarkan Data dari Supabase
   const categoriesList = useMemo(() => {
-    const cats = Array.from(new Set(examPackages.map((p) => p.category)));
-    return ["Semua", ...cats];
+    const categories = Array.from(
+      new Set(examPackages.map((item) => item.category))
+    );
+
+    return ["Semua", ...categories];
   }, [examPackages]);
 
   const categoryCounts = useMemo(() => {
-    const counts: Record<string, number> = { Semua: examPackages.length };
-    examPackages.forEach((p) => { counts[p.category] = (counts[p.category] || 0) + 1; });
+    const counts: Record<string, number> = {
+      Semua: examPackages.length,
+    };
+
+    examPackages.forEach((item) => {
+      counts[item.category] = (counts[item.category] || 0) + 1;
+    });
+
     return counts;
   }, [examPackages]);
 
-  const statusCounts = useMemo(() => ({
-    Aktif: examPackages.filter((p) => p.status === "Aktif").length,
-    "Akan Datang": examPackages.filter((p) => p.status === "Akan Datang").length,
-    Selesai: examPackages.filter((p) => p.status === "Selesai").length,
-  }), [examPackages]);
+  const statusCounts = useMemo(
+    () => ({
+      Aktif: examPackages.filter((item) => item.status === "Aktif").length,
+      "Akan Datang": examPackages.filter(
+        (item) => item.status === "Akan Datang"
+      ).length,
+      Selesai: examPackages.filter((item) => item.status === "Selesai").length,
+    }),
+    [examPackages]
+  );
 
   const groupedPackages = useMemo(() => {
-    const q = searchQuery.trim().toLowerCase();
+    const query = searchQuery.trim().toLowerCase();
+
     const filtered = examPackages.filter((pkg) => {
-      const matchCategory = selectedCategory === "Semua" || pkg.category === selectedCategory;
-      const matchSearch = !q || pkg.title.toLowerCase().includes(q) || pkg.class_info.toLowerCase().includes(q) || (pkg.bab_info || "").toLowerCase().includes(q);
+      const matchCategory =
+        selectedCategory === "Semua" ||
+        pkg.category === selectedCategory;
+
+      const matchSearch =
+        !query ||
+        pkg.title.toLowerCase().includes(query) ||
+        pkg.class_info.toLowerCase().includes(query) ||
+        (pkg.bab_info || "").toLowerCase().includes(query);
+
       return matchCategory && matchSearch;
     });
 
     return STATUS_ORDER.map((status) => ({
       status,
-      items: filtered.filter((p) => p.status === status).sort((a, b) => status === "Aktif" ? (a.days_left ?? Infinity) - (b.days_left ?? Infinity) : 0),
-    })).filter((g) => g.items.length > 0);
+      items: filtered
+        .filter((item) => item.status === status)
+        .sort((a, b) =>
+          status === "Aktif"
+            ? (a.days_left ?? Infinity) - (b.days_left ?? Infinity)
+            : 0
+        ),
+    })).filter((group) => group.items.length > 0);
   }, [examPackages, selectedCategory, searchQuery]);
 
-  const totalShown = groupedPackages.reduce((sum, g) => sum + g.items.length, 0);
-  const xpRemaining = Math.max(0, maxXp - currentXp);
+  const totalShown = groupedPackages.reduce(
+    (sum, group) => sum + group.items.length,
+    0
+  );
 
   if (loading) return <PageSkeleton />;
 
   return (
-    <div className={cn("w-full space-y-8 pb-16 transition-colors duration-300", isDark ? "dark" : "")}>
-      <div className="dark:bg-slate-950 bg-transparent space-y-8 rounded-[2rem] p-1">
-        
-        {/* Toggle Mode Gelap / Terang */}
-        <div className="flex justify-end">
-          <button
-            onClick={() => setIsDark(!isDark)}
-            className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-bold text-slate-700 shadow-sm transition-all hover:bg-slate-50 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800"
-          >
-            {isDark ? <><Moon className="h-3.5 w-3.5" /> Dark Mode</> : <><Sun className="h-3.5 w-3.5" /> Light Mode</>}
-          </button>
+    <div className="min-h-full w-full space-y-7 pb-12 text-foreground">
+      {/* HERO */}
+      <section className="relative isolate overflow-hidden rounded-[28px] border border-emerald-500/20 bg-slate-950 shadow-xl shadow-emerald-950/10">
+        <div className="absolute inset-0 -z-10 bg-gradient-to-br from-emerald-700 via-teal-800 to-slate-950" />
+
+        <div className="absolute -right-24 -top-28 -z-10 h-80 w-80 rounded-full bg-emerald-400/20 blur-3xl" />
+        <div className="absolute -bottom-36 left-1/3 -z-10 h-80 w-80 rounded-full bg-cyan-400/10 blur-3xl" />
+
+        <div className="absolute right-5 top-5 hidden opacity-[0.07] sm:block">
+          <GraduationCap className="h-56 w-56 text-white" />
         </div>
 
-        {/* HERO BANNER & XP PROGRESS */}
-        <div className="relative overflow-hidden rounded-[2rem] border border-white/10 bg-[#0f172a] shadow-[0_20px_60px_-15px_rgba(16,185,129,0.3)] dark:shadow-[0_20px_60px_-15px_rgba(0,0,0,0.5)]">
-          <div className="absolute inset-0 bg-gradient-to-br from-emerald-600 via-teal-600 to-cyan-700 dark:from-emerald-700 dark:via-teal-800 dark:to-slate-900" />
-          <div className="absolute -top-24 -right-24 h-96 w-96 rounded-full bg-white/10 blur-[80px] dark:bg-emerald-500/10" />
-          <div className="absolute -bottom-20 -left-20 h-80 w-80 rounded-full bg-emerald-300/20 blur-[60px] dark:bg-teal-500/10" />
-          <Trophy className="pointer-events-none absolute -bottom-10 -right-6 h-72 w-72 rotate-12 text-white/[0.06]" />
-
-          <div className="relative z-10 p-6 sm:p-8 lg:p-10">
-            <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-6">
-              <div className="flex gap-4">
-                <div className="relative flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-amber-300 to-yellow-500 shadow-lg shadow-amber-500/20 ring-1 ring-white/20">
-                  <Star className="h-7 w-7 fill-white text-white" />
-                  <span className="absolute -bottom-1 -right-1 flex h-6 w-6 items-center justify-center rounded-full bg-white text-[11px] font-black text-amber-600 shadow-md">{level}</span>
+        <div className="relative p-6 sm:p-8 lg:p-9">
+          <div className="flex flex-col gap-7">
+            <div className="flex flex-col justify-between gap-5 sm:flex-row sm:items-start">
+              <div className="flex items-start gap-4">
+                <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl border border-white/20 bg-white/10 text-white shadow-lg backdrop-blur-md sm:h-16 sm:w-16">
+                  <Trophy className="h-7 w-7 sm:h-8 sm:w-8" />
                 </div>
+
                 <div className="min-w-0">
-                  <div className="inline-flex items-center gap-1.5 rounded-full bg-white/10 px-2.5 py-1 text-[10px] font-bold uppercase tracking-widest text-emerald-100 ring-1 ring-white/10 backdrop-blur-md">
-                    <Sparkles className="h-3 w-3" /> Dashboard Siswa
+                  <div className="mb-2 inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/10 px-3 py-1 text-[10px] font-bold uppercase tracking-[0.18em] text-emerald-100 backdrop-blur-md">
+                    <Sparkles className="h-3.5 w-3.5" />
+                    GradeUp Exam Center
                   </div>
-                  <h1 className="mt-2 text-[22px] font-extrabold leading-tight tracking-tight text-white sm:text-3xl">
-                    Selamat belajar,<br className="sm:hidden" /> {studentName}! 👋
+
+                  <h1 className="text-2xl font-black tracking-tight text-white sm:text-3xl lg:text-4xl">
+                    Ruang Ujian
+                    <span className="text-emerald-300"> Siswa</span>
                   </h1>
-                  <p className="mt-1.5 flex items-center gap-2 text-sm font-medium text-emerald-100/80">
-                    <span className="rounded-full bg-white/10 px-2.5 py-0.5 text-xs">{userClass}</span>
-                    <span className="hidden sm:inline">• Siap naik level hari ini?</span>
+
+                  <p className="mt-2 max-w-xl text-sm leading-relaxed text-emerald-50/75 sm:text-[15px]">
+                    Selamat datang,{" "}
+                    <span className="font-bold text-white">
+                      {studentName}
+                    </span>
+                    . Siapkan dirimu dan tunjukkan kemampuan terbaikmu hari ini.
                   </p>
                 </div>
               </div>
 
-              <div className="lg:text-right">
-                <div className="inline-flex items-center gap-2 rounded-full bg-white px-3 py-1.5 text-xs font-bold text-slate-900 shadow-lg dark:bg-slate-900 dark:text-white">
-                  <div className="h-2 w-2 animate-pulse rounded-full bg-emerald-500" /> {statusCounts.Aktif} ujian aktif
-                </div>
+              <div className="flex w-fit items-center gap-2 rounded-xl border border-white/15 bg-white/10 px-3.5 py-2.5 text-xs font-bold text-white backdrop-blur-md">
+                <span className="relative flex h-2.5 w-2.5">
+                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-300 opacity-50" />
+                  <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-emerald-300" />
+                </span>
+                {statusCounts.Aktif} ujian tersedia
               </div>
             </div>
 
-            <div className="mt-8 grid gap-6 lg:grid-cols-[1.2fr_0.8fr] items-end">
-              <div className="space-y-3">
-                <div className="flex justify-between text-xs font-semibold text-white/80">
-                  <span>{xpRemaining} XP lagi ke Level {level + 1}</span>
-                  <span className="tabular-nums">{currentXp}/{maxXp} XP</span>
+            <div className="grid gap-5 border-t border-white/15 pt-6 lg:grid-cols-[1.1fr_0.9fr] lg:items-end">
+              {/* XP */}
+              <div className="rounded-2xl border border-white/10 bg-black/10 p-4 backdrop-blur-sm sm:p-5">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-2 text-sm font-bold text-white">
+                    <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-amber-400/15 text-amber-300">
+                      <Star className="h-4 w-4" />
+                    </div>
+                    Level {level}
+                  </div>
+
+                  <span className="text-xs font-semibold text-emerald-100/80">
+                    Progres XP
+                  </span>
                 </div>
-                <div className="relative h-3 overflow-hidden rounded-full bg-black/20 p-1 backdrop-blur-sm ring-1 ring-white/10">
-                  <Progress value={(currentXp / maxXp) * 100} className="h-full rounded-full bg-transparent [&>div]:bg-gradient-to-r [&>div]:from-white [&>div]:to-emerald-100 [&>div]:shadow-sm" />
+
+                <div className="mt-5 flex items-end justify-between gap-3">
+                  <div>
+                    <p className="text-3xl font-black tracking-tight text-white tabular-nums">
+                      {currentXp.toLocaleString("id-ID")}
+                      <span className="ml-1 text-sm font-semibold text-emerald-100/70">
+                        XP
+                      </span>
+                    </p>
+                    <p className="mt-1 text-xs text-emerald-100/70">
+                      {xpRemaining.toLocaleString("id-ID")} XP menuju target progres berikutnya
+                    </p>
+                  </div>
+
+                  <Zap className="mb-1 h-7 w-7 text-amber-300" />
+                </div>
+
+                <div className="mt-4 h-2.5 overflow-hidden rounded-full bg-black/25 ring-1 ring-white/10">
+                  <div
+                    className="h-full rounded-full bg-gradient-to-r from-amber-300 via-emerald-200 to-white shadow-[0_0_12px_rgba(255,255,255,0.35)] transition-all duration-700"
+                    style={{ width: `${xpPercentage}%` }}
+                  />
+                </div>
+
+                <div className="mt-2 flex justify-between text-[10px] font-semibold text-emerald-100/60">
+                  <span>Level {level}</span>
+                  <span>{maxXp.toLocaleString("id-ID")} XP</span>
                 </div>
               </div>
 
+              {/* QUICK STATS */}
               <div className="grid grid-cols-3 gap-2.5">
                 {[
-                  { label: "Aktif", value: statusCounts.Aktif, icon: <Play className="h-3.5 w-3.5" />, color: "bg-emerald-400" },
-                  { label: "Akan datang", value: statusCounts["Akan Datang"], icon: <Calendar className="h-3.5 w-3.5" />, color: "bg-sky-400" },
-                  { label: "Selesai", value: statusCounts.Selesai, icon: <CheckCircle2 className="h-3.5 w-3.5" />, color: "bg-slate-400" },
-                ].map((s) => (
-                  <div key={s.label} className="group relative overflow-hidden rounded-2xl bg-white/[0.08] p-3 ring-1 ring-white/10 backdrop-blur-md transition-all hover:bg-white/[0.12] hover:ring-white/20">
-                    <div className={cn("absolute top-0 left-0 h-0.5 w-full", s.color)} />
-                    <div className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wide text-white/60">
-                      {s.icon} {s.label}
+                  {
+                    label: "Aktif",
+                    value: statusCounts.Aktif,
+                    icon: Play,
+                    color: "text-emerald-300",
+                    bg: "bg-emerald-400/10",
+                  },
+                  {
+                    label: "Mendatang",
+                    value: statusCounts["Akan Datang"],
+                    icon: Calendar,
+                    color: "text-sky-300",
+                    bg: "bg-sky-400/10",
+                  },
+                  {
+                    label: "Berakhir",
+                    value: statusCounts.Selesai,
+                    icon: CheckCircle2,
+                    color: "text-slate-300",
+                    bg: "bg-white/10",
+                  },
+                ].map((item) => {
+                  const Icon = item.icon;
+
+                  return (
+                    <div
+                      key={item.label}
+                      className="rounded-2xl border border-white/10 bg-white/[0.07] p-3 backdrop-blur-md transition-colors hover:bg-white/[0.12] sm:p-4"
+                    >
+                      <div className="flex flex-col gap-3">
+                        <div
+                          className={cn(
+                            "flex h-8 w-8 items-center justify-center rounded-lg",
+                            item.bg,
+                            item.color
+                          )}
+                        >
+                          <Icon className="h-4 w-4" />
+                        </div>
+
+                        <div>
+                          <p className="text-2xl font-black text-white tabular-nums sm:text-3xl">
+                            {item.value}
+                          </p>
+                          <p className="mt-0.5 text-[10px] font-bold text-white/55 sm:text-xs">
+                            {item.label}
+                          </p>
+                        </div>
+                      </div>
                     </div>
-                    <div className="mt-1.5 text-2xl font-black tabular-nums text-white">{s.value}</div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
           </div>
         </div>
+      </section>
 
-        {/* STICKY SEARCH & FILTER CATEGORIES */}
-        <div className="sticky top-0 z-20 -mx-4 border-b border-slate-200/60 bg-white/80 px-4 py-4 backdrop-blur-xl supports-[backdrop-filter]:bg-white/60 dark:border-slate-800 dark:bg-slate-900/80 dark:supports-[backdrop-filter]:bg-slate-900/60 sm:mx-0 sm:rounded-2xl sm:border sm:px-6">
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <h2 className="flex items-center gap-2.5 text-[22px] font-black tracking-tight text-slate-900 dark:text-white">
-                <span className="flex h-7 w-1.5 rounded-full bg-emerald-500" /> Paket Ujian
-              </h2>
-              <p className="mt-1 text-[13px] font-medium text-slate-500 dark:text-slate-400">Temukan dan kerjakan evaluasi sesuai target belajarmu</p>
-            </div>
+      {/* STUDENT CONTEXT */}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+          <GraduationCap className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+          <span>{userClass}</span>
+          <span className="text-border">/</span>
+          <span>Daftar evaluasi pembelajaran</span>
+        </div>
 
-            <div className="relative w-full sm:w-[340px] group">
-              <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400 transition-colors group-focus-within:text-emerald-500 dark:text-slate-500" />
-              <input
-                type="search"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Cari judul, jenjang, deskripsi..."
-                className="h-11 w-full rounded-xl border border-slate-200 bg-slate-50/50 pl-10 pr-10 text-sm font-medium text-slate-900 shadow-sm outline-none transition-all placeholder:text-slate-400 hover:border-slate-300 hover:bg-white focus:border-emerald-500 focus:bg-white focus:ring-4 focus:ring-emerald-500/10 dark:border-slate-700 dark:bg-slate-800/50 dark:text-white dark:placeholder:text-slate-500 dark:hover:border-slate-600 dark:hover:bg-slate-800 dark:focus:border-emerald-500 dark:focus:bg-slate-800"
-              />
-              {searchQuery && (
-                <button onClick={() => setSearchQuery("")} className="absolute right-2 top-1/2 -translate-y-1/2 rounded-full p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-slate-700 dark:text-slate-500">
-                  <X className="h-4 w-4" />
-                </button>
-              )}
+        <button
+          onClick={fetchExamsData}
+          className="inline-flex items-center gap-2 rounded-lg px-3 py-2 text-xs font-bold text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+        >
+          <RefreshCw className="h-3.5 w-3.5" />
+          Perbarui data
+        </button>
+      </div>
+
+      {/* SEARCH & FILTER */}
+      <section className="overflow-hidden rounded-2xl border border-border bg-card shadow-sm">
+        <div className="flex flex-col gap-4 p-4 sm:p-5 lg:flex-row lg:items-center lg:justify-between">
+          <div>
+            <div className="flex items-center gap-2">
+              <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
+                <Layers3 className="h-4 w-4" />
+              </div>
+
+              <div>
+                <h2 className="text-lg font-black tracking-tight text-foreground">
+                  Paket Ujian
+                </h2>
+                <p className="text-xs text-muted-foreground">
+                  Temukan ujian sesuai jenjang dan kebutuhan belajarmu
+                </p>
+              </div>
             </div>
           </div>
 
-          <div className="mt-4 flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none">
-            {categoriesList.map((cat) => {
-              const active = selectedCategory === cat;
-              const count = categoryCounts[cat] || 0;
-              return (
-                <button
-                  key={cat}
-                  onClick={() => setSelectedCategory(cat)}
-                  className={cn(
-                    "group relative inline-flex h-9 shrink-0 items-center gap-2 rounded-full border px-4 text-[13px] font-bold transition-all",
-                    active
-                      ? "border-slate-900 bg-slate-900 text-white shadow-lg shadow-slate-900/20 dark:border-white dark:bg-white dark:text-slate-900 dark:shadow-white/10"
-                      : "border-slate-200 bg-white text-slate-600 hover:border-slate-900 hover:text-slate-900 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-400 dark:hover:border-slate-200 dark:hover:text-white"
-                  )}
-                >
-                  {cat}
-                  <span className={cn("rounded-full px-1.5 py-0.5 text-[11px] font-black tabular-nums transition-colors", active ? "bg-white/20 text-white dark:bg-slate-900/20 dark:text-slate-900" : "bg-slate-100 text-slate-500 group-hover:bg-slate-900 group-hover:text-white dark:bg-slate-700 dark:text-slate-400 dark:group-hover:bg-white dark:group-hover:text-slate-900")}>
-                    {count}
-                  </span>
-                </button>
-              );
-            })}
-            {(searchQuery || selectedCategory !== "Semua") && (
-              <button onClick={() => { setSearchQuery(""); setSelectedCategory("Semua"); }} className="ml-2 text-xs font-semibold text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white">
-                Reset filter
+          <div className="relative w-full lg:max-w-sm">
+            <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+
+            <input
+              type="search"
+              value={searchQuery}
+              onChange={(event) => setSearchQuery(event.target.value)}
+              placeholder="Cari paket ujian..."
+              className="h-11 w-full rounded-xl border border-border bg-muted/40 pl-10 pr-10 text-sm text-foreground outline-none transition-all placeholder:text-muted-foreground focus:border-emerald-500 focus:bg-background focus:ring-4 focus:ring-emerald-500/10"
+            />
+
+            {searchQuery && (
+              <button
+                onClick={() => setSearchQuery("")}
+                aria-label="Hapus pencarian"
+                className="absolute right-2 top-1/2 -translate-y-1/2 rounded-lg p-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+              >
+                <X className="h-4 w-4" />
               </button>
             )}
           </div>
         </div>
 
-        {/* ERROR STATE */}
-        {loadError && (
-          <div className="flex items-center justify-between gap-4 rounded-2xl border border-rose-200 bg-gradient-to-r from-rose-50 to-orange-50 p-4 shadow-sm dark:border-rose-900/50 dark:from-rose-950/50 dark:to-orange-950/30">
-            <div className="flex gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-white text-rose-600 shadow-sm dark:bg-slate-900"><AlertCircle className="h-5 w-5" /></div>
-              <div><p className="text-sm font-bold text-slate-900 dark:text-white">Gagal memuat paket ujian</p><p className="text-xs text-slate-600 dark:text-slate-400">Periksa koneksi internet kamu dan coba lagi</p></div>
-            </div>
-            <Button size="sm" onClick={fetchExamsData} className="gap-1.5 rounded-xl"><RefreshCw className="h-4 w-4" /> Coba lagi</Button>
-          </div>
-        )}
+        <div className="border-t border-border bg-muted/20 px-4 py-3 sm:px-5">
+          <div className="flex items-center gap-2 overflow-x-auto pb-1">
+            {categoriesList.map((category) => {
+              const active = selectedCategory === category;
+              const count = categoryCounts[category] || 0;
 
-        {/* DAFTAR PAKET UJIAN */}
-        <div className="space-y-10">
-          {!loadError && totalShown === 0 ? (
-            <div className="rounded-[1.75rem] border border-dashed border-slate-300 bg-gradient-to-b from-white to-slate-50/50 px-6 py-16 text-center shadow-sm dark:border-slate-700 dark:from-slate-900 dark:to-slate-900/50">
-              <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-slate-900 text-white shadow-lg dark:bg-white dark:text-slate-900"><Search className="h-7 w-7" /></div>
-              <h3 className="mt-5 text-lg font-black text-slate-900 dark:text-white">Tidak ada paket ujian ditemukan</h3>
-              <p className="mx-auto mt-2 max-w-sm text-sm text-slate-500 dark:text-slate-400">{searchQuery ? `Tidak ada hasil untuk "${searchQuery}". Coba kata kunci lain.` : "Belum ada paket ujian untuk filter ini."}</p>
+              return (
+                <button
+                  key={category}
+                  onClick={() => setSelectedCategory(category)}
+                  className={cn(
+                    "inline-flex h-9 shrink-0 items-center gap-2 rounded-xl border px-3.5 text-xs font-bold transition-all",
+                    active
+                      ? "border-emerald-600 bg-emerald-600 text-white shadow-md shadow-emerald-600/15"
+                      : "border-border bg-card text-muted-foreground hover:border-emerald-500/50 hover:text-foreground"
+                  )}
+                >
+                  {category}
+                  <span
+                    className={cn(
+                      "rounded-md px-1.5 py-0.5 text-[10px] tabular-nums",
+                      active
+                        ? "bg-white/20 text-white"
+                        : "bg-muted text-muted-foreground"
+                    )}
+                  >
+                    {count}
+                  </span>
+                </button>
+              );
+            })}
+
+            {(searchQuery || selectedCategory !== "Semua") && (
+              <button
+                onClick={() => {
+                  setSearchQuery("");
+                  setSelectedCategory("Semua");
+                }}
+                className="shrink-0 px-2 text-xs font-bold text-muted-foreground hover:text-emerald-600 dark:hover:text-emerald-400"
+              >
+                Reset filter
+              </button>
+            )}
+          </div>
+        </div>
+      </section>
+
+      {/* ERROR STATE */}
+      {loadError && (
+        <div className="flex flex-col gap-4 rounded-2xl border border-rose-500/20 bg-rose-500/5 p-5 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-center gap-3">
+            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-rose-500/10 text-rose-600 dark:text-rose-400">
+              <AlertCircle className="h-5 w-5" />
+            </div>
+
+            <div>
+              <p className="text-sm font-bold text-foreground">
+                Gagal memuat paket ujian
+              </p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Periksa koneksi internet dan coba muat ulang data.
+              </p>
+            </div>
+          </div>
+
+          <Button
+            size="sm"
+            onClick={fetchExamsData}
+            className="gap-2 rounded-xl bg-emerald-600 text-white hover:bg-emerald-700"
+          >
+            <RefreshCw className="h-4 w-4" />
+            Coba lagi
+          </Button>
+        </div>
+      )}
+
+      {/* EXAM LIST */}
+      {!loadError && (
+        <div className="space-y-8">
+          {totalShown === 0 ? (
+            <div className="rounded-3xl border border-dashed border-border bg-card px-5 py-16 text-center">
+              <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-muted text-muted-foreground">
+                <Search className="h-7 w-7" />
+              </div>
+
+              <h3 className="mt-5 text-lg font-black text-foreground">
+                Tidak ada paket ujian ditemukan
+              </h3>
+
+              <p className="mx-auto mt-2 max-w-sm text-sm leading-relaxed text-muted-foreground">
+                {searchQuery
+                  ? `Tidak ditemukan hasil untuk "${searchQuery}". Coba kata kunci lain.`
+                  : "Belum ada paket ujian pada kategori yang dipilih."}
+              </p>
+
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setSearchQuery("");
+                  setSelectedCategory("Semua");
+                }}
+                className="mt-5 rounded-xl"
+              >
+                Tampilkan semua ujian
+              </Button>
             </div>
           ) : (
-            groupedPackages.map(({ status, items }) => (
-              <section key={status} className="space-y-4">
-                <div className="flex items-center gap-3">
-                  <div className={cn("flex h-9 w-9 items-center justify-center rounded-xl border shadow-sm", status === "Aktif" ? "border-emerald-200 bg-emerald-50 text-emerald-600 dark:border-emerald-900 dark:bg-emerald-950/50 dark:text-emerald-400" : status === "Akan Datang" ? "border-sky-200 bg-sky-50 text-sky-600 dark:border-sky-900 dark:bg-sky-950/50 dark:text-sky-400" : "border-slate-200 bg-slate-50 text-slate-500 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-400")}>
-                    {STATUS_SECTION[status].icon}
+            groupedPackages.map(({ status, items }) => {
+              const config = STATUS_CONFIG[status];
+              const StatusIcon = config.icon;
+
+              return (
+                <section key={status} className="space-y-4">
+                  <div className="flex items-center gap-3">
+                    <div
+                      className={cn(
+                        "flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border",
+                        config.background,
+                        config.border,
+                        config.color
+                      )}
+                    >
+                      <StatusIcon className="h-5 w-5" />
+                    </div>
+
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <h3 className="text-base font-black tracking-tight text-foreground">
+                          {config.title}
+                        </h3>
+
+                        <span className="rounded-full bg-muted px-2 py-0.5 text-[10px] font-black text-muted-foreground">
+                          {items.length} paket
+                        </span>
+                      </div>
+
+                      <p className="mt-0.5 text-xs text-muted-foreground">
+                        {config.subtitle}
+                      </p>
+                    </div>
+
+                    <div className="hidden h-px flex-1 bg-border sm:block" />
                   </div>
-                  <div className="flex-1">
-                    <h3 className="text-[15px] font-black tracking-tight text-slate-900 dark:text-white">{STATUS_SECTION[status].title} • {items.length}</h3>
-                    <p className="text-xs font-medium text-slate-500 dark:text-slate-400">{STATUS_SECTION[status].hint}</p>
-                  </div>
-                </div>
 
-                <ul className="grid gap-3 sm:gap-4">
-                  {items.map((pkg) => {
-                    const theme = getCategoryTheme(pkg.category);
-                    const isAvailable = pkg.status === "Aktif";
-                    const isDone = pkg.status === "Selesai";
-                    const isUrgent = isAvailable && pkg.days_left !== undefined && pkg.days_left <= 3;
+                  <div className="grid gap-4">
+                    {items.map((pkg) => {
+                      const theme = getCategoryTheme(pkg.category);
+                      const CategoryIcon = theme.icon;
 
-                    return (
-                      <li key={pkg.id} className="group">
-                        <Card className={cn("relative overflow-hidden rounded-[1.25rem] border bg-white shadow-[0_2px_10px_-4px_rgba(0,0,0,0.05)] ring-1 ring-transparent transition-all duration-300 hover:shadow-[0_20px_40px_-12px_rgba(0,0,0,0.15)] hover:-translate-y-1 dark:border-slate-800 dark:bg-slate-900 dark:shadow-none dark:hover:shadow-[0_20px_40px_-12px_rgba(0,0,0,0.5)]", theme.ring, theme.glow, isDone && "opacity-70 hover:opacity-90")}>
-                          <div className={cn("absolute left-0 top-0 h-full w-1.5 bg-gradient-to-b", theme.gradient, theme.gradientDark, isDone && "from-slate-300 to-slate-300 dark:from-slate-700 dark:to-slate-700")} />
-                          
-                          <CardContent className="flex flex-col gap-4 p-4 pl-6 sm:flex-row sm:items-center sm:justify-between sm:p-5 sm:pl-7">
-                            <div className="flex min-w-0 gap-4">
-                              <div className={cn("flex h-[52px] w-[52px] shrink-0 items-center justify-center rounded-2xl border shadow-sm transition-all duration-300 group-hover:scale-105 group-hover:shadow-md dark:border-slate-700", theme.light)}>
-                                <div className={cn("flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br text-white shadow-sm", theme.gradient, theme.gradientDark, isDone && "from-slate-400 to-slate-500 dark:from-slate-600 dark:to-slate-700")}>
-                                  {isDone ? <CheckCircle2 className="h-5 w-5" /> : theme.icon}
+                      const isAvailable = pkg.status === "Aktif";
+                      const isDone = pkg.status === "Selesai";
+
+                      const isUrgent =
+                        isAvailable &&
+                        pkg.days_left !== undefined &&
+                        pkg.days_left <= 3;
+
+                      return (
+                        <Card
+                          key={pkg.id}
+                          className={cn(
+                            "group relative overflow-hidden rounded-2xl border border-border bg-card shadow-sm transition-all duration-300 hover:-translate-y-0.5 hover:border-emerald-500/30 hover:shadow-lg hover:shadow-emerald-950/5",
+                            isDone && "opacity-80"
+                          )}
+                        >
+                          <div
+                            className={cn(
+                              "absolute inset-y-0 left-0 w-1 bg-gradient-to-b",
+                              theme.gradient,
+                              isDone && "from-slate-400 to-slate-500"
+                            )}
+                          />
+
+                          <CardContent className="p-4 pl-5 sm:p-5 sm:pl-6">
+                            <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
+                              <div className="flex min-w-0 gap-4">
+                                <div
+                                  className={cn(
+                                    "flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br text-white shadow-md transition-transform duration-300 group-hover:scale-105 sm:h-14 sm:w-14",
+                                    theme.gradient,
+                                    isDone && "from-slate-400 to-slate-500"
+                                  )}
+                                >
+                                  {isDone ? (
+                                    <CheckCircle2 className="h-6 w-6" />
+                                  ) : (
+                                    <CategoryIcon className="h-6 w-6" />
+                                  )}
                                 </div>
-                              </div>
 
-                              <div className="min-w-0 flex-1">
-                                <div className="flex flex-wrap items-center gap-2">
-                                  <h4 className="text-[15px] font-extrabold leading-tight text-slate-900 group-hover:text-slate-950 dark:text-white dark:group-hover:text-white sm:text-[16px]">{pkg.title}</h4>
-                                  <span className={cn("inline-flex items-center rounded-full border px-2.5 py-0.5 text-[11px] font-bold tracking-wide", theme.badge)}>{pkg.category}</span>
-                                  {pkg.premium && <span className="inline-flex items-center rounded-full bg-amber-500/15 text-amber-700 border border-amber-300 px-2 py-0.5 text-[10px] font-black dark:text-amber-300">PREMIUM</span>}
-                                  {isUrgent && <span className="inline-flex animate-pulse items-center gap-1 rounded-full bg-rose-500 px-2 py-0.5 text-[10px] font-black text-white"><AlertCircle className="h-3 w-3" /> SEGERA</span>}
-                                </div>
+                                <div className="min-w-0 flex-1">
+                                  <div className="flex flex-wrap items-center gap-2">
+                                    <h4 className="text-[15px] font-extrabold leading-snug text-foreground sm:text-base">
+                                      {pkg.title}
+                                    </h4>
 
-                                <p className="mt-1 flex items-center gap-1.5 text-[13px] font-medium text-slate-500 dark:text-slate-400">
-                                  <span className="rounded-md bg-slate-100 px-1.5 py-0.5 text-[11px] font-bold text-slate-600 dark:bg-slate-800 dark:text-slate-300">{pkg.class_info}</span>
-                                  <span className="text-slate-300 dark:text-slate-600">•</span> {pkg.bab_info}
-                                </p>
+                                    <span
+                                      className={cn(
+                                        "inline-flex items-center rounded-lg border px-2 py-1 text-[10px] font-bold",
+                                        theme.badge,
+                                        theme.color
+                                      )}
+                                    >
+                                      {pkg.category}
+                                    </span>
 
-                                {isAvailable ? (
-                                  <div className="mt-3 flex flex-wrap items-center gap-2.5">
-                                    <div className={cn("inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-bold", isUrgent ? "border-rose-200 bg-rose-50 text-rose-700 dark:border-rose-900/50 dark:bg-rose-950/50 dark:text-rose-300" : "border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900/50 dark:bg-emerald-950/50 dark:text-emerald-300")}>
-                                      <Clock className="h-3.5 w-3.5" /> {pkg.days_left !== undefined ? `${pkg.days_left} hari lagi` : "Tanpa batas"}
-                                    </div>
-                                    {pkg.time_progress !== undefined && (
-                                      <div className="flex items-center gap-2">
-                                        <div className="h-1.5 w-24 overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800"><div className={cn("h-full rounded-full", isUrgent ? "bg-rose-500" : "bg-emerald-500")} style={{ width: `${pkg.time_progress}%` }} /></div>
-                                        <span className="text-[11px] font-bold text-slate-400 dark:text-slate-500">{Math.round(pkg.time_progress)}%</span>
-                                      </div>
+                                    {pkg.premium && (
+                                      <span className="inline-flex items-center gap-1 rounded-lg border border-amber-500/25 bg-amber-500/10 px-2 py-1 text-[10px] font-black text-amber-700 dark:text-amber-300">
+                                        <Star className="h-3 w-3 fill-current" />
+                                        PREMIUM
+                                      </span>
+                                    )}
+
+                                    {isUrgent && (
+                                      <span className="inline-flex items-center gap-1 rounded-lg bg-rose-500/10 px-2 py-1 text-[10px] font-black text-rose-600 dark:text-rose-400">
+                                        <AlertCircle className="h-3 w-3" />
+                                        SEGERA BERAKHIR
+                                      </span>
                                     )}
                                   </div>
-                                ) : pkg.status === "Akan Datang" ? (
-                                  <div className="mt-2.5 inline-flex items-center gap-1.5 rounded-full bg-sky-50 px-3 py-1 text-xs font-bold text-sky-800 ring-1 ring-sky-200 dark:bg-sky-950/50 dark:text-sky-300 dark:ring-sky-900/50">
-                                    <Calendar className="h-3.5 w-3.5" /> Mulai {pkg.start_date_str}
-                                  </div>
-                                ) : (
-                                  <div className="mt-2.5 text-xs font-medium text-slate-400 dark:text-slate-500">Dibuka sejak {pkg.start_date_str}</div>
-                                )}
-                              </div>
-                            </div>
 
-                            <div className="flex items-center gap-2 sm:pl-4">
-                              {isAvailable ? (
-                                <Button onClick={() => navigate(`/dashboard/exams/${pkg.id}`)} className="group/btn relative h-11 w-full gap-2 overflow-hidden rounded-xl bg-slate-900 px-6 text-[13px] font-bold text-white shadow-lg shadow-slate-900/20 transition-all hover:bg-black hover:shadow-xl hover:shadow-slate-900/30 dark:bg-white dark:text-slate-900 dark:shadow-white/10 dark:hover:bg-slate-100 sm:w-auto sm:min-w-[148px]">
-                                  <span className="absolute inset-0 bg-gradient-to-r from-emerald-500/0 via-white/10 to-emerald-500/0 opacity-0 transition-opacity duration-500 group-hover/btn:opacity-100" />
-                                  <Play className="h-4 w-4 fill-white dark:fill-slate-900" /> Mulai Ujian <ArrowUpRight className="h-3.5 w-3.5 opacity-60 transition-transform group-hover/btn:translate-x-0.5 group-hover/btn:-translate-y-0.5" />
-                                </Button>
-                              ) : (
-                                <Button disabled variant="outline" className="h-11 w-full gap-2 rounded-xl border-slate-200 bg-slate-50 text-xs font-bold text-slate-400 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-500 sm:w-auto sm:min-w-[148px]">
-                                  {isDone ? <><CheckCircle2 className="h-4 w-4" /> Selesai</> : <><Lock className="h-4 w-4" /> Menunggu</>}
-                                </Button>
-                              )}
+                                  <p className="mt-1.5 line-clamp-2 text-xs leading-relaxed text-muted-foreground sm:text-sm">
+                                    {pkg.bab_info}
+                                  </p>
+
+                                  <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2">
+                                    <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-muted-foreground">
+                                      <GraduationCap className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
+                                      {pkg.class_info}
+                                    </span>
+
+                                    {isAvailable && (
+                                      <span
+                                        className={cn(
+                                          "inline-flex items-center gap-1.5 text-xs font-bold",
+                                          isUrgent
+                                            ? "text-rose-600 dark:text-rose-400"
+                                            : "text-emerald-700 dark:text-emerald-400"
+                                        )}
+                                      >
+                                        <Clock className="h-3.5 w-3.5" />
+                                        {pkg.days_left !== undefined
+                                          ? `${pkg.days_left} hari tersisa`
+                                          : "Tanpa batas waktu"}
+                                      </span>
+                                    )}
+
+                                    {pkg.status === "Akan Datang" && (
+                                      <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-sky-700 dark:text-sky-400">
+                                        <Calendar className="h-3.5 w-3.5" />
+                                        Mulai {pkg.start_date_str}
+                                      </span>
+                                    )}
+
+                                    {isDone && (
+                                      <span className="inline-flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+                                        <CheckCircle2 className="h-3.5 w-3.5" />
+                                        Periode ujian berakhir
+                                      </span>
+                                    )}
+                                  </div>
+
+                                  {isAvailable &&
+                                    pkg.time_progress !== undefined && (
+                                      <div className="mt-3 flex max-w-xs items-center gap-2">
+                                        <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-muted">
+                                          <div
+                                            className={cn(
+                                              "h-full rounded-full transition-all",
+                                              isUrgent
+                                                ? "bg-rose-500"
+                                                : "bg-emerald-500"
+                                            )}
+                                            style={{
+                                              width: `${pkg.time_progress}%`,
+                                            }}
+                                          />
+                                        </div>
+
+                                        <span className="text-[10px] font-bold tabular-nums text-muted-foreground">
+                                          {Math.round(pkg.time_progress)}%
+                                        </span>
+                                      </div>
+                                    )}
+                                </div>
+                              </div>
+
+                              <div className="flex shrink-0 items-center gap-3 border-t border-border pt-4 lg:border-0 lg:pt-0">
+                                {isAvailable ? (
+                                  <Button
+                                    onClick={() =>
+                                      navigate(`/dashboard/exams/${pkg.id}`)
+                                    }
+                                    className="h-11 w-full gap-2 rounded-xl bg-emerald-600 px-5 text-xs font-bold text-white shadow-md shadow-emerald-600/15 transition-all hover:bg-emerald-700 hover:shadow-lg sm:w-auto sm:min-w-[160px]"
+                                  >
+                                    <Play className="h-4 w-4 fill-current" />
+                                    Mulai Ujian
+                                    <ArrowUpRight className="h-4 w-4 opacity-70" />
+                                  </Button>
+                                ) : (
+                                  <Button
+                                    disabled
+                                    variant="outline"
+                                    className="h-11 w-full gap-2 rounded-xl border-border bg-muted/50 text-xs font-bold text-muted-foreground sm:w-auto sm:min-w-[160px]"
+                                  >
+                                    {isDone ? (
+                                      <>
+                                        <CheckCircle2 className="h-4 w-4" />
+                                        Periode Berakhir
+                                      </>
+                                    ) : (
+                                      <>
+                                        <Lock className="h-4 w-4" />
+                                        Belum Dibuka
+                                      </>
+                                    )}
+                                  </Button>
+                                )}
+
+                                <ChevronRight className="hidden h-4 w-4 text-muted-foreground/40 transition-transform group-hover:translate-x-1 group-hover:text-emerald-500 lg:block" />
+                              </div>
                             </div>
                           </CardContent>
                         </Card>
-                      </li>
-                    );
-                  })}
-                </ul>
-              </section>
-            ))
+                      );
+                    })}
+                  </div>
+                </section>
+              );
+            })
           )}
         </div>
+      )}
 
-        {/* INFO FOOTER CARD */}
-        <div className="relative overflow-hidden rounded-[1.5rem] border border-emerald-200/60 bg-gradient-to-br from-emerald-50 via-white to-teal-50/50 p-5 shadow-sm dark:border-emerald-900/50 dark:from-emerald-950/30 dark:via-slate-900 dark:to-teal-950/20">
-          <div className="absolute -right-10 -top-10 h-32 w-32 rounded-full bg-emerald-200/30 blur-2xl dark:bg-emerald-800/20" />
-          <div className="relative flex gap-4">
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-600 text-white shadow-md dark:bg-emerald-500"><Info className="h-5 w-5" /></div>
-            <div>
-              <h4 className="text-sm font-black text-slate-900 dark:text-white">Info Paket Ujian</h4>
-              <p className="mt-1 max-w-2xl text-[13px] leading-relaxed font-medium text-slate-600 dark:text-slate-400">Paket ujian diperbarui secara real-time dari sistem. Selesaikan ujian aktif sebelum batas waktu berakhir untuk mendapatkan XP dan menaikkan level belajarmu!</p>
-            </div>
+      {/* FOOTER INFORMATION */}
+      <section className="relative overflow-hidden rounded-2xl border border-emerald-500/20 bg-gradient-to-br from-emerald-500/10 via-card to-teal-500/5 p-5 sm:p-6">
+        <div className="absolute -right-8 -top-10 h-36 w-36 rounded-full bg-emerald-500/10 blur-3xl" />
+
+        <div className="relative flex items-start gap-4">
+          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-emerald-600 text-white shadow-md shadow-emerald-600/20">
+            <Target className="h-5 w-5" />
           </div>
+
+          <div className="min-w-0">
+            <h4 className="text-sm font-black text-foreground">
+              Persiapkan dirimu sebelum ujian
+            </h4>
+
+            <p className="mt-1.5 max-w-2xl text-xs leading-relaxed text-muted-foreground sm:text-sm">
+              Perhatikan jadwal dan batas waktu setiap paket ujian. Pastikan
+              koneksi internet stabil dan baca petunjuk pengerjaan sebelum
+              memulai evaluasi.
+            </p>
+          </div>
+
+          <Info className="ml-auto hidden h-5 w-5 shrink-0 text-emerald-600/60 dark:text-emerald-400/60 sm:block" />
         </div>
-      </div>
+      </section>
     </div>
   );
 }
