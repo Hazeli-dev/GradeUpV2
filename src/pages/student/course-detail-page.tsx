@@ -15,6 +15,9 @@ import {
   RefreshCw,
   ShieldCheck,
   Sparkles,
+  BookMarked,
+  Users,
+  ArrowUpRight,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -23,8 +26,6 @@ import { Button } from "@/components/ui/button";
 import {
   Card,
   CardContent,
-  CardHeader,
-  CardTitle,
 } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 
@@ -144,7 +145,7 @@ export default function CourseDetailPage() {
     useState<string | null>(null);
 
   /* =========================================
-     FETCH COURSE FROM SUPABASE
+     FETCH COURSE
   ========================================= */
 
   const fetchCourse = useCallback(async () => {
@@ -197,15 +198,10 @@ export default function CourseDetailPage() {
 
       if (!courseData) {
         setData(null);
-        setLoading(false);
         return;
       }
 
       const course = courseData as unknown as CourseDetail;
-
-      /* =====================================
-         CHECK STUDENT PREMIUM ENTITLEMENT
-      ====================================== */
 
       let isPremiumUser = false;
 
@@ -299,7 +295,7 @@ export default function CourseDetailPage() {
   );
 
   /* =========================================
-     TOGGLE MODULE
+     MODULE TOGGLE
   ========================================= */
 
   const toggleModule = (moduleId: string) => {
@@ -339,13 +335,6 @@ export default function CourseDetailPage() {
         );
         return;
       }
-
-      /*
-       * Pemeriksaan akses konten dilakukan kembali oleh
-       * RLS dan RPC pada halaman pembelajaran.
-       *
-       * Halaman belajar siswa akan dibuat pada tahap berikutnya.
-       */
 
       navigate(
         `/dashboard/courses/${course.id}/learn/${lesson.id}`
@@ -410,93 +399,114 @@ export default function CourseDetailPage() {
   ========================================= */
 
   return (
-    <div className="mx-auto w-full max-w-7xl space-y-6 pb-10">
+    <div className="min-h-full w-full space-y-6 pb-12 text-foreground">
       {/* BACK NAVIGATION */}
 
-      <Link
-        to="/dashboard/courses"
-        className="inline-flex items-center gap-2 text-sm font-medium text-muted-foreground transition-colors hover:text-primary"
-      >
-        <ArrowLeft className="h-4 w-4" />
-        Kembali ke Materi Belajar
-      </Link>
+      <div className="flex items-center justify-between gap-3">
+        <Link
+          to="/dashboard/courses"
+          className="group inline-flex items-center gap-2 rounded-xl border border-border bg-card px-3.5 py-2.5 text-sm font-medium text-muted-foreground shadow-sm transition-all hover:border-primary/40 hover:text-primary"
+        >
+          <ArrowLeft className="h-4 w-4 transition-transform group-hover:-translate-x-1" />
+          Kembali ke Materi
+        </Link>
+
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => void fetchCourse()}
+          className="gap-2 text-muted-foreground"
+        >
+          <RefreshCw className="h-4 w-4" />
+          <span className="hidden sm:inline">Muat ulang</span>
+        </Button>
+      </div>
 
       {/* COURSE HERO */}
 
-      <Card className="overflow-hidden border-border/70 shadow-sm">
+      <section className="relative overflow-hidden rounded-3xl border border-border bg-card shadow-sm">
         <div className="grid lg:grid-cols-[1.05fr_0.95fr]">
           {/* THUMBNAIL */}
 
-          <div className="relative min-h-[230px] overflow-hidden bg-gradient-to-br from-teal-700 via-emerald-600 to-cyan-600 lg:min-h-[370px]">
+          <div className="group relative min-h-[260px] overflow-hidden bg-gradient-to-br from-teal-700 via-emerald-600 to-cyan-700 lg:min-h-[420px]">
             {course.thumbnail ? (
               <img
                 src={course.thumbnail}
                 alt={course.title}
-                className="absolute inset-0 h-full w-full object-cover"
+                className="absolute inset-0 h-full w-full object-cover transition-transform duration-700 group-hover:scale-105"
                 onError={(event) => {
                   event.currentTarget.style.display = "none";
                 }}
               />
-            ) : null}
-
-            <div className="absolute inset-0 bg-gradient-to-t from-slate-950/65 via-slate-950/10 to-transparent" />
-
-            {!course.thumbnail && (
+            ) : (
               <div className="absolute inset-0 flex items-center justify-center">
-                <GraduationCap className="h-24 w-24 text-white/80" />
+                <GraduationCap className="h-28 w-28 text-white/70" />
               </div>
             )}
 
-            <div className="absolute bottom-5 left-5 right-5 text-white">
-              <div className="mb-3 flex flex-wrap gap-2">
-                <Badge className="border-0 bg-white/95 text-teal-800">
-                  {course.category}
-                </Badge>
+            <div className="absolute inset-0 bg-gradient-to-t from-slate-950/90 via-slate-950/25 to-slate-950/10" />
 
-                <Badge className="border-0 bg-white/20 text-white backdrop-blur">
-                  {course.level || "Umum"}
-                </Badge>
-              </div>
+            <div className="absolute left-5 top-5 flex flex-wrap gap-2 sm:left-7 sm:top-7">
+              <Badge className="border border-white/20 bg-white/95 text-teal-800 shadow-sm hover:bg-white">
+                {course.category || "Pembelajaran"}
+              </Badge>
 
-              <h1 className="text-2xl font-extrabold leading-tight drop-shadow sm:text-3xl">
-                {course.title}
-              </h1>
+              <Badge className="border border-white/20 bg-slate-950/35 text-white backdrop-blur-md hover:bg-slate-950/45">
+                {course.level || "Semua Jenjang"}
+              </Badge>
             </div>
 
             {course.premium && (
-              <Badge className="absolute right-4 top-4 gap-1 border-0 bg-amber-400 text-amber-950">
+              <Badge className="absolute right-5 top-5 gap-1 border-0 bg-amber-400 text-amber-950 shadow-lg hover:bg-amber-400 sm:right-7 sm:top-7">
                 <Sparkles className="h-3 w-3" />
                 Premium
               </Badge>
             )}
+
+            <div className="absolute bottom-0 left-0 right-0 p-5 sm:p-7 lg:p-8">
+              <div className="mb-3 flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.18em] text-emerald-200">
+                <BookMarked className="h-4 w-4" />
+                GradeUp Learning
+              </div>
+
+              <h1 className="max-w-2xl text-2xl font-extrabold leading-tight tracking-tight text-white drop-shadow-sm sm:text-3xl lg:text-4xl">
+                {course.title}
+              </h1>
+
+              <p className="mt-3 max-w-xl text-sm leading-6 text-white/80">
+                Mulai perjalanan belajarmu, pahami setiap materi,
+                dan tingkatkan kemampuan melalui pembelajaran
+                interaktif.
+              </p>
+            </div>
           </div>
 
           {/* COURSE INFORMATION */}
 
-          <div className="flex flex-col justify-between gap-6 p-5 sm:p-7">
-            <div className="space-y-4">
+          <div className="flex flex-col justify-between gap-6 p-5 sm:p-7 lg:p-8">
+            <div className="space-y-6">
               <div className="flex flex-wrap items-center gap-2">
                 {course.premium ? (
                   <Badge
                     variant="outline"
-                    className="border-amber-500/40 text-amber-600"
+                    className="gap-1.5 border-amber-500/40 bg-amber-500/10 text-amber-600 dark:text-amber-400"
                   >
-                    <Lock className="mr-1 h-3 w-3" />
+                    <Lock className="h-3 w-3" />
                     Kursus Premium
                   </Badge>
                 ) : (
                   <Badge
                     variant="outline"
-                    className="border-emerald-500/40 text-emerald-600"
+                    className="gap-1.5 border-emerald-500/40 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
                   >
-                    <CheckCircle2 className="mr-1 h-3 w-3" />
+                    <CheckCircle2 className="h-3 w-3" />
                     Kursus Gratis
                   </Badge>
                 )}
 
                 {data?.isPremiumUser && course.premium && (
-                  <Badge className="bg-emerald-600 text-white">
-                    <ShieldCheck className="mr-1 h-3 w-3" />
+                  <Badge className="gap-1 bg-emerald-600 text-white hover:bg-emerald-600">
+                    <ShieldCheck className="h-3 w-3" />
                     Akses Aktif
                   </Badge>
                 )}
@@ -513,94 +523,109 @@ export default function CourseDetailPage() {
                 </p>
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
-                <div className="rounded-xl border bg-muted/20 p-3">
-                  <div className="mb-1 flex items-center gap-2 text-muted-foreground">
-                    <Layers3 className="h-4 w-4" />
-                    <span className="text-xs">Modul</span>
-                  </div>
+              {/* STATISTICS */}
 
-                  <p className="text-xl font-bold">
+              <div className="grid grid-cols-2 gap-3">
+                <div className="rounded-2xl border border-border bg-muted/40 p-4 transition-colors hover:bg-muted/70">
+                  <div className="mb-3 flex h-9 w-9 items-center justify-center rounded-xl bg-primary/10 text-primary">
+                    <Layers3 className="h-4 w-4" />
+                  </div>
+                  <p className="text-2xl font-extrabold tracking-tight">
                     {modules.length}
                   </p>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    Modul pembelajaran
+                  </p>
                 </div>
 
-                <div className="rounded-xl border bg-muted/20 p-3">
-                  <div className="mb-1 flex items-center gap-2 text-muted-foreground">
+                <div className="rounded-2xl border border-border bg-muted/40 p-4 transition-colors hover:bg-muted/70">
+                  <div className="mb-3 flex h-9 w-9 items-center justify-center rounded-xl bg-sky-500/10 text-sky-600 dark:text-sky-400">
                     <BookOpen className="h-4 w-4" />
-                    <span className="text-xs">Sesi belajar</span>
                   </div>
-
-                  <p className="text-xl font-bold">
+                  <p className="text-2xl font-extrabold tracking-tight">
                     {totalLessons}
                   </p>
-                </div>
-
-                <div className="rounded-xl border bg-muted/20 p-3">
-                  <div className="mb-1 flex items-center gap-2 text-muted-foreground">
-                    <Clock className="h-4 w-4" />
-                    <span className="text-xs">Estimasi waktu</span>
-                  </div>
-
-                  <p className="text-xl font-bold">
-                    {formatDuration(totalDuration)}
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    Sesi pembelajaran
                   </p>
                 </div>
 
-                <div className="rounded-xl border bg-muted/20 p-3">
-                  <div className="mb-1 flex items-center gap-2 text-muted-foreground">
-                    <GraduationCap className="h-4 w-4" />
-                    <span className="text-xs">Pengajar</span>
+                <div className="rounded-2xl border border-border bg-muted/40 p-4 transition-colors hover:bg-muted/70">
+                  <div className="mb-3 flex h-9 w-9 items-center justify-center rounded-xl bg-violet-500/10 text-violet-600 dark:text-violet-400">
+                    <Clock className="h-4 w-4" />
                   </div>
+                  <p className="text-lg font-extrabold tracking-tight">
+                    {formatDuration(totalDuration)}
+                  </p>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    Estimasi belajar
+                  </p>
+                </div>
 
-                  <p className="truncate text-sm font-bold">
-                    {course.instructor}
+                <div className="rounded-2xl border border-border bg-muted/40 p-4 transition-colors hover:bg-muted/70">
+                  <div className="mb-3 flex h-9 w-9 items-center justify-center rounded-xl bg-amber-500/10 text-amber-600 dark:text-amber-400">
+                    <GraduationCap className="h-4 w-4" />
+                  </div>
+                  <p className="truncate text-base font-extrabold tracking-tight">
+                    {course.instructor || "GradeUp"}
+                  </p>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    Pengajar
                   </p>
                 </div>
               </div>
             </div>
 
-            <div className="rounded-xl border bg-primary/5 p-4">
+            {/* ACCESS PANEL */}
+
+            <div
+              className={cn(
+                "rounded-2xl border p-4 sm:p-5",
+                isLocked
+                  ? "border-amber-500/25 bg-amber-500/5"
+                  : "border-emerald-500/25 bg-emerald-500/5"
+              )}
+            >
               {isLocked ? (
-                <div className="space-y-3">
+                <div className="space-y-4">
                   <div className="flex items-start gap-3">
-                    <div className="rounded-lg bg-amber-500/10 p-2 text-amber-600">
+                    <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-amber-500/10 text-amber-600 dark:text-amber-400">
                       <Lock className="h-5 w-5" />
                     </div>
 
                     <div>
                       <p className="font-bold">
-                        Kursus Premium
+                        Buka Akses Premium
                       </p>
-
                       <p className="mt-1 text-xs leading-5 text-muted-foreground">
-                        Aktifkan akses Premium GradeUp untuk
-                        membuka seluruh materi kursus ini.
+                        Nikmati akses ke seluruh materi kursus
+                        Premium GradeUp dengan berlangganan.
                       </p>
                     </div>
                   </div>
 
                   <Button
-                    className="w-full"
+                    className="w-full gap-2 bg-amber-500 text-amber-950 hover:bg-amber-400"
                     onClick={openUpgrade}
                   >
-                    <Sparkles className="mr-2 h-4 w-4" />
+                    <Sparkles className="h-4 w-4" />
                     Lihat Akses Premium
+                    <ArrowUpRight className="ml-auto h-4 w-4" />
                   </Button>
                 </div>
               ) : (
                 <div className="flex items-center gap-3">
-                  <div className="rounded-lg bg-emerald-500/10 p-2 text-emerald-600">
+                  <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
                     <CheckCircle2 className="h-5 w-5" />
                   </div>
 
                   <div>
-                    <p className="text-sm font-bold">
-                      Siap untuk belajar?
+                    <p className="font-bold">
+                      Kamu siap untuk belajar!
                     </p>
-
-                    <p className="text-xs text-muted-foreground">
-                      Pilih sesi pembelajaran untuk memulai.
+                    <p className="mt-1 text-xs leading-5 text-muted-foreground">
+                      Pilih salah satu sesi di bawah untuk
+                      memulai pembelajaran.
                     </p>
                   </div>
                 </div>
@@ -608,24 +633,35 @@ export default function CourseDetailPage() {
             </div>
           </div>
         </div>
-      </Card>
+      </section>
 
-      {/* MODULE AND LESSON LIST */}
+      {/* LEARNING STRUCTURE */}
 
-      <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_320px]">
-        <div className="space-y-4">
-          <div className="flex flex-wrap items-center justify-between gap-3">
+      <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,1fr)_310px]">
+        {/* MODULE LIST */}
+
+        <section className="min-w-0 space-y-5">
+          <div className="flex flex-wrap items-end justify-between gap-3">
             <div>
-              <h2 className="text-xl font-extrabold">
+              <div className="mb-2 flex items-center gap-2 text-xs font-bold uppercase tracking-[0.16em] text-primary">
+                <BookOpen className="h-4 w-4" />
+                Learning Path
+              </div>
+
+              <h2 className="text-2xl font-extrabold tracking-tight">
                 Struktur Pembelajaran
               </h2>
 
               <p className="mt-1 text-sm text-muted-foreground">
-                Pelajari materi secara bertahap dari setiap modul.
+                Ikuti modul dan sesi secara bertahap untuk
+                memahami seluruh materi.
               </p>
             </div>
 
-            <Badge variant="outline">
+            <Badge
+              variant="outline"
+              className="rounded-full px-3 py-1"
+            >
               {totalLessons} Sesi
             </Badge>
           </div>
@@ -636,122 +672,144 @@ export default function CourseDetailPage() {
               description="Belum ada modul dan sesi pembelajaran yang diterbitkan untuk kursus ini."
             />
           ) : (
-            <div className="space-y-3">
+            <div className="space-y-4">
               {modules.map((module, moduleIndex) => {
                 const lessons = module.course_lessons ?? [];
-
                 const isExpanded =
                   expandedModules[module.id] ?? false;
 
                 return (
                   <Card
                     key={module.id}
-                    className="overflow-hidden border-border/70"
+                    className="overflow-hidden rounded-2xl border-border bg-card shadow-sm transition-all hover:border-primary/25"
                   >
                     <button
                       type="button"
                       onClick={() => toggleModule(module.id)}
-                      className="flex w-full items-center gap-3 p-4 text-left transition-colors hover:bg-muted/40 sm:p-5"
+                      className="flex w-full items-center gap-4 p-4 text-left transition-colors hover:bg-muted/40 sm:p-5"
                       aria-expanded={isExpanded}
                     >
-                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 font-bold text-primary">
-                        {moduleIndex + 1}
+                      <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-primary/10 text-lg font-extrabold text-primary">
+                        {String(moduleIndex + 1).padStart(2, "0")}
                       </div>
 
                       <div className="min-w-0 flex-1">
-                        <p className="font-bold">
+                        <div className="mb-1 flex flex-wrap items-center gap-2">
+                          <span className="text-[10px] font-bold uppercase tracking-[0.15em] text-primary">
+                            Modul {moduleIndex + 1}
+                          </span>
+
+                          <span className="h-1 w-1 rounded-full bg-muted-foreground/40" />
+
+                          <span className="text-xs text-muted-foreground">
+                            {lessons.length} sesi
+                          </span>
+                        </div>
+
+                        <p className="font-bold leading-snug text-foreground">
                           {module.title}
                         </p>
 
-                        <p className="mt-1 text-xs text-muted-foreground">
-                          {lessons.length} sesi pembelajaran
-                        </p>
-
                         {module.description && (
-                          <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">
+                          <p className="mt-1 line-clamp-2 text-xs leading-5 text-muted-foreground">
                             {module.description}
                           </p>
                         )}
                       </div>
 
-                      {isExpanded ? (
-                        <ChevronDown className="h-5 w-5 shrink-0 text-muted-foreground" />
-                      ) : (
-                        <ChevronRight className="h-5 w-5 shrink-0 text-muted-foreground" />
-                      )}
+                      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-muted text-muted-foreground">
+                        {isExpanded ? (
+                          <ChevronDown className="h-5 w-5" />
+                        ) : (
+                          <ChevronRight className="h-5 w-5" />
+                        )}
+                      </div>
                     </button>
 
                     {isExpanded && (
-                      <CardContent className="space-y-2 border-t bg-muted/10 p-3 sm:p-4">
+                      <CardContent className="space-y-2 border-t border-border bg-muted/20 p-3 sm:p-4">
                         {lessons.length === 0 ? (
-                          <p className="py-4 text-center text-sm text-muted-foreground">
-                            Belum ada sesi yang diterbitkan.
-                          </p>
+                          <div className="rounded-xl border border-dashed border-border p-6 text-center">
+                            <BookOpen className="mx-auto h-7 w-7 text-muted-foreground/50" />
+                            <p className="mt-2 text-sm text-muted-foreground">
+                              Belum ada sesi yang diterbitkan.
+                            </p>
+                          </div>
                         ) : (
-                          lessons.map((lesson, lessonIndex) => (
-                            <div
-                              key={lesson.id}
-                              className={cn(
-                                "flex flex-col gap-3 rounded-xl border bg-card p-3 sm:flex-row sm:items-center sm:p-4",
-                                "transition-colors hover:border-primary/30"
-                              )}
-                            >
-                              <div className="flex min-w-0 flex-1 items-center gap-3">
-                                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary/5 text-primary">
-                                  <BookOpen className="h-4 w-4" />
-                                </div>
+                          lessons.map((lesson, lessonIndex) => {
+                            const isStarting =
+                              startingLessonId === lesson.id;
 
-                                <div className="min-w-0 flex-1">
-                                  <p className="text-sm font-semibold">
-                                    {moduleIndex + 1}.
-                                    {lessonIndex + 1}.{" "}
-                                    {lesson.title}
-                                  </p>
+                            return (
+                              <div
+                                key={lesson.id}
+                                className={cn(
+                                  "group flex flex-col gap-3 rounded-xl border border-border bg-card p-3 transition-all",
+                                  "hover:border-primary/35 hover:shadow-sm sm:flex-row sm:items-center sm:p-4"
+                                )}
+                              >
+                                <div className="flex min-w-0 flex-1 items-center gap-3">
+                                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary transition-colors group-hover:bg-primary group-hover:text-primary-foreground">
+                                    <BookOpen className="h-4 w-4" />
+                                  </div>
 
-                                  <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-                                    <span className="inline-flex items-center gap-1">
-                                      <Clock className="h-3 w-3" />
-                                      {formatDuration(
-                                        lesson.estimated_minutes || 0
-                                      )}
-                                    </span>
+                                  <div className="min-w-0 flex-1">
+                                    <p className="text-sm font-semibold leading-snug text-foreground">
+                                      {lesson.title}
+                                    </p>
+
+                                    <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
+                                      <span className="inline-flex items-center gap-1">
+                                        <Clock className="h-3 w-3" />
+                                        {formatDuration(
+                                          lesson.estimated_minutes || 0
+                                        )}
+                                      </span>
+
+                                      <span>
+                                        Sesi {lessonIndex + 1}
+                                      </span>
+                                    </div>
 
                                     {lesson.description && (
-                                      <span className="line-clamp-1">
-                                        · {lesson.description}
-                                      </span>
+                                      <p className="mt-1 line-clamp-1 text-xs text-muted-foreground">
+                                        {lesson.description}
+                                      </p>
                                     )}
                                   </div>
                                 </div>
+
+                                <Button
+                                  size="sm"
+                                  className="w-full shrink-0 gap-2 rounded-lg sm:w-auto"
+                                  variant={
+                                    isLocked ? "outline" : "default"
+                                  }
+                                  disabled={
+                                    isLocked ||
+                                    startingLessonId !== null
+                                  }
+                                  onClick={() =>
+                                    void handleStartLesson(lesson)
+                                  }
+                                >
+                                  {isStarting ? (
+                                    <RefreshCw className="h-4 w-4 animate-spin" />
+                                  ) : isLocked ? (
+                                    <Lock className="h-4 w-4" />
+                                  ) : (
+                                    <Play className="h-4 w-4 fill-current" />
+                                  )}
+
+                                  {isLocked
+                                    ? "Premium"
+                                    : isStarting
+                                      ? "Membuka..."
+                                      : "Mulai Belajar"}
+                                </Button>
                               </div>
-
-                              <Button
-                                size="sm"
-                                className="w-full shrink-0 gap-2 sm:w-auto"
-                                disabled={
-                                  isLocked ||
-                                  startingLessonId !== null
-                                }
-                                onClick={() =>
-                                  void handleStartLesson(lesson)
-                                }
-                              >
-                                {startingLessonId === lesson.id ? (
-                                  <RefreshCw className="h-4 w-4 animate-spin" />
-                                ) : isLocked ? (
-                                  <Lock className="h-4 w-4" />
-                                ) : (
-                                  <Play className="h-4 w-4" />
-                                )}
-
-                                {isLocked
-                                  ? "Premium"
-                                  : startingLessonId === lesson.id
-                                    ? "Membuka..."
-                                    : "Mulai Belajar"}
-                              </Button>
-                            </div>
-                          ))
+                            );
+                          })
                         )}
                       </CardContent>
                     )}
@@ -760,27 +818,55 @@ export default function CourseDetailPage() {
               })}
             </div>
           )}
-        </div>
+        </section>
 
         {/* COURSE SIDEBAR */}
 
-        <div className="space-y-4 lg:sticky lg:top-24">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-base">
-                <GraduationCap className="h-5 w-5 text-primary" />
-                Ringkasan Kursus
-              </CardTitle>
-            </CardHeader>
+        <aside className="space-y-4 xl:sticky xl:top-24">
+          <Card className="overflow-hidden rounded-2xl border-border bg-card shadow-sm">
+            <div className="border-b border-border bg-muted/30 p-5">
+              <div className="mb-2 flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 text-primary">
+                <GraduationCap className="h-5 w-5" />
+              </div>
 
-            <CardContent className="space-y-4">
+              <h3 className="font-bold">
+                Ringkasan Kursus
+              </h3>
+
+              <p className="mt-1 text-xs text-muted-foreground">
+                Informasi pembelajaran yang tersedia.
+              </p>
+            </div>
+
+            <CardContent className="space-y-4 p-5">
+              <div className="grid grid-cols-2 gap-3">
+                <div className="rounded-xl bg-muted/40 p-3">
+                  <Layers3 className="mb-2 h-4 w-4 text-primary" />
+                  <p className="text-xl font-extrabold">
+                    {modules.length}
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    Modul
+                  </p>
+                </div>
+
+                <div className="rounded-xl bg-muted/40 p-3">
+                  <BookOpen className="mb-2 h-4 w-4 text-primary" />
+                  <p className="text-xl font-extrabold">
+                    {totalLessons}
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    Sesi
+                  </p>
+                </div>
+              </div>
+
               <div>
                 <div className="mb-2 flex items-center justify-between text-sm">
-                  <span className="text-muted-foreground">
-                    Materi tersedia
+                  <span className="font-medium">
+                    Ketersediaan materi
                   </span>
-
-                  <span className="font-bold">
+                  <span className="font-bold text-primary">
                     {totalLessons} sesi
                   </span>
                 </div>
@@ -790,57 +876,100 @@ export default function CourseDetailPage() {
                   className="h-2"
                 />
 
-                <p className="mt-2 text-xs text-muted-foreground">
+                <p className="mt-2 text-xs leading-5 text-muted-foreground">
                   Jumlah sesi yang telah diterbitkan oleh pengajar.
+                  Ini bukan persentase penyelesaian belajar.
                 </p>
               </div>
 
-              <div className="space-y-3 border-t pt-4">
+              <div className="space-y-3 border-t border-border pt-4">
                 <div className="flex items-center gap-3 text-sm">
-                  <Layers3 className="h-4 w-4 text-primary" />
-                  <span>{modules.length} modul pembelajaran</span>
-                </div>
-
-                <div className="flex items-center gap-3 text-sm">
-                  <BookOpen className="h-4 w-4 text-primary" />
-                  <span>{totalLessons} sesi materi</span>
-                </div>
-
-                <div className="flex items-center gap-3 text-sm">
-                  <Clock className="h-4 w-4 text-primary" />
-                  <span>
-                    {formatDuration(totalDuration)} estimasi belajar
+                  <Clock className="h-4 w-4 text-muted-foreground" />
+                  <span className="text-muted-foreground">
+                    Estimasi belajar
+                  </span>
+                  <span className="ml-auto font-semibold">
+                    {formatDuration(totalDuration)}
                   </span>
                 </div>
 
                 <div className="flex items-center gap-3 text-sm">
-                  <ShieldCheck className="h-4 w-4 text-primary" />
-                  <span>
-                    {course.premium
-                      ? "Akses Premium"
-                      : "Akses Gratis"}
+                  <Users className="h-4 w-4 text-muted-foreground" />
+                  <span className="text-muted-foreground">
+                    Pengajar
+                  </span>
+                  <span className="ml-auto max-w-[120px] truncate font-semibold">
+                    {course.instructor || "GradeUp"}
+                  </span>
+                </div>
+
+                <div className="flex items-center gap-3 text-sm">
+                  <ShieldCheck className="h-4 w-4 text-muted-foreground" />
+                  <span className="text-muted-foreground">
+                    Akses kursus
+                  </span>
+                  <span className="ml-auto font-semibold">
+                    {course.premium ? "Premium" : "Gratis"}
                   </span>
                 </div>
               </div>
             </CardContent>
           </Card>
 
-          <Card className="border-primary/20 bg-primary/5">
-            <CardContent className="space-y-2 p-4">
-              <div className="flex items-center gap-2 font-bold">
-                <Sparkles className="h-4 w-4 text-primary" />
-                Belajar Bertahap
+          {/* LEARNING TIP */}
+
+          <Card className="overflow-hidden rounded-2xl border-primary/20 bg-primary/[0.04] shadow-sm">
+            <CardContent className="p-5">
+              <div className="mb-3 flex items-center gap-2">
+                <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary/10 text-primary">
+                  <Sparkles className="h-4 w-4" />
+                </div>
+
+                <h3 className="font-bold">
+                  Tips Belajar
+                </h3>
               </div>
 
               <p className="text-xs leading-6 text-muted-foreground">
-                Selesaikan setiap bagian materi dan checkpoint
-                sebelum melanjutkan ke bagian berikutnya.
-                Evaluasi akhir tersedia setelah seluruh checkpoint
-                selesai.
+                Pelajari materi secara berurutan. Setelah memahami
+                satu bagian, kerjakan checkpoint untuk memastikan
+                pemahamanmu sebelum membuka bagian selanjutnya.
               </p>
             </CardContent>
           </Card>
-        </div>
+
+          {/* PREMIUM INFORMATION */}
+
+          {course.premium && (
+            <Card className="rounded-2xl border-amber-500/25 bg-amber-500/[0.04] shadow-sm">
+              <CardContent className="p-5">
+                <div className="flex items-center gap-2 text-amber-600 dark:text-amber-400">
+                  <Sparkles className="h-4 w-4" />
+                  <span className="text-sm font-bold">
+                    GradeUp Premium
+                  </span>
+                </div>
+
+                <p className="mt-2 text-xs leading-5 text-muted-foreground">
+                  Kursus ini termasuk dalam koleksi Premium
+                  GradeUp.
+                </p>
+
+                {!data?.isPremiumUser && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="mt-4 w-full border-amber-500/40 text-amber-700 hover:bg-amber-500/10 dark:text-amber-400"
+                    onClick={openUpgrade}
+                  >
+                    Lihat Premium
+                    <ArrowUpRight className="ml-2 h-4 w-4" />
+                  </Button>
+                )}
+              </CardContent>
+            </Card>
+          )}
+        </aside>
       </div>
     </div>
   );
