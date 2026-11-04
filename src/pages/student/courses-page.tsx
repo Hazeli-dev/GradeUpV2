@@ -173,7 +173,7 @@ export default function StudentCoursesPage() {
             .toLocaleLowerCase("id-ID")
             .includes(keyword) ||
           course.category.toLocaleLowerCase("id-ID").includes(keyword) ||
-          course.instructor.toLocaleLowerCase("id-ID").includes(keyword)
+          (course.instructor ?? "").toLocaleLowerCase("id-ID").includes(keyword)
         );
       })
       .filter(
