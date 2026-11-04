@@ -24,6 +24,7 @@ import {
   ChevronRight,
   Target,
   Layers3,
+  RotateCcw,
 } from "lucide-react";
 
 import { Card, CardContent } from "@/components/ui/card";
@@ -37,7 +38,10 @@ type ExamStatus = "Aktif" | "Akan Datang" | "Selesai";
 interface ExamPackageItem {
   id: string;
   title: string;
+  subject: string;
   category: string;
+  education_level: string;
+  grade: number | null;
   class_info: string;
   bab_info?: string;
   start_time?: string;
@@ -54,6 +58,17 @@ const STATUS_ORDER: ExamStatus[] = [
   "Akan Datang",
   "Selesai",
 ];
+
+const GRADES_BY_LEVEL: Record<string, number[]> = {
+  SD: [1, 2, 3, 4, 5, 6],
+  SMP: [7, 8, 9],
+  SMA: [10, 11, 12],
+  SMK: [10, 11, 12],
+};
+
+const EDUCATION_LEVELS = ["SD", "SMP", "SMA", "SMK"];
+
+const ALL = "Semua";
 
 const STATUS_CONFIG: Record<
   ExamStatus,
@@ -93,45 +108,45 @@ const STATUS_CONFIG: Record<
 };
 
 function getCategoryTheme(category: string) {
-  switch (category) {
-    case "Tryout":
-      return {
-        icon: Zap,
-        color: "text-sky-700 dark:text-sky-300",
-        badge: "border-sky-200 bg-sky-50 dark:border-sky-800 dark:bg-sky-950/50",
-        gradient: "from-sky-500 to-cyan-500",
-        accent: "bg-sky-500",
-      };
+  const normalized = category.toLowerCase();
 
-    case "PTS":
-    case "PTS/UTS":
-      return {
-        icon: FileText,
-        color: "text-violet-700 dark:text-violet-300",
-        badge: "border-violet-200 bg-violet-50 dark:border-violet-800 dark:bg-violet-950/50",
-        gradient: "from-violet-500 to-purple-500",
-        accent: "bg-violet-500",
-      };
-
-    case "PAS":
-    case "PAS/UAS":
-      return {
-        icon: Award,
-        color: "text-blue-700 dark:text-blue-300",
-        badge: "border-blue-200 bg-blue-50 dark:border-blue-800 dark:bg-blue-950/50",
-        gradient: "from-blue-500 to-indigo-500",
-        accent: "bg-blue-500",
-      };
-
-    default:
-      return {
-        icon: BookOpen,
-        color: "text-emerald-700 dark:text-emerald-300",
-        badge: "border-emerald-200 bg-emerald-50 dark:border-emerald-800 dark:bg-emerald-950/50",
-        gradient: "from-emerald-500 to-teal-500",
-        accent: "bg-emerald-500",
-      };
+  if (normalized.includes("tryout")) {
+    return {
+      icon: Zap,
+      color: "text-sky-700 dark:text-sky-300",
+      badge:
+        "border-sky-200 bg-sky-50 dark:border-sky-800 dark:bg-sky-950/50",
+      gradient: "from-sky-500 to-cyan-500",
+    };
   }
+
+  if (normalized.includes("pts") || normalized.includes("uts")) {
+    return {
+      icon: FileText,
+      color: "text-violet-700 dark:text-violet-300",
+      badge:
+        "border-violet-200 bg-violet-50 dark:border-violet-800 dark:bg-violet-950/50",
+      gradient: "from-violet-500 to-purple-500",
+    };
+  }
+
+  if (normalized.includes("pas") || normalized.includes("uas")) {
+    return {
+      icon: Award,
+      color: "text-blue-700 dark:text-blue-300",
+      badge:
+        "border-blue-200 bg-blue-50 dark:border-blue-800 dark:bg-blue-950/50",
+      gradient: "from-blue-500 to-indigo-500",
+    };
+  }
+
+  return {
+    icon: BookOpen,
+    color: "text-emerald-700 dark:text-emerald-300",
+    badge:
+      "border-emerald-200 bg-emerald-50 dark:border-emerald-800 dark:bg-emerald-950/50",
+    gradient: "from-emerald-500 to-teal-500",
+  };
 }
 
 function formatDate(value?: string) {
@@ -150,18 +165,39 @@ function formatDate(value?: string) {
   });
 }
 
+function getLevelLabel(level: string) {
+  const labels: Record<string, string> = {
+    SD: "SD / MI",
+    SMP: "SMP / MTs",
+    SMA: "SMA / MA",
+    SMK: "SMK",
+    Kedinasan: "Kedinasan",
+    Umum: "Umum",
+  };
+
+  return labels[level] || level || "Semua Jenjang";
+}
+
 export default function StudentExamsPage() {
   const navigate = useNavigate();
 
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
 
-  const [selectedCategory, setSelectedCategory] = useState("Semua");
-  const [searchQuery, setSearchQuery] = useState("");
-
   const [examPackages, setExamPackages] = useState<ExamPackageItem[]>([]);
+
   const [studentName, setStudentName] = useState("Siswa");
-  const [userClass, setUserClass] = useState("Peserta Didik");
+  const [userClass, setUserClass] = useState("Profil belum dilengkapi");
+
+  const [profileLevel, setProfileLevel] = useState("");
+  const [profileGrade, setProfileGrade] = useState<number | null>(null);
+
+  // Filter ujian
+  const [selectedLevel, setSelectedLevel] = useState(ALL);
+  const [selectedGrade, setSelectedGrade] = useState(ALL);
+  const [selectedSubject, setSelectedSubject] = useState(ALL);
+  const [selectedExamType, setSelectedExamType] = useState(ALL);
+  const [searchQuery, setSearchQuery] = useState("");
 
   const [level, setLevel] = useState(1);
   const [currentXp, setCurrentXp] = useState(10);
@@ -175,17 +211,23 @@ export default function StudentExamsPage() {
       setLoading(true);
       setLoadError(false);
 
-      // Profil siswa
       const {
         data: { user },
+        error: authError,
       } = await supabase.auth.getUser();
 
+      if (authError) throw authError;
+
       if (user) {
-        const { data: profile } = await supabase
+        const { data: profile, error: profileError } = await supabase
           .from("profiles")
-          .select("full_name, name, total_xp, level, class")
+          .select(
+            "full_name, name, total_xp, level, education_level, grade"
+          )
           .eq("id", user.id)
-          .single();
+          .maybeSingle();
+
+        if (profileError) throw profileError;
 
         if (profile) {
           setStudentName(
@@ -195,16 +237,41 @@ export default function StudentExamsPage() {
               "Siswa GradeUp"
           );
 
-          setUserClass(profile.class || "Peserta Didik");
+          const educationLevel = profile.education_level || "";
+          const grade =
+            profile.grade != null ? Number(profile.grade) : null;
+
+          setProfileLevel(educationLevel);
+          setProfileGrade(grade);
+
+          // Filter awal mengikuti profil siswa.
+          // Jika profil belum lengkap, tampilkan semua jenjang.
+          setSelectedLevel(educationLevel || ALL);
+          setSelectedGrade(
+            grade != null ? String(grade) : ALL
+          );
+
+          setSelectedSubject(ALL);
+          setSelectedExamType(ALL);
+
+          setUserClass(
+            educationLevel
+              ? `${getLevelLabel(educationLevel)}${
+                  grade != null ? ` • Kelas ${grade}` : ""
+                }`
+              : "Profil pendidikan belum dilengkapi"
+          );
 
           const totalXp = profile.total_xp ?? 10;
 
           setCurrentXp(totalXp % maxXp);
-          setLevel(profile.level || Math.floor(totalXp / maxXp) + 1);
+          setLevel(
+            profile.level ||
+              Math.floor(totalXp / maxXp) + 1
+          );
         }
       }
 
-      // Paket ujian
       const { data: packages, error } = await supabase
         .from("exam_packages")
         .select("*")
@@ -215,65 +282,82 @@ export default function StudentExamsPage() {
 
       const now = Date.now();
 
-      const formattedPackages: ExamPackageItem[] = (packages || []).map(
-        (pkg: any) => {
-          const startDate = pkg.start_time
-            ? new Date(pkg.start_time)
-            : new Date(pkg.created_at || Date.now());
+      const formattedPackages: ExamPackageItem[] = (
+        packages || []
+      ).map((pkg: any) => {
+        const startDate = pkg.start_time
+          ? new Date(pkg.start_time)
+          : new Date(pkg.created_at || Date.now());
 
-          const endDate = pkg.end_time ? new Date(pkg.end_time) : null;
+        const endDate = pkg.end_time
+          ? new Date(pkg.end_time)
+          : null;
 
-          let status: ExamStatus = "Aktif";
-          let daysLeft: number | undefined;
-          let timeProgress: number | undefined;
+        let status: ExamStatus = "Aktif";
+        let daysLeft: number | undefined;
+        let timeProgress: number | undefined;
 
-          if (startDate.getTime() > now) {
-            status = "Akan Datang";
-          } else if (endDate && now > endDate.getTime()) {
-            status = "Selesai";
-          } else {
-            status = "Aktif";
+        if (startDate.getTime() > now) {
+          status = "Akan Datang";
+        } else if (endDate && now > endDate.getTime()) {
+          status = "Selesai";
+        } else {
+          status = "Aktif";
 
-            if (endDate) {
-              const diffMs = endDate.getTime() - now;
+          if (endDate) {
+            const diffMs = endDate.getTime() - now;
 
-              daysLeft = Math.max(
-                1,
-                Math.ceil(diffMs / (1000 * 60 * 60 * 24))
+            daysLeft = Math.max(
+              1,
+              Math.ceil(diffMs / (1000 * 60 * 60 * 24))
+            );
+
+            const total =
+              endDate.getTime() - startDate.getTime();
+
+            if (total > 0) {
+              timeProgress = Math.min(
+                100,
+                Math.max(
+                  0,
+                  ((now - startDate.getTime()) / total) * 100
+                )
               );
-
-              const total = endDate.getTime() - startDate.getTime();
-
-              if (total > 0) {
-                timeProgress = Math.min(
-                  100,
-                  Math.max(
-                    0,
-                    ((now - startDate.getTime()) / total) * 100
-                  )
-                );
-              }
             }
           }
-
-          return {
-            id: pkg.id,
-            title: pkg.title || "Paket Ujian",
-            category: pkg.category || "Harian",
-            class_info: pkg.level || pkg.class_info || "Semua Jenjang",
-            bab_info: pkg.description || pkg.bab_info || "Materi Ujian",
-            start_time: pkg.start_time,
-            end_time: pkg.end_time,
-            status,
-            days_left: daysLeft,
-            time_progress: timeProgress,
-            premium: pkg.premium,
-            start_date_str: formatDate(
-              pkg.start_time || pkg.created_at
-            ),
-          };
         }
-      );
+
+        const packageLevel = pkg.level || "";
+        const packageGrade =
+          pkg.grade != null ? Number(pkg.grade) : null;
+
+        return {
+          id: pkg.id,
+          title: pkg.title || "Paket Ujian",
+          subject: pkg.subject || "Belum ditentukan",
+          category: pkg.type || "Ujian",
+          education_level: packageLevel,
+          grade: packageGrade,
+          class_info: packageLevel
+            ? `${getLevelLabel(packageLevel)}${
+                packageGrade != null
+                  ? ` • Kelas ${packageGrade}`
+                  : ""
+              }`
+            : "Semua Jenjang",
+          bab_info:
+            pkg.description || "Materi Ujian",
+          start_time: pkg.start_time,
+          end_time: pkg.end_time,
+          status,
+          days_left: daysLeft,
+          time_progress: timeProgress,
+          premium: pkg.premium,
+          start_date_str: formatDate(
+            pkg.start_time || pkg.created_at
+          ),
+        };
+      });
 
       setExamPackages(formattedPackages);
     } catch (error) {
@@ -288,13 +372,87 @@ export default function StudentExamsPage() {
     fetchExamsData();
   }, [fetchExamsData]);
 
-  const categoriesList = useMemo(() => {
-    const categories = Array.from(
-      new Set(examPackages.map((item) => item.category))
+  // Pilihan jenjang yang tersedia pada paket ujian.
+  const availableLevels = useMemo(() => {
+    const levels = new Set(
+      examPackages
+        .map((item) => item.education_level)
+        .filter(Boolean)
     );
 
-    return ["Semua", ...categories];
+    return [
+      ...EDUCATION_LEVELS.filter((item) => levels.has(item)),
+      ...Array.from(levels).filter(
+        (item) => !EDUCATION_LEVELS.includes(item)
+      ),
+    ];
   }, [examPackages]);
+
+  // Pilihan kelas mengikuti jenjang yang dipilih.
+  const availableGrades = useMemo(() => {
+    if (selectedLevel === ALL) return [];
+
+    const configuredGrades =
+      GRADES_BY_LEVEL[selectedLevel] || [];
+
+    const packageGrades = examPackages
+      .filter(
+        (item) => item.education_level === selectedLevel
+      )
+      .map((item) => item.grade)
+      .filter((grade): grade is number => grade != null);
+
+    return Array.from(
+      new Set([...configuredGrades, ...packageGrades])
+    ).sort((a, b) => a - b);
+  }, [examPackages, selectedLevel]);
+
+  // Pilihan mata pelajaran mengikuti jenjang dan kelas.
+  const availableSubjects = useMemo(() => {
+    const subjects = examPackages
+      .filter((item) => {
+        const matchLevel =
+          selectedLevel === ALL ||
+          item.education_level === selectedLevel;
+
+        const matchGrade =
+          selectedGrade === ALL ||
+          item.grade === Number(selectedGrade);
+
+        return matchLevel && matchGrade;
+      })
+      .map((item) => item.subject)
+      .filter(
+        (subject) =>
+          subject && subject !== "Belum ditentukan"
+      );
+
+    return Array.from(new Set(subjects)).sort((a, b) =>
+      a.localeCompare(b, "id")
+    );
+  }, [examPackages, selectedLevel, selectedGrade]);
+
+  // Pilihan jenis ujian mengikuti jenjang dan kelas.
+  const availableExamTypes = useMemo(() => {
+    const types = examPackages
+      .filter((item) => {
+        const matchLevel =
+          selectedLevel === ALL ||
+          item.education_level === selectedLevel;
+
+        const matchGrade =
+          selectedGrade === ALL ||
+          item.grade === Number(selectedGrade);
+
+        return matchLevel && matchGrade;
+      })
+      .map((item) => item.category)
+      .filter(Boolean);
+
+    return Array.from(new Set(types)).sort((a, b) =>
+      a.localeCompare(b, "id")
+    );
+  }, [examPackages, selectedLevel, selectedGrade]);
 
   const categoryCounts = useMemo(() => {
     const counts: Record<string, number> = {
@@ -302,7 +460,8 @@ export default function StudentExamsPage() {
     };
 
     examPackages.forEach((item) => {
-      counts[item.category] = (counts[item.category] || 0) + 1;
+      counts[item.category] =
+        (counts[item.category] || 0) + 1;
     });
 
     return counts;
@@ -310,30 +469,73 @@ export default function StudentExamsPage() {
 
   const statusCounts = useMemo(
     () => ({
-      Aktif: examPackages.filter((item) => item.status === "Aktif").length,
+      Aktif: examPackages.filter(
+        (item) => item.status === "Aktif"
+      ).length,
       "Akan Datang": examPackages.filter(
         (item) => item.status === "Akan Datang"
       ).length,
-      Selesai: examPackages.filter((item) => item.status === "Selesai").length,
+      Selesai: examPackages.filter(
+        (item) => item.status === "Selesai"
+      ).length,
     }),
     [examPackages]
   );
+
+  // Reset filter ke data profil siswa.
+  const resetToProfile = () => {
+    setSelectedLevel(profileLevel || ALL);
+    setSelectedGrade(
+      profileGrade != null ? String(profileGrade) : ALL
+    );
+    setSelectedSubject(ALL);
+    setSelectedExamType(ALL);
+    setSearchQuery("");
+  };
+
+  const resetAllFilters = () => {
+    setSelectedLevel(ALL);
+    setSelectedGrade(ALL);
+    setSelectedSubject(ALL);
+    setSelectedExamType(ALL);
+    setSearchQuery("");
+  };
 
   const groupedPackages = useMemo(() => {
     const query = searchQuery.trim().toLowerCase();
 
     const filtered = examPackages.filter((pkg) => {
-      const matchCategory =
-        selectedCategory === "Semua" ||
-        pkg.category === selectedCategory;
+      const matchLevel =
+        selectedLevel === ALL ||
+        pkg.education_level === selectedLevel;
+
+      const matchGrade =
+        selectedGrade === ALL ||
+        pkg.grade === Number(selectedGrade);
+
+      const matchSubject =
+        selectedSubject === ALL ||
+        pkg.subject === selectedSubject;
+
+      const matchExamType =
+        selectedExamType === ALL ||
+        pkg.category === selectedExamType;
 
       const matchSearch =
         !query ||
         pkg.title.toLowerCase().includes(query) ||
+        pkg.subject.toLowerCase().includes(query) ||
         pkg.class_info.toLowerCase().includes(query) ||
+        pkg.category.toLowerCase().includes(query) ||
         (pkg.bab_info || "").toLowerCase().includes(query);
 
-      return matchCategory && matchSearch;
+      return (
+        matchLevel &&
+        matchGrade &&
+        matchSubject &&
+        matchExamType &&
+        matchSearch
+      );
     });
 
     return STATUS_ORDER.map((status) => ({
@@ -342,16 +544,31 @@ export default function StudentExamsPage() {
         .filter((item) => item.status === status)
         .sort((a, b) =>
           status === "Aktif"
-            ? (a.days_left ?? Infinity) - (b.days_left ?? Infinity)
+            ? (a.days_left ?? Infinity) -
+              (b.days_left ?? Infinity)
             : 0
         ),
     })).filter((group) => group.items.length > 0);
-  }, [examPackages, selectedCategory, searchQuery]);
+  }, [
+    examPackages,
+    selectedLevel,
+    selectedGrade,
+    selectedSubject,
+    selectedExamType,
+    searchQuery,
+  ]);
 
   const totalShown = groupedPackages.reduce(
     (sum, group) => sum + group.items.length,
     0
   );
+
+  const hasActiveFilters =
+    selectedLevel !== ALL ||
+    selectedGrade !== ALL ||
+    selectedSubject !== ALL ||
+    selectedExamType !== ALL ||
+    Boolean(searchQuery);
 
   if (loading) return <PageSkeleton />;
 
@@ -407,7 +624,6 @@ export default function StudentExamsPage() {
             </div>
 
             <div className="grid gap-5 border-t border-white/15 pt-6 lg:grid-cols-[1.1fr_0.9fr] lg:items-end">
-              {/* XP */}
               <div className="rounded-2xl border border-white/10 bg-black/10 p-4 backdrop-blur-sm sm:p-5">
                 <div className="flex items-center justify-between gap-3">
                   <div className="flex items-center gap-2 text-sm font-bold text-white">
@@ -430,6 +646,7 @@ export default function StudentExamsPage() {
                         XP
                       </span>
                     </p>
+
                     <p className="mt-1 text-xs text-emerald-100/70">
                       {xpRemaining.toLocaleString("id-ID")} XP menuju target progres berikutnya
                     </p>
@@ -451,7 +668,6 @@ export default function StudentExamsPage() {
                 </div>
               </div>
 
-              {/* QUICK STATS */}
               <div className="grid grid-cols-3 gap-2.5">
                 {[
                   {
@@ -512,7 +728,7 @@ export default function StudentExamsPage() {
         </div>
       </section>
 
-      {/* STUDENT CONTEXT */}
+      {/* KONTEKS SISWA */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-2 text-sm text-muted-foreground">
           <GraduationCap className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
@@ -530,10 +746,10 @@ export default function StudentExamsPage() {
         </button>
       </div>
 
-      {/* SEARCH & FILTER */}
+      {/* FILTER PAKET UJIAN */}
       <section className="overflow-hidden rounded-2xl border border-border bg-card shadow-sm">
-        <div className="flex flex-col gap-4 p-4 sm:p-5 lg:flex-row lg:items-center lg:justify-between">
-          <div>
+        <div className="flex flex-col gap-4 p-4 sm:p-5">
+          <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="flex items-center gap-2">
               <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
                 <Layers3 className="h-4 w-4" />
@@ -544,79 +760,216 @@ export default function StudentExamsPage() {
                   Paket Ujian
                 </h2>
                 <p className="text-xs text-muted-foreground">
-                  Temukan ujian sesuai jenjang dan kebutuhan belajarmu
+                  Filter ujian berdasarkan jenjang, kelas, dan mata pelajaran
                 </p>
               </div>
             </div>
+
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              onClick={resetToProfile}
+              className="gap-2 rounded-xl"
+            >
+              <RotateCcw className="h-3.5 w-3.5" />
+              Reset ke Profil Saya
+            </Button>
           </div>
 
-          <div className="relative w-full lg:max-w-sm">
-            <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          {!profileLevel && (
+            <div className="flex items-start gap-3 rounded-xl border border-amber-500/20 bg-amber-500/5 p-3">
+              <Info className="mt-0.5 h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400" />
+              <div>
+                <p className="text-xs font-bold text-foreground">
+                  Profil pendidikan belum dilengkapi
+                </p>
+                <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+                  Saat ini semua jenjang ditampilkan. Lengkapi jenjang dan kelas
+                  melalui Pengaturan Profil agar filter otomatis mengikuti profilmu.
+                </p>
+              </div>
+            </div>
+          )}
 
-            <input
-              type="search"
-              value={searchQuery}
-              onChange={(event) => setSearchQuery(event.target.value)}
-              placeholder="Cari paket ujian..."
-              className="h-11 w-full rounded-xl border border-border bg-muted/40 pl-10 pr-10 text-sm text-foreground outline-none transition-all placeholder:text-muted-foreground focus:border-emerald-500 focus:bg-background focus:ring-4 focus:ring-emerald-500/10"
-            />
-
-            {searchQuery && (
-              <button
-                onClick={() => setSearchQuery("")}
-                aria-label="Hapus pencarian"
-                className="absolute right-2 top-1/2 -translate-y-1/2 rounded-lg p-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            <div className="space-y-1.5">
+              <label
+                htmlFor="exam-level"
+                className="text-xs font-bold text-muted-foreground"
               >
-                <X className="h-4 w-4" />
-              </button>
-            )}
-          </div>
-        </div>
+                Jenjang Pendidikan
+              </label>
 
-        <div className="border-t border-border bg-muted/20 px-4 py-3 sm:px-5">
-          <div className="flex items-center gap-2 overflow-x-auto pb-1">
-            {categoriesList.map((category) => {
-              const active = selectedCategory === category;
-              const count = categoryCounts[category] || 0;
-
-              return (
-                <button
-                  key={category}
-                  onClick={() => setSelectedCategory(category)}
-                  className={cn(
-                    "inline-flex h-9 shrink-0 items-center gap-2 rounded-xl border px-3.5 text-xs font-bold transition-all",
-                    active
-                      ? "border-emerald-600 bg-emerald-600 text-white shadow-md shadow-emerald-600/15"
-                      : "border-border bg-card text-muted-foreground hover:border-emerald-500/50 hover:text-foreground"
-                  )}
-                >
-                  {category}
-                  <span
-                    className={cn(
-                      "rounded-md px-1.5 py-0.5 text-[10px] tabular-nums",
-                      active
-                        ? "bg-white/20 text-white"
-                        : "bg-muted text-muted-foreground"
-                    )}
-                  >
-                    {count}
-                  </span>
-                </button>
-              );
-            })}
-
-            {(searchQuery || selectedCategory !== "Semua") && (
-              <button
-                onClick={() => {
-                  setSearchQuery("");
-                  setSelectedCategory("Semua");
+              <select
+                id="exam-level"
+                value={selectedLevel}
+                onChange={(event) => {
+                  setSelectedLevel(event.target.value);
+                  setSelectedGrade(ALL);
+                  setSelectedSubject(ALL);
+                  setSelectedExamType(ALL);
                 }}
-                className="shrink-0 px-2 text-xs font-bold text-muted-foreground hover:text-emerald-600 dark:hover:text-emerald-400"
+                className="h-11 w-full rounded-xl border border-border bg-background px-3 text-sm text-foreground outline-none transition focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/10"
               >
-                Reset filter
-              </button>
-            )}
+                <option value={ALL}>Semua Jenjang</option>
+                {availableLevels.map((item) => (
+                  <option key={item} value={item}>
+                    {getLevelLabel(item)}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="space-y-1.5">
+              <label
+                htmlFor="exam-grade"
+                className="text-xs font-bold text-muted-foreground"
+              >
+                Kelas
+              </label>
+
+              <select
+                id="exam-grade"
+                value={selectedGrade}
+                disabled={selectedLevel === ALL}
+                onChange={(event) => {
+                  setSelectedGrade(event.target.value);
+                  setSelectedSubject(ALL);
+                  setSelectedExamType(ALL);
+                }}
+                className="h-11 w-full rounded-xl border border-border bg-background px-3 text-sm text-foreground outline-none transition focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/10 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                <option value={ALL}>Semua Kelas</option>
+                {availableGrades.map((grade) => (
+                  <option key={grade} value={String(grade)}>
+                    Kelas {grade}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="space-y-1.5">
+              <label
+                htmlFor="exam-subject"
+                className="text-xs font-bold text-muted-foreground"
+              >
+                Mata Pelajaran
+              </label>
+
+              <select
+                id="exam-subject"
+                value={selectedSubject}
+                onChange={(event) =>
+                  setSelectedSubject(event.target.value)
+                }
+                className="h-11 w-full rounded-xl border border-border bg-background px-3 text-sm text-foreground outline-none transition focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/10"
+              >
+                <option value={ALL}>Semua Mata Pelajaran</option>
+                {availableSubjects.map((subject) => (
+                  <option key={subject} value={subject}>
+                    {subject}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="space-y-1.5">
+              <label
+                htmlFor="exam-type"
+                className="text-xs font-bold text-muted-foreground"
+              >
+                Jenis Ujian
+              </label>
+
+              <select
+                id="exam-type"
+                value={selectedExamType}
+                onChange={(event) =>
+                  setSelectedExamType(event.target.value)
+                }
+                className="h-11 w-full rounded-xl border border-border bg-background px-3 text-sm text-foreground outline-none transition focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/10"
+              >
+                <option value={ALL}>Semua Jenis Ujian</option>
+                {availableExamTypes.map((type) => (
+                  <option key={type} value={type}>
+                    {type}
+                  </option>
+                ))}
+              </select>
+            </div>
           </div>
+
+          <div className="flex flex-col gap-3 border-t border-border pt-4 sm:flex-row sm:items-center sm:justify-between">
+            <div className="relative w-full sm:max-w-sm">
+              <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+
+              <input
+                type="search"
+                value={searchQuery}
+                onChange={(event) =>
+                  setSearchQuery(event.target.value)
+                }
+                placeholder="Cari paket, mapel, atau materi..."
+                className="h-11 w-full rounded-xl border border-border bg-muted/40 pl-10 pr-10 text-sm text-foreground outline-none transition-all placeholder:text-muted-foreground focus:border-emerald-500 focus:bg-background focus:ring-4 focus:ring-emerald-500/10"
+              />
+
+              {searchQuery && (
+                <button
+                  onClick={() => setSearchQuery("")}
+                  aria-label="Hapus pencarian"
+                  className="absolute right-2 top-1/2 -translate-y-1/2 rounded-lg p-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              )}
+            </div>
+
+            <p className="text-xs text-muted-foreground">
+              Menampilkan{" "}
+              <strong className="text-foreground">{totalShown}</strong>{" "}
+              paket ujian
+            </p>
+          </div>
+
+          {hasActiveFilters && (
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-xs text-muted-foreground">
+                Filter aktif:
+              </span>
+
+              {selectedLevel !== ALL && (
+                <span className="rounded-lg bg-emerald-500/10 px-2.5 py-1 text-xs font-semibold text-emerald-700 dark:text-emerald-300">
+                  {getLevelLabel(selectedLevel)}
+                </span>
+              )}
+
+              {selectedGrade !== ALL && (
+                <span className="rounded-lg bg-emerald-500/10 px-2.5 py-1 text-xs font-semibold text-emerald-700 dark:text-emerald-300">
+                  Kelas {selectedGrade}
+                </span>
+              )}
+
+              {selectedSubject !== ALL && (
+                <span className="rounded-lg bg-sky-500/10 px-2.5 py-1 text-xs font-semibold text-sky-700 dark:text-sky-300">
+                  {selectedSubject}
+                </span>
+              )}
+
+              {selectedExamType !== ALL && (
+                <span className="rounded-lg bg-violet-500/10 px-2.5 py-1 text-xs font-semibold text-violet-700 dark:text-violet-300">
+                  {selectedExamType}
+                </span>
+              )}
+
+              <button
+                onClick={resetAllFilters}
+                className="ml-1 text-xs font-bold text-muted-foreground hover:text-foreground"
+              >
+                Hapus semua filter
+              </button>
+            </div>
+          )}
         </div>
       </section>
 
@@ -649,7 +1002,7 @@ export default function StudentExamsPage() {
         </div>
       )}
 
-      {/* EXAM LIST */}
+      {/* DAFTAR UJIAN */}
       {!loadError && (
         <div className="space-y-8">
           {totalShown === 0 ? (
@@ -663,17 +1016,13 @@ export default function StudentExamsPage() {
               </h3>
 
               <p className="mx-auto mt-2 max-w-sm text-sm leading-relaxed text-muted-foreground">
-                {searchQuery
-                  ? `Tidak ditemukan hasil untuk "${searchQuery}". Coba kata kunci lain.`
-                  : "Belum ada paket ujian pada kategori yang dipilih."}
+                Tidak ada paket yang sesuai dengan kombinasi filter saat ini.
+                Coba pilih jenjang, kelas, atau mata pelajaran lain.
               </p>
 
               <Button
                 variant="outline"
-                onClick={() => {
-                  setSearchQuery("");
-                  setSelectedCategory("Semua");
-                }}
+                onClick={resetAllFilters}
                 className="mt-5 rounded-xl"
               >
                 Tampilkan semua ujian
@@ -800,6 +1149,11 @@ export default function StudentExamsPage() {
 
                                   <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2">
                                     <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-muted-foreground">
+                                      <BookOpen className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
+                                      {pkg.subject}
+                                    </span>
+
+                                    <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-muted-foreground">
                                       <GraduationCap className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
                                       {pkg.class_info}
                                     </span>
@@ -922,9 +1276,9 @@ export default function StudentExamsPage() {
             </h4>
 
             <p className="mt-1.5 max-w-2xl text-xs leading-relaxed text-muted-foreground sm:text-sm">
-              Perhatikan jadwal dan batas waktu setiap paket ujian. Pastikan
-              koneksi internet stabil dan baca petunjuk pengerjaan sebelum
-              memulai evaluasi.
+              Perhatikan jadwal dan batas waktu setiap paket ujian.
+              Pastikan koneksi internet stabil dan baca petunjuk
+              pengerjaan sebelum memulai evaluasi.
             </p>
           </div>
 
