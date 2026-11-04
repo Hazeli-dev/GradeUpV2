@@ -18,7 +18,6 @@ import {
   ArrowLeft,
   ArrowRight,
   BookOpen,
-  Check,
   CheckCircle2,
   ChevronDown,
   ChevronRight,
@@ -125,7 +124,6 @@ type LearningProgress = {
 
 // =====================================================
 // PARAGRAPH LAYOUT EXTENSION
-// Menyesuaikan atribut format dari GradeUp Studio
 // =====================================================
 
 const ParagraphLayout = Extension.create({
@@ -261,6 +259,10 @@ export default function LessonLearningPage() {
 
   const [attemptId, setAttemptId] = useState("");
   const [currentQuestion, setCurrentQuestion] =
+    useState<AssessmentQuestion | null>(null);
+
+  // Soal berikutnya disimpan sementara sampai siswa klik Lanjutkan.
+  const [pendingNextQuestion, setPendingNextQuestion] =
     useState<AssessmentQuestion | null>(null);
 
   const [selectedAnswer, setSelectedAnswer] = useState("");
@@ -538,6 +540,8 @@ export default function LessonLearningPage() {
     setAssessmentError("");
     setAnswerFeedback(null);
     setSelectedAnswer("");
+    setPendingNextQuestion(null);
+    setCurrentQuestion(null);
 
     try {
       const { data, error: startError } = await supabase.rpc(
@@ -553,6 +557,7 @@ export default function LessonLearningPage() {
 
       setActiveAssessment(assessment);
       setAttemptId(result.attempt_id);
+
       setAssessmentStats({
         total: result.total_questions,
         correct: result.correct_answers,
@@ -560,13 +565,6 @@ export default function LessonLearningPage() {
       });
 
       setCurrentQuestion(result.next_question);
-
-      if (result.completed) {
-        setAssessmentStats((previous) => ({
-          ...previous,
-          completed: true,
-        }));
-      }
     } catch (err) {
       console.error("Start assessment:", err);
       setAssessmentError(formatError(err));
@@ -584,7 +582,8 @@ export default function LessonLearningPage() {
       !attemptId ||
       !currentQuestion ||
       !selectedAnswer ||
-      submitting
+      submitting ||
+      answerFeedback
     ) {
       return;
     }
@@ -618,9 +617,13 @@ export default function LessonLearningPage() {
       };
 
       if (!result.success) {
-        throw new Error(result.message || "Jawaban gagal disimpan.");
+        throw new Error(
+          result.message || "Jawaban gagal disimpan."
+        );
       }
 
+      // Jika jawaban ternyata sudah pernah benar,
+      // sinkronkan posisi dari backend.
       if (result.already_correct) {
         const { data: progressData, error: progressError } =
           await supabase.rpc("get_lesson_assessment_progress", {
@@ -632,6 +635,10 @@ export default function LessonLearningPage() {
         const progress = progressData as ProgressResult;
 
         setCurrentQuestion(progress.next_question);
+        setPendingNextQuestion(null);
+        setSelectedAnswer("");
+        setAnswerFeedback(null);
+
         setAssessmentStats({
           total: progress.total_questions,
           correct: progress.correct_answers,
@@ -641,6 +648,8 @@ export default function LessonLearningPage() {
         return;
       }
 
+      // JAWABAN SALAH
+      // Pertahankan soal yang sama agar dapat dicoba kembali.
       if (!result.is_correct) {
         setAnswerFeedback({
           correct: false,
@@ -651,6 +660,9 @@ export default function LessonLearningPage() {
         return;
       }
 
+      // JAWABAN BENAR
+      // Tampilkan pembahasan soal saat ini.
+      // Soal berikutnya hanya disimpan di pendingNextQuestion.
       setAnswerFeedback({
         correct: true,
         message: result.message,
@@ -666,12 +678,12 @@ export default function LessonLearningPage() {
       }));
 
       if (result.completed) {
-        setCurrentQuestion(null);
+        setPendingNextQuestion(null);
         await refreshLearningProgress();
       } else if (result.next_question) {
-        setCurrentQuestion(result.next_question);
+        setPendingNextQuestion(result.next_question);
       } else {
-        // Ambil ulang progres untuk memastikan posisi soal.
+        // Fallback jika backend tidak mengirim next_question.
         const { data: progressData, error: progressError } =
           await supabase.rpc("get_lesson_assessment_progress", {
             p_attempt_id: attemptId,
@@ -680,7 +692,9 @@ export default function LessonLearningPage() {
         if (progressError) throw progressError;
 
         const progress = progressData as ProgressResult;
-        setCurrentQuestion(progress.next_question);
+
+        setPendingNextQuestion(progress.next_question);
+
         setAssessmentStats({
           total: progress.total_questions,
           correct: progress.correct_answers,
@@ -693,6 +707,30 @@ export default function LessonLearningPage() {
     } finally {
       setSubmitting(false);
     }
+  };
+
+  // ===================================================
+  // CONTINUE AFTER FEEDBACK
+  // ===================================================
+
+  const continueAfterFeedback = () => {
+    if (!answerFeedback) return;
+
+    if (answerFeedback.correct) {
+      if (assessmentStats.completed) {
+        // Soal terakhir selesai. Tampilkan layar penyelesaian.
+        setCurrentQuestion(null);
+        setPendingNextQuestion(null);
+      } else if (pendingNextQuestion) {
+        // Baru sekarang soal berikutnya ditampilkan.
+        setCurrentQuestion(pendingNextQuestion);
+        setPendingNextQuestion(null);
+      }
+    }
+
+    // Pada jawaban salah, currentQuestion tidak berubah.
+    setSelectedAnswer("");
+    setAnswerFeedback(null);
   };
 
   // ===================================================
@@ -711,6 +749,7 @@ export default function LessonLearningPage() {
     setActiveAssessment(null);
     setAttemptId("");
     setCurrentQuestion(null);
+    setPendingNextQuestion(null);
     setSelectedAnswer("");
     setAnswerFeedback(null);
     setAssessmentError("");
@@ -786,8 +825,9 @@ export default function LessonLearningPage() {
   if (activeAssessment) {
     const options = getOptionList(currentQuestion?.options);
 
-    const questionNumber =
-      assessmentStats.correct + 1;
+    const questionNumber = currentQuestion
+      ? currentQuestion.sort_order + 1
+      : assessmentStats.correct;
 
     const percentage =
       assessmentStats.total > 0
@@ -848,7 +888,7 @@ export default function LessonLearningPage() {
               </div>
             )}
 
-            {assessmentStats.completed ? (
+            {assessmentStats.completed && !answerFeedback ? (
               <div className="text-center py-10">
                 <div className="w-20 h-20 rounded-full bg-emerald-100 flex items-center justify-center mx-auto mb-5">
                   <Trophy className="w-10 h-10 text-emerald-600" />
@@ -973,15 +1013,7 @@ export default function LessonLearningPage() {
                       )}
 
                     <button
-                      onClick={() => {
-                        if (answerFeedback.correct) {
-                          setAnswerFeedback(null);
-                          setSelectedAnswer("");
-                        } else {
-                          setAnswerFeedback(null);
-                          setSelectedAnswer("");
-                        }
-                      }}
+                      onClick={continueAfterFeedback}
                       className={`mt-4 rounded-xl px-5 py-2.5 text-sm font-semibold ${
                         answerFeedback.correct
                           ? "bg-emerald-600 text-white hover:bg-emerald-700"
@@ -989,7 +1021,9 @@ export default function LessonLearningPage() {
                       }`}
                     >
                       {answerFeedback.correct
-                        ? "Lanjutkan"
+                        ? assessmentStats.completed
+                          ? "Selesaikan evaluasi"
+                          : "Lanjutkan"
                         : "Coba kembali"}
                     </button>
                   </div>
