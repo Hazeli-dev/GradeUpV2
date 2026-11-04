@@ -21,6 +21,7 @@ import {
   Cloud,
   AlertCircle,
   FileText,
+  Image as ImageIcon,
 } from "lucide-react";
 
 import { toast } from "sonner";
@@ -112,7 +113,7 @@ interface CourseItem {
   instructor: string;
   premium: boolean;
   status: "Published" | "Draft";
-  thumbnail?: string;
+  thumbnail?: string | null;
   created_at?: string;
 }
 
@@ -123,6 +124,7 @@ type Draft = {
   category: string;
   level: Level;
   instructor: string;
+  thumbnail: string;
   premium: boolean;
   published: boolean;
 };
@@ -148,6 +150,7 @@ const emptyDraft: Draft = {
   category: "Matematika",
   level: "SMA",
   instructor: "",
+  thumbnail: "",
   premium: false,
   published: false,
 };
@@ -174,6 +177,9 @@ export default function AdminCoursesPage() {
   const [draft, setDraft] = useState<Draft | null>(null);
   const [errs, setErrs] = useState<Record<string, string>>({});
   const [removing, setRemoving] = useState<CourseItem | null>(null);
+
+  const [thumbnailPreviewError, setThumbnailPreviewError] =
+    useState(false);
 
   /* =========================================
      STUDIO STATE
@@ -318,6 +324,16 @@ export default function AdminCoursesPage() {
       validation.instructor = "Nama pengajar wajib diisi.";
     }
 
+    const thumbnailUrl = draft.thumbnail.trim();
+
+    if (
+      thumbnailUrl &&
+      !/^https?:\/\/.+/i.test(thumbnailUrl)
+    ) {
+      validation.thumbnail =
+        "URL gambar harus diawali http:// atau https://.";
+    }
+
     setErrs(validation);
 
     if (Object.keys(validation).length > 0) return;
@@ -333,10 +349,7 @@ export default function AdminCoursesPage() {
       instructor: draft.instructor.trim(),
       premium: draft.premium,
       status: draft.published ? "Published" : "Draft",
-      thumbnail:
-        gradients[
-          Math.floor(Math.random() * gradients.length)
-        ],
+      thumbnail: thumbnailUrl || null,
     };
 
     try {
@@ -360,6 +373,7 @@ export default function AdminCoursesPage() {
       }
 
       setDraft(null);
+      setThumbnailPreviewError(false);
       await fetchData();
     } catch (err: unknown) {
       toast.error(
@@ -371,6 +385,37 @@ export default function AdminCoursesPage() {
     } finally {
       setSaving(false);
     }
+  };
+
+  /* =========================================
+     OPEN ADD COURSE FORM
+  ========================================= */
+
+  const openCreateForm = () => {
+    setErrs({});
+    setThumbnailPreviewError(false);
+    setDraft({ ...emptyDraft });
+  };
+
+  /* =========================================
+     OPEN EDIT COURSE FORM
+  ========================================= */
+
+  const openEditForm = (course: CourseItem) => {
+    setErrs({});
+    setThumbnailPreviewError(false);
+
+    setDraft({
+      id: course.id,
+      title: course.title,
+      description: course.description ?? "",
+      category: course.category,
+      level: course.level,
+      instructor: course.instructor,
+      thumbnail: course.thumbnail ?? "",
+      premium: course.premium,
+      published: course.status === "Published",
+    });
   };
 
   /* =========================================
@@ -1712,10 +1757,7 @@ export default function AdminCoursesPage() {
             </Button>
 
             <Button
-              onClick={() => {
-                setErrs({});
-                setDraft(emptyDraft);
-              }}
+              onClick={openCreateForm}
               disabled={studioLoading}
             >
               <Plus className="mr-1 h-4 w-4" />
@@ -1800,11 +1842,27 @@ export default function AdminCoursesPage() {
                     <div className="flex items-center gap-3">
                       <div
                         className={cn(
-                          "h-11 w-16 shrink-0 rounded-lg bg-gradient-to-br",
-                          c.thumbnail || gradients[0]
+                          "relative h-12 w-20 shrink-0 overflow-hidden rounded-lg bg-gradient-to-br",
+                          gradients[0]
                         )}
-                        aria-hidden
-                      />
+                      >
+                        {c.thumbnail &&
+                          /^https?:\/\//i.test(c.thumbnail) && (
+                            <img
+                              src={c.thumbnail}
+                              alt=""
+                              loading="lazy"
+                              className="absolute inset-0 h-full w-full object-cover"
+                            />
+                          )}
+
+                        {(!c.thumbnail ||
+                          !/^https?:\/\//i.test(c.thumbnail)) && (
+                          <div className="absolute inset-0 flex items-center justify-center">
+                            <BookOpen className="h-5 w-5 text-white/80" />
+                          </div>
+                        )}
+                      </div>
 
                       <div className="min-w-0">
                         <p className="line-clamp-1 font-semibold">
@@ -1860,21 +1918,7 @@ export default function AdminCoursesPage() {
 
                       <DropdownMenuContent align="end">
                         <DropdownMenuItem
-                          onSelect={() => {
-                            setErrs({});
-
-                            setDraft({
-                              id: c.id,
-                              title: c.title,
-                              description: c.description,
-                              category: c.category,
-                              level: c.level,
-                              instructor: c.instructor,
-                              premium: c.premium,
-                              published:
-                                c.status === "Published",
-                            });
-                          }}
+                          onSelect={() => openEditForm(c)}
                         >
                           <Pencil className="mr-2 h-4 w-4" />
                           Edit Kursus
@@ -1905,13 +1949,21 @@ export default function AdminCoursesPage() {
         )}
       </Card>
 
-      {/* COURSE FORM DIALOG */}
+      {/* =========================================
+          COURSE FORM DIALOG
+      ========================================= */}
 
       <Dialog
         open={!!draft}
-        onOpenChange={(open) => !open && setDraft(null)}
+        onOpenChange={(open) => {
+          if (!open && !saving) {
+            setDraft(null);
+            setErrs({});
+            setThumbnailPreviewError(false);
+          }
+        }}
       >
-        <DialogContent className="max-w-xl">
+        <DialogContent className="max-h-[90vh] max-w-xl overflow-y-auto">
           {draft && (
             <>
               <DialogHeader>
@@ -1920,11 +1972,14 @@ export default function AdminCoursesPage() {
                 </DialogTitle>
 
                 <DialogDescription>
-                  Isi informasi kursus sebelum membuat materi pembelajaran.
+                  Isi informasi kursus dan tambahkan gambar agar
+                  tampilan materi lebih menarik.
                 </DialogDescription>
               </DialogHeader>
 
-              <div className="space-y-4 py-2">
+              <div className="space-y-5 py-2">
+                {/* JUDUL */}
+
                 <div className="space-y-2">
                   <Label htmlFor="c-title">
                     Judul Kursus
@@ -1939,10 +1994,13 @@ export default function AdminCoursesPage() {
                         title: event.target.value,
                       })
                     }
+                    placeholder="Contoh: Matematika Dasar"
                   />
 
                   <FieldError message={errs.title} />
                 </div>
+
+                {/* DESKRIPSI */}
 
                 <div className="space-y-2">
                   <Label htmlFor="c-desc">
@@ -1951,7 +2009,7 @@ export default function AdminCoursesPage() {
 
                   <textarea
                     id="c-desc"
-                    className="flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                    className="flex min-h-[90px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                     value={draft.description}
                     onChange={(event) =>
                       setDraft({
@@ -1959,8 +2017,11 @@ export default function AdminCoursesPage() {
                         description: event.target.value,
                       })
                     }
+                    placeholder="Jelaskan gambaran umum kursus..."
                   />
                 </div>
+
+                {/* KATEGORI DAN JENJANG */}
 
                 <div className="grid gap-4 sm:grid-cols-2">
                   <div className="space-y-2">
@@ -1976,7 +2037,7 @@ export default function AdminCoursesPage() {
                       }
                     >
                       <SelectTrigger>
-                        <SelectValue />
+                        <SelectValue placeholder="Pilih kategori" />
                       </SelectTrigger>
 
                       <SelectContent>
@@ -2011,7 +2072,7 @@ export default function AdminCoursesPage() {
                       }
                     >
                       <SelectTrigger>
-                        <SelectValue />
+                        <SelectValue placeholder="Pilih jenjang" />
                       </SelectTrigger>
 
                       <SelectContent>
@@ -2028,6 +2089,8 @@ export default function AdminCoursesPage() {
                   </div>
                 </div>
 
+                {/* PENGAJAR */}
+
                 <div className="space-y-2">
                   <Label htmlFor="c-ins">
                     Nama Pengajar
@@ -2042,12 +2105,114 @@ export default function AdminCoursesPage() {
                         instructor: event.target.value,
                       })
                     }
+                    placeholder="Nama pengajar atau lembaga"
                   />
 
                   <FieldError message={errs.instructor} />
                 </div>
 
-                <div className="flex flex-wrap gap-6 pt-2">
+                {/* THUMBNAIL */}
+
+                <div className="space-y-3 rounded-xl border bg-muted/20 p-4">
+                  <div className="flex items-center gap-2">
+                    <ImageIcon className="h-5 w-5 text-primary" />
+
+                    <div>
+                      <Label htmlFor="c-thumbnail">
+                        Gambar Thumbnail Kursus
+                      </Label>
+
+                      <p className="text-xs text-muted-foreground">
+                        Gambar utama yang akan tampil pada kartu materi.
+                      </p>
+                    </div>
+                  </div>
+
+                  <Input
+                    id="c-thumbnail"
+                    type="url"
+                    value={draft.thumbnail}
+                    onChange={(event) => {
+                      setDraft({
+                        ...draft,
+                        thumbnail: event.target.value,
+                      });
+
+                      setThumbnailPreviewError(false);
+                    }}
+                    placeholder="https://contoh.com/gambar-materi.jpg"
+                    aria-invalid={!!errs.thumbnail}
+                  />
+
+                  <FieldError message={errs.thumbnail} />
+
+                  <p className="text-xs text-muted-foreground">
+                    Gunakan URL gambar publik yang diawali
+                    https:// atau http://. Disarankan gambar
+                    landscape dengan rasio 16:9.
+                  </p>
+
+                  {draft.thumbnail.trim() &&
+                    /^https?:\/\/.+/i.test(
+                      draft.thumbnail.trim()
+                    ) && (
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between">
+                          <Label className="text-xs">
+                            Pratinjau Gambar
+                          </Label>
+
+                          <Badge variant="outline">
+                            16:9
+                          </Badge>
+                        </div>
+
+                        <div className="relative aspect-video w-full overflow-hidden rounded-xl border bg-muted">
+                          {!thumbnailPreviewError ? (
+                            <img
+                              key={draft.thumbnail}
+                              src={draft.thumbnail.trim()}
+                              alt="Pratinjau thumbnail kursus"
+                              className="h-full w-full object-cover"
+                              onError={() => {
+                                setThumbnailPreviewError(true);
+                              }}
+                              onLoad={() => {
+                                setThumbnailPreviewError(false);
+                              }}
+                            />
+                          ) : (
+                            <div className="flex h-full flex-col items-center justify-center gap-2 p-4 text-center">
+                              <AlertCircle className="h-8 w-8 text-destructive" />
+
+                              <p className="text-sm font-medium">
+                                Gambar tidak dapat dimuat
+                              </p>
+
+                              <p className="text-xs text-muted-foreground">
+                                Periksa kembali URL gambar atau
+                                gunakan alamat gambar lain.
+                              </p>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
+
+                  {!draft.thumbnail.trim() && (
+                    <div className="flex aspect-video w-full flex-col items-center justify-center gap-2 rounded-xl border border-dashed bg-background text-muted-foreground">
+                      <ImageIcon className="h-9 w-9 opacity-40" />
+
+                      <p className="text-xs">
+                        Belum ada gambar thumbnail
+                      </p>
+                    </div>
+                  )}
+                </div>
+
+                {/* PREMIUM DAN PUBLISH */}
+
+                <div className="flex flex-wrap gap-6 border-t pt-4">
                   <div className="flex items-center gap-3">
                     <Switch
                       id="c-prem"
@@ -2087,7 +2252,11 @@ export default function AdminCoursesPage() {
               <DialogFooter>
                 <Button
                   variant="outline"
-                  onClick={() => setDraft(null)}
+                  onClick={() => {
+                    setDraft(null);
+                    setErrs({});
+                    setThumbnailPreviewError(false);
+                  }}
                   disabled={saving}
                 >
                   Batal
@@ -2096,11 +2265,18 @@ export default function AdminCoursesPage() {
                 <Button
                   onClick={saveCourse}
                   disabled={saving}
+                  className="gap-2"
                 >
                   {saving ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      Menyimpan...
+                    </>
                   ) : (
-                    "Simpan Kursus"
+                    <>
+                      <Save className="h-4 w-4" />
+                      Simpan Kursus
+                    </>
                   )}
                 </Button>
               </DialogFooter>
@@ -2109,7 +2285,9 @@ export default function AdminCoursesPage() {
         </DialogContent>
       </Dialog>
 
-      {/* DELETE CONFIRMATION */}
+      {/* =========================================
+          DELETE CONFIRMATION
+      ========================================= */}
 
       <ConfirmDialog
         open={!!removing}
