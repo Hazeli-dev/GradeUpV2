@@ -310,16 +310,21 @@ export default function StudentSettingsPage() {
       toast.success("Profil berhasil diperbarui!");
 
       setProfileErr({});
-    } catch (error: unknown) {
-      console.error("Gagal menyimpan profil:", error);
+    } catch (error: any) {
+  console.error("DETAIL ERROR SIMPAN PROFIL:", error);
 
-      toast.error(
-        "Gagal menyimpan profil: " +
-          (error instanceof Error
-            ? error.message
-            : "Terjadi kesalahan.")
-      );
-    } finally {
+  const message =
+    error?.message ||
+    error?.details ||
+    error?.hint ||
+    "Terjadi kesalahan yang tidak diketahui.";
+
+  toast.error("Gagal menyimpan profil: " + message);
+
+  console.error("Kode error:", error?.code);
+  console.error("Detail:", error?.details);
+  console.error("Hint:", error?.hint);
+} finally {
       setSavingProfile(false);
     }
   };
