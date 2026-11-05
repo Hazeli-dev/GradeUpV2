@@ -83,6 +83,7 @@ export function SidebarShell({
 
   const location = useLocation();
 
+  // Menghitung jumlah pengumuman yang belum dibaca.
   const unreadCount = useMemo(
     () => announcements.filter((item) => !readIds.includes(item.id)).length,
     [announcements, readIds]
@@ -113,8 +114,10 @@ export function SidebarShell({
   );
 
   // Mengambil pengumuman yang sudah diterbitkan dan waktunya telah tiba.
-  const loadAnnouncements = useCallback(async () => {
-    setLoadingAnnouncements(true);
+  const loadAnnouncements = useCallback(async (showLoading = true) => {
+    if (showLoading) {
+      setLoadingAnnouncements(true);
+    }
 
     try {
       const {
@@ -159,15 +162,35 @@ export function SidebarShell({
       );
     } catch (error) {
       console.error("Gagal memuat pengumuman:", error);
-      toast.error("Gagal memuat notifikasi pengumuman.");
+
+      // Hindari toast berulang setiap pemeriksaan otomatis.
+      if (showLoading) {
+        toast.error("Gagal memuat notifikasi pengumuman.");
+      }
     } finally {
-      setLoadingAnnouncements(false);
+      if (showLoading) {
+        setLoadingAnnouncements(false);
+      }
     }
   }, []);
 
-  // Memuat data saat dashboard dibuka.
+  // Memuat data saat dashboard pertama kali dibuka.
   useEffect(() => {
     void loadAnnouncements();
+  }, [loadAnnouncements]);
+
+  // Memeriksa pengumuman baru secara otomatis setiap 30 detik.
+  useEffect(() => {
+    const notificationInterval = window.setInterval(() => {
+      // Tidak perlu melakukan pemeriksaan ketika tab sedang tidak aktif.
+      if (document.visibilityState === "visible") {
+        void loadAnnouncements(false);
+      }
+    }, 30000);
+
+    return () => {
+      window.clearInterval(notificationInterval);
+    };
   }, [loadAnnouncements]);
 
   // Memperbarui status pengumuman menjadi sudah dibaca.
@@ -411,13 +434,18 @@ export function SidebarShell({
               <Button
                 variant="ghost"
                 size="icon"
-                aria-label="Notifikasi pengumuman"
+                aria-label={
+                  unreadCount > 0
+                    ? `${unreadCount} pengumuman belum dibaca`
+                    : "Notifikasi pengumuman"
+                }
                 className="relative"
               >
                 <Bell className="h-[18px] w-[18px]" />
 
+                {/* BADGE JUMLAH NOTIFIKASI BELUM DIBACA */}
                 {unreadCount > 0 && (
-                  <span className="absolute right-1 top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-rose-500 px-1 text-[9px] font-bold text-white ring-2 ring-background">
+                  <span className="absolute -right-0.5 -top-0.5 flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-rose-500 px-1 text-[10px] font-bold leading-none text-white ring-2 ring-background">
                     {unreadCount > 99 ? "99+" : unreadCount}
                   </span>
                 )}
