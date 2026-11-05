@@ -1,3 +1,4 @@
+
 import { supabase } from "@/lib/supabase";
 import { delay } from "./delay";
 
@@ -25,17 +26,41 @@ export interface TransactionRecord {
   plan_name: string;
   plan: string;
   amount: number;
-  status: any;
+  status: "Berhasil" | "Menunggu" | "Gagal" | "Refund";
   created_at: string;
   date: string;
   invoice: string;
-  method: string; // Tambahan properti method agar sesuai dengan tipe Transaction
+  method: string;
 }
 
-// 1. Ambil daftar pengguna asli dari tabel Supabase 'profiles'
+function normalizeTransactionStatus(status: unknown): TransactionRecord["status"] {
+  const value = String(status ?? "").toLowerCase().trim();
+
+  if (
+    ["success", "paid", "settlement", "capture", "completed", "berhasil"].includes(value)
+  ) {
+    return "Berhasil";
+  }
+
+  if (
+    ["refund", "refunded", "partial_refund", "partially_refunded"].includes(value)
+  ) {
+    return "Refund";
+  }
+
+  if (
+    ["failed", "failure", "deny", "denied", "cancel", "cancelled", "canceled", "expire", "expired", "gagal"].includes(value)
+  ) {
+    return "Gagal";
+  }
+
+  return "Menunggu";
+}
+
+// 1. Daftar pengguna
 export async function listUsers(): Promise<ProfileRecord[]> {
   await delay();
-  
+
   const { data, error } = await supabase
     .from("profiles")
     .select("*")
@@ -46,10 +71,10 @@ export async function listUsers(): Promise<ProfileRecord[]> {
     return [];
   }
 
-  const mappedData = (data || []).map((user: any) => ({
+  return (data || []).map((user: any) => ({
     ...user,
-    full_name: user.full_name || user.email || "",
-    name: user.full_name || user.email || "",
+    full_name: user.full_name || user.name || user.email || "",
+    name: user.full_name || user.name || user.email || "",
     created_at: user.created_at || new Date().toISOString(),
     joinedAt: user.created_at || new Date().toISOString(),
     plan: user.plan || "Gratis",
@@ -57,41 +82,95 @@ export async function listUsers(): Promise<ProfileRecord[]> {
     level: user.level || "Beginner",
     examsTaken: user.examsTaken || 0,
     avgScore: user.avgScore || 0,
-  }));
-
-  return mappedData as ProfileRecord[];
+  })) as ProfileRecord[];
 }
 
-// 2. Ambil daftar transaksi dari Supabase 'transactions' (Hanya 1 fungsi ini saja yang ada)
+// 2. Daftar transaksi asli beserta profil pengguna
 export async function listTransactions(): Promise<TransactionRecord[]> {
   await delay();
-  
-  const { data, error } = await supabase
+
+  const { data: transactions, error } = await supabase
     .from("transactions")
     .select("*")
     .order("created_at", { ascending: false });
 
   if (error) {
-    console.error("Gagal mengambil data transaksi:", error.message);
+    console.error("Gagal mengambil transaksi:", error.message);
+    throw new Error(`Gagal mengambil data transaksi: ${error.message}`);
+  }
+
+  if (!transactions?.length) {
     return [];
   }
 
-  const mappedData = (data || []).map((tx: any) => ({
-    ...tx,
-    invoice: tx.invoice || `INV-${tx.id.substring(0, 6).toUpperCase()}`,
-    userName: tx.userName || tx.user_email || "User",
-    userEmail: tx.userEmail || tx.user_email || "",
-    plan: tx.plan || tx.plan_name || "Premium Plan",
-    date: tx.date || tx.created_at || new Date().toISOString(),
-    status: tx.status || "success",
-    method: tx.method || "Transfer Bank",
-  }));
+  const userIds = [
+    ...new Set(
+      transactions
+        .map((tx: any) => tx.user_id)
+        .filter((id: string | null) => Boolean(id))
+    ),
+  ];
 
-  return mappedData as TransactionRecord[];
+  let profilesById = new Map<string, any>();
+
+  if (userIds.length > 0) {
+    const { data: profiles, error: profileError } = await supabase
+      .from("profiles")
+      .select("id, email, full_name, name")
+      .in("id", userIds);
+
+    if (profileError) {
+      console.error("Gagal mengambil profil transaksi:", profileError.message);
+      throw new Error(`Gagal mengambil profil pengguna: ${profileError.message}`);
+    }
+
+    profilesById = new Map(
+      (profiles || []).map((profile: any) => [profile.id, profile])
+    );
+  }
+
+  return transactions.map((tx: any) => {
+    const profile = tx.user_id ? profilesById.get(tx.user_id) : null;
+
+    const email =
+      profile?.email ||
+      tx.metadata?.user_email ||
+      "";
+
+    const name =
+      profile?.full_name ||
+      profile?.name ||
+      email ||
+      "Pengguna tidak diketahui";
+
+    const createdAt = tx.created_at || new Date().toISOString();
+
+    return {
+      id: tx.id,
+      user_id: tx.user_id || "",
+      user_email: email,
+      userEmail: email,
+      userName: name,
+      plan_name: tx.plan_name || "",
+      plan: tx.plan_name || "Paket Premium",
+      amount: Number(tx.gross_amount ?? tx.amount ?? 0),
+      status: normalizeTransactionStatus(tx.status),
+      created_at: createdAt,
+      date: createdAt,
+      invoice:
+        tx.invoice_number ||
+        `INV-${String(tx.id).slice(0, 8).toUpperCase()}`,
+      method:
+        tx.payment_method ||
+        tx.payment_provider ||
+        "Belum ditentukan",
+    };
+  });
 }
 
-// 3. Tambah transaksi baru
-export async function createTransaction(payload: {
+// 3. Pembuatan transaksi harus dilakukan melalui backend pembayaran.
+// Jangan membuat transaksi pembayaran langsung dari browser.
+export async function createTransaction(_payload: {
   user_id: string;
   user_email: string;
   plan_name: string;
@@ -99,42 +178,27 @@ export async function createTransaction(payload: {
   status?: any;
   method?: string;
 }) {
-  const { data, error } = await supabase
-    .from("transactions")
-    .insert([
-      {
-        user_id: payload.user_id,
-        user_email: payload.user_email,
-        plan_name: payload.plan_name,
-        amount: payload.amount,
-        status: payload.status || "pending",
-        method: payload.method || "Transfer Bank",
-      },
-    ])
-    .select()
-    .single();
-
-  if (error) {
-    throw new Error(error.message);
-  }
-  return data;
+  throw new Error(
+    "Pembuatan transaksi harus dilakukan melalui backend pembayaran yang tervalidasi."
+  );
 }
 
-// 4. Ubah status transaksi
-export async function updateTransactionStatus(transactionId: string, newStatus: any) {
-  const { error } = await supabase
-    .from("transactions")
-    .update({ status: newStatus })
-    .eq("id", transactionId);
-
-  if (error) {
-    throw new Error(error.message);
-  }
-  return true;
+// 4. Status pembayaran hanya boleh diperbarui oleh backend
+// setelah menerima dan memverifikasi notifikasi payment gateway.
+export async function updateTransactionStatus(
+  _transactionId: string,
+  _newStatus: any
+) {
+  throw new Error(
+    "Perubahan status transaksi harus dilakukan melalui backend pembayaran."
+  );
 }
 
-// 5. Fungsi mengubah role pengguna langsung di Supabase
-export async function updateUserRole(userId: string, newRole: "admin" | "student") {
+// 5. Mengubah role pengguna
+export async function updateUserRole(
+  userId: string,
+  newRole: "admin" | "student"
+) {
   const { error } = await supabase
     .from("profiles")
     .update({ role: newRole })
@@ -143,6 +207,7 @@ export async function updateUserRole(userId: string, newRole: "admin" | "student
   if (error) {
     throw new Error(error.message);
   }
+
   return true;
 }
 
@@ -158,10 +223,10 @@ export interface ExamPackageRecord {
   created_at: string;
 }
 
-// 6. Ambil daftar paket ujian dari Supabase
+// 6. Daftar paket ujian
 export async function listExamPackages(): Promise<ExamPackageRecord[]> {
   await delay();
-  
+
   const { data, error } = await supabase
     .from("exam_packages")
     .select("*")
@@ -175,7 +240,7 @@ export async function listExamPackages(): Promise<ExamPackageRecord[]> {
   return (data as ExamPackageRecord[]) || [];
 }
 
-// 7. Tambah paket ujian baru
+// 7. Membuat paket ujian
 export async function createExamPackage(payload: {
   title: string;
   description?: string;
@@ -204,10 +269,11 @@ export async function createExamPackage(payload: {
   if (error) {
     throw new Error(error.message);
   }
+
   return data;
 }
 
-// 8. Hapus paket ujian
+// 8. Menghapus paket ujian
 export async function deleteExamPackage(packageId: string) {
   const { error } = await supabase
     .from("exam_packages")
@@ -217,5 +283,6 @@ export async function deleteExamPackage(packageId: string) {
   if (error) {
     throw new Error(error.message);
   }
+
   return true;
 }
