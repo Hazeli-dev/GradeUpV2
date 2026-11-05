@@ -185,6 +185,11 @@ export default function StudentExamsPage() {
 
   const [examPackages, setExamPackages] = useState<ExamPackageItem[]>([]);
 
+  // Riwayat penyelesaian ujian khusus siswa yang sedang login.
+  const [completedExamIds, setCompletedExamIds] = useState<Set<string>>(
+    new Set()
+  );
+
   const [studentName, setStudentName] = useState("Siswa");
   const [userClass, setUserClass] = useState("Profil belum dilengkapi");
 
@@ -229,7 +234,6 @@ export default function StudentExamsPage() {
       }
 
       // 2. Ambil profil siswa.
-      // Jika profil gagal dibaca, daftar ujian tetap dicoba.
       const {
         data: profile,
         error: profileError,
@@ -261,9 +265,7 @@ export default function StudentExamsPage() {
         setProfileGrade(grade);
 
         setSelectedLevel(educationLevel || ALL);
-        setSelectedGrade(
-          grade != null ? String(grade) : ALL
-        );
+        setSelectedGrade(grade != null ? String(grade) : ALL);
 
         setSelectedSubject(ALL);
         setSelectedExamType(ALL);
@@ -297,7 +299,7 @@ export default function StudentExamsPage() {
         setUserClass("Profil pendidikan belum dilengkapi");
       }
 
-      // 3. Ambil paket ujian.
+      // 3. Ambil paket ujian yang dipublikasikan.
       const {
         data: packages,
         error: packagesError,
@@ -388,6 +390,37 @@ export default function StudentExamsPage() {
           ),
         };
       });
+
+      // 4. Ambil riwayat ujian yang sudah selesai.
+      // Data dibatasi berdasarkan user.id dan status completed.
+      // Ujian yang sedang dikerjakan belum menghilangkan badge NEW.
+      const packageIds = formattedPackages.map((pkg) => pkg.id);
+
+      if (packageIds.length > 0) {
+        const {
+          data: completedAttempts,
+          error: attemptsError,
+        } = await supabase
+          .from("exam_attempts")
+          .select("exam_id")
+          .eq("user_id", user.id)
+          .eq("status", "completed")
+          .in("exam_id", packageIds);
+
+        if (attemptsError) {
+          throw attemptsError;
+        }
+
+        const completedIds = new Set<string>(
+          (completedAttempts || [])
+            .map((attempt) => attempt.exam_id)
+            .filter((id): id is string => Boolean(id))
+        );
+
+        setCompletedExamIds(completedIds);
+      } else {
+        setCompletedExamIds(new Set());
+      }
 
       setExamPackages(formattedPackages);
     } catch (error) {
@@ -1092,6 +1125,9 @@ export default function StudentExamsPage() {
                       const isAvailable = pkg.status === "Aktif";
                       const isDone = pkg.status === "Selesai";
 
+                      // NEW hilang hanya jika siswa ini sudah submit ujian.
+                      const isNew = !completedExamIds.has(pkg.id);
+
                       const isUrgent =
                         isAvailable &&
                         pkg.days_left !== undefined &&
@@ -1132,6 +1168,14 @@ export default function StudentExamsPage() {
 
                                 <div className="min-w-0 flex-1">
                                   <div className="flex flex-wrap items-center gap-2">
+                                    {isNew && (
+                                      <span className="relative inline-flex items-center gap-1.5 overflow-hidden rounded-lg border border-rose-500/40 bg-rose-600 px-2.5 py-1 text-[10px] font-black tracking-wider text-white shadow-md shadow-rose-500/30">
+                                        <span className="absolute inset-0 animate-pulse bg-white/20" />
+                                        <span className="relative h-1.5 w-1.5 rounded-full bg-white shadow-[0_0_7px_rgba(255,255,255,0.9)]" />
+                                        <span className="relative">NEW</span>
+                                      </span>
+                                    )}
+
                                     <h4 className="text-[15px] font-extrabold leading-snug text-foreground sm:text-base">
                                       {pkg.title}
                                     </h4>
