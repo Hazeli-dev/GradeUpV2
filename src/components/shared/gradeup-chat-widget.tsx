@@ -137,6 +137,9 @@ export function GradeUpChatWidget() {
   const [closing, setClosing] = useState(false);
   const [userId, setUserId] = useState<string | null>(null);
 
+  // Jumlah balasan admin yang belum dibaca.
+  const [unreadCount, setUnreadCount] = useState(0);
+
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   // Mengambil identitas pengguna.
@@ -156,6 +159,45 @@ export function GradeUpChatWidget() {
     setUserId(user.id);
     return user;
   }, []);
+
+  // Mengambil jumlah balasan admin yang belum dibaca.
+  const loadUnreadCount = useCallback(async () => {
+    try {
+      const { data, error } = await supabase.rpc(
+        "get_gradeup_chat_unread_count"
+      );
+
+      if (error) throw error;
+
+      setUnreadCount(Number(data ?? 0));
+    } catch (error) {
+      console.error("Gagal mengambil notifikasi chat:", error);
+    }
+  }, []);
+
+  // Menandai balasan admin dalam percakapan sebagai sudah dibaca.
+  const markChatAsRead = useCallback(
+    async (conversationId: string) => {
+      try {
+        const { error } = await supabase.rpc(
+          "mark_gradeup_chat_as_read",
+          {
+            p_conversation_id: conversationId,
+          }
+        );
+
+        if (error) throw error;
+
+        await loadUnreadCount();
+      } catch (error) {
+        console.error(
+          "Gagal menandai chat sudah dibaca:",
+          error
+        );
+      }
+    },
+    [loadUnreadCount]
+  );
 
   // Mengambil FAQ aktif dari Supabase.
   const loadFAQs = useCallback(async () => {
@@ -253,14 +295,58 @@ export function GradeUpChatWidget() {
         if (error) throw error;
 
         setMessages((data ?? []) as ChatMessage[]);
+
+        // Jika popup terbuka, balasan admin dianggap sudah dibaca.
+        if (isOpen) {
+          await markChatAsRead(conversationId);
+        }
       } catch (error) {
         console.error("Gagal memuat pesan:", error);
       }
     },
-    []
+    [isOpen, markChatAsRead]
   );
 
-  // Memuat FAQ setelah memastikan pengguna sudah login.
+  // Memuat notifikasi sejak komponen pertama kali aktif.
+  useEffect(() => {
+    let cancelled = false;
+
+    const initializeNotifications = async () => {
+      try {
+        const user = await loadUser();
+
+        if (user && !cancelled) {
+          await loadUnreadCount();
+        }
+      } catch (error) {
+        console.error(
+          "Gagal menginisialisasi notifikasi:",
+          error
+        );
+      }
+    };
+
+    void initializeNotifications();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [loadUser, loadUnreadCount]);
+
+  // Memperbarui jumlah notifikasi setiap 4 detik.
+  useEffect(() => {
+    if (!userId) return;
+
+    const interval = window.setInterval(() => {
+      if (document.visibilityState === "visible") {
+        void loadUnreadCount();
+      }
+    }, 4000);
+
+    return () => window.clearInterval(interval);
+  }, [userId, loadUnreadCount]);
+
+  // Memuat FAQ dan percakapan ketika popup dibuka.
   useEffect(() => {
     if (!isOpen) return;
 
@@ -488,6 +574,9 @@ export function GradeUpChatWidget() {
       setActiveCategory(null);
       setHandledFaqMessages([]);
 
+      // Perbarui jumlah notifikasi setelah percakapan dihapus.
+      await loadUnreadCount();
+
       toast.success("Percakapan berhasil dihapus.");
     } catch (error) {
       console.error("Gagal menghapus percakapan:", error);
@@ -514,7 +603,7 @@ export function GradeUpChatWidget() {
     (category) => category.id === activeCategory
   );
 
-  // Pencarian kategori berdasarkan pertanyaan DAN kata kunci.
+  // Pencarian kategori berdasarkan pertanyaan dan kata kunci.
   const categoryFAQs = selectedCategory
     ? faqs.filter((faq) => {
         const searchableText = [
@@ -539,11 +628,22 @@ export function GradeUpChatWidget() {
         <button
           type="button"
           onClick={() => setIsOpen(true)}
-          aria-label="Buka bantuan GradeUp"
+          aria-label={
+            unreadCount > 0
+              ? `Buka bantuan GradeUp, ${unreadCount} balasan belum dibaca`
+              : "Buka bantuan GradeUp"
+          }
           className="fixed bottom-5 right-5 z-50 flex h-14 w-14 items-center justify-center rounded-full bg-gradient-to-br from-emerald-600 to-teal-600 text-white shadow-xl shadow-emerald-900/20 transition-all hover:scale-105 hover:shadow-2xl focus:outline-none focus:ring-4 focus:ring-emerald-500/30 sm:bottom-7 sm:right-7"
         >
           <MessageCircle className="h-6 w-6" />
-          <span className="absolute -right-0.5 -top-0.5 h-3.5 w-3.5 rounded-full border-2 border-background bg-emerald-300" />
+
+          {unreadCount > 0 ? (
+            <span className="absolute -right-1 -top-1 flex h-6 min-w-6 items-center justify-center rounded-full border-2 border-background bg-red-600 px-1 text-[11px] font-bold text-white shadow-md">
+              {unreadCount > 99 ? "99+" : unreadCount}
+            </span>
+          ) : (
+            <span className="absolute -right-0.5 -top-0.5 h-3.5 w-3.5 rounded-full border-2 border-background bg-emerald-300" />
+          )}
         </button>
       )}
 
