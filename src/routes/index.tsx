@@ -1,3 +1,4 @@
+
 import { Navigate, Outlet, Route, Routes } from "react-router-dom";
 
 // 1. Import Layouts
@@ -48,6 +49,7 @@ import AdminExamsPage from "@/pages/admin/exams-page";
 import AdminQuestionsPage from "@/pages/admin/questions-page";
 import AdminTransactionsPage from "@/pages/admin/transactions-page";
 import AdminReportsPage from "@/pages/admin/reports-page";
+import AdminAnnouncementsPage from "@/pages/admin/announcements-page";
 import AdminSettingsPage from "@/pages/admin/settings-page";
 
 // 6. Import 404
@@ -166,6 +168,13 @@ export function AppRoutes() {
           <Route path="questions" element={<AdminQuestionsPage />} />
           <Route path="transactions" element={<AdminTransactionsPage />} />
           <Route path="reports" element={<AdminReportsPage />} />
+
+          {/* Manajemen Pengumuman */}
+          <Route
+            path="announcements"
+            element={<AdminAnnouncementsPage />}
+          />
+
           <Route path="settings" element={<AdminSettingsPage />} />
         </Route>
       </Route>
