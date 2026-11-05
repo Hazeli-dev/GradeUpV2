@@ -1,3 +1,4 @@
+
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   MessageCircle,
@@ -16,6 +17,12 @@ import {
   BookOpen,
   Loader2,
   Inbox,
+  Mail,
+  Phone,
+  Copy,
+  GraduationCap,
+  School,
+  IdCard,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -43,6 +50,19 @@ type ChatMessage = {
   sender_type: SenderType;
   content: string;
   created_at: string;
+};
+
+type StudentProfile = {
+  id: string;
+  email: string | null;
+  name: string | null;
+  full_name: string | null;
+  phone: string | null;
+  school: string | null;
+  class: string | null;
+  grade: number | null;
+  education_level: string | null;
+  avatar_url: string | null;
 };
 
 type FAQ = {
@@ -89,10 +109,27 @@ const formatDate = (value: string | null) => {
 
 const shortId = (value: string) => `${value.slice(0, 8)}…`;
 
+const getStudentName = (profile?: StudentProfile) => {
+  return (
+    profile?.full_name?.trim() ||
+    profile?.name?.trim() ||
+    profile?.email?.trim() ||
+    "Siswa GradeUp"
+  );
+};
+
+const getStudentInitial = (profile?: StudentProfile) => {
+  const name = getStudentName(profile);
+  return name.charAt(0).toUpperCase();
+};
+
 export default function ChatManagementPage() {
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [faqs, setFaqs] = useState<FAQ[]>([]);
+  const [studentProfiles, setStudentProfiles] = useState<
+    Record<string, StudentProfile>
+  >({});
 
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<"inbox" | "faq">("inbox");
@@ -121,6 +158,14 @@ export default function ChatManagementPage() {
     [conversations, selectedId]
   );
 
+  const selectedStudent = useMemo(
+    () =>
+      selectedConversation
+        ? studentProfiles[selectedConversation.student_id]
+        : undefined,
+    [selectedConversation, studentProfiles]
+  );
+
   const waitingCount = useMemo(
     () => conversations.filter((item) => item.status === "waiting").length,
     [conversations]
@@ -130,19 +175,34 @@ export default function ChatManagementPage() {
     const keyword = search.trim().toLowerCase();
 
     return conversations.filter((item) => {
+      const profile = studentProfiles[item.student_id];
+
       const matchesStatus =
         statusFilter === "all" || item.status === statusFilter;
 
+      const searchableText = [
+        item.subject,
+        item.student_id,
+        item.last_message_preview,
+        profile?.full_name,
+        profile?.name,
+        profile?.email,
+        profile?.phone,
+        profile?.school,
+        profile?.class,
+      ]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase();
+
       const matchesSearch =
-        !keyword ||
-        (item.subject ?? "").toLowerCase().includes(keyword) ||
-        item.student_id.toLowerCase().includes(keyword) ||
-        (item.last_message_preview ?? "").toLowerCase().includes(keyword);
+        !keyword || searchableText.includes(keyword);
 
       return matchesStatus && matchesSearch;
     });
-  }, [conversations, search, statusFilter]);
+  }, [conversations, search, statusFilter, studentProfiles]);
 
+  // MEMUAT PERCAKAPAN DAN IDENTITAS SISWA
   const loadConversations = useCallback(async (showLoading = false) => {
     if (showLoading) setLoading(true);
 
@@ -152,7 +212,10 @@ export default function ChatManagementPage() {
         .select(
           "id, student_id, subject, status, last_message_at, last_message_preview, created_at, updated_at"
         )
-        .order("last_message_at", { ascending: false, nullsFirst: false });
+        .order("last_message_at", {
+          ascending: false,
+          nullsFirst: false,
+        });
 
       if (error) throw error;
 
@@ -164,8 +227,42 @@ export default function ChatManagementPage() {
           return current;
         }
 
-        return current ? null : null;
+        return null;
       });
+
+      // Ambil profil hanya untuk siswa yang memiliki percakapan.
+      const studentIds = [
+        ...new Set(rows.map((item) => item.student_id)),
+      ];
+
+      if (studentIds.length === 0) {
+        setStudentProfiles({});
+        return;
+      }
+
+      const { data: profileData, error: profileError } = await supabase
+        .from("profiles")
+        .select(
+          "id, email, name, full_name, phone, school, class, grade, education_level, avatar_url"
+        )
+        .in("id", studentIds);
+
+      if (profileError) {
+        console.error(
+          "Gagal memuat identitas siswa:",
+          profileError
+        );
+        return;
+      }
+
+      const profileMap: Record<string, StudentProfile> = {};
+
+      (profileData ?? []).forEach((profile) => {
+        const item = profile as StudentProfile;
+        profileMap[item.id] = item;
+      });
+
+      setStudentProfiles(profileMap);
     } catch (error) {
       console.error("Gagal memuat percakapan:", error);
       toast.error("Gagal memuat daftar percakapan.");
@@ -174,9 +271,8 @@ export default function ChatManagementPage() {
     }
   }, []);
 
+  // MEMUAT PESAN
   const loadMessages = useCallback(async (conversationId: string) => {
-    setMessagesLoading(true);
-
     try {
       const { data, error } = await supabase
         .from("chat_messages")
@@ -192,11 +288,10 @@ export default function ChatManagementPage() {
     } catch (error) {
       console.error("Gagal memuat pesan:", error);
       toast.error("Gagal memuat pesan percakapan.");
-    } finally {
-      setMessagesLoading(false);
     }
   }, []);
 
+  // MEMUAT FAQ
   const loadFaqs = useCallback(async () => {
     setFaqLoading(true);
 
@@ -231,15 +326,28 @@ export default function ChatManagementPage() {
       return;
     }
 
-    void loadMessages(selectedId);
+    let active = true;
+
+    const fetchMessages = async () => {
+      if (!active) return;
+      await loadMessages(selectedId);
+    };
+
+    void fetchMessages();
 
     const interval = window.setInterval(() => {
-      if (document.visibilityState === "visible") {
-        void loadMessages(selectedId);
+      if (
+        active &&
+        document.visibilityState === "visible"
+      ) {
+        void fetchMessages();
       }
     }, 4000);
 
-    return () => window.clearInterval(interval);
+    return () => {
+      active = false;
+      window.clearInterval(interval);
+    };
   }, [selectedId, loadMessages]);
 
   useEffect(() => {
@@ -252,6 +360,25 @@ export default function ChatManagementPage() {
     return () => window.clearInterval(interval);
   }, [loadConversations]);
 
+  // SALIN KE CLIPBOARD
+  const copyToClipboard = async (
+    value: string | null | undefined,
+    label: string
+  ) => {
+    if (!value) {
+      toast.error(`${label} tidak tersedia.`);
+      return;
+    }
+
+    try {
+      await navigator.clipboard.writeText(value);
+      toast.success(`${label} berhasil disalin.`);
+    } catch {
+      toast.error(`Gagal menyalin ${label.toLowerCase()}.`);
+    }
+  };
+
+  // KIRIM BALASAN ADMIN
   const sendReply = async () => {
     const content = reply.trim();
 
@@ -287,6 +414,7 @@ export default function ChatManagementPage() {
       if (updateError) throw updateError;
 
       setReply("");
+
       await Promise.all([
         loadMessages(selectedConversation.id),
         loadConversations(false),
@@ -305,6 +433,7 @@ export default function ChatManagementPage() {
     }
   };
 
+  // UBAH STATUS
   const updateStatus = async (status: ChatStatus) => {
     if (!selectedConversation) return;
 
@@ -324,6 +453,7 @@ export default function ChatManagementPage() {
     }
   };
 
+  // HAPUS PERCAKAPAN PERMANEN
   const deleteConversation = async () => {
     if (!selectedConversation) return;
 
@@ -342,15 +472,21 @@ export default function ChatManagementPage() {
 
       setSelectedId(null);
       setMessages([]);
+
       await loadConversations(false);
 
-      toast.success("Percakapan dan seluruh riwayatnya telah dihapus.");
+      toast.success(
+        "Percakapan dan seluruh riwayatnya telah dihapus."
+      );
     } catch (error) {
       console.error("Gagal menghapus percakapan:", error);
-      toast.error("Percakapan gagal dihapus. Silakan coba lagi.");
+      toast.error(
+        "Percakapan gagal dihapus. Silakan coba lagi."
+      );
     }
   };
 
+  // FAQ BARU
   const openNewFaq = () => {
     setEditingFaq(null);
     setFaqQuestion("");
@@ -360,6 +496,7 @@ export default function ChatManagementPage() {
     setFaqDialogOpen(true);
   };
 
+  // EDIT FAQ
   const openEditFaq = (faq: FAQ) => {
     setEditingFaq(faq);
     setFaqQuestion(faq.question);
@@ -369,16 +506,20 @@ export default function ChatManagementPage() {
     setFaqDialogOpen(true);
   };
 
+  // SIMPAN FAQ
   const saveFaq = async () => {
     const question = faqQuestion.trim();
     const answer = faqAnswer.trim();
+
     const keywords = faqKeywords
       .split(",")
       .map((item) => item.trim().toLowerCase())
       .filter(Boolean);
 
     if (!question || !answer || keywords.length === 0) {
-      toast.error("Lengkapi pertanyaan, kata kunci, dan jawaban FAQ.");
+      toast.error(
+        "Lengkapi pertanyaan, kata kunci, dan jawaban FAQ."
+      );
       return;
     }
 
@@ -406,7 +547,10 @@ export default function ChatManagementPage() {
 
       setFaqDialogOpen(false);
       await loadFaqs();
-      toast.success(editingFaq ? "FAQ diperbarui." : "FAQ ditambahkan.");
+
+      toast.success(
+        editingFaq ? "FAQ diperbarui." : "FAQ ditambahkan."
+      );
     } catch (error) {
       console.error("Gagal menyimpan FAQ:", error);
       toast.error("FAQ gagal disimpan.");
@@ -415,6 +559,7 @@ export default function ChatManagementPage() {
     }
   };
 
+  // AKTIF / NONAKTIF FAQ
   const toggleFaq = async (faq: FAQ) => {
     try {
       const { error } = await supabase
@@ -425,8 +570,11 @@ export default function ChatManagementPage() {
       if (error) throw error;
 
       await loadFaqs();
+
       toast.success(
-        faq.is_active ? "FAQ dinonaktifkan." : "FAQ diaktifkan."
+        faq.is_active
+          ? "FAQ dinonaktifkan."
+          : "FAQ diaktifkan."
       );
     } catch (error) {
       console.error("Gagal mengubah status FAQ:", error);
@@ -438,19 +586,18 @@ export default function ChatManagementPage() {
     <div className="space-y-6">
       {/* HEADER */}
       <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
-        <div>
-          <div className="flex items-center gap-2">
-            <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300">
-              <MessageCircle className="h-5 w-5" />
-            </div>
-            <div>
-              <h1 className="text-2xl font-bold tracking-tight">
-                Helpdesk GradeUp
-              </h1>
-              <p className="text-sm text-muted-foreground">
-                Kelola pertanyaan dan bantuan untuk siswa.
-              </p>
-            </div>
+        <div className="flex items-center gap-3">
+          <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300">
+            <MessageCircle className="h-5 w-5" />
+          </div>
+
+          <div>
+            <h1 className="text-2xl font-bold tracking-tight">
+              Helpdesk GradeUp
+            </h1>
+            <p className="text-sm text-muted-foreground">
+              Kelola pertanyaan dan bantuan untuk siswa.
+            </p>
           </div>
         </div>
 
@@ -471,23 +618,33 @@ export default function ChatManagementPage() {
       <div className="grid gap-3 sm:grid-cols-3">
         <div className="rounded-2xl border bg-card p-4">
           <div className="flex items-center justify-between">
-            <p className="text-sm text-muted-foreground">Total Percakapan</p>
+            <p className="text-sm text-muted-foreground">
+              Total Percakapan
+            </p>
             <MessageSquare className="h-5 w-5 text-emerald-600" />
           </div>
-          <p className="mt-2 text-2xl font-bold">{conversations.length}</p>
+          <p className="mt-2 text-2xl font-bold">
+            {conversations.length}
+          </p>
         </div>
 
         <div className="rounded-2xl border bg-card p-4">
           <div className="flex items-center justify-between">
-            <p className="text-sm text-muted-foreground">Menunggu Balasan</p>
+            <p className="text-sm text-muted-foreground">
+              Menunggu Balasan
+            </p>
             <AlertCircle className="h-5 w-5 text-amber-500" />
           </div>
-          <p className="mt-2 text-2xl font-bold">{waitingCount}</p>
+          <p className="mt-2 text-2xl font-bold">
+            {waitingCount}
+          </p>
         </div>
 
         <div className="rounded-2xl border bg-card p-4">
           <div className="flex items-center justify-between">
-            <p className="text-sm text-muted-foreground">FAQ Aktif</p>
+            <p className="text-sm text-muted-foreground">
+              FAQ Aktif
+            </p>
             <BookOpen className="h-5 w-5 text-blue-500" />
           </div>
           <p className="mt-2 text-2xl font-bold">
@@ -546,7 +703,7 @@ export default function ChatManagementPage() {
                 <input
                   value={search}
                   onChange={(event) => setSearch(event.target.value)}
-                  placeholder="Cari siswa atau pesan..."
+                  placeholder="Cari nama, email, HP, atau pesan..."
                   className="h-10 w-full rounded-xl border bg-background pl-9 pr-3 text-sm outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/15"
                 />
               </div>
@@ -554,7 +711,9 @@ export default function ChatManagementPage() {
               <select
                 value={statusFilter}
                 onChange={(event) =>
-                  setStatusFilter(event.target.value as "all" | ChatStatus)
+                  setStatusFilter(
+                    event.target.value as "all" | ChatStatus
+                  )
                 }
                 className="h-10 w-full rounded-xl border bg-background px-3 text-sm outline-none focus:border-emerald-500"
               >
@@ -583,6 +742,8 @@ export default function ChatManagementPage() {
               ) : (
                 filteredConversations.map((conversation) => {
                   const active = selectedId === conversation.id;
+                  const profile =
+                    studentProfiles[conversation.student_id];
 
                   return (
                     <button
@@ -591,26 +752,42 @@ export default function ChatManagementPage() {
                       onClick={() => setSelectedId(conversation.id)}
                       className={cn(
                         "w-full border-b p-4 text-left transition hover:bg-muted/60",
-                        active && "bg-emerald-50/80 dark:bg-emerald-950/30"
+                        active &&
+                          "bg-emerald-50/80 dark:bg-emerald-950/30"
                       )}
                     >
                       <div className="flex items-start gap-3">
-                        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-muted text-muted-foreground">
-                          <User className="h-5 w-5" />
-                        </div>
+                        {profile?.avatar_url ? (
+                          <img
+                            src={profile.avatar_url}
+                            alt={getStudentName(profile)}
+                            className="h-10 w-10 shrink-0 rounded-full border object-cover"
+                          />
+                        ) : (
+                          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-emerald-100 font-bold text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300">
+                            {getStudentInitial(profile)}
+                          </div>
+                        )}
 
                         <div className="min-w-0 flex-1">
-                          <div className="flex items-center justify-between gap-2">
+                          <div className="flex items-start justify-between gap-2">
                             <p className="truncate text-sm font-bold">
-                              Siswa {shortId(conversation.student_id)}
+                              {getStudentName(profile)}
                             </p>
+
                             <span className="shrink-0 text-[10px] text-muted-foreground">
                               {formatDate(conversation.last_message_at)}
                             </span>
                           </div>
 
-                          <p className="mt-1 truncate text-xs font-medium text-foreground">
-                            {conversation.subject || "Percakapan bantuan"}
+                          <p className="mt-0.5 truncate text-[11px] text-muted-foreground">
+                            {profile?.email ||
+                              `ID: ${shortId(conversation.student_id)}`}
+                          </p>
+
+                          <p className="mt-2 truncate text-xs font-medium text-foreground">
+                            {conversation.subject ||
+                              "Percakapan bantuan"}
                           </p>
 
                           <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">
@@ -625,7 +802,8 @@ export default function ChatManagementPage() {
                             )}
                           >
                             {STATUS_OPTIONS.find(
-                              (item) => item.value === conversation.status
+                              (item) =>
+                                item.value === conversation.status
                             )?.label ?? conversation.status}
                           </span>
                         </div>
@@ -644,29 +822,40 @@ export default function ChatManagementPage() {
                 <div className="flex h-16 w-16 items-center justify-center rounded-3xl bg-emerald-50 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300">
                   <MessageCircle className="h-8 w-8" />
                 </div>
+
                 <h2 className="mt-4 text-lg font-bold">
                   Pilih Percakapan
                 </h2>
+
                 <p className="mt-1 max-w-sm text-sm text-muted-foreground">
-                  Pilih chat dari kotak masuk untuk membaca pesan dan
-                  memberikan bantuan kepada siswa.
+                  Pilih chat dari kotak masuk untuk membaca pesan,
+                  melihat identitas siswa, dan memberikan bantuan.
                 </p>
               </div>
             ) : (
               <>
+                {/* HEADER DETAIL */}
                 <div className="flex flex-wrap items-center justify-between gap-3 border-b p-4">
                   <div className="flex min-w-0 items-center gap-3">
-                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300">
-                      <User className="h-5 w-5" />
-                    </div>
+                    {selectedStudent?.avatar_url ? (
+                      <img
+                        src={selectedStudent.avatar_url}
+                        alt={getStudentName(selectedStudent)}
+                        className="h-11 w-11 shrink-0 rounded-full border object-cover"
+                      />
+                    ) : (
+                      <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-emerald-100 font-bold text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300">
+                        {getStudentInitial(selectedStudent)}
+                      </div>
+                    )}
 
                     <div className="min-w-0">
                       <p className="truncate text-sm font-bold">
-                        Siswa {shortId(selectedConversation.student_id)}
+                        {getStudentName(selectedStudent)}
                       </p>
                       <p className="truncate text-xs text-muted-foreground">
-                        {selectedConversation.subject ||
-                          "Percakapan bantuan"}
+                        {selectedStudent?.email ||
+                          "Email belum tersedia"}
                       </p>
                     </div>
                   </div>
@@ -675,12 +864,17 @@ export default function ChatManagementPage() {
                     <select
                       value={selectedConversation.status}
                       onChange={(event) =>
-                        void updateStatus(event.target.value as ChatStatus)
+                        void updateStatus(
+                          event.target.value as ChatStatus
+                        )
                       }
                       className="h-9 rounded-lg border bg-background px-2 text-xs font-semibold outline-none focus:border-emerald-500"
                     >
                       {STATUS_OPTIONS.map((item) => (
-                        <option key={item.value} value={item.value}>
+                        <option
+                          key={item.value}
+                          value={item.value}
+                        >
                           {item.label}
                         </option>
                       ))}
@@ -697,6 +891,151 @@ export default function ChatManagementPage() {
                   </div>
                 </div>
 
+                {/* KARTU IDENTITAS SISWA */}
+                <div className="border-b bg-muted/20 p-4">
+                  <div className="mb-3 flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-2">
+                      <IdCard className="h-4 w-4 text-emerald-600" />
+                      <h3 className="text-xs font-bold uppercase tracking-wide">
+                        Identitas Siswa
+                      </h3>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() =>
+                        void copyToClipboard(
+                          selectedStudent?.email,
+                          "Email"
+                        )
+                      }
+                      disabled={!selectedStudent?.email}
+                      className="inline-flex items-center gap-1.5 rounded-lg border bg-card px-2.5 py-1.5 text-[11px] font-semibold transition hover:bg-muted disabled:cursor-not-allowed disabled:opacity-40"
+                    >
+                      <Copy className="h-3 w-3" />
+                      Salin Email
+                    </button>
+                  </div>
+
+                  <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                    <div className="flex min-w-0 items-start gap-2">
+                      <User className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
+                      <div className="min-w-0">
+                        <p className="text-[10px] text-muted-foreground">
+                          Nama Lengkap
+                        </p>
+                        <p className="break-words text-xs font-semibold">
+                          {selectedStudent?.full_name ||
+                            selectedStudent?.name ||
+                            "Belum diisi"}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex min-w-0 items-start gap-2">
+                      <User className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
+                      <div className="min-w-0">
+                        <p className="text-[10px] text-muted-foreground">
+                          Nama Akun
+                        </p>
+                        <p className="break-words text-xs font-semibold">
+                          {selectedStudent?.name || "Belum diisi"}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex min-w-0 items-start gap-2">
+                      <Mail className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
+                      <div className="min-w-0">
+                        <p className="text-[10px] text-muted-foreground">
+                          Email
+                        </p>
+                        <p className="break-all text-xs font-semibold">
+                          {selectedStudent?.email || "Belum tersedia"}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex min-w-0 items-start gap-2">
+                      <Phone className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
+                      <div className="min-w-0">
+                        <p className="text-[10px] text-muted-foreground">
+                          Nomor HP
+                        </p>
+                        <p className="break-words text-xs font-semibold">
+                          {selectedStudent?.phone || "Belum diisi"}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex min-w-0 items-start gap-2">
+                      <School className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
+                      <div className="min-w-0">
+                        <p className="text-[10px] text-muted-foreground">
+                          Sekolah
+                        </p>
+                        <p className="break-words text-xs font-semibold">
+                          {selectedStudent?.school || "Belum diisi"}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex min-w-0 items-start gap-2">
+                      <GraduationCap className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
+                      <div className="min-w-0">
+                        <p className="text-[10px] text-muted-foreground">
+                          Jenjang / Kelas
+                        </p>
+                        <p className="break-words text-xs font-semibold">
+                          {[
+                            selectedStudent?.education_level,
+                            selectedStudent?.grade
+                              ? `Kelas ${selectedStudent.grade}`
+                              : selectedStudent?.class,
+                          ]
+                            .filter(Boolean)
+                            .join(" · ") || "Belum diisi"}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex min-w-0 items-start gap-2 sm:col-span-2 xl:col-span-3">
+                      <IdCard className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
+                      <div className="min-w-0">
+                        <p className="text-[10px] text-muted-foreground">
+                          ID Akun
+                        </p>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <p className="break-all text-xs font-medium">
+                            {selectedConversation.student_id}
+                          </p>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              void copyToClipboard(
+                                selectedConversation.student_id,
+                                "ID akun"
+                              )
+                            }
+                            className="inline-flex items-center gap-1 text-[10px] font-semibold text-emerald-700 hover:underline dark:text-emerald-300"
+                          >
+                            <Copy className="h-3 w-3" />
+                            Salin ID
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {!selectedStudent && (
+                    <p className="mt-3 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:bg-amber-950/40 dark:text-amber-300">
+                      Data profil belum berhasil dimuat. ID akun tetap
+                      tersedia untuk identifikasi.
+                    </p>
+                  )}
+                </div>
+
+                {/* RIWAYAT PESAN */}
                 <div className="flex-1 space-y-4 overflow-y-auto bg-muted/20 p-4">
                   {messagesLoading && messages.length === 0 ? (
                     <div className="flex justify-center py-10">
@@ -708,8 +1047,10 @@ export default function ChatManagementPage() {
                     </p>
                   ) : (
                     messages.map((message) => {
-                      const isAdmin = message.sender_type === "admin";
-                      const isSystem = message.sender_type === "system";
+                      const isAdmin =
+                        message.sender_type === "admin";
+                      const isSystem =
+                        message.sender_type === "system";
 
                       if (isSystem) {
                         return (
@@ -720,9 +1061,11 @@ export default function ChatManagementPage() {
                             <p className="text-[10px] font-bold uppercase tracking-wide text-emerald-700 dark:text-emerald-300">
                               Balasan Otomatis GradeUp
                             </p>
+
                             <p className="mt-1 whitespace-pre-wrap break-words text-sm text-muted-foreground">
                               {message.content}
                             </p>
+
                             <p className="mt-2 text-[10px] text-muted-foreground">
                               {formatDate(message.created_at)}
                             </p>
@@ -735,7 +1078,9 @@ export default function ChatManagementPage() {
                           key={message.id}
                           className={cn(
                             "flex",
-                            isAdmin ? "justify-end" : "justify-start"
+                            isAdmin
+                              ? "justify-end"
+                              : "justify-start"
                           )}
                         >
                           <div
@@ -754,7 +1099,9 @@ export default function ChatManagementPage() {
                                   : "text-muted-foreground"
                               )}
                             >
-                              {isAdmin ? "Admin GradeUp" : "Siswa"}
+                              {isAdmin
+                                ? "Admin GradeUp"
+                                : getStudentName(selectedStudent)}
                             </p>
 
                             <p className="whitespace-pre-wrap break-words text-sm leading-6">
@@ -779,6 +1126,7 @@ export default function ChatManagementPage() {
                   )}
                 </div>
 
+                {/* FORM BALASAN */}
                 <form
                   onSubmit={(event) => {
                     event.preventDefault();
@@ -789,8 +1137,8 @@ export default function ChatManagementPage() {
                   {selectedConversation.status === "resolved" && (
                     <p className="mb-2 flex items-center gap-2 text-xs text-emerald-700 dark:text-emerald-300">
                       <CheckCircle2 className="h-4 w-4" />
-                      Percakapan berstatus selesai. Mengirim balasan akan
-                      mengubah status menjadi Sedang Ditangani.
+                      Percakapan berstatus selesai. Mengirim balasan
+                      akan mengubah status menjadi Sedang Ditangani.
                     </p>
                   )}
 
@@ -842,10 +1190,12 @@ export default function ChatManagementPage() {
         <section className="space-y-4">
           <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
             <div>
-              <h2 className="text-lg font-bold">Daftar FAQ Otomatis</h2>
+              <h2 className="text-lg font-bold">
+                Daftar FAQ Otomatis
+              </h2>
               <p className="text-sm text-muted-foreground">
-                Jawaban ini digunakan sistem ketika pesan siswa cocok dengan
-                kata kunci FAQ.
+                Jawaban ini digunakan sistem ketika pesan siswa cocok
+                dengan kata kunci FAQ.
               </p>
             </div>
 
@@ -866,7 +1216,9 @@ export default function ChatManagementPage() {
           ) : faqs.length === 0 ? (
             <div className="rounded-2xl border bg-card px-6 py-12 text-center">
               <BookOpen className="mx-auto h-9 w-9 text-muted-foreground" />
-              <p className="mt-3 font-semibold">Belum ada data FAQ</p>
+              <p className="mt-3 font-semibold">
+                Belum ada data FAQ
+              </p>
               <p className="mt-1 text-sm text-muted-foreground">
                 Tambahkan FAQ agar sistem dapat menjawab pertanyaan umum.
               </p>
@@ -881,7 +1233,10 @@ export default function ChatManagementPage() {
                   <div className="flex flex-col justify-between gap-3 sm:flex-row">
                     <div className="min-w-0 flex-1">
                       <div className="flex flex-wrap items-center gap-2">
-                        <h3 className="font-bold">{faq.question}</h3>
+                        <h3 className="font-bold">
+                          {faq.question}
+                        </h3>
+
                         <span
                           className={cn(
                             "rounded-full px-2.5 py-1 text-[10px] font-bold",
@@ -986,7 +1341,9 @@ export default function ChatManagementPage() {
                 </label>
                 <input
                   value={faqQuestion}
-                  onChange={(event) => setFaqQuestion(event.target.value)}
+                  onChange={(event) =>
+                    setFaqQuestion(event.target.value)
+                  }
                   placeholder="Contoh: Bagaimana cara reset password?"
                   className="h-11 w-full rounded-xl border bg-background px-3 text-sm outline-none focus:border-emerald-500"
                 />
@@ -998,12 +1355,13 @@ export default function ChatManagementPage() {
                 </label>
                 <input
                   value={faqKeywords}
-                  onChange={(event) => setFaqKeywords(event.target.value)}
-                  placeholder="pisahkan dengan koma, contoh: lupa password, reset password"
+                  onChange={(event) =>
+                    setFaqKeywords(event.target.value)
+                  }
+                  placeholder="lupa password, reset password"
                   className="h-11 w-full rounded-xl border bg-background px-3 text-sm outline-none focus:border-emerald-500"
                 />
                 <p className="text-xs text-muted-foreground">
-                  Gunakan beberapa variasi kata yang mungkin diketik siswa.
                   Pisahkan setiap kata kunci dengan koma.
                 </p>
               </div>
@@ -1014,7 +1372,9 @@ export default function ChatManagementPage() {
                 </label>
                 <textarea
                   value={faqAnswer}
-                  onChange={(event) => setFaqAnswer(event.target.value)}
+                  onChange={(event) =>
+                    setFaqAnswer(event.target.value)
+                  }
                   rows={5}
                   placeholder="Tulis jawaban yang akan dikirim otomatis..."
                   className="w-full resize-y rounded-xl border bg-background px-3 py-3 text-sm leading-6 outline-none focus:border-emerald-500"
@@ -1022,11 +1382,15 @@ export default function ChatManagementPage() {
               </div>
 
               <div className="space-y-1.5">
-                <label className="text-sm font-semibold">Prioritas</label>
+                <label className="text-sm font-semibold">
+                  Prioritas
+                </label>
                 <input
                   type="number"
                   value={faqPriority}
-                  onChange={(event) => setFaqPriority(event.target.value)}
+                  onChange={(event) =>
+                    setFaqPriority(event.target.value)
+                  }
                   className="h-11 w-full rounded-xl border bg-background px-3 text-sm outline-none focus:border-emerald-500"
                 />
                 <p className="text-xs text-muted-foreground">
@@ -1053,7 +1417,9 @@ export default function ChatManagementPage() {
                 {faqSaving && (
                   <Loader2 className="h-4 w-4 animate-spin" />
                 )}
-                {editingFaq ? "Simpan Perubahan" : "Simpan FAQ"}
+                {editingFaq
+                  ? "Simpan Perubahan"
+                  : "Simpan FAQ"}
               </button>
             </div>
           </div>
