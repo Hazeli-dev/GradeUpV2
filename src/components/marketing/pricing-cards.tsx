@@ -1,49 +1,411 @@
-import { Link } from "react-router-dom";
-import { Check } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+
+import { useEffect, useState } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
+import { Check, Crown, Loader2, RefreshCw } from "lucide-react";
+
+import { supabase } from "@/lib/supabase";
 import { pricingPlans } from "@/data/marketing";
 import { formatRupiah } from "@/utils/format";
 import { cn } from "@/lib/utils";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+
+interface PremiumPlan {
+  id: string;
+  code: string;
+  name: string;
+  description: string;
+  price: number;
+  duration_months: number;
+  features: string[] | null;
+  is_active: boolean;
+  sort_order: number;
+}
+
+interface SnapCallbacks {
+  onSuccess?: (result: unknown) => void;
+  onPending?: (result: unknown) => void;
+  onError?: (result: unknown) => void;
+  onClose?: () => void;
+}
+
+declare global {
+  interface Window {
+    snap?: {
+      pay: (token: string, callbacks?: SnapCallbacks) => void;
+    };
+  }
+}
+
+const MIDTRANS_CLIENT_KEY =
+  import.meta.env.VITE_MIDTRANS_CLIENT_KEY;
+
+const SNAP_SCRIPT_URL =
+  "https://app.sandbox.midtrans.com/snap/snap.js";
 
 export function PricingCards() {
+  const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
+
+  const [plans, setPlans] = useState<PremiumPlan[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [loadingError, setLoadingError] = useState("");
+  const [checkoutPlanId, setCheckoutPlanId] = useState<string | null>(null);
+  const [snapReady, setSnapReady] = useState(false);
+  const [message, setMessage] = useState("");
+
+  const selectedPlanId = searchParams.get("plan");
+
+  // Memuat paket aktif dari Supabase.
+  useEffect(() => {
+    let mounted = true;
+
+    async function loadPlans() {
+      setIsLoading(true);
+      setLoadingError("");
+
+      const { data, error } = await supabase
+        .from("premium_plans")
+        .select(
+          "id, code, name, description, price, duration_months, features, is_active, sort_order"
+        )
+        .eq("is_active", true)
+        .order("sort_order", { ascending: true });
+
+      if (!mounted) return;
+
+      if (error) {
+        console.error("Premium plans error:", error);
+        setLoadingError("Paket Premium gagal dimuat. Silakan coba lagi.");
+        setPlans([]);
+      } else {
+        setPlans((data ?? []) as PremiumPlan[]);
+      }
+
+      setIsLoading(false);
+    }
+
+    loadPlans();
+
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  // Memuat Midtrans Snap.js menggunakan Client Key dari Vercel.
+  useEffect(() => {
+    if (!MIDTRANS_CLIENT_KEY) {
+      console.error("VITE_MIDTRANS_CLIENT_KEY belum dikonfigurasi.");
+      return;
+    }
+
+    if (window.snap) {
+      setSnapReady(true);
+      return;
+    }
+
+    const existingScript = document.querySelector<HTMLScriptElement>(
+      `script[src="${SNAP_SCRIPT_URL}"]`
+    );
+
+    const script = existingScript ?? document.createElement("script");
+
+    const handleLoad = () => {
+      setSnapReady(Boolean(window.snap));
+    };
+
+    const handleError = () => {
+      setSnapReady(false);
+      console.error("Gagal memuat Midtrans Snap.");
+    };
+
+    script.addEventListener("load", handleLoad);
+    script.addEventListener("error", handleError);
+
+    if (!existingScript) {
+      script.src = SNAP_SCRIPT_URL;
+      script.async = true;
+      script.setAttribute("data-client-key", MIDTRANS_CLIENT_KEY);
+      document.body.appendChild(script);
+    }
+
+    return () => {
+      script.removeEventListener("load", handleLoad);
+      script.removeEventListener("error", handleError);
+    };
+  }, []);
+
+  const handleChoosePlan = async (plan: PremiumPlan) => {
+    if (checkoutPlanId) return;
+
+    setMessage("");
+
+    // Pastikan pengguna sudah login.
+    const {
+      data: { session },
+      error: sessionError,
+    } = await supabase.auth.getSession();
+
+    if (sessionError) {
+      setMessage("Tidak dapat memeriksa sesi login. Silakan coba lagi.");
+      return;
+    }
+
+    if (!session?.user) {
+      const destination = `/pricing?plan=${encodeURIComponent(plan.id)}`;
+
+      navigate(`/login?redirect=${encodeURIComponent(destination)}`);
+      return;
+    }
+
+    if (!MIDTRANS_CLIENT_KEY) {
+      setMessage("Konfigurasi pembayaran belum tersedia.");
+      return;
+    }
+
+    if (!snapReady || !window.snap) {
+      setMessage("Midtrans belum siap dimuat. Silakan coba beberapa saat lagi.");
+      return;
+    }
+
+    setCheckoutPlanId(plan.id);
+
+    try {
+      const { data, error } = await supabase.functions.invoke(
+        "create-payment",
+        {
+          body: {
+            plan_id: plan.id,
+          },
+        }
+      );
+
+      if (error) {
+        console.error("Create payment error:", error);
+        throw new Error(
+          data?.error || "Gagal membuat transaksi pembayaran."
+        );
+      }
+
+      if (!data?.success || !data?.snap_token) {
+        throw new Error(
+          data?.error || "Token pembayaran tidak diterima."
+        );
+      }
+
+      window.snap.pay(data.snap_token, {
+        onSuccess: () => {
+          setMessage(
+            "Pembayaran diterima. GradeUp sedang menunggu verifikasi dari Midtrans."
+          );
+          setCheckoutPlanId(null);
+        },
+
+        onPending: () => {
+          setMessage(
+            "Pembayaran masih menunggu penyelesaian. Status Premium akan diperbarui setelah pembayaran terverifikasi."
+          );
+          setCheckoutPlanId(null);
+        },
+
+        onError: () => {
+          setMessage(
+            "Terjadi kendala pada pembayaran. Silakan periksa transaksi Anda."
+          );
+          setCheckoutPlanId(null);
+        },
+
+        onClose: () => {
+          setCheckoutPlanId(null);
+        },
+      });
+    } catch (error) {
+      console.error("Checkout error:", error);
+
+      setMessage(
+        error instanceof Error
+          ? error.message
+          : "Terjadi kesalahan saat memproses pembayaran."
+      );
+
+      setCheckoutPlanId(null);
+    }
+  };
+
+  const freePlan = pricingPlans.find((plan) => plan.price === 0);
+
   return (
-    <div className="mx-auto grid max-w-5xl gap-6 lg:grid-cols-3 lg:items-stretch">
-      {pricingPlans.map((plan) => (
+    <div className="mx-auto max-w-6xl">
+      {message && (
         <div
-          key={plan.id}
-          className={cn(
-            "relative flex flex-col rounded-3xl border bg-card p-7 shadow-soft transition-all duration-300 hover:-translate-y-1",
-            plan.popular && "border-primary shadow-glow lg:scale-[1.04]"
-          )}
+          role="status"
+          className="mb-6 rounded-xl border border-emerald-500/20 bg-emerald-500/10 px-4 py-3 text-sm text-foreground"
         >
-          {plan.popular && (
-            <Badge variant="solid" className="absolute -top-3 left-1/2 -translate-x-1/2 bg-brand-gradient px-3 py-1 text-[11px] tracking-wider">
-              POPULER
-            </Badge>
-          )}
-          <h3 className="text-lg font-bold">{plan.name}</h3>
-          <p className="mt-1 text-sm text-muted-foreground">{plan.description}</p>
-          <p className="mt-6 flex items-baseline gap-1">
-            <span className="text-4xl font-extrabold tracking-tight">{formatRupiah(plan.price)}</span>
-            <span className="text-sm font-medium text-muted-foreground">{plan.period}</span>
-          </p>
-          {plan.note && <p className="mt-1 text-xs font-semibold text-primary dark:text-accent">{plan.note}</p>}
-          <ul className="mt-6 flex-1 space-y-3 text-sm">
-            {plan.features.map((f) => (
-              <li key={f} className="flex items-start gap-2.5">
-                <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-soft text-primary dark:text-accent">
-                  <Check className="h-3 w-3" strokeWidth={3.5} />
-                </span>
-                {f}
-              </li>
-            ))}
-          </ul>
-          <Button asChild variant={plan.popular ? "default" : "outline"} size="lg" className="mt-8 w-full">
-            <Link to="/register">{plan.price === 0 ? "Mulai Gratis" : "Pilih Paket"}</Link>
+          {message}
+        </div>
+      )}
+
+      {selectedPlanId && (
+        <div className="mb-6 rounded-xl border border-primary/20 bg-primary/5 px-4 py-3 text-sm">
+          Paket pilihan Anda sudah tersimpan. Silakan lanjutkan pembayaran
+          setelah masuk ke akun GradeUp.
+        </div>
+      )}
+
+      {isLoading ? (
+        <div className="flex min-h-48 items-center justify-center gap-3 text-sm text-muted-foreground">
+          <Loader2 className="h-5 w-5 animate-spin" />
+          Memuat paket Premium...
+        </div>
+      ) : loadingError ? (
+        <div className="rounded-2xl border border-destructive/20 bg-destructive/5 p-8 text-center">
+          <p className="text-sm text-destructive">{loadingError}</p>
+          <Button
+            variant="outline"
+            className="mt-4"
+            onClick={() => window.location.reload()}
+          >
+            <RefreshCw className="mr-2 h-4 w-4" />
+            Muat ulang
           </Button>
         </div>
-      ))}
+      ) : (
+        <div className="grid gap-6 sm:grid-cols-2 xl:grid-cols-3">
+          {freePlan && (
+            <div className="relative flex flex-col rounded-3xl border bg-card p-7 shadow-soft transition-all duration-300 hover:-translate-y-1">
+              <h3 className="text-lg font-bold">{freePlan.name}</h3>
+
+              <p className="mt-1 text-sm text-muted-foreground">
+                {freePlan.description}
+              </p>
+
+              <p className="mt-6 flex items-baseline gap-1">
+                <span className="text-4xl font-extrabold tracking-tight">
+                  {formatRupiah(0)}
+                </span>
+                <span className="text-sm text-muted-foreground">
+                  {freePlan.period}
+                </span>
+              </p>
+
+              <ul className="mt-6 flex-1 space-y-3 text-sm">
+                {freePlan.features.map((feature) => (
+                  <li key={feature} className="flex items-start gap-2.5">
+                    <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-soft text-primary">
+                      <Check className="h-3 w-3" strokeWidth={3.5} />
+                    </span>
+                    {feature}
+                  </li>
+                ))}
+              </ul>
+
+              <Button
+                variant="outline"
+                size="lg"
+                className="mt-8 w-full"
+                onClick={() => navigate("/register")}
+              >
+                Mulai Gratis
+              </Button>
+            </div>
+          )}
+
+          {plans.map((plan, index) => {
+            const features = Array.isArray(plan.features)
+              ? plan.features.filter(
+                  (feature): feature is string =>
+                    typeof feature === "string" && feature.trim().length > 0
+                )
+              : [];
+
+            const isPopular = plan.code === "quarterly";
+            const isSelected = selectedPlanId === plan.id;
+            const isProcessing = checkoutPlanId === plan.id;
+
+            return (
+              <div
+                key={plan.id}
+                className={cn(
+                  "relative flex flex-col rounded-3xl border bg-card p-7 shadow-soft transition-all duration-300 hover:-translate-y-1",
+                  isPopular && "border-primary shadow-glow",
+                  isSelected && "ring-2 ring-primary"
+                )}
+              >
+                {isPopular && (
+                  <Badge
+                    variant="solid"
+                    className="absolute -top-3 left-1/2 -translate-x-1/2 bg-brand-gradient px-3 py-1 text-[11px] tracking-wider"
+                  >
+                    <Crown className="mr-1 h-3 w-3" />
+                    POPULER
+                  </Badge>
+                )}
+
+                <h3 className="text-lg font-bold">{plan.name}</h3>
+
+                <p className="mt-1 min-h-10 text-sm text-muted-foreground">
+                  {plan.description}
+                </p>
+
+                <p className="mt-6 flex items-baseline gap-1">
+                  <span className="text-4xl font-extrabold tracking-tight">
+                    {formatRupiah(Number(plan.price))}
+                  </span>
+                  <span className="text-sm font-medium text-muted-foreground">
+                    / {plan.duration_months} bulan
+                  </span>
+                </p>
+
+                <ul className="mt-6 flex-1 space-y-3 text-sm">
+                  <li className="flex items-start gap-2.5">
+                    <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-soft text-primary dark:text-accent">
+                      <Check className="h-3 w-3" strokeWidth={3.5} />
+                    </span>
+                    Akses Premium selama {plan.duration_months} bulan
+                  </li>
+
+                  {features.map((feature) => (
+                    <li
+                      key={feature}
+                      className="flex items-start gap-2.5"
+                    >
+                      <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-soft text-primary dark:text-accent">
+                        <Check className="h-3 w-3" strokeWidth={3.5} />
+                      </span>
+                      {feature}
+                    </li>
+                  ))}
+                </ul>
+
+                <Button
+                  variant={isPopular ? "default" : "outline"}
+                  size="lg"
+                  className="mt-8 w-full"
+                  disabled={Boolean(checkoutPlanId)}
+                  onClick={() => handleChoosePlan(plan)}
+                >
+                  {isProcessing ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Menyiapkan pembayaran...
+                    </>
+                  ) : isSelected ? (
+                    "Lanjutkan Pembayaran"
+                  ) : (
+                    "Pilih Paket"
+                  )}
+                </Button>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {!isLoading && !loadingError && plans.length === 0 && (
+        <p className="py-12 text-center text-sm text-muted-foreground">
+          Belum ada paket Premium yang tersedia.
+        </p>
+      )}
     </div>
   );
 }
