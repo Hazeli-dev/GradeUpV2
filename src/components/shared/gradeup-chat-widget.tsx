@@ -43,6 +43,7 @@ type ChatMessage = {
   sender_type: "student" | "admin" | "system";
   content: string;
   created_at: string;
+  read_at?: string | null;
 };
 
 type FAQ = {
@@ -128,6 +129,7 @@ export function GradeUpChatWidget() {
   const [handledFaqMessages, setHandledFaqMessages] = useState<
     string[]
   >([]);
+
   const [loading, setLoading] = useState(false);
   const [faqLoading, setFaqLoading] = useState(false);
   const [faqLoadError, setFaqLoadError] = useState<string | null>(
@@ -140,7 +142,12 @@ export function GradeUpChatWidget() {
   // Jumlah balasan admin yang belum dibaca.
   const [unreadCount, setUnreadCount] = useState(0);
 
+  // Referensi area pesan untuk mengatur posisi scroll.
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const messagesContainerRef = useRef<HTMLDivElement>(null);
+
+  // Menyimpan apakah siswa sedang membaca bagian bawah chat.
+  const shouldAutoScrollRef = useRef(true);
 
   // Mengambil identitas pengguna.
   const loadUser = useCallback(async () => {
@@ -175,7 +182,7 @@ export function GradeUpChatWidget() {
     }
   }, []);
 
-  // Menandai balasan admin dalam percakapan sebagai sudah dibaca.
+  // Menandai balasan admin sebagai sudah dibaca.
   const markChatAsRead = useCallback(
     async (conversationId: string) => {
       try {
@@ -242,7 +249,7 @@ export function GradeUpChatWidget() {
     }
   }, []);
 
-  // Mengambil percakapan terakhir milik murid.
+  // Mengambil percakapan terakhir milik siswa.
   const loadConversation = useCallback(async () => {
     try {
       setLoading(true);
@@ -280,6 +287,37 @@ export function GradeUpChatWidget() {
     }
   }, [loadUser]);
 
+  // Memperbarui status percakapan dari admin.
+  const refreshConversationStatus = useCallback(async () => {
+    if (!conversation?.id) return;
+
+    try {
+      const { data, error } = await supabase
+        .from("chat_conversations")
+        .select("id, status")
+        .eq("id", conversation.id)
+        .maybeSingle();
+
+      if (error) throw error;
+
+      // Percakapan mungkin sudah dihapus oleh admin.
+      if (!data) {
+        setConversation(null);
+        setMessages([]);
+        setActiveCategory(null);
+        setHandledFaqMessages([]);
+        return;
+      }
+
+      setConversation(data as Conversation);
+    } catch (error) {
+      console.error(
+        "Gagal memperbarui status percakapan:",
+        error
+      );
+    }
+  }, [conversation?.id]);
+
   // Mengambil pesan dalam percakapan.
   const loadMessages = useCallback(
     async (conversationId: string) => {
@@ -287,17 +325,26 @@ export function GradeUpChatWidget() {
         const { data, error } = await supabase
           .from("chat_messages")
           .select(
-            "id, conversation_id, sender_id, sender_type, content, created_at"
+            "id, conversation_id, sender_id, sender_type, content, created_at, read_at"
           )
           .eq("conversation_id", conversationId)
           .order("created_at", { ascending: true });
 
         if (error) throw error;
 
-        setMessages((data ?? []) as ChatMessage[]);
+        const loadedMessages = (data ?? []) as ChatMessage[];
 
-        // Jika popup terbuka, balasan admin dianggap sudah dibaca.
-        if (isOpen) {
+        setMessages(loadedMessages);
+
+        // Hanya menandai sudah dibaca jika memang ada
+        // balasan admin yang belum dibaca.
+        const hasUnreadAdminMessage = loadedMessages.some(
+          (message) =>
+            message.sender_type === "admin" &&
+            !message.read_at
+        );
+
+        if (isOpen && hasUnreadAdminMessage) {
           await markChatAsRead(conversationId);
         }
       } catch (error) {
@@ -307,7 +354,7 @@ export function GradeUpChatWidget() {
     [isOpen, markChatAsRead]
   );
 
-  // Memuat notifikasi sejak komponen pertama kali aktif.
+  // Inisialisasi notifikasi ketika komponen aktif.
   useEffect(() => {
     let cancelled = false;
 
@@ -388,7 +435,7 @@ export function GradeUpChatWidget() {
     };
   }, [isOpen, loadUser, loadFAQs, loadConversation]);
 
-  // Memuat pesan saat percakapan berubah.
+  // Memuat pesan ketika percakapan berubah.
   useEffect(() => {
     if (!conversation?.id) {
       setMessages([]);
@@ -411,13 +458,33 @@ export function GradeUpChatWidget() {
     return () => window.clearInterval(interval);
   }, [isOpen, conversation?.id, loadMessages]);
 
-  // Mengarahkan tampilan ke pesan paling baru.
+  // Memeriksa perubahan status dari admin setiap 4 detik.
   useEffect(() => {
+    if (!isOpen || !conversation?.id) return;
+
+    const interval = window.setInterval(() => {
+      if (document.visibilityState === "visible") {
+        void refreshConversationStatus();
+      }
+    }, 4000);
+
+    return () => window.clearInterval(interval);
+  }, [
+    isOpen,
+    conversation?.id,
+    refreshConversationStatus,
+  ]);
+
+  // Scroll hanya jika siswa sedang berada di bagian bawah.
+  // Perubahan kategori FAQ tidak memicu scroll.
+  useEffect(() => {
+    if (!shouldAutoScrollRef.current) return;
+
     messagesEndRef.current?.scrollIntoView({
       behavior: "smooth",
       block: "end",
     });
-  }, [messages, activeCategory]);
+  }, [messages.length]);
 
   // Membuat percakapan jika belum tersedia.
   const getOrCreateConversation = async () => {
@@ -444,6 +511,9 @@ export function GradeUpChatWidget() {
     const newConversation = data as Conversation;
 
     setConversation(newConversation);
+
+    // Percakapan baru dimulai dari posisi paling bawah.
+    shouldAutoScrollRef.current = true;
 
     return newConversation;
   };
@@ -484,8 +554,16 @@ export function GradeUpChatWidget() {
       setMessageInput("");
       setActiveCategory(null);
 
+      // Setelah mengirim pesan, arahkan ke bagian bawah.
+      shouldAutoScrollRef.current = true;
+
       // Trigger database menangani jawaban FAQ atau balasan umum.
-      await loadMessages(activeConversation.id);
+      await Promise.all([
+        loadMessages(activeConversation.id),
+        refreshConversationStatus(),
+      ]);
+
+      await loadUnreadCount();
     } catch (error) {
       console.error("Gagal mengirim pesan:", error);
 
@@ -507,7 +585,7 @@ export function GradeUpChatWidget() {
     await sendMessage(messageInput);
   };
 
-  // Murid memilih salah satu pertanyaan FAQ.
+  // Siswa memilih salah satu pertanyaan FAQ.
   const handleSelectFAQ = async (faq: FAQ) => {
     await sendMessage(faq.question);
   };
@@ -524,21 +602,24 @@ export function GradeUpChatWidget() {
       "Saya masih membutuhkan bantuan admin terkait pertanyaan sebelumnya. Mohon bantu periksa masalah saya."
     );
 
-    setHandledFaqMessages((previous) => [
-      ...previous,
-      messageId,
-    ]);
+    setHandledFaqMessages((previous) =>
+      previous.includes(messageId)
+        ? previous
+        : [...previous, messageId]
+    );
   };
 
-  // Menandai masalah selesai tanpa menghapus percakapan.
+  // Menandai bahwa jawaban FAQ membantu.
+  // Ini tidak mengubah status percakapan menjadi resolved.
   const handleFaqResolved = (messageId: string) => {
-    setHandledFaqMessages((previous) => [
-      ...previous,
-      messageId,
-    ]);
+    setHandledFaqMessages((previous) =>
+      previous.includes(messageId)
+        ? previous
+        : [...previous, messageId]
+    );
 
     toast.success(
-      "Terima kasih! Semoga bantuan GradeUp bermanfaat."
+      "Terima kasih! Semoga jawaban GradeUp membantu."
     );
   };
 
@@ -574,7 +655,9 @@ export function GradeUpChatWidget() {
       setActiveCategory(null);
       setHandledFaqMessages([]);
 
-      // Perbarui jumlah notifikasi setelah percakapan dihapus.
+      // Kembalikan posisi scroll ke keadaan awal.
+      shouldAutoScrollRef.current = true;
+
       await loadUnreadCount();
 
       toast.success("Percakapan berhasil dihapus.");
@@ -603,7 +686,7 @@ export function GradeUpChatWidget() {
     (category) => category.id === activeCategory
   );
 
-  // Pencarian kategori berdasarkan pertanyaan dan kata kunci.
+  // FAQ berdasarkan kategori.
   const categoryFAQs = selectedCategory
     ? faqs.filter((faq) => {
         const searchableText = [
@@ -684,33 +767,85 @@ export function GradeUpChatWidget() {
 
           {/* STATUS PERCAKAPAN */}
           {conversation && (
-            <div className="flex shrink-0 items-center justify-between border-b bg-muted/40 px-4 py-2">
-              <span className="text-xs text-muted-foreground">
-                {conversation.status === "in_progress"
-                  ? "Sedang ditangani admin"
-                  : conversation.status === "resolved"
-                    ? "Ditandai selesai"
-                    : "Menunggu balasan admin"}
-              </span>
+            <div className="shrink-0 border-b bg-muted/40 px-4 py-3">
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-xs text-muted-foreground">
+                  {conversation.status === "in_progress"
+                    ? "Sedang ditangani admin"
+                    : conversation.status === "resolved"
+                      ? "Masalah ditandai selesai"
+                      : "Menunggu balasan admin"}
+                </span>
 
-              <button
-                type="button"
-                onClick={handleCloseConversation}
-                disabled={closing}
-                className="flex items-center gap-1.5 text-xs font-medium text-destructive transition-colors hover:opacity-75 disabled:opacity-50"
-              >
-                {closing ? (
-                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                ) : (
-                  <Trash2 className="h-3.5 w-3.5" />
-                )}
-                Tutup chat
-              </button>
+                <button
+                  type="button"
+                  onClick={handleCloseConversation}
+                  disabled={closing}
+                  className="flex items-center gap-1.5 text-xs font-medium text-destructive transition-colors hover:opacity-75 disabled:opacity-50"
+                >
+                  {closing ? (
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  ) : (
+                    <Trash2 className="h-3.5 w-3.5" />
+                  )}
+                  Hapus chat
+                </button>
+              </div>
+
+              {/* PEMBERITAHUAN MASALAH SELESAI */}
+              {conversation.status === "resolved" && (
+                <div className="mt-3 rounded-xl border border-emerald-200 bg-emerald-50 p-3 dark:border-emerald-900 dark:bg-emerald-950/40">
+                  <div className="flex items-start gap-2">
+                    <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" />
+
+                    <div className="min-w-0 flex-1">
+                      <p className="text-xs font-bold text-emerald-800 dark:text-emerald-300">
+                        Masalah ditandai selesai!
+                      </p>
+
+                      <p className="mt-1 text-xs leading-relaxed text-emerald-700 dark:text-emerald-400">
+                        Admin GradeUp telah menandai masalah ini
+                        sebagai selesai. Jika bantuan sudah cukup,
+                        kamu dapat menghapus seluruh riwayat
+                        percakapan.
+                      </p>
+
+                      <button
+                        type="button"
+                        onClick={handleCloseConversation}
+                        disabled={closing}
+                        className="mt-3 inline-flex items-center gap-2 rounded-lg bg-emerald-600 px-3 py-2 text-xs font-semibold text-white transition hover:bg-emerald-700 disabled:opacity-50"
+                      >
+                        {closing ? (
+                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                        ) : (
+                          <Trash2 className="h-3.5 w-3.5" />
+                        )}
+                        Hapus riwayat percakapan
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
           {/* AREA PESAN */}
-          <div className="flex-1 space-y-4 overflow-y-auto bg-muted/20 px-3 py-4 sm:px-4">
+          <div
+            ref={messagesContainerRef}
+            onScroll={(event) => {
+              const element = event.currentTarget;
+
+              const distanceFromBottom =
+                element.scrollHeight -
+                element.scrollTop -
+                element.clientHeight;
+
+              shouldAutoScrollRef.current =
+                distanceFromBottom < 100;
+            }}
+            className="flex-1 space-y-4 overflow-y-auto bg-muted/20 px-3 py-4 sm:px-4"
+          >
             {loading ? (
               <div className="flex h-full items-center justify-center">
                 <Loader2 className="h-6 w-6 animate-spin text-emerald-600" />
@@ -729,6 +864,7 @@ export function GradeUpChatWidget() {
                       Ada yang bisa kami bantu? Silakan pilih
                       kategori di bawah atau tuliskan pertanyaanmu.
                     </p>
+
                     <p className="mt-1 text-[10px] text-muted-foreground">
                       Asisten GradeUp
                     </p>
@@ -763,6 +899,7 @@ export function GradeUpChatWidget() {
                             <p className="text-sm font-semibold">
                               {category.title}
                             </p>
+
                             <p className="mt-0.5 text-[11px] text-muted-foreground">
                               {category.description}
                             </p>
@@ -791,6 +928,7 @@ export function GradeUpChatWidget() {
                         <p className="text-sm font-semibold text-emerald-800 dark:text-emerald-300">
                           Hubungi Admin
                         </p>
+
                         <p className="mt-0.5 text-[11px] text-muted-foreground">
                           Saya ingin bantuan langsung dari admin
                         </p>
@@ -818,6 +956,7 @@ export function GradeUpChatWidget() {
                         <p className="text-sm font-bold">
                           {selectedCategory?.title}
                         </p>
+
                         <p className="text-[10px] text-muted-foreground">
                           Pilih pertanyaan yang sesuai
                         </p>
@@ -854,9 +993,11 @@ export function GradeUpChatWidget() {
                           className="flex w-full items-center gap-2 rounded-lg border bg-background p-3 text-left text-xs leading-relaxed transition-colors hover:border-emerald-500/50 hover:bg-emerald-50/50 disabled:opacity-50 dark:hover:bg-emerald-950/20"
                         >
                           <MessageSquareText className="h-4 w-4 shrink-0 text-emerald-600" />
+
                           <span className="flex-1">
                             {faq.question}
                           </span>
+
                           <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />
                         </button>
                       ))
@@ -870,9 +1011,13 @@ export function GradeUpChatWidget() {
                     <button
                       type="button"
                       onClick={() => {
+                        const categoryName =
+                          selectedCategory?.title ?? "ini";
+
                         setActiveCategory(null);
+
                         void sendMessage(
-                          `Saya membutuhkan bantuan admin untuk kategori ${selectedCategory?.title ?? "ini"}.`
+                          `Saya membutuhkan bantuan admin untuk kategori ${categoryName}.`
                         );
                       }}
                       disabled={sending}
@@ -887,10 +1032,13 @@ export function GradeUpChatWidget() {
                 {messages.map((message) => {
                   const isStudent =
                     message.sender_type === "student";
+
                   const isSystem =
                     message.sender_type === "system";
+
                   const isFaq =
                     isSystem && isFAQAnswer(message.content);
+
                   const showFaqActions =
                     isFaq &&
                     !handledFaqMessages.includes(message.id);
@@ -972,7 +1120,7 @@ export function GradeUpChatWidget() {
                               className="flex items-center justify-center gap-2 rounded-lg bg-emerald-600 px-3 py-2.5 text-xs font-semibold text-white transition-colors hover:bg-emerald-700"
                             >
                               <CheckCircle2 className="h-4 w-4" />
-                              Masalah sudah selesai
+                              Jawaban membantu
                             </button>
 
                             <button
@@ -1003,7 +1151,7 @@ export function GradeUpChatWidget() {
             <div className="shrink-0 border-t bg-card px-3 pt-2">
               <button
                 type="button"
-                onClick={() => setActiveCategory("account")}
+                onClick={() => setActiveCategory(null)}
                 className="flex items-center gap-1.5 rounded-lg px-2 py-1.5 text-xs font-medium text-emerald-700 transition-colors hover:bg-emerald-50 dark:text-emerald-300 dark:hover:bg-emerald-950/30"
               >
                 <CircleHelp className="h-4 w-4" />
