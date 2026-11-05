@@ -11,7 +11,6 @@ import {
   Sparkles,
   ArrowRight,
   BookMarked,
-  Star,
 } from "lucide-react";
 
 import { PageHeader } from "@/components/shared/page-header";
@@ -53,13 +52,13 @@ export default function StudentCoursesPage() {
   const navigate = useNavigate();
 
   const [courses, setCourses] = useState<StudentCatalogCourse[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
   const [favoriteIds, setFavoriteIds] = useState<Set<string>>(new Set());
-  const [favoriteLoadingIds, setFavoriteLoadingIds] = useState<Set<string>>(
+  const [pendingFavorites, setPendingFavorites] = useState<Set<string>>(
     new Set()
   );
+
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [favoriteError, setFavoriteError] = useState<string | null>(null);
 
   const [q, setQ] = useState("");
@@ -78,9 +77,7 @@ export default function StudentCoursesPage() {
         error: authError,
       } = await supabase.auth.getUser();
 
-      if (authError) {
-        throw authError;
-      }
+      if (authError) throw authError;
 
       const { data, error: queryError } = await supabase
         .from("courses")
@@ -103,9 +100,7 @@ export default function StudentCoursesPage() {
         .eq("status", "Published")
         .order("created_at", { ascending: false });
 
-      if (queryError) {
-        throw queryError;
-      }
+      if (queryError) throw queryError;
 
       const rows = (data ?? []) as unknown as CourseRow[];
 
@@ -131,20 +126,18 @@ export default function StudentCoursesPage() {
 
       setCourses(mappedCourses);
 
-      // Ambil favorit milik siswa yang sedang login.
       if (user) {
-        const { data: favoriteData, error: favoriteQueryError } =
-          await supabase
-            .from("student_favorite_courses")
-            .select("course_id")
-            .eq("user_id", user.id);
+        const { data: favorites, error: favoritesError } = await supabase
+          .from("student_favorite_courses")
+          .select("course_id")
+          .eq("user_id", user.id);
 
-        if (favoriteQueryError) {
-          throw favoriteQueryError;
+        if (favoritesError) {
+          throw favoritesError;
         }
 
         setFavoriteIds(
-          new Set((favoriteData ?? []).map((item) => item.course_id))
+          new Set((favorites ?? []).map((item) => item.course_id))
         );
       } else {
         setFavoriteIds(new Set());
@@ -152,11 +145,14 @@ export default function StudentCoursesPage() {
     } catch (err) {
       console.error("Gagal mengambil katalog atau favorit:", err);
 
-      setError(
+      const message =
         err instanceof Error
           ? err.message
-          : "Terjadi kesalahan saat mengambil data materi."
-      );
+          : "Terjadi kesalahan saat mengambil data.";
+
+      // Kegagalan katalog ditampilkan sebagai error utama.
+      // Kegagalan favorit ditangani terpisah jika katalog sudah berhasil.
+      setError(message);
     } finally {
       setLoading(false);
     }
@@ -169,15 +165,17 @@ export default function StudentCoursesPage() {
   // Menambah atau menghapus kursus dari daftar favorit.
   const toggleFavorite = useCallback(
     async (courseId: string) => {
-      if (favoriteLoadingIds.has(courseId)) return;
+      if (pendingFavorites.has(courseId)) return;
 
-      setFavoriteLoadingIds((previous) => {
+      setFavoriteError(null);
+
+      setPendingFavorites((previous) => {
         const next = new Set(previous);
         next.add(courseId);
         return next;
       });
 
-      setFavoriteError(null);
+      const isFavorite = favoriteIds.has(courseId);
 
       try {
         const {
@@ -188,12 +186,11 @@ export default function StudentCoursesPage() {
         if (authError) throw authError;
 
         if (!user) {
-          throw new Error("Silakan login terlebih dahulu untuk menyimpan favorit.");
+          setFavoriteError("Silakan login untuk menyimpan kursus favorit.");
+          return;
         }
 
-        const alreadyFavorite = favoriteIds.has(courseId);
-
-        if (alreadyFavorite) {
+        if (isFavorite) {
           const { error: deleteError } = await supabase
             .from("student_favorite_courses")
             .delete()
@@ -224,22 +221,21 @@ export default function StudentCoursesPage() {
           });
         }
       } catch (err) {
-        console.error("Gagal mengubah favorit:", err);
-
+        console.error("Gagal memperbarui kursus favorit:", err);
         setFavoriteError(
           err instanceof Error
             ? err.message
-            : "Favorit belum berhasil diperbarui. Silakan coba lagi."
+            : "Favorit gagal diperbarui. Silakan coba lagi."
         );
       } finally {
-        setFavoriteLoadingIds((previous) => {
+        setPendingFavorites((previous) => {
           const next = new Set(previous);
           next.delete(courseId);
           return next;
         });
       }
     },
-    [favoriteIds, favoriteLoadingIds]
+    [favoriteIds, pendingFavorites]
   );
 
   // Daftar kategori yang tersedia.
@@ -247,15 +243,12 @@ export default function StudentCoursesPage() {
     () =>
       Array.from(
         new Set(
-          courses
-            .map((course) => course.category)
-            .filter(Boolean)
+          courses.map((course) => course.category).filter(Boolean)
         )
       ).sort((a, b) => a.localeCompare(b, "id")),
     [courses]
   );
 
-  // Statistik katalog.
   const totalLessons = useMemo(
     () =>
       courses.reduce(
@@ -265,7 +258,6 @@ export default function StudentCoursesPage() {
     [courses]
   );
 
-  // Filter pencarian, kategori, dan jenjang.
   const filtered = useMemo(() => {
     const keyword = q.trim().toLocaleLowerCase("id-ID");
 
@@ -279,23 +271,19 @@ export default function StudentCoursesPage() {
             .toLocaleLowerCase("id-ID")
             .includes(keyword) ||
           course.category.toLocaleLowerCase("id-ID").includes(keyword) ||
-          (course.instructor ?? "").toLocaleLowerCase("id-ID").includes(keyword)
+          (course.instructor ?? "")
+            .toLocaleLowerCase("id-ID")
+            .includes(keyword)
         );
       })
       .filter(
-        (course) =>
-          category === "all" || course.category === category
+        (course) => category === "all" || course.category === category
       )
-      .filter(
-        (course) =>
-          level === "all" || course.level === level
-      );
+      .filter((course) => level === "all" || course.level === level);
   }, [courses, q, category, level]);
 
   const hasActiveFilter =
-    q.trim() !== "" ||
-    category !== "all" ||
-    level !== "all";
+    q.trim() !== "" || category !== "all" || level !== "all";
 
   const resetFilters = () => {
     setQ("");
@@ -368,7 +356,6 @@ export default function StudentCoursesPage() {
           <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary transition-transform group-hover:scale-105">
             <LibraryBig className="h-5 w-5" />
           </div>
-
           <div className="min-w-0">
             <p className="text-2xl font-extrabold tracking-tight tabular-nums">
               {loading ? "—" : courses.length}
@@ -383,7 +370,6 @@ export default function StudentCoursesPage() {
           <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-blue-500/10 text-blue-600 dark:text-blue-400 transition-transform group-hover:scale-105">
             <Layers3 className="h-5 w-5" />
           </div>
-
           <div className="min-w-0">
             <p className="text-2xl font-extrabold tracking-tight tabular-nums">
               {loading ? "—" : categories.length}
@@ -398,7 +384,6 @@ export default function StudentCoursesPage() {
           <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 transition-transform group-hover:scale-105">
             <BookOpen className="h-5 w-5" />
           </div>
-
           <div className="min-w-0">
             <p className="text-2xl font-extrabold tracking-tight tabular-nums">
               {loading ? "—" : totalLessons}
@@ -422,7 +407,6 @@ export default function StudentCoursesPage() {
                 Temukan Materi
               </h3>
             </div>
-
             <p className="text-xs text-muted-foreground">
               Cari berdasarkan judul, pengajar, kategori, atau jenjang.
             </p>
@@ -436,21 +420,18 @@ export default function StudentCoursesPage() {
         </div>
 
         <div className="space-y-4 rounded-2xl border bg-card p-4 shadow-sm sm:p-5">
-          <div className="relative">
-            <SearchInput
-              value={q}
-              onChange={setQ}
-              placeholder="Cari judul, deskripsi, atau pengajar..."
-              className="w-full"
-            />
-          </div>
+          <SearchInput
+            value={q}
+            onChange={setQ}
+            placeholder="Cari judul, deskripsi, atau pengajar..."
+            className="w-full"
+          />
 
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div className="space-y-1.5">
               <label className="text-xs font-semibold text-muted-foreground">
                 Kategori Materi
               </label>
-
               <FilterSelect
                 value={category}
                 onChange={setCategory}
@@ -463,7 +444,6 @@ export default function StudentCoursesPage() {
               <label className="text-xs font-semibold text-muted-foreground">
                 Jenjang Pendidikan
               </label>
-
               <FilterSelect
                 value={level}
                 onChange={setLevel}
@@ -542,10 +522,9 @@ export default function StudentCoursesPage() {
         {favoriteError && (
           <div
             role="alert"
-            className="flex items-start gap-2 rounded-xl border border-destructive/20 bg-destructive/5 px-3 py-2.5 text-xs text-destructive"
+            className="rounded-xl border border-destructive/20 bg-destructive/5 px-4 py-3 text-xs text-destructive"
           >
-            <Star className="mt-0.5 h-4 w-4 shrink-0" />
-            <span>{favoriteError}</span>
+            {favoriteError}
           </div>
         )}
 
@@ -553,10 +532,7 @@ export default function StudentCoursesPage() {
           <CardGridSkeleton />
         ) : error ? (
           <div className="rounded-2xl border bg-card p-4">
-            <ErrorState
-              message={error}
-              onRetry={loadCourses}
-            />
+            <ErrorState message={error} onRetry={loadCourses} />
           </div>
         ) : filtered.length === 0 ? (
           <div className="rounded-2xl border border-dashed bg-muted/10 px-4 py-12">
@@ -588,8 +564,8 @@ export default function StudentCoursesPage() {
                   key={course.id}
                   course={course}
                   isFavorite={favoriteIds.has(course.id)}
-                  favoriteLoading={favoriteLoadingIds.has(course.id)}
-                  onToggleFavorite={toggleFavorite}
+                  favoriteLoading={pendingFavorites.has(course.id)}
+                  onToggleFavorite={() => void toggleFavorite(course.id)}
                   onClick={() =>
                     navigate(`/dashboard/courses/${course.id}`)
                   }
@@ -615,7 +591,6 @@ export default function StudentCoursesPage() {
           <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-background text-primary shadow-sm">
             <GraduationCap className="h-5 w-5" />
           </div>
-
           <div className="min-w-0 flex-1">
             <p className="text-sm font-bold">
               Mulai dari satu langkah kecil.
@@ -626,7 +601,6 @@ export default function StudentCoursesPage() {
               melalui fitur pencapaian GradeUp.
             </p>
           </div>
-
           <ArrowRight className="mt-1 h-4 w-4 shrink-0 text-primary" />
         </div>
       )}
