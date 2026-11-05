@@ -1,4 +1,3 @@
-
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { EditorContent, useEditor } from "@tiptap/react";
@@ -31,6 +30,8 @@ import {
   ShieldCheck,
   Trophy,
   XCircle,
+  Bookmark,
+  BookmarkCheck,
 } from "lucide-react";
 
 import { supabase } from "@/lib/supabase";
@@ -262,6 +263,121 @@ export default function LessonLearningPage() {
 
   const [assessmentError, setAssessmentError] = useState("");
   const [showOutline, setShowOutline] = useState(true);
+
+  // ===================================================
+  // BOOKMARK STATE
+  // ===================================================
+
+  const [isBookmarked, setIsBookmarked] = useState(false);
+  const [bookmarkLoading, setBookmarkLoading] = useState(false);
+  const [bookmarkChecking, setBookmarkChecking] = useState(true);
+  const [bookmarkError, setBookmarkError] = useState("");
+
+  // ===================================================
+  // LOAD BOOKMARK STATUS
+  // ===================================================
+
+  const loadBookmarkStatus = useCallback(async () => {
+    if (!lessonId) {
+      setBookmarkChecking(false);
+      return;
+    }
+
+    setBookmarkChecking(true);
+    setBookmarkError("");
+
+    try {
+      const {
+        data: { user },
+        error: authError,
+      } = await supabase.auth.getUser();
+
+      if (authError) throw authError;
+
+      if (!user) {
+        setIsBookmarked(false);
+        return;
+      }
+
+      const { data, error: queryError } = await supabase
+        .from("student_bookmarks")
+        .select("id")
+        .eq("user_id", user.id)
+        .eq("lesson_id", lessonId)
+        .maybeSingle();
+
+      if (queryError) throw queryError;
+
+      setIsBookmarked(Boolean(data));
+    } catch (err) {
+      console.error("Load bookmark:", err);
+      setBookmarkError("Status bookmark belum dapat dimuat.");
+    } finally {
+      setBookmarkChecking(false);
+    }
+  }, [lessonId]);
+
+  useEffect(() => {
+    void loadBookmarkStatus();
+  }, [loadBookmarkStatus]);
+
+  // ===================================================
+  // TOGGLE BOOKMARK
+  // ===================================================
+
+  const toggleBookmark = async () => {
+    if (!lessonId || bookmarkLoading || bookmarkChecking) return;
+
+    setBookmarkLoading(true);
+    setBookmarkError("");
+
+    try {
+      const {
+        data: { user },
+        error: authError,
+      } = await supabase.auth.getUser();
+
+      if (authError) throw authError;
+
+      if (!user) {
+        throw new Error("Silakan login terlebih dahulu.");
+      }
+
+      if (isBookmarked) {
+        const { error: deleteError } = await supabase
+          .from("student_bookmarks")
+          .delete()
+          .eq("user_id", user.id)
+          .eq("lesson_id", lessonId);
+
+        if (deleteError) throw deleteError;
+
+        setIsBookmarked(false);
+      } else {
+        const { error: insertError } = await supabase
+          .from("student_bookmarks")
+          .insert({
+            user_id: user.id,
+            lesson_id: lessonId,
+          });
+
+        if (insertError) {
+          if (insertError.code === "23505") {
+            setIsBookmarked(true);
+          } else {
+            throw insertError;
+          }
+        } else {
+          setIsBookmarked(true);
+        }
+      }
+    } catch (err) {
+      console.error("Toggle bookmark:", err);
+      setBookmarkError(formatError(err));
+    } finally {
+      setBookmarkLoading(false);
+    }
+  };
 
   // ===================================================
   // TIPTAP READ-ONLY EDITOR
@@ -1236,16 +1352,51 @@ export default function LessonLearningPage() {
                   </p>
                 )}
 
-                <div className="mt-5 flex flex-wrap items-center gap-4 text-xs text-muted-foreground">
-                  <span className="inline-flex items-center gap-1.5">
-                    <BookOpen className="h-4 w-4" />
-                    {sections.length} bagian materi
-                  </span>
-                  <span className="inline-flex items-center gap-1.5">
-                    <Clock3 className="h-4 w-4" />
-                    Estimasi {lesson.estimated_minutes || 0} menit
-                  </span>
+                <div className="mt-5 flex flex-wrap items-center justify-between gap-4">
+                  <div className="flex flex-wrap items-center gap-4 text-xs text-muted-foreground">
+                    <span className="inline-flex items-center gap-1.5">
+                      <BookOpen className="h-4 w-4" />
+                      {sections.length} bagian materi
+                    </span>
+                    <span className="inline-flex items-center gap-1.5">
+                      <Clock3 className="h-4 w-4" />
+                      Estimasi {lesson.estimated_minutes || 0} menit
+                    </span>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={toggleBookmark}
+                    disabled={bookmarkLoading || bookmarkChecking}
+                    className={`inline-flex items-center justify-center gap-2 rounded-xl border px-4 py-2.5 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-60 ${
+                      isBookmarked
+                        ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-700 hover:bg-emerald-500/15 dark:text-emerald-300"
+                        : "border-border bg-card text-muted-foreground hover:border-emerald-500/40 hover:bg-emerald-500/5 hover:text-emerald-600"
+                    }`}
+                  >
+                    {bookmarkLoading || bookmarkChecking ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : isBookmarked ? (
+                      <BookmarkCheck className="h-4 w-4" />
+                    ) : (
+                      <Bookmark className="h-4 w-4" />
+                    )}
+
+                    {bookmarkLoading
+                      ? "Menyimpan..."
+                      : bookmarkChecking
+                        ? "Memeriksa..."
+                        : isBookmarked
+                          ? "Tersimpan"
+                          : "Simpan Bookmark"}
+                  </button>
                 </div>
+
+                {bookmarkError && (
+                  <p className="mt-3 text-xs text-red-600 dark:text-red-400">
+                    {bookmarkError}
+                  </p>
+                )}
               </div>
 
               {selectedSection ? (
