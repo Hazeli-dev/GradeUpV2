@@ -15,6 +15,15 @@ import {
   Trash2,
   Bot,
   User,
+  ChevronRight,
+  ArrowLeft,
+  BookOpen,
+  ClipboardCheck,
+  Crown,
+  Smartphone,
+  CircleHelp,
+  CheckCircle2,
+  MessageSquareText,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -35,12 +44,83 @@ type ChatMessage = {
   created_at: string;
 };
 
+type FAQ = {
+  id: string;
+  question: string;
+  keywords: string[];
+  answer: string;
+  priority: number;
+  is_active: boolean;
+};
+
+type FAQCategory = {
+  id: string;
+  title: string;
+  description: string;
+  icon: typeof CircleHelp;
+  matches: (question: string) => boolean;
+};
+
+const FAQ_CATEGORIES: FAQCategory[] = [
+  {
+    id: "account",
+    title: "Akun dan Login",
+    description: "Login, kata sandi, dan profil akun",
+    icon: User,
+    matches: (question) =>
+      /login|kata sandi|password|profil akun|data akun|mengubah profil/i.test(
+        question
+      ),
+  },
+  {
+    id: "courses",
+    title: "Kursus dan Materi",
+    description: "Materi pembelajaran dan progres belajar",
+    icon: BookOpen,
+    matches: (question) =>
+      /materi|pembelajaran|kursus|melanjutkan pembelajaran/i.test(
+        question
+      ),
+  },
+  {
+    id: "exams",
+    title: "Ujian dan Hasil Belajar",
+    description: "Kendala ujian, nilai, dan hasil ujian",
+    icon: ClipboardCheck,
+    matches: (question) =>
+      /ujian|hasil belajar|hasil ujian|nilai|skor/i.test(question),
+  },
+  {
+    id: "premium",
+    title: "GradeUp Premium",
+    description: "Langganan, pembayaran, dan akses Premium",
+    icon: Crown,
+    matches: (question) =>
+      /premium|pembayaran|langganan/i.test(question),
+  },
+  {
+    id: "device",
+    title: "Penggunaan GradeUp",
+    description: "Akses GradeUp melalui HP dan perangkat lain",
+    icon: Smartphone,
+    matches: (question) =>
+      /digunakan melalui hp|ponsel|handphone|mobile/i.test(question),
+  },
+];
+
 export function GradeUpChatWidget() {
   const [isOpen, setIsOpen] = useState(false);
   const [conversation, setConversation] =
     useState<Conversation | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [faqs, setFaqs] = useState<FAQ[]>([]);
   const [messageInput, setMessageInput] = useState("");
+  const [activeCategory, setActiveCategory] = useState<string | null>(
+    null
+  );
+  const [handledFaqMessages, setHandledFaqMessages] = useState<
+    string[]
+  >([]);
   const [loading, setLoading] = useState(false);
   const [sending, setSending] = useState(false);
   const [closing, setClosing] = useState(false);
@@ -48,7 +128,7 @@ export function GradeUpChatWidget() {
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  // Mengambil identitas pengguna yang sedang login.
+  // Mengambil identitas pengguna.
   const loadUser = useCallback(async () => {
     const {
       data: { user },
@@ -64,6 +144,26 @@ export function GradeUpChatWidget() {
 
     setUserId(user.id);
     return user;
+  }, []);
+
+  // Mengambil FAQ aktif langsung dari Supabase.
+  const loadFAQs = useCallback(async () => {
+    try {
+      const { data, error } = await supabase
+        .from("chat_faqs")
+        .select(
+          "id, question, keywords, answer, priority, is_active"
+        )
+        .eq("is_active", true)
+        .order("priority", { ascending: false });
+
+      if (error) throw error;
+
+      setFaqs((data ?? []) as FAQ[]);
+    } catch (error) {
+      console.error("Gagal memuat FAQ:", error);
+      toast.error("Daftar FAQ belum dapat dimuat.");
+    }
   }, []);
 
   // Mengambil percakapan terakhir milik murid.
@@ -105,32 +205,36 @@ export function GradeUpChatWidget() {
   }, [loadUser]);
 
   // Mengambil pesan dalam percakapan.
-  const loadMessages = useCallback(async (conversationId: string) => {
-    try {
-      const { data, error } = await supabase
-        .from("chat_messages")
-        .select(
-          "id, conversation_id, sender_id, sender_type, content, created_at"
-        )
-        .eq("conversation_id", conversationId)
-        .order("created_at", { ascending: true });
+  const loadMessages = useCallback(
+    async (conversationId: string) => {
+      try {
+        const { data, error } = await supabase
+          .from("chat_messages")
+          .select(
+            "id, conversation_id, sender_id, sender_type, content, created_at"
+          )
+          .eq("conversation_id", conversationId)
+          .order("created_at", { ascending: true });
 
-      if (error) throw error;
+        if (error) throw error;
 
-      setMessages((data ?? []) as ChatMessage[]);
-    } catch (error) {
-      console.error("Gagal memuat pesan:", error);
-    }
-  }, []);
+        setMessages((data ?? []) as ChatMessage[]);
+      } catch (error) {
+        console.error("Gagal memuat pesan:", error);
+      }
+    },
+    []
+  );
 
-  // Memuat percakapan ketika popup dibuka.
+  // Memuat data saat popup dibuka.
   useEffect(() => {
-    if (isOpen) {
-      void loadConversation();
-    }
-  }, [isOpen, loadConversation]);
+    if (!isOpen) return;
 
-  // Memuat pesan ketika percakapan ditemukan.
+    void loadFAQs();
+    void loadConversation();
+  }, [isOpen, loadFAQs, loadConversation]);
+
+  // Memuat pesan saat percakapan berubah.
   useEffect(() => {
     if (!conversation?.id) {
       setMessages([]);
@@ -140,8 +244,7 @@ export function GradeUpChatWidget() {
     void loadMessages(conversation.id);
   }, [conversation?.id, loadMessages]);
 
-  // Memperbarui pesan otomatis selama popup terbuka.
-  // Polling ini tidak membuat baris database tambahan.
+  // Memperbarui pesan setiap 4 detik selama popup terbuka.
   useEffect(() => {
     if (!isOpen || !conversation?.id) return;
 
@@ -160,9 +263,9 @@ export function GradeUpChatWidget() {
       behavior: "smooth",
       block: "end",
     });
-  }, [messages]);
+  }, [messages, activeCategory]);
 
-  // Membuat percakapan jika murid belum memiliki percakapan.
+  // Membuat percakapan jika belum tersedia.
   const getOrCreateConversation = async () => {
     if (conversation) return conversation;
 
@@ -191,15 +294,13 @@ export function GradeUpChatWidget() {
     return newConversation;
   };
 
-  // Mengirim pesan murid.
-  const handleSendMessage = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
+  // Fungsi utama pengiriman pesan.
+  const sendMessage = async (content: string) => {
+    const trimmedContent = content.trim();
 
-    const content = messageInput.trim();
+    if (!trimmedContent || sending) return;
 
-    if (!content || sending) return;
-
-    if (content.length > 2000) {
+    if (trimmedContent.length > 2000) {
       toast.error("Pesan maksimal 2.000 karakter.");
       return;
     }
@@ -210,8 +311,7 @@ export function GradeUpChatWidget() {
       const user = await loadUser();
 
       if (!user) {
-        toast.error("Silakan login kembali.");
-        return;
+        throw new Error("Silakan login kembali.");
       }
 
       const activeConversation = await getOrCreateConversation();
@@ -222,13 +322,15 @@ export function GradeUpChatWidget() {
           conversation_id: activeConversation.id,
           sender_id: user.id,
           sender_type: "student",
-          content,
+          content: trimmedContent,
         });
 
       if (error) throw error;
 
       setMessageInput("");
+      setActiveCategory(null);
 
+      // Trigger database menangani jawaban FAQ atau balasan umum.
       await loadMessages(activeConversation.id);
     } catch (error) {
       console.error("Gagal mengirim pesan:", error);
@@ -241,6 +343,47 @@ export function GradeUpChatWidget() {
     } finally {
       setSending(false);
     }
+  };
+
+  // Mengirim pesan dari form.
+  const handleSendMessage = async (
+    event: FormEvent<HTMLFormElement>
+  ) => {
+    event.preventDefault();
+    await sendMessage(messageInput);
+  };
+
+  // Murid memilih salah satu pertanyaan FAQ.
+  const handleSelectFAQ = async (faq: FAQ) => {
+    await sendMessage(faq.question);
+  };
+
+  // Meminta bantuan admin setelah menerima jawaban FAQ.
+  const handleAskAdmin = async (messageId: string) => {
+    const confirmed = window.confirm(
+      "Apakah kamu masih membutuhkan bantuan admin? Pesan akan diteruskan ke antrean admin."
+    );
+
+    if (!confirmed) return;
+
+    await sendMessage(
+      "Saya masih membutuhkan bantuan admin terkait pertanyaan sebelumnya. Mohon bantu periksa masalah saya."
+    );
+
+    setHandledFaqMessages((previous) => [
+      ...previous,
+      messageId,
+    ]);
+  };
+
+  // Menandai masalah selesai tanpa menghapus percakapan.
+  const handleFaqResolved = (messageId: string) => {
+    setHandledFaqMessages((previous) => [
+      ...previous,
+      messageId,
+    ]);
+
+    toast.success("Terima kasih! Semoga bantuan GradeUp bermanfaat.");
   };
 
   // Menutup dan menghapus seluruh riwayat dengan konfirmasi.
@@ -272,6 +415,8 @@ export function GradeUpChatWidget() {
       setConversation(null);
       setMessages([]);
       setMessageInput("");
+      setActiveCategory(null);
+      setHandledFaqMessages([]);
 
       toast.success("Percakapan berhasil dihapus.");
     } catch (error) {
@@ -294,6 +439,21 @@ export function GradeUpChatWidget() {
       timeZone: "Asia/Jakarta",
     });
 
+  // FAQ berdasarkan kategori yang dipilih.
+  const selectedCategory = FAQ_CATEGORIES.find(
+    (category) => category.id === activeCategory
+  );
+
+  const categoryFAQs = selectedCategory
+    ? faqs.filter((faq) =>
+        selectedCategory.matches(faq.question)
+      )
+    : [];
+
+  // Mengenali balasan yang berasal dari FAQ.
+  const isFAQAnswer = (content: string) =>
+    faqs.some((faq) => faq.answer.trim() === content.trim());
+
   return (
     <>
       {/* TOMBOL CHAT MENGAMBANG */}
@@ -313,7 +473,7 @@ export function GradeUpChatWidget() {
       {isOpen && (
         <section
           aria-label="Bantuan chat GradeUp"
-          className="fixed bottom-4 right-3 z-50 flex h-[min(620px,calc(100dvh-2rem))] w-[calc(100vw-1.5rem)] max-w-[390px] flex-col overflow-hidden rounded-2xl border border-border bg-background shadow-2xl sm:bottom-7 sm:right-7 sm:h-[600px]"
+          className="fixed bottom-4 right-3 z-50 flex h-[min(680px,calc(100dvh-2rem))] w-[calc(100vw-1.5rem)] max-w-[390px] flex-col overflow-hidden rounded-2xl border border-border bg-background shadow-2xl sm:bottom-7 sm:right-7 sm:h-[640px]"
         >
           {/* HEADER */}
           <header className="flex shrink-0 items-center justify-between bg-gradient-to-r from-emerald-700 to-teal-600 px-4 py-4 text-white">
@@ -329,7 +489,7 @@ export function GradeUpChatWidget() {
 
                 <p className="mt-0.5 flex items-center gap-1.5 text-[11px] text-emerald-50">
                   <span className="h-1.5 w-1.5 rounded-full bg-emerald-300" />
-                  Tim bantuan siap membantu
+                  Asisten dan tim bantuan GradeUp
                 </p>
               </div>
             </div>
@@ -344,14 +504,14 @@ export function GradeUpChatWidget() {
             </button>
           </header>
 
-          {/* STATUS */}
+          {/* STATUS PERCAKAPAN */}
           {conversation && (
             <div className="flex shrink-0 items-center justify-between border-b bg-muted/40 px-4 py-2">
               <span className="text-xs text-muted-foreground">
                 {conversation.status === "in_progress"
                   ? "Sedang ditangani admin"
                   : conversation.status === "resolved"
-                    ? "Menunggu tindak lanjut"
+                    ? "Ditandai selesai"
                     : "Menunggu balasan admin"}
               </span>
 
@@ -388,7 +548,8 @@ export function GradeUpChatWidget() {
                   <div className="max-w-[85%] rounded-2xl rounded-tl-sm border bg-card px-3 py-2.5 shadow-sm">
                     <p className="text-sm leading-relaxed">
                       Halo! Selamat datang di bantuan GradeUp.
-                      Ada yang bisa kami bantu?
+                      Ada yang bisa kami bantu? Silakan pilih
+                      kategori di bawah atau tuliskan pertanyaanmu.
                     </p>
                     <p className="mt-1 text-[10px] text-muted-foreground">
                       Asisten GradeUp
@@ -396,67 +557,237 @@ export function GradeUpChatWidget() {
                   </div>
                 </div>
 
-                {messages.map((message) => {
-                  const isStudent = message.sender_type === "student";
-                  const isSystem = message.sender_type === "system";
+                {/* MENU KATEGORI FAQ */}
+                {(!messages.length || activeCategory === null) && (
+                  <div className="space-y-2 pl-10">
+                    <p className="text-xs font-semibold text-muted-foreground">
+                      Pilih kategori bantuan
+                    </p>
 
-                  return (
-                    <div
-                      key={message.id}
-                      className={cn(
-                        "flex items-start gap-2",
-                        isStudent && "justify-end"
-                      )}
+                    {FAQ_CATEGORIES.map((category) => {
+                      const Icon = category.icon;
+
+                      return (
+                        <button
+                          key={category.id}
+                          type="button"
+                          disabled={sending || loading}
+                          onClick={() =>
+                            setActiveCategory(category.id)
+                          }
+                          className="flex w-full items-center gap-3 rounded-xl border bg-card p-3 text-left shadow-sm transition-colors hover:border-emerald-500/50 hover:bg-emerald-50/50 dark:hover:bg-emerald-950/20"
+                        >
+                          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300">
+                            <Icon className="h-4 w-4" />
+                          </div>
+
+                          <div className="min-w-0 flex-1">
+                            <p className="text-sm font-semibold">
+                              {category.title}
+                            </p>
+                            <p className="mt-0.5 text-[11px] text-muted-foreground">
+                              {category.description}
+                            </p>
+                          </div>
+
+                          <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />
+                        </button>
+                      );
+                    })}
+
+                    <button
+                      type="button"
+                      onClick={() =>
+                        void sendMessage(
+                          "Saya ingin berbicara dengan admin GradeUp."
+                        )
+                      }
+                      disabled={sending}
+                      className="flex w-full items-center gap-3 rounded-xl border border-dashed border-emerald-500/50 bg-emerald-50/50 p-3 text-left transition-colors hover:bg-emerald-100/60 dark:bg-emerald-950/20 dark:hover:bg-emerald-950/40"
                     >
-                      {!isStudent && (
-                        <div
-                          className={cn(
-                            "flex h-8 w-8 shrink-0 items-center justify-center rounded-full",
-                            isSystem
-                              ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300"
-                              : "bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-300"
-                          )}
-                        >
-                          {isSystem ? (
-                            <Bot className="h-4 w-4" />
-                          ) : (
-                            <Headphones className="h-4 w-4" />
-                          )}
-                        </div>
-                      )}
+                      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-emerald-600 text-white">
+                        <Headphones className="h-4 w-4" />
+                      </div>
 
-                      <div
-                        className={cn(
-                          "max-w-[85%] rounded-2xl px-3 py-2.5 shadow-sm",
-                          isStudent
-                            ? "rounded-tr-sm bg-emerald-600 text-white"
-                            : "rounded-tl-sm border bg-card text-card-foreground"
-                        )}
-                      >
-                        <p className="whitespace-pre-wrap break-words text-sm leading-relaxed">
-                          {message.content}
+                      <div className="flex-1">
+                        <p className="text-sm font-semibold text-emerald-800 dark:text-emerald-300">
+                          Hubungi Admin
                         </p>
-
-                        <p
-                          className={cn(
-                            "mt-1 text-right text-[10px]",
-                            isStudent
-                              ? "text-emerald-100"
-                              : "text-muted-foreground"
-                          )}
-                        >
-                          {isStudent
-                            ? "Kamu"
-                            : isSystem
-                              ? "Asisten GradeUp"
-                              : "Admin"}{" "}
-                          · {formatTime(message.created_at)}
+                        <p className="mt-0.5 text-[11px] text-muted-foreground">
+                          Saya ingin bantuan langsung dari admin
                         </p>
                       </div>
 
-                      {isStudent && (
-                        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-emerald-600 text-white">
-                          <User className="h-4 w-4" />
+                      <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                    </button>
+                  </div>
+                )}
+
+                {/* DAFTAR PERTANYAAN DALAM KATEGORI */}
+                {activeCategory && (
+                  <div className="ml-10 space-y-2 rounded-xl border bg-card p-3">
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setActiveCategory(null)}
+                        className="rounded-lg p-1.5 text-muted-foreground transition-colors hover:bg-muted"
+                        aria-label="Kembali ke kategori"
+                      >
+                        <ArrowLeft className="h-4 w-4" />
+                      </button>
+
+                      <div className="flex-1">
+                        <p className="text-sm font-bold">
+                          {selectedCategory?.title}
+                        </p>
+                        <p className="text-[10px] text-muted-foreground">
+                          Pilih pertanyaan yang sesuai
+                        </p>
+                      </div>
+                    </div>
+
+                    {categoryFAQs.length > 0 ? (
+                      categoryFAQs.map((faq) => (
+                        <button
+                          key={faq.id}
+                          type="button"
+                          onClick={() => void handleSelectFAQ(faq)}
+                          disabled={sending}
+                          className="flex w-full items-center gap-2 rounded-lg border bg-background p-3 text-left text-xs leading-relaxed transition-colors hover:border-emerald-500/50 hover:bg-emerald-50/50 disabled:opacity-50 dark:hover:bg-emerald-950/20"
+                        >
+                          <MessageSquareText className="h-4 w-4 shrink-0 text-emerald-600" />
+                          <span className="flex-1">
+                            {faq.question}
+                          </span>
+                          <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />
+                        </button>
+                      ))
+                    ) : (
+                      <div className="rounded-lg bg-muted/50 p-3 text-xs text-muted-foreground">
+                        Belum ada FAQ aktif dalam kategori ini.
+                        Kamu tetap dapat mengirim pertanyaan kepada admin.
+                      </div>
+                    )}
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setActiveCategory(null);
+                        void sendMessage(
+                          `Saya membutuhkan bantuan admin untuk kategori ${selectedCategory?.title ?? "ini"}.`
+                        );
+                      }}
+                      disabled={sending}
+                      className="w-full rounded-lg border border-dashed border-emerald-500/50 p-2.5 text-xs font-semibold text-emerald-700 transition-colors hover:bg-emerald-50 dark:text-emerald-300 dark:hover:bg-emerald-950/30"
+                    >
+                      Pertanyaan saya tidak ada di daftar
+                    </button>
+                  </div>
+                )}
+
+                {/* RIWAYAT PESAN */}
+                {messages.map((message) => {
+                  const isStudent =
+                    message.sender_type === "student";
+                  const isSystem =
+                    message.sender_type === "system";
+                  const isFaq = isSystem && isFAQAnswer(message.content);
+                  const showFaqActions =
+                    isFaq &&
+                    !handledFaqMessages.includes(message.id);
+
+                  return (
+                    <div key={message.id} className="space-y-2">
+                      <div
+                        className={cn(
+                          "flex items-start gap-2",
+                          isStudent && "justify-end"
+                        )}
+                      >
+                        {!isStudent && (
+                          <div
+                            className={cn(
+                              "flex h-8 w-8 shrink-0 items-center justify-center rounded-full",
+                              isSystem
+                                ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300"
+                                : "bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-300"
+                            )}
+                          >
+                            {isSystem ? (
+                              <Bot className="h-4 w-4" />
+                            ) : (
+                              <Headphones className="h-4 w-4" />
+                            )}
+                          </div>
+                        )}
+
+                        <div
+                          className={cn(
+                            "max-w-[85%] rounded-2xl px-3 py-2.5 shadow-sm",
+                            isStudent
+                              ? "rounded-tr-sm bg-emerald-600 text-white"
+                              : "rounded-tl-sm border bg-card text-card-foreground"
+                          )}
+                        >
+                          <p className="whitespace-pre-wrap break-words text-sm leading-relaxed">
+                            {message.content}
+                          </p>
+
+                          <p
+                            className={cn(
+                              "mt-1 text-right text-[10px]",
+                              isStudent
+                                ? "text-emerald-100"
+                                : "text-muted-foreground"
+                            )}
+                          >
+                            {isStudent
+                              ? "Kamu"
+                              : isSystem
+                                ? "Asisten GradeUp"
+                                : "Admin"}{" "}
+                            · {formatTime(message.created_at)}
+                          </p>
+                        </div>
+
+                        {isStudent && (
+                          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-emerald-600 text-white">
+                            <User className="h-4 w-4" />
+                          </div>
+                        )}
+                      </div>
+
+                      {/* PILIHAN SETELAH JAWABAN FAQ */}
+                      {showFaqActions && (
+                        <div className="ml-10 max-w-[85%] rounded-xl border bg-card p-3">
+                          <p className="mb-2 text-xs font-semibold">
+                            Apakah jawaban ini membantu?
+                          </p>
+
+                          <div className="flex flex-col gap-2">
+                            <button
+                              type="button"
+                              onClick={() =>
+                                handleFaqResolved(message.id)
+                              }
+                              className="flex items-center justify-center gap-2 rounded-lg bg-emerald-600 px-3 py-2.5 text-xs font-semibold text-white transition-colors hover:bg-emerald-700"
+                            >
+                              <CheckCircle2 className="h-4 w-4" />
+                              Masalah sudah selesai
+                            </button>
+
+                            <button
+                              type="button"
+                              disabled={sending}
+                              onClick={() =>
+                                void handleAskAdmin(message.id)
+                              }
+                              className="flex items-center justify-center gap-2 rounded-lg border border-border px-3 py-2.5 text-xs font-semibold transition-colors hover:bg-muted disabled:opacity-50"
+                            >
+                              <Headphones className="h-4 w-4" />
+                              Masih butuh bantuan admin
+                            </button>
+                          </div>
                         </div>
                       )}
                     </div>
@@ -468,6 +799,20 @@ export function GradeUpChatWidget() {
             )}
           </div>
 
+          {/* AKSES CEPAT FAQ */}
+          {messages.length > 0 && !activeCategory && (
+            <div className="shrink-0 border-t bg-card px-3 pt-2">
+              <button
+                type="button"
+                onClick={() => setActiveCategory(null)}
+                className="flex items-center gap-1.5 rounded-lg px-2 py-1.5 text-xs font-medium text-emerald-700 transition-colors hover:bg-emerald-50 dark:text-emerald-300 dark:hover:bg-emerald-950/30"
+              >
+                <CircleHelp className="h-4 w-4" />
+                Lihat pilihan FAQ
+              </button>
+            </div>
+          )}
+
           {/* INPUT PESAN */}
           <form
             onSubmit={handleSendMessage}
@@ -475,11 +820,13 @@ export function GradeUpChatWidget() {
           >
             <textarea
               value={messageInput}
-              onChange={(event) => setMessageInput(event.target.value)}
-              placeholder="Tulis pesan kamu..."
+              onChange={(event) =>
+                setMessageInput(event.target.value)
+              }
+              placeholder="Tulis pertanyaan kamu..."
               rows={1}
               maxLength={2000}
-              disabled={sending || !userId && loading}
+              disabled={sending || loading || !userId}
               className="max-h-24 min-h-11 flex-1 resize-none rounded-xl border border-input bg-background px-3 py-3 text-sm outline-none transition-colors placeholder:text-muted-foreground focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/15 disabled:opacity-50"
               onKeyDown={(event) => {
                 if (
@@ -495,7 +842,12 @@ export function GradeUpChatWidget() {
 
             <button
               type="submit"
-              disabled={!messageInput.trim() || sending || loading}
+              disabled={
+                !messageInput.trim() ||
+                sending ||
+                loading ||
+                !userId
+              }
               aria-label="Kirim pesan"
               className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-emerald-600 text-white transition-colors hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-40"
             >
