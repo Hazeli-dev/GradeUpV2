@@ -9,11 +9,17 @@ import {
   Search,
   Tag,
   BookOpen,
-  Palette,
   Hash,
   FolderOpen,
   AlertTriangle,
   X,
+  Layers3,
+  Palette,
+  CalendarDays,
+  CheckCircle2,
+  CircleDashed,
+  ChevronDown,
+  ShieldAlert,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -67,6 +73,20 @@ const getErrorMessage = (error: unknown) =>
     ? error.message
     : "Terjadi kesalahan. Silakan coba kembali.";
 
+const formatDate = (value?: string) => {
+  if (!value) return "-";
+
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) return "-";
+
+  return new Intl.DateTimeFormat("id-ID", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  }).format(date);
+};
+
 export default function AdminCategoriesPage() {
   const [items, setItems] = useState<CategoryItem[]>([]);
   const [courseCounts, setCourseCounts] = useState<Record<string, number>>(
@@ -75,12 +95,17 @@ export default function AdminCategoriesPage() {
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const [draft, setDraft] = useState<Partial<CategoryItem> | null>(null);
   const [err, setErr] = useState<Record<string, string>>({});
   const [removing, setRemoving] = useState<CategoryItem | null>(null);
+
   const [search, setSearch] = useState("");
+  const [sortBy, setSortBy] = useState<"name" | "courses" | "newest">(
+    "name"
+  );
 
   // Mengambil kategori dan jumlah kursus dari Supabase.
   const fetchData = useCallback(async () => {
@@ -94,9 +119,7 @@ export default function AdminCategoriesPage() {
           .select("id, name, slug, description, color, created_at")
           .order("name", { ascending: true }),
 
-        supabase
-          .from("courses")
-          .select("category"),
+        supabase.from("courses").select("category"),
       ]);
 
       if (categoryResult.error) throw categoryResult.error;
@@ -112,9 +135,9 @@ export default function AdminCategoriesPage() {
 
       setCourseCounts(counts);
       setItems((categoryResult.data ?? []) as CategoryItem[]);
-    } catch (error) {
-      console.error("Fetch categories error:", error);
-      setError(getErrorMessage(error));
+    } catch (fetchError) {
+      console.error("Fetch categories error:", fetchError);
+      setError(getErrorMessage(fetchError));
     } finally {
       setLoading(false);
     }
@@ -124,9 +147,12 @@ export default function AdminCategoriesPage() {
     void fetchData();
   }, [fetchData]);
 
-  const countFor = (name: string) => courseCounts[name] || 0;
+  const countFor = useCallback(
+    (name: string) => courseCounts[name] || 0,
+    [courseCounts]
+  );
 
-  // Statistik kategori.
+  // Statistik.
   const totalCourses = useMemo(
     () =>
       Object.values(courseCounts).reduce(
@@ -138,24 +164,36 @@ export default function AdminCategoriesPage() {
 
   const usedCategories = useMemo(
     () => items.filter((item) => countFor(item.name) > 0).length,
-    [items, courseCounts]
+    [items, countFor]
   );
 
+  const unusedCategories = items.length - usedCategories;
+
+  // Pencarian dan pengurutan.
   const filteredItems = useMemo(() => {
     const keyword = search.trim().toLocaleLowerCase("id-ID");
 
-    if (!keyword) return items;
-
-    return items.filter((item) =>
-      [
-        item.name,
-        item.slug,
-        item.description ?? "",
-      ].some((value) =>
+    const result = items.filter((item) =>
+      [item.name, item.slug, item.description ?? ""].some((value) =>
         value.toLocaleLowerCase("id-ID").includes(keyword)
       )
     );
-  }, [items, search]);
+
+    return [...result].sort((a, b) => {
+      if (sortBy === "courses") {
+        return countFor(b.name) - countFor(a.name);
+      }
+
+      if (sortBy === "newest") {
+        return (
+          new Date(b.created_at ?? 0).getTime() -
+          new Date(a.created_at ?? 0).getTime()
+        );
+      }
+
+      return a.name.localeCompare(b.name, "id");
+    });
+  }, [items, search, sortBy, countFor]);
 
   // Membuka form tambah kategori.
   const openCreate = () => {
@@ -175,7 +213,7 @@ export default function AdminCategoriesPage() {
 
   // Simpan kategori baru atau perbarui kategori.
   const save = async () => {
-    if (!draft) return;
+    if (!draft || saving) return;
 
     const validationErrors: Record<string, string> = {};
     const trimmedName = draft.name?.trim() ?? "";
@@ -246,9 +284,11 @@ export default function AdminCategoriesPage() {
       setDraft(null);
       setErr({});
       await fetchData();
-    } catch (error) {
-      console.error("Save category error:", error);
-      toast.error("Gagal menyimpan kategori: " + getErrorMessage(error));
+    } catch (saveError) {
+      console.error("Save category error:", saveError);
+      toast.error(
+        "Gagal menyimpan kategori: " + getErrorMessage(saveError)
+      );
     } finally {
       setSaving(false);
     }
@@ -256,7 +296,9 @@ export default function AdminCategoriesPage() {
 
   // Hapus kategori.
   const handleDelete = async () => {
-    if (!removing) return;
+    if (!removing || deleting) return;
+
+    setDeleting(true);
 
     try {
       const { error } = await supabase
@@ -269,33 +311,38 @@ export default function AdminCategoriesPage() {
       toast.success("Kategori berhasil dihapus.");
       setRemoving(null);
       await fetchData();
-    } catch (error) {
-      console.error("Delete category error:", error);
-      toast.error("Gagal menghapus kategori: " + getErrorMessage(error));
+    } catch (deleteError) {
+      console.error("Delete category error:", deleteError);
+      toast.error(
+        "Gagal menghapus kategori: " + getErrorMessage(deleteError)
+      );
+    } finally {
+      setDeleting(false);
     }
   };
 
   return (
-    <div className="space-y-7 pb-8">
+    <div className="min-w-0 space-y-6 pb-10">
       {/* HEADER */}
       <PageHeader
         title="Kategori Materi"
-        description="Kelola pengelompokan materi pembelajaran agar katalog GradeUp lebih terstruktur."
+        description="Kelola pengelompokan materi pembelajaran dan struktur katalog GradeUp."
         actions={
-          <div className="flex flex-wrap gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <Button
               variant="outline"
-              onClick={fetchData}
+              onClick={() => void fetchData()}
               disabled={loading}
-              className="gap-2"
+              className="h-9 gap-2"
             >
               <RefreshCw
                 className={`h-4 w-4 ${loading ? "animate-spin" : ""}`}
               />
-              Refresh
+              <span className="hidden sm:inline">Muat Ulang</span>
+              <span className="sm:hidden">Refresh</span>
             </Button>
 
-            <Button onClick={openCreate} className="gap-2">
+            <Button onClick={openCreate} className="h-9 gap-2">
               <Plus className="h-4 w-4" />
               Tambah Kategori
             </Button>
@@ -303,142 +350,182 @@ export default function AdminCategoriesPage() {
         }
       />
 
-      {/* HERO */}
-      <section className="relative isolate overflow-hidden rounded-3xl border bg-gradient-to-br from-primary/15 via-primary/5 to-background p-5 shadow-sm sm:p-7">
-        <div className="pointer-events-none absolute -right-16 -top-20 h-56 w-56 rounded-full bg-primary/10 blur-3xl" />
+      {/* INTRODUCTION */}
+      <Card className="overflow-hidden border-primary/15 shadow-sm">
+        <CardContent className="relative flex flex-col gap-4 p-5 sm:flex-row sm:items-center sm:justify-between sm:p-6">
+          <div className="pointer-events-none absolute -right-10 -top-16 h-48 w-48 rounded-full bg-primary/5 blur-3xl" />
 
-        <div className="relative flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
-          <div className="max-w-2xl space-y-3">
-            <Badge
-              variant="outline"
-              className="border-primary/20 bg-background/70 text-primary"
-            >
-              <Tag className="mr-1.5 h-3 w-3" />
-              MANAJEMEN KATALOG
-            </Badge>
+          <div className="relative flex min-w-0 items-start gap-4">
+            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
+              <FolderOpen className="h-6 w-6" />
+            </div>
 
-            <div className="space-y-1.5">
-              <h2 className="text-xl font-extrabold tracking-tight sm:text-2xl">
-                Atur Materi Lebih Terstruktur
-              </h2>
+            <div className="min-w-0 space-y-1">
+              <div className="flex flex-wrap items-center gap-2">
+                <h2 className="text-base font-bold tracking-tight">
+                  Pengelolaan Katalog Pembelajaran
+                </h2>
+                <Badge variant="outline" className="text-[10px]">
+                  CONTENT MANAGEMENT
+                </Badge>
+              </div>
 
-              <p className="max-w-xl text-xs leading-relaxed text-muted-foreground sm:text-sm">
-                Buat dan kelola kategori pembelajaran untuk membantu
-                siswa menemukan kursus berdasarkan mata pelajaran,
-                bidang keahlian, dan topik yang diminati.
+              <p className="max-w-2xl text-xs leading-relaxed text-muted-foreground sm:text-sm">
+                Atur kategori berdasarkan mata pelajaran, jenjang,
+                bidang keahlian, atau topik pembelajaran agar katalog
+                kursus lebih mudah dikelola dan ditemukan siswa.
               </p>
             </div>
           </div>
 
-          <div className="hidden h-20 w-20 shrink-0 items-center justify-center rounded-2xl border border-primary/15 bg-background/70 text-primary shadow-sm sm:flex">
-            <FolderOpen className="h-10 w-10" />
-          </div>
-        </div>
-      </section>
-
-      {/* STATISTIK */}
-      <section className="grid gap-3 sm:grid-cols-3">
-        <Card className="overflow-hidden">
-          <CardContent className="flex items-center gap-3 p-4">
-            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
-              <Tag className="h-5 w-5" />
+          <div className="relative flex shrink-0 items-center gap-2 rounded-lg border bg-muted/30 px-3 py-2">
+            <ShieldAlert className="h-4 w-4 text-primary" />
+            <div>
+              <p className="text-[10px] font-medium text-muted-foreground">
+                Modul administrasi
+              </p>
+              <p className="text-xs font-semibold">Kategori Materi</p>
             </div>
+          </div>
+        </CardContent>
+      </Card>
 
+      {/* STATISTICS */}
+      <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <Card>
+          <CardContent className="flex items-center gap-3 p-4">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+              <Layers3 className="h-5 w-5" />
+            </div>
             <div className="min-w-0">
-              <p className="text-2xl font-extrabold tabular-nums">
+              <p className="text-xs text-muted-foreground">Total kategori</p>
+              <p className="mt-0.5 text-2xl font-bold tabular-nums">
                 {loading ? "—" : items.length}
               </p>
-              <p className="text-xs text-muted-foreground">
-                Total kategori
-              </p>
             </div>
           </CardContent>
         </Card>
 
-        <Card className="overflow-hidden">
+        <Card>
           <CardContent className="flex items-center gap-3 p-4">
-            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-emerald-500/10 text-emerald-600">
               <BookOpen className="h-5 w-5" />
             </div>
-
             <div className="min-w-0">
-              <p className="text-2xl font-extrabold tabular-nums">
+              <p className="text-xs text-muted-foreground">Total kursus</p>
+              <p className="mt-0.5 text-2xl font-bold tabular-nums">
                 {loading ? "—" : totalCourses}
-              </p>
-              <p className="text-xs text-muted-foreground">
-                Total materi
               </p>
             </div>
           </CardContent>
         </Card>
 
-        <Card className="overflow-hidden">
+        <Card>
           <CardContent className="flex items-center gap-3 p-4">
-            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-blue-500/10 text-blue-600 dark:text-blue-400">
-              <FolderOpen className="h-5 w-5" />
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-blue-500/10 text-blue-600">
+              <CheckCircle2 className="h-5 w-5" />
             </div>
-
             <div className="min-w-0">
-              <p className="text-2xl font-extrabold tabular-nums">
+              <p className="text-xs text-muted-foreground">Kategori digunakan</p>
+              <p className="mt-0.5 text-2xl font-bold tabular-nums">
                 {loading ? "—" : usedCategories}
               </p>
-              <p className="text-xs text-muted-foreground">
-                Kategori digunakan
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="flex items-center gap-3 p-4">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-amber-500/10 text-amber-600">
+              <CircleDashed className="h-5 w-5" />
+            </div>
+            <div className="min-w-0">
+              <p className="text-xs text-muted-foreground">Belum digunakan</p>
+              <p className="mt-0.5 text-2xl font-bold tabular-nums">
+                {loading ? "—" : unusedCategories}
               </p>
             </div>
           </CardContent>
         </Card>
       </section>
 
-      {/* DAFTAR KATEGORI */}
+      {/* CATEGORY TABLE */}
       <section className="space-y-4">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-          <div className="space-y-1">
-            <h3 className="text-base font-extrabold tracking-tight">
+        <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <h3 className="text-base font-bold tracking-tight">
               Daftar Kategori
             </h3>
             <p className="text-xs text-muted-foreground">
-              Kelola identitas, deskripsi, dan penggunaan setiap kategori.
+              Kelola identitas, warna, dan penggunaan kategori pembelajaran.
             </p>
           </div>
 
           {!loading && !error && (
-            <Badge variant="muted" className="w-fit">
-              {filteredItems.length} kategori
-            </Badge>
+            <span className="text-xs text-muted-foreground">
+              {filteredItems.length} dari {items.length} kategori
+            </span>
           )}
         </div>
 
-        {/* PENCARIAN */}
-        <div className="relative">
-          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+        {/* TOOLBAR */}
+        <Card>
+          <CardContent className="flex flex-col gap-3 p-3 sm:flex-row sm:items-center sm:p-4">
+            <div className="relative min-w-0 flex-1">
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
 
-          <Input
-            value={search}
-            onChange={(event) => setSearch(event.target.value)}
-            placeholder="Cari nama kategori, deskripsi, atau slug..."
-            className="h-11 pl-9 pr-10"
-          />
+              <Input
+                value={search}
+                onChange={(event) => setSearch(event.target.value)}
+                placeholder="Cari nama kategori, slug, atau deskripsi..."
+                className="h-10 pl-9 pr-9"
+              />
 
-          {search && (
-            <button
-              type="button"
-              onClick={() => setSearch("")}
-              aria-label="Hapus pencarian"
-              className="absolute right-3 top-1/2 -translate-y-1/2 rounded-md p-1 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-            >
-              <X className="h-4 w-4" />
-            </button>
-          )}
-        </div>
+              {search && (
+                <button
+                  type="button"
+                  aria-label="Hapus pencarian"
+                  onClick={() => setSearch("")}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              )}
+            </div>
 
-        {/* STATUS */}
+            <div className="relative sm:w-48">
+              <Palette className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+
+              <select
+                aria-label="Urutkan kategori"
+                value={sortBy}
+                onChange={(event) =>
+                  setSortBy(
+                    event.target.value as "name" | "courses" | "newest"
+                  )
+                }
+                className="h-10 w-full appearance-none rounded-md border border-input bg-background pl-9 pr-8 text-xs font-medium outline-none transition-colors focus:ring-2 focus:ring-ring"
+              >
+                <option value="name">Nama kategori</option>
+                <option value="courses">Jumlah kursus</option>
+                <option value="newest">Kategori terbaru</option>
+              </select>
+
+              <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* CONTENT STATES */}
         {loading ? (
           <CardGridSkeleton count={3} />
         ) : error ? (
-          <ErrorState message={error} onRetry={fetchData} />
+          <ErrorState
+            message={error}
+            onRetry={() => void fetchData()}
+          />
         ) : items.length === 0 ? (
-          <div className="rounded-2xl border border-dashed bg-muted/10 px-4 py-10">
+          <div className="rounded-xl border border-dashed px-4 py-10">
             <EmptyState
               title="Belum ada kategori"
               description="Tambahkan kategori pertama untuk mulai mengelompokkan materi pembelajaran."
@@ -451,42 +538,181 @@ export default function AdminCategoriesPage() {
             />
           </div>
         ) : filteredItems.length === 0 ? (
-          <div className="rounded-2xl border border-dashed bg-muted/10 px-4 py-10">
+          <div className="rounded-xl border border-dashed px-4 py-10">
             <EmptyState
               title="Kategori tidak ditemukan"
-              description="Coba gunakan kata kunci pencarian yang berbeda."
+              description="Tidak ada kategori yang sesuai dengan kata kunci pencarian."
               action={
                 <Button
                   variant="outline"
                   onClick={() => setSearch("")}
                 >
-                  Reset pencarian
+                  Reset Pencarian
                 </Button>
               }
             />
           </div>
         ) : (
-          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-            {filteredItems.map((item) => {
-              const count = countFor(item.name);
-              const color = item.color || DEFAULT_COLOR;
+          <Card className="overflow-hidden">
+            {/* TABLE HEADER */}
+            <div className="flex flex-col gap-1 border-b bg-muted/30 px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-5">
+              <div className="flex items-center gap-2">
+                <FolderOpen className="h-4 w-4 text-primary" />
+                <p className="text-sm font-semibold">
+                  Data Kategori Pembelajaran
+                </p>
+              </div>
+              <p className="text-[11px] text-muted-foreground">
+                Terhubung dengan data kursus GradeUp
+              </p>
+            </div>
 
-              return (
-                <Card
-                  key={item.id}
-                  className="group relative overflow-hidden transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg"
-                >
-                  <div
-                    className="absolute inset-x-0 top-0 h-1"
-                    style={{ backgroundColor: color }}
-                  />
+            {/* DESKTOP TABLE */}
+            <div className="hidden overflow-x-auto md:block">
+              <table className="w-full min-w-[850px] text-left">
+                <thead>
+                  <tr className="border-b bg-muted/20">
+                    <th className="w-12 px-5 py-3 text-center text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                      No.
+                    </th>
+                    <th className="px-4 py-3 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                      Informasi Kategori
+                    </th>
+                    <th className="px-4 py-3 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                      Identitas Slug
+                    </th>
+                    <th className="px-4 py-3 text-center text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                      Kursus
+                    </th>
+                    <th className="px-4 py-3 text-center text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                      Warna
+                    </th>
+                    <th className="px-4 py-3 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                      Dibuat
+                    </th>
+                    <th className="px-5 py-3 text-right text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                      Tindakan
+                    </th>
+                  </tr>
+                </thead>
 
-                  <CardContent className="space-y-5 p-5 pt-6">
-                    {/* IDENTITAS */}
+                <tbody className="divide-y">
+                  {filteredItems.map((item, index) => {
+                    const count = countFor(item.name);
+                    const color = item.color || DEFAULT_COLOR;
+
+                    return (
+                      <tr
+                        key={item.id}
+                        className="group transition-colors hover:bg-muted/20"
+                      >
+                        <td className="px-5 py-4 text-center text-xs tabular-nums text-muted-foreground">
+                          {index + 1}
+                        </td>
+
+                        <td className="max-w-[280px] px-4 py-4">
+                          <div className="flex items-start gap-3">
+                            <div
+                              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg"
+                              style={{
+                                backgroundColor: `${color}18`,
+                                color,
+                              }}
+                            >
+                              <Tag className="h-5 w-5" />
+                            </div>
+
+                            <div className="min-w-0">
+                              <p className="truncate text-sm font-semibold">
+                                {item.name}
+                              </p>
+                              <p className="mt-0.5 line-clamp-1 text-[11px] text-muted-foreground">
+                                {item.description ||
+                                  "Belum ada deskripsi kategori."}
+                              </p>
+                            </div>
+                          </div>
+                        </td>
+
+                        <td className="px-4 py-4">
+                          <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                            <Hash className="h-3.5 w-3.5 shrink-0" />
+                            <span className="max-w-[160px] truncate">
+                              {item.slug}
+                            </span>
+                          </div>
+                        </td>
+
+                        <td className="px-4 py-4 text-center">
+                          <Badge
+                            variant={count > 0 ? "success" : "outline"}
+                            className="font-medium"
+                          >
+                            {count} kursus
+                          </Badge>
+                        </td>
+
+                        <td className="px-4 py-4">
+                          <div className="flex items-center justify-center gap-2">
+                            <span
+                              className="h-5 w-5 rounded-md border shadow-sm"
+                              style={{ backgroundColor: color }}
+                            />
+                            <span className="text-[10px] font-medium uppercase text-muted-foreground">
+                              {color}
+                            </span>
+                          </div>
+                        </td>
+
+                        <td className="px-4 py-4">
+                          <div className="flex items-center gap-1.5 whitespace-nowrap text-xs text-muted-foreground">
+                            <CalendarDays className="h-3.5 w-3.5" />
+                            {formatDate(item.created_at)}
+                          </div>
+                        </td>
+
+                        <td className="px-5 py-4">
+                          <div className="flex items-center justify-end gap-1.5">
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="h-8 gap-1.5"
+                              onClick={() => openEdit(item)}
+                            >
+                              <Pencil className="h-3.5 w-3.5" />
+                              Edit
+                            </Button>
+
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="h-8 gap-1.5 text-destructive hover:bg-destructive/10 hover:text-destructive"
+                              onClick={() => setRemoving(item)}
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                              Hapus
+                            </Button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+
+            {/* MOBILE LIST */}
+            <div className="divide-y md:hidden">
+              {filteredItems.map((item, index) => {
+                const count = countFor(item.name);
+                const color = item.color || DEFAULT_COLOR;
+
+                return (
+                  <div key={item.id} className="space-y-3 p-4">
                     <div className="flex items-start justify-between gap-3">
-                      <div className="flex min-w-0 items-center gap-3">
+                      <div className="flex min-w-0 items-start gap-3">
                         <div
-                          className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl shadow-sm"
+                          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg"
                           style={{
                             backgroundColor: `${color}18`,
                             color,
@@ -496,75 +722,93 @@ export default function AdminCategoriesPage() {
                         </div>
 
                         <div className="min-w-0">
-                          <h4 className="truncate font-bold tracking-tight">
+                          <p className="truncate text-sm font-bold">
                             {item.name}
-                          </h4>
-                          <p className="mt-0.5 truncate text-[11px] text-muted-foreground">
-                            Kategori pembelajaran
+                          </p>
+                          <p className="mt-0.5 truncate text-[10px] text-muted-foreground">
+                            {item.slug}
                           </p>
                         </div>
                       </div>
 
                       <Badge
                         variant={count > 0 ? "success" : "outline"}
-                        className="shrink-0"
                       >
-                        {count} materi
+                        {count} kursus
                       </Badge>
                     </div>
 
-                    {/* DESKRIPSI */}
-                    <div className="min-h-[76px] space-y-2">
-                      <p className="line-clamp-3 text-xs leading-relaxed text-muted-foreground">
-                        {item.description || "Belum ada deskripsi kategori."}
-                      </p>
+                    <p className="line-clamp-2 text-xs leading-relaxed text-muted-foreground">
+                      {item.description ||
+                        "Belum ada deskripsi kategori."}
+                    </p>
 
-                      <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
-                        <Hash className="h-3 w-3 shrink-0" />
-                        <span className="truncate">{item.slug}</span>
+                    <div className="grid grid-cols-2 gap-3 rounded-lg bg-muted/30 p-3">
+                      <div>
+                        <p className="text-[10px] text-muted-foreground">
+                          Warna identitas
+                        </p>
+                        <div className="mt-1.5 flex items-center gap-2">
+                          <span
+                            className="h-4 w-4 rounded border"
+                            style={{ backgroundColor: color }}
+                          />
+                          <span className="text-xs font-medium uppercase">
+                            {color}
+                          </span>
+                        </div>
+                      </div>
+
+                      <div>
+                        <p className="text-[10px] text-muted-foreground">
+                          Tanggal dibuat
+                        </p>
+                        <p className="mt-1.5 text-xs font-medium">
+                          {formatDate(item.created_at)}
+                        </p>
                       </div>
                     </div>
 
-                    {/* PENGGUNAAN */}
-                    <div className="flex items-center justify-between rounded-xl bg-muted/40 px-3 py-2.5">
-                      <span className="text-xs text-muted-foreground">
-                        Penggunaan kategori
-                      </span>
-
-                      <span className="text-xs font-bold tabular-nums">
-                        {count > 0
-                          ? `${count} kursus`
-                          : "Belum digunakan"}
-                      </span>
-                    </div>
-
-                    {/* AKSI */}
-                    <div className="flex gap-2 border-t pt-3">
+                    <div className="flex gap-2">
                       <Button
                         size="sm"
                         variant="outline"
-                        onClick={() => openEdit(item)}
                         className="flex-1 gap-1.5"
+                        onClick={() => openEdit(item)}
                       >
                         <Pencil className="h-3.5 w-3.5" />
-                        Edit
+                        Edit Kategori
                       </Button>
 
                       <Button
                         size="sm"
                         variant="ghost"
+                        className="flex-1 gap-1.5 text-destructive hover:bg-destructive/10 hover:text-destructive"
                         onClick={() => setRemoving(item)}
-                        className="gap-1.5 text-destructive hover:bg-destructive/10 hover:text-destructive"
                       >
                         <Trash2 className="h-3.5 w-3.5" />
                         Hapus
                       </Button>
                     </div>
-                  </CardContent>
-                </Card>
-              );
-            })}
-          </div>
+
+                    <p className="text-right text-[10px] text-muted-foreground">
+                      Kategori #{index + 1}
+                    </p>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* TABLE FOOTER */}
+            <div className="flex flex-col gap-1 border-t bg-muted/20 px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-5">
+              <p className="text-[11px] text-muted-foreground">
+                Menampilkan {filteredItems.length} kategori
+              </p>
+              <p className="text-[11px] text-muted-foreground">
+                Data tersimpan di Supabase
+              </p>
+            </div>
+          </Card>
         )}
       </section>
 
@@ -578,72 +822,104 @@ export default function AdminCategoriesPage() {
           }
         }}
       >
-        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
+        <DialogContent className="max-h-[92vh] overflow-y-auto sm:max-w-xl">
           {draft && (
             <>
               <DialogHeader>
-                <DialogTitle className="text-lg">
-                  {draft.id ? "Edit Kategori" : "Tambah Kategori"}
-                </DialogTitle>
+                <div className="flex items-center gap-3">
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                    {draft.id ? (
+                      <Pencil className="h-5 w-5" />
+                    ) : (
+                      <Plus className="h-5 w-5" />
+                    )}
+                  </div>
 
-                <DialogDescription>
-                  Lengkapi identitas kategori yang akan digunakan
-                  untuk mengelompokkan kursus GradeUp.
-                </DialogDescription>
+                  <div>
+                    <DialogTitle className="text-base font-bold">
+                      {draft.id ? "Edit Kategori" : "Tambah Kategori"}
+                    </DialogTitle>
+                    <DialogDescription className="mt-1 text-xs">
+                      Atur identitas dan tampilan kategori pembelajaran.
+                    </DialogDescription>
+                  </div>
+                </div>
               </DialogHeader>
 
-              <div className="space-y-5 py-2">
-                {/* NAMA */}
-                <div className="space-y-2">
-                  <Label htmlFor="k-name">
-                    Nama Kategori <span className="text-destructive">*</span>
-                  </Label>
-
-                  <Input
-                    id="k-name"
-                    value={draft.name ?? ""}
-                    onChange={(event) => {
-                      setDraft({
-                        ...draft,
-                        name: event.target.value,
-                      });
-
-                      if (err.name) {
-                        setErr({});
-                      }
-                    }}
-                    placeholder="Contoh: Matematika"
-                    maxLength={80}
-                    disabled={saving}
-                  />
-
-                  <div className="flex items-center justify-between gap-2">
-                    <FieldError message={err.name} />
-                    <span className="ml-auto text-[10px] text-muted-foreground">
-                      {(draft.name ?? "").length}/80
-                    </span>
-                  </div>
-                </div>
-
-                {/* SLUG PREVIEW */}
-                <div className="space-y-2">
-                  <Label>Slug URL</Label>
-
-                  <div className="flex items-center gap-2 rounded-lg border bg-muted/40 px-3 py-2.5">
-                    <Hash className="h-4 w-4 shrink-0 text-muted-foreground" />
-                    <span className="truncate text-xs text-muted-foreground">
-                      {slugify(draft.name ?? "") || "slug-kategori"}
-                    </span>
+              <div className="space-y-5 py-3">
+                {/* IDENTITAS */}
+                <section className="space-y-3">
+                  <div className="flex items-center gap-2 border-b pb-2">
+                    <Tag className="h-4 w-4 text-primary" />
+                    <div>
+                      <h4 className="text-sm font-bold">
+                        Identitas Kategori
+                      </h4>
+                      <p className="text-[11px] text-muted-foreground">
+                        Nama dan alamat identifikasi kategori.
+                      </p>
+                    </div>
                   </div>
 
-                  <p className="text-[10px] text-muted-foreground">
-                    Slug dibuat otomatis berdasarkan nama kategori.
-                  </p>
-                </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="k-name">
+                      Nama Kategori{" "}
+                      <span className="text-destructive">*</span>
+                    </Label>
+
+                    <Input
+                      id="k-name"
+                      value={draft.name ?? ""}
+                      onChange={(event) => {
+                        setDraft({
+                          ...draft,
+                          name: event.target.value,
+                        });
+
+                        if (err.name) setErr({});
+                      }}
+                      placeholder="Contoh: Matematika"
+                      maxLength={80}
+                      disabled={saving}
+                    />
+
+                    <div className="flex items-center justify-between gap-2">
+                      <FieldError message={err.name} />
+                      <span className="ml-auto text-[10px] text-muted-foreground">
+                        {(draft.name ?? "").length}/80
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label>Slug URL</Label>
+
+                    <div className="flex items-center gap-2 rounded-lg border bg-muted/40 px-3 py-2.5">
+                      <Hash className="h-4 w-4 shrink-0 text-muted-foreground" />
+                      <span className="truncate text-xs font-medium text-muted-foreground">
+                        {slugify(draft.name ?? "") || "slug-kategori"}
+                      </span>
+                    </div>
+
+                    <p className="text-[10px] text-muted-foreground">
+                      Slug dibuat otomatis berdasarkan nama kategori.
+                    </p>
+                  </div>
+                </section>
 
                 {/* DESKRIPSI */}
-                <div className="space-y-2">
-                  <Label htmlFor="k-desc">Deskripsi</Label>
+                <section className="space-y-3">
+                  <div className="flex items-center gap-2 border-b pb-2">
+                    <BookOpen className="h-4 w-4 text-primary" />
+                    <div>
+                      <h4 className="text-sm font-bold">
+                        Deskripsi Kategori
+                      </h4>
+                      <p className="text-[11px] text-muted-foreground">
+                        Penjelasan singkat mengenai kategori.
+                      </p>
+                    </div>
+                  </div>
 
                   <Textarea
                     id="k-desc"
@@ -663,13 +939,23 @@ export default function AdminCategoriesPage() {
                   <p className="text-right text-[10px] text-muted-foreground">
                     {(draft.description ?? "").length}/300 karakter
                   </p>
-                </div>
+                </section>
 
                 {/* WARNA */}
-                <div className="space-y-2">
-                  <Label htmlFor="k-color">Warna Identitas</Label>
+                <section className="space-y-3">
+                  <div className="flex items-center gap-2 border-b pb-2">
+                    <Palette className="h-4 w-4 text-primary" />
+                    <div>
+                      <h4 className="text-sm font-bold">
+                        Identitas Visual
+                      </h4>
+                      <p className="text-[11px] text-muted-foreground">
+                        Tentukan warna pembeda kategori.
+                      </p>
+                    </div>
+                  </div>
 
-                  <div className="flex items-center gap-3 rounded-xl border p-3">
+                  <div className="flex items-center gap-3 rounded-lg border p-3">
                     <Input
                       id="k-color"
                       type="color"
@@ -681,29 +967,62 @@ export default function AdminCategoriesPage() {
                         })
                       }
                       disabled={saving}
-                      className="h-10 w-14 cursor-pointer p-1"
+                      className="h-11 w-14 cursor-pointer p-1"
                     />
 
                     <div className="min-w-0 flex-1">
                       <p className="text-xs font-semibold">
                         Warna kategori
                       </p>
-                      <p className="text-[11px] text-muted-foreground">
+                      <p className="mt-0.5 text-[11px] uppercase text-muted-foreground">
                         {draft.color || DEFAULT_COLOR}
                       </p>
                     </div>
 
                     <div
-                      className="h-8 w-8 shrink-0 rounded-lg border shadow-sm"
+                      className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border"
                       style={{
-                        backgroundColor: draft.color || DEFAULT_COLOR,
+                        backgroundColor: `${draft.color || DEFAULT_COLOR}18`,
+                        color: draft.color || DEFAULT_COLOR,
                       }}
-                    />
+                    >
+                      <Tag className="h-5 w-5" />
+                    </div>
                   </div>
-                </div>
+                </section>
+
+                {/* PREVIEW */}
+                <section className="space-y-2">
+                  <Label>Pratinjau Kategori</Label>
+
+                  <div className="flex items-center gap-3 rounded-xl border bg-muted/20 p-4">
+                    <div
+                      className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg"
+                      style={{
+                        backgroundColor: `${draft.color || DEFAULT_COLOR}18`,
+                        color: draft.color || DEFAULT_COLOR,
+                      }}
+                    >
+                      <Tag className="h-5 w-5" />
+                    </div>
+
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-bold">
+                        {draft.name?.trim() || "Nama Kategori"}
+                      </p>
+                      <p className="mt-0.5 truncate text-[11px] text-muted-foreground">
+                        {slugify(draft.name ?? "") || "slug-kategori"}
+                      </p>
+                    </div>
+
+                    <Badge variant="outline" className="ml-auto shrink-0">
+                      Preview
+                    </Badge>
+                  </div>
+                </section>
               </div>
 
-              <DialogFooter className="gap-2 sm:gap-2">
+              <DialogFooter className="gap-2 border-t pt-4 sm:gap-2">
                 <Button
                   variant="outline"
                   onClick={() => {
@@ -716,7 +1035,7 @@ export default function AdminCategoriesPage() {
                 </Button>
 
                 <Button
-                  onClick={save}
+                  onClick={() => void save()}
                   disabled={saving}
                   className="gap-2"
                 >
@@ -727,7 +1046,11 @@ export default function AdminCategoriesPage() {
                     </>
                   ) : (
                     <>
-                      <Plus className="h-4 w-4" />
+                      {draft.id ? (
+                        <CheckCircle2 className="h-4 w-4" />
+                      ) : (
+                        <Plus className="h-4 w-4" />
+                      )}
                       {draft.id ? "Simpan Perubahan" : "Tambah Kategori"}
                     </>
                   )}
@@ -741,34 +1064,36 @@ export default function AdminCategoriesPage() {
       {/* KONFIRMASI HAPUS */}
       <ConfirmDialog
         open={!!removing}
-        onOpenChange={(open) => !open && setRemoving(null)}
+        onOpenChange={(open) => {
+          if (!open && !deleting) setRemoving(null);
+        }}
         title="Hapus kategori?"
         description={
           removing && countFor(removing.name) > 0
-            ? `Kategori "${removing.name}" masih digunakan oleh ${countFor(removing.name)} materi. Penghapusan dapat ditolak oleh database jika masih ada relasi yang mengharuskan kategori tetap tersedia.`
+            ? `Kategori "${removing.name}" masih digunakan oleh ${countFor(removing.name)} kursus. Penghapusan mungkin ditolak oleh database jika masih ada relasi yang mengharuskan kategori tetap tersedia.`
             : `Kategori "${removing?.name ?? ""}" akan dihapus permanen dari database. Tindakan ini tidak dapat dibatalkan.`
         }
         destructive
-        confirmLabel="Hapus Permanen"
+        confirmLabel={deleting ? "Menghapus..." : "Hapus Permanen"}
         onConfirm={handleDelete}
       />
 
-      {/* INFORMASI */}
+      {/* INFORMATION */}
       {!loading && !error && items.length > 0 && (
-        <div className="flex items-start gap-3 rounded-2xl border border-amber-500/20 bg-amber-500/5 p-4">
-          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-amber-500/10 text-amber-600 dark:text-amber-400">
+        <div className="flex items-start gap-3 rounded-xl border border-amber-500/20 bg-amber-500/5 p-4">
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-amber-500/10 text-amber-600">
             <AlertTriangle className="h-4 w-4" />
           </div>
 
-          <div className="min-w-0">
+          <div>
             <p className="text-xs font-bold">
-              Perhatikan penggunaan kategori
+              Catatan pengelolaan kategori
             </p>
-            <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">
-              Sebelum menghapus kategori, pastikan tidak ada kursus
-              yang masih menggunakannya. Mengubah nama kategori juga
-              tidak otomatis mengubah nilai kategori pada kursus yang
-              sudah tersimpan.
+            <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+              Jika nama kategori diubah, nilai kategori pada kursus yang
+              sudah tersimpan tidak otomatis ikut berubah karena kursus
+              saat ini menggunakan nama kategori. Periksa kembali kursus
+              terkait setelah melakukan perubahan.
             </p>
           </div>
         </div>
