@@ -1,3 +1,4 @@
+
 import {
   LayoutDashboard,
   BookOpen,
@@ -15,6 +16,7 @@ import {
   FileBarChart,
   SlidersHorizontal,
   Bookmark,
+  Megaphone,
   type LucideIcon,
 } from "lucide-react";
 
@@ -61,9 +63,21 @@ export const ADMIN_NAV: NavItem[] = [
   { label: "Kategori Materi", to: "/admin/categories", icon: FolderTree },
   { label: "Paket Ujian", to: "/admin/exams", icon: ClipboardList },
   { label: "Bank Soal", to: "/admin/questions", icon: Library },
+
+  // Manajemen Pengumuman
+  {
+    label: "Manajemen Pengumuman",
+    to: "/admin/announcements",
+    icon: Megaphone,
+  },
+
   { label: "Transaksi", to: "/admin/transactions", icon: Receipt },
   { label: "Laporan & Analitik", to: "/admin/reports", icon: FileBarChart },
-  { label: "Pengaturan Sistem", to: "/admin/settings", icon: SlidersHorizontal },
+  {
+    label: "Pengaturan Sistem",
+    to: "/admin/settings",
+    icon: SlidersHorizontal,
+  },
 ];
 
 export const UPGRADE_NAV = {
