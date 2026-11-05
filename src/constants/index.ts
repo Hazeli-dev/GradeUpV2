@@ -138,36 +138,31 @@ export const ADMIN_NAV: NavItem[] = [
     to: "/admin/questions",
     icon: Library,
   },
-
-  // Manajemen Pengumuman
   {
     label: "Manajemen Pengumuman",
     to: "/admin/announcements",
     icon: Megaphone,
   },
-
-  // Helpdesk dan Chat Siswa
   {
     label: "Chat Siswa",
     to: "/admin/chats",
     icon: MessageCircle,
   },
-
-  // Manajemen Transaksi
   {
     label: "Transaksi",
     to: "/admin/transactions",
     icon: Receipt,
   },
-
-  // Laporan dan Analitik
+  {
+    label: "Manajemen Paket",
+    to: "/admin/premium-plans",
+    icon: Crown,
+  },
   {
     label: "Laporan & Analitik",
     to: "/admin/reports",
     icon: FileBarChart,
   },
-
-  // Pengaturan Sistem
   {
     label: "Pengaturan Sistem",
     to: "/admin/settings",
