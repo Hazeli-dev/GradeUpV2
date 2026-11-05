@@ -33,6 +33,7 @@ import { supabase } from "@/lib/supabase";
 import { cn } from "@/lib/utils";
 
 type ExamStatus = "Aktif" | "Akan Datang" | "Selesai";
+type StudentExamResultStatus = "LULUS" | "BELUM LULUS";
 
 interface ExamPackageItem {
   id: string;
@@ -50,6 +51,13 @@ interface ExamPackageItem {
   start_date_str?: string;
   time_progress?: number;
   premium?: boolean;
+  passing_score: number;
+}
+
+interface StudentExamResult {
+  status: StudentExamResultStatus;
+  score: number;
+  passingScore: number;
 }
 
 const STATUS_ORDER: ExamStatus[] = [
@@ -67,6 +75,7 @@ const GRADES_BY_LEVEL: Record<string, number[]> = {
 
 const EDUCATION_LEVELS = ["SD", "SMP", "SMA", "SMK"];
 const ALL = "Semua";
+const DEFAULT_PASSING_SCORE = 70;
 
 const STATUS_CONFIG: Record<
   ExamStatus,
@@ -185,10 +194,10 @@ export default function StudentExamsPage() {
 
   const [examPackages, setExamPackages] = useState<ExamPackageItem[]>([]);
 
-  // Riwayat penyelesaian ujian khusus siswa yang sedang login.
-  const [completedExamIds, setCompletedExamIds] = useState<Set<string>>(
-    new Set()
-  );
+  // Status hasil ujian khusus siswa yang sedang login.
+  const [examResults, setExamResults] = useState<
+    Record<string, StudentExamResult>
+  >({});
 
   const [studentName, setStudentName] = useState("Siswa");
   const [userClass, setUserClass] = useState("Profil belum dilengkapi");
@@ -384,17 +393,24 @@ export default function StudentExamsPage() {
           status,
           days_left: daysLeft,
           time_progress: timeProgress,
-          premium: pkg.premium,
+          premium: Boolean(pkg.premium),
+          passing_score:
+            pkg.passing_score != null &&
+            Number.isFinite(Number(pkg.passing_score))
+              ? Number(pkg.passing_score)
+              : DEFAULT_PASSING_SCORE,
           start_date_str: formatDate(
             pkg.start_time || pkg.created_at
           ),
         };
       });
 
-      // 4. Ambil riwayat ujian yang sudah selesai.
-      // Data dibatasi berdasarkan user.id dan status completed.
-      // Ujian yang sedang dikerjakan belum menghilangkan badge NEW.
+      // 4. Ambil semua riwayat ujian yang sudah dikumpulkan.
+      // Data hanya milik siswa yang sedang login.
+      // Ujian yang masih berjalan tidak dihitung sebagai selesai.
       const packageIds = formattedPackages.map((pkg) => pkg.id);
+
+      const resultsMap: Record<string, StudentExamResult> = {};
 
       if (packageIds.length > 0) {
         const {
@@ -402,26 +418,69 @@ export default function StudentExamsPage() {
           error: attemptsError,
         } = await supabase
           .from("exam_attempts")
-          .select("exam_id")
+          .select("exam_id, score, created_at")
           .eq("user_id", user.id)
           .eq("status", "completed")
-          .in("exam_id", packageIds);
+          .in("exam_id", packageIds)
+          .order("created_at", { ascending: false });
 
         if (attemptsError) {
           throw attemptsError;
         }
 
-        const completedIds = new Set<string>(
-          (completedAttempts || [])
-            .map((attempt) => attempt.exam_id)
-            .filter((id): id is string => Boolean(id))
-        );
+        // Kelompokkan hasil pengerjaan berdasarkan paket ujian.
+        const attemptsByExam: Record<
+          string,
+          { score: number; createdAt: string }[]
+        > = {};
 
-        setCompletedExamIds(completedIds);
-      } else {
-        setCompletedExamIds(new Set());
+        (completedAttempts || []).forEach((attempt) => {
+          if (!attempt.exam_id) return;
+
+          if (!attemptsByExam[attempt.exam_id]) {
+            attemptsByExam[attempt.exam_id] = [];
+          }
+
+          attemptsByExam[attempt.exam_id].push({
+            score: Number(attempt.score ?? 0),
+            createdAt: attempt.created_at || "",
+          });
+        });
+
+        formattedPackages.forEach((pkg) => {
+          const attempts = attemptsByExam[pkg.id] || [];
+
+          if (attempts.length === 0) return;
+
+          const passingScore = pkg.passing_score;
+
+          // Karena query sudah diurutkan terbaru,
+          // attempts[0] adalah hasil pengerjaan terbaru.
+          const latestAttempt = attempts[0];
+
+          // Siswa dinyatakan lulus jika minimal satu percobaan
+          // mencapai atau melampaui KKM paket tersebut.
+          const passedAttempt = attempts.find(
+            (attempt) => attempt.score >= passingScore
+          );
+
+          if (passedAttempt) {
+            resultsMap[pkg.id] = {
+              status: "LULUS",
+              score: passedAttempt.score,
+              passingScore,
+            };
+          } else {
+            resultsMap[pkg.id] = {
+              status: "BELUM LULUS",
+              score: latestAttempt.score,
+              passingScore,
+            };
+          }
+        });
       }
 
+      setExamResults(resultsMap);
       setExamPackages(formattedPackages);
     } catch (error) {
       console.error("Gagal mengambil data paket ujian:", error);
@@ -533,6 +592,20 @@ export default function StudentExamsPage() {
     }),
     [examPackages]
   );
+
+  const resultCounts = useMemo(() => {
+    const results = Object.values(examResults);
+
+    return {
+      passed: results.filter(
+        (result) => result.status === "LULUS"
+      ).length,
+      failed: results.filter(
+        (result) => result.status === "BELUM LULUS"
+      ).length,
+      new: Math.max(0, examPackages.length - results.length),
+    };
+  }, [examPackages, examResults]);
 
   const resetToProfile = () => {
     setSelectedLevel(profileLevel || ALL);
@@ -776,6 +849,48 @@ export default function StudentExamsPage() {
               </div>
             </div>
           </div>
+        </div>
+      </section>
+
+      {/* RINGKASAN HASIL UJIAN */}
+      <section className="grid grid-cols-3 gap-3">
+        <div className="rounded-2xl border border-rose-500/20 bg-rose-500/5 p-3 sm:p-4">
+          <div className="flex items-center gap-2 text-rose-700 dark:text-rose-300">
+            <Sparkles className="h-4 w-4" />
+            <span className="text-xs font-bold">Belum dikerjakan</span>
+          </div>
+          <p className="mt-2 text-2xl font-black tabular-nums text-rose-700 dark:text-rose-300">
+            {resultCounts.new}
+          </p>
+          <p className="mt-0.5 text-[10px] text-muted-foreground">
+            Paket berstatus NEW
+          </p>
+        </div>
+
+        <div className="rounded-2xl border border-emerald-500/20 bg-emerald-500/5 p-3 sm:p-4">
+          <div className="flex items-center gap-2 text-emerald-700 dark:text-emerald-300">
+            <CheckCircle2 className="h-4 w-4" />
+            <span className="text-xs font-bold">Lulus</span>
+          </div>
+          <p className="mt-2 text-2xl font-black tabular-nums text-emerald-700 dark:text-emerald-300">
+            {resultCounts.passed}
+          </p>
+          <p className="mt-0.5 text-[10px] text-muted-foreground">
+            Memenuhi nilai KKM
+          </p>
+        </div>
+
+        <div className="rounded-2xl border border-amber-500/20 bg-amber-500/5 p-3 sm:p-4">
+          <div className="flex items-center gap-2 text-amber-700 dark:text-amber-300">
+            <AlertCircle className="h-4 w-4" />
+            <span className="text-xs font-bold">Belum lulus</span>
+          </div>
+          <p className="mt-2 text-2xl font-black tabular-nums text-amber-700 dark:text-amber-300">
+            {resultCounts.failed}
+          </p>
+          <p className="mt-0.5 text-[10px] text-muted-foreground">
+            Belum mencapai KKM
+          </p>
         </div>
       </section>
 
@@ -1125,8 +1240,14 @@ export default function StudentExamsPage() {
                       const isAvailable = pkg.status === "Aktif";
                       const isDone = pkg.status === "Selesai";
 
-                      // NEW hilang hanya jika siswa ini sudah submit ujian.
-                      const isNew = !completedExamIds.has(pkg.id);
+                      const examResult = examResults[pkg.id];
+
+                      // NEW hanya jika belum ada ujian berstatus completed.
+                      const isNew = !examResult;
+                      const isPassed =
+                        examResult?.status === "LULUS";
+                      const isFailed =
+                        examResult?.status === "BELUM LULUS";
 
                       const isUrgent =
                         isAvailable &&
@@ -1169,10 +1290,23 @@ export default function StudentExamsPage() {
                                 <div className="min-w-0 flex-1">
                                   <div className="flex flex-wrap items-center gap-2">
                                     {isNew && (
-                                      <span className="relative inline-flex items-center gap-1.5 overflow-hidden rounded-lg border border-rose-500/40 bg-rose-600 px-2.5 py-1 text-[10px] font-black tracking-wider text-white shadow-md shadow-rose-500/30">
-                                        <span className="absolute inset-0 animate-pulse bg-white/20" />
-                                        <span className="relative h-1.5 w-1.5 rounded-full bg-white shadow-[0_0_7px_rgba(255,255,255,0.9)]" />
-                                        <span className="relative">NEW</span>
+                                      <span className="inline-flex items-center gap-1.5 rounded-lg border border-rose-500/40 bg-rose-600 px-2.5 py-1 text-[10px] font-black tracking-wider text-white shadow-md shadow-rose-500/20">
+                                        <span className="h-1.5 w-1.5 rounded-full bg-white" />
+                                        NEW
+                                      </span>
+                                    )}
+
+                                    {isPassed && (
+                                      <span className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-1 text-[10px] font-black tracking-wider text-emerald-700 dark:text-emerald-300">
+                                        <CheckCircle2 className="h-3 w-3" />
+                                        LULUS
+                                      </span>
+                                    )}
+
+                                    {isFailed && (
+                                      <span className="inline-flex items-center gap-1.5 rounded-lg border border-rose-500/30 bg-rose-500/10 px-2.5 py-1 text-[10px] font-black tracking-wider text-rose-700 dark:text-rose-300">
+                                        <AlertCircle className="h-3 w-3" />
+                                        BELUM LULUS
                                       </span>
                                     )}
 
@@ -1219,6 +1353,21 @@ export default function StudentExamsPage() {
                                       <GraduationCap className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
                                       {pkg.class_info}
                                     </span>
+
+                                    {examResult && (
+                                      <span
+                                        className={cn(
+                                          "inline-flex items-center gap-1.5 text-xs font-bold",
+                                          isPassed
+                                            ? "text-emerald-700 dark:text-emerald-400"
+                                            : "text-rose-700 dark:text-rose-400"
+                                        )}
+                                      >
+                                        <Target className="h-3.5 w-3.5" />
+                                        Nilai {examResult.score} / KKM{" "}
+                                        {examResult.passingScore}
+                                      </span>
+                                    )}
 
                                     {isAvailable && (
                                       <span
@@ -1285,7 +1434,11 @@ export default function StudentExamsPage() {
                                     className="h-11 w-full gap-2 rounded-xl bg-emerald-600 px-5 text-xs font-bold text-white shadow-md shadow-emerald-600/15 transition-all hover:bg-emerald-700 hover:shadow-lg sm:w-auto sm:min-w-[160px]"
                                   >
                                     <Play className="h-4 w-4 fill-current" />
-                                    Mulai Ujian
+                                    {isPassed
+                                      ? "Ulangi Ujian"
+                                      : isFailed
+                                        ? "Coba Lagi"
+                                        : "Mulai Ujian"}
                                     <ArrowUpRight className="h-4 w-4 opacity-70" />
                                   </Button>
                                 ) : (
