@@ -1,8 +1,10 @@
+
 import { createContext, useContext, Component, type ReactNode } from "react";
 import { BrowserRouter } from "react-router-dom";
 import { AppRoutes } from "@/routes";
 import { Toaster } from "sonner";
-import { ThemeProvider } from "@/hooks/use-theme"; // Path disesuaikan ke src/hooks/use-theme.tsx
+import { ThemeProvider } from "@/hooks/use-theme";
+import { UpgradeProvider } from "@/hooks/use-upgrade-modal";
 
 const GuestGateContext = createContext<{ requireLogin: (activity?: string) => void }>({
   requireLogin: () => {},
@@ -44,7 +46,9 @@ class SafeErrorBoundary extends Component<Props, State> {
       return (
         <div className="flex min-h-screen w-full flex-col items-center justify-center bg-background p-4 text-center">
           <div className="max-w-md space-y-4 rounded-xl border border-border bg-card p-6 shadow-lg">
-            <h2 className="text-xl font-bold text-foreground">Terjadi Kesalahan Aplikasi</h2>
+            <h2 className="text-xl font-bold text-foreground">
+              Terjadi Kesalahan Aplikasi
+            </h2>
             <p className="text-sm text-muted-foreground">
               Aplikasi mengalami masalah saat memuat komponen.
             </p>
@@ -71,10 +75,12 @@ export function App() {
     <SafeErrorBoundary>
       <ThemeProvider>
         <AppGuestGateProvider>
-          <BrowserRouter>
-            <AppRoutes />
-            <Toaster position="top-right" richColors />
-          </BrowserRouter>
+          <UpgradeProvider>
+            <BrowserRouter>
+              <AppRoutes />
+              <Toaster position="top-right" richColors />
+            </BrowserRouter>
+          </UpgradeProvider>
         </AppGuestGateProvider>
       </ThemeProvider>
     </SafeErrorBoundary>
