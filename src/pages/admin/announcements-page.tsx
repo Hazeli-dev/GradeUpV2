@@ -816,7 +816,7 @@ export default function AdminAnnouncementsPage() {
                 </Button>
 
                 <Button
-                  variant="secondary"
+                  variant="soft"
                   onClick={() => void save("Draft")}
                   disabled={saving}
                   className="gap-2"
