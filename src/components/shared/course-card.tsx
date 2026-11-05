@@ -42,6 +42,9 @@ interface CourseCardProps {
   showProgress?: boolean;
   onClick?: () => void;
   className?: string;
+  isFavorite?: boolean;
+  onToggleFavorite?: (courseId: string) => void;
+  favoriteLoading?: boolean;
 }
 
 function isLegacyCourse(course: CourseCardData): course is Course {
@@ -101,7 +104,7 @@ export function CourseThumbnail({
 
       <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/65 via-black/10 to-black/10" />
 
-      <div className="absolute right-4 top-4 flex h-12 w-12 items-center justify-center rounded-2xl border border-white/25 bg-white/15 text-white shadow-lg backdrop-blur-md">
+      <div className="pointer-events-none absolute right-4 top-4 flex h-12 w-12 items-center justify-center rounded-2xl border border-white/25 bg-white/15 text-white shadow-lg backdrop-blur-md">
         <BookOpen className="h-6 w-6" />
       </div>
 
@@ -119,6 +122,9 @@ export function CourseCard({
   showProgress = false,
   onClick,
   className,
+  isFavorite = false,
+  onToggleFavorite,
+  favoriteLoading = false,
 }: CourseCardProps) {
   const progress = Math.min(
     100,
@@ -141,45 +147,90 @@ export function CourseCard({
     "Pelajari materi ini untuk meningkatkan pemahaman dan kemampuan Anda.";
 
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      aria-label={`Buka materi ${course.title}`}
+    <div
       className={cn(
-        "group flex w-full flex-col overflow-hidden rounded-2xl border border-border/80 bg-card text-left shadow-sm",
+        "group relative flex w-full flex-col overflow-hidden rounded-2xl border border-border/80 bg-card text-left shadow-sm",
         "transition-all duration-300 hover:-translate-y-1 hover:border-primary/40 hover:shadow-xl hover:shadow-primary/10",
-        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2",
         className
       )}
     >
+      {/* AREA THUMBNAIL */}
       <div className="relative w-full">
-        <CourseThumbnail course={course} />
+        <button
+          type="button"
+          onClick={onClick}
+          aria-label={`Buka materi ${course.title}`}
+          className="block w-full text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-inset"
+        >
+          <CourseThumbnail course={course} />
 
-        <div className="absolute right-3 top-3 z-10">
-          {course.premium ? (
-            <Badge className="gap-1 border border-amber-300/30 bg-amber-400/95 px-2.5 py-1 text-[10px] font-bold text-amber-950 shadow-sm hover:bg-amber-400">
-              <Lock className="h-3 w-3" />
-              Premium
-            </Badge>
-          ) : (
-            <Badge className="gap-1 border border-white/30 bg-white/95 px-2.5 py-1 text-[10px] font-bold text-emerald-700 shadow-sm hover:bg-white">
-              <CheckCircle2 className="h-3 w-3" />
-              Gratis
-            </Badge>
-          )}
-        </div>
-
-        {hasProgress && (
-          <div className="absolute inset-x-0 bottom-0 h-1 bg-white/30">
-            <div
-              className="h-full bg-white transition-all duration-500"
-              style={{ width: `${progress}%` }}
-            />
+          <div className="absolute right-3 top-3 z-10 pointer-events-none">
+            {course.premium ? (
+              <Badge className="gap-1 border border-amber-300/30 bg-amber-400/95 px-2.5 py-1 text-[10px] font-bold text-amber-950 shadow-sm hover:bg-amber-400">
+                <Lock className="h-3 w-3" />
+                Premium
+              </Badge>
+            ) : (
+              <Badge className="gap-1 border border-white/30 bg-white/95 px-2.5 py-1 text-[10px] font-bold text-emerald-700 shadow-sm hover:bg-white">
+                <CheckCircle2 className="h-3 w-3" />
+                Gratis
+              </Badge>
+            )}
           </div>
+
+          {hasProgress && (
+            <div className="pointer-events-none absolute inset-x-0 bottom-0 h-1 bg-white/30">
+              <div
+                className="h-full bg-white transition-all duration-500"
+                style={{ width: `${progress}%` }}
+              />
+            </div>
+          )}
+        </button>
+
+        {/* TOMBOL FAVORIT */}
+        {onToggleFavorite && (
+          <button
+            type="button"
+            onClick={(event) => {
+              event.stopPropagation();
+              onToggleFavorite(course.id);
+            }}
+            disabled={favoriteLoading}
+            aria-label={
+              isFavorite
+                ? `Hapus ${course.title} dari favorit`
+                : `Tambahkan ${course.title} ke favorit`
+            }
+            aria-pressed={isFavorite}
+            title={isFavorite ? "Hapus dari favorit" : "Tambah ke favorit"}
+            className={cn(
+              "absolute left-3 top-3 z-20 flex h-10 w-10 items-center justify-center rounded-xl border shadow-lg backdrop-blur-md transition-all duration-200",
+              "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2",
+              "disabled:cursor-not-allowed disabled:opacity-60",
+              isFavorite
+                ? "border-amber-300/70 bg-amber-400 text-amber-950 hover:bg-amber-300"
+                : "border-white/30 bg-black/30 text-white hover:scale-105 hover:bg-white hover:text-amber-500"
+            )}
+          >
+            <Star
+              className={cn(
+                "h-5 w-5 transition-transform",
+                isFavorite && "fill-current",
+                favoriteLoading && "animate-pulse"
+              )}
+            />
+          </button>
         )}
       </div>
 
-      <div className="flex flex-1 flex-col gap-3.5 p-4 sm:p-5">
+      {/* KONTEN KARTU */}
+      <button
+        type="button"
+        onClick={onClick}
+        aria-label={`Buka materi ${course.title}`}
+        className="flex w-full flex-1 flex-col gap-3.5 p-4 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-inset sm:p-5"
+      >
         <div className="flex items-center justify-between gap-2">
           <Badge
             variant="muted"
@@ -297,7 +348,7 @@ export function CourseCard({
             <ArrowUpRight className="h-4 w-4" />
           </div>
         </div>
-      </div>
-    </button>
+      </button>
+    </div>
   );
 }
