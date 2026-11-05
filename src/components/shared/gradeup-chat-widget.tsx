@@ -24,6 +24,7 @@ import {
   CircleHelp,
   CheckCircle2,
   MessageSquareText,
+  RefreshCw,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -47,7 +48,7 @@ type ChatMessage = {
 type FAQ = {
   id: string;
   question: string;
-  keywords: string[];
+  keywords: string[] | null;
   answer: string;
   priority: number;
   is_active: boolean;
@@ -58,7 +59,7 @@ type FAQCategory = {
   title: string;
   description: string;
   icon: typeof CircleHelp;
-  matches: (question: string) => boolean;
+  matches: (value: string) => boolean;
 };
 
 const FAQ_CATEGORIES: FAQCategory[] = [
@@ -67,9 +68,9 @@ const FAQ_CATEGORIES: FAQCategory[] = [
     title: "Akun dan Login",
     description: "Login, kata sandi, dan profil akun",
     icon: User,
-    matches: (question) =>
-      /login|kata sandi|password|profil akun|data akun|mengubah profil/i.test(
-        question
+    matches: (value) =>
+      /login|kata sandi|password|profil akun|data akun|mengubah profil|ubah profil|edit profil|ganti nama|masuk akun/i.test(
+        value
       ),
   },
   {
@@ -77,9 +78,9 @@ const FAQ_CATEGORIES: FAQCategory[] = [
     title: "Kursus dan Materi",
     description: "Materi pembelajaran dan progres belajar",
     icon: BookOpen,
-    matches: (question) =>
-      /materi|pembelajaran|kursus|melanjutkan pembelajaran/i.test(
-        question
+    matches: (value) =>
+      /materi|pembelajaran|kursus|melanjutkan pembelajaran|lanjut belajar|progres belajar|riwayat belajar/i.test(
+        value
       ),
   },
   {
@@ -87,24 +88,30 @@ const FAQ_CATEGORIES: FAQCategory[] = [
     title: "Ujian dan Hasil Belajar",
     description: "Kendala ujian, nilai, dan hasil ujian",
     icon: ClipboardCheck,
-    matches: (question) =>
-      /ujian|hasil belajar|hasil ujian|nilai|skor/i.test(question),
+    matches: (value) =>
+      /ujian|hasil belajar|hasil ujian|nilai|skor|soal tidak muncul|tes/i.test(
+        value
+      ),
   },
   {
     id: "premium",
     title: "GradeUp Premium",
     description: "Langganan, pembayaran, dan akses Premium",
     icon: Crown,
-    matches: (question) =>
-      /premium|pembayaran|langganan/i.test(question),
+    matches: (value) =>
+      /premium|pembayaran|langganan|transaksi|kursus terkunci/i.test(
+        value
+      ),
   },
   {
     id: "device",
     title: "Penggunaan GradeUp",
     description: "Akses GradeUp melalui HP dan perangkat lain",
     icon: Smartphone,
-    matches: (question) =>
-      /digunakan melalui hp|ponsel|handphone|mobile/i.test(question),
+    matches: (value) =>
+      /\bhp\b|ponsel|handphone|mobile|perangkat|akses lewat hp/i.test(
+        value
+      ),
   },
 ];
 
@@ -122,6 +129,10 @@ export function GradeUpChatWidget() {
     string[]
   >([]);
   const [loading, setLoading] = useState(false);
+  const [faqLoading, setFaqLoading] = useState(false);
+  const [faqLoadError, setFaqLoadError] = useState<string | null>(
+    null
+  );
   const [sending, setSending] = useState(false);
   const [closing, setClosing] = useState(false);
   const [userId, setUserId] = useState<string | null>(null);
@@ -146,9 +157,12 @@ export function GradeUpChatWidget() {
     return user;
   }, []);
 
-  // Mengambil FAQ aktif langsung dari Supabase.
+  // Mengambil FAQ aktif dari Supabase.
   const loadFAQs = useCallback(async () => {
     try {
+      setFaqLoading(true);
+      setFaqLoadError(null);
+
       const { data, error } = await supabase
         .from("chat_faqs")
         .select(
@@ -159,10 +173,30 @@ export function GradeUpChatWidget() {
 
       if (error) throw error;
 
-      setFaqs((data ?? []) as FAQ[]);
+      const activeFAQs = (data ?? []) as FAQ[];
+
+      setFaqs(activeFAQs);
+
+      console.info(
+        `[GradeUp Chat] FAQ berhasil dimuat: ${activeFAQs.length} data`
+      );
+
+      if (activeFAQs.length === 0) {
+        setFaqLoadError(
+          "Belum ada FAQ aktif yang dapat ditampilkan."
+        );
+      }
     } catch (error) {
       console.error("Gagal memuat FAQ:", error);
-      toast.error("Daftar FAQ belum dapat dimuat.");
+
+      setFaqs([]);
+      setFaqLoadError(
+        error instanceof Error
+          ? error.message
+          : "Daftar FAQ gagal dimuat. Silakan coba lagi."
+      );
+    } finally {
+      setFaqLoading(false);
     }
   }, []);
 
@@ -226,13 +260,47 @@ export function GradeUpChatWidget() {
     []
   );
 
-  // Memuat data saat popup dibuka.
+  // Memuat FAQ setelah memastikan pengguna sudah login.
   useEffect(() => {
     if (!isOpen) return;
 
-    void loadFAQs();
-    void loadConversation();
-  }, [isOpen, loadFAQs, loadConversation]);
+    let cancelled = false;
+
+    const initializeChat = async () => {
+      try {
+        const user = await loadUser();
+
+        if (!user) {
+          setFaqs([]);
+          setFaqLoadError(
+            "Silakan login untuk menggunakan bantuan GradeUp."
+          );
+          return;
+        }
+
+        if (cancelled) return;
+
+        await Promise.all([
+          loadFAQs(),
+          loadConversation(),
+        ]);
+      } catch (error) {
+        console.error("Gagal menginisialisasi chat:", error);
+
+        if (!cancelled) {
+          setFaqLoadError(
+            "Gagal memuat bantuan GradeUp. Silakan coba lagi."
+          );
+        }
+      }
+    };
+
+    void initializeChat();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isOpen, loadUser, loadFAQs, loadConversation]);
 
   // Memuat pesan saat percakapan berubah.
   useEffect(() => {
@@ -383,7 +451,9 @@ export function GradeUpChatWidget() {
       messageId,
     ]);
 
-    toast.success("Terima kasih! Semoga bantuan GradeUp bermanfaat.");
+    toast.success(
+      "Terima kasih! Semoga bantuan GradeUp bermanfaat."
+    );
   };
 
   // Menutup dan menghapus seluruh riwayat dengan konfirmasi.
@@ -439,20 +509,28 @@ export function GradeUpChatWidget() {
       timeZone: "Asia/Jakarta",
     });
 
-  // FAQ berdasarkan kategori yang dipilih.
+  // Kategori yang sedang dipilih.
   const selectedCategory = FAQ_CATEGORIES.find(
     (category) => category.id === activeCategory
   );
 
+  // Pencarian kategori berdasarkan pertanyaan DAN kata kunci.
   const categoryFAQs = selectedCategory
-    ? faqs.filter((faq) =>
-        selectedCategory.matches(faq.question)
-      )
+    ? faqs.filter((faq) => {
+        const searchableText = [
+          faq.question,
+          ...(faq.keywords ?? []),
+        ].join(" ");
+
+        return selectedCategory.matches(searchableText);
+      })
     : [];
 
   // Mengenali balasan yang berasal dari FAQ.
   const isFAQAnswer = (content: string) =>
-    faqs.some((faq) => faq.answer.trim() === content.trim());
+    faqs.some(
+      (faq) => faq.answer.trim() === content.trim()
+    );
 
   return (
     <>
@@ -571,7 +649,7 @@ export function GradeUpChatWidget() {
                         <button
                           key={category.id}
                           type="button"
-                          disabled={sending || loading}
+                          disabled={sending}
                           onClick={() =>
                             setActiveCategory(category.id)
                           }
@@ -646,7 +724,27 @@ export function GradeUpChatWidget() {
                       </div>
                     </div>
 
-                    {categoryFAQs.length > 0 ? (
+                    {faqLoading ? (
+                      <div className="flex items-center justify-center gap-2 rounded-lg bg-muted/50 p-4 text-xs text-muted-foreground">
+                        <Loader2 className="h-4 w-4 animate-spin text-emerald-600" />
+                        Memuat pertanyaan FAQ...
+                      </div>
+                    ) : faqLoadError ? (
+                      <div className="space-y-3 rounded-lg bg-muted/50 p-3">
+                        <p className="text-xs leading-relaxed text-muted-foreground">
+                          {faqLoadError}
+                        </p>
+
+                        <button
+                          type="button"
+                          onClick={() => void loadFAQs()}
+                          className="flex w-full items-center justify-center gap-2 rounded-lg border bg-background p-2.5 text-xs font-semibold text-emerald-700 hover:bg-emerald-50 dark:text-emerald-300 dark:hover:bg-emerald-950/30"
+                        >
+                          <RefreshCw className="h-3.5 w-3.5" />
+                          Coba muat ulang FAQ
+                        </button>
+                      </div>
+                    ) : categoryFAQs.length > 0 ? (
                       categoryFAQs.map((faq) => (
                         <button
                           key={faq.id}
@@ -691,7 +789,8 @@ export function GradeUpChatWidget() {
                     message.sender_type === "student";
                   const isSystem =
                     message.sender_type === "system";
-                  const isFaq = isSystem && isFAQAnswer(message.content);
+                  const isFaq =
+                    isSystem && isFAQAnswer(message.content);
                   const showFaqActions =
                     isFaq &&
                     !handledFaqMessages.includes(message.id);
@@ -804,7 +903,7 @@ export function GradeUpChatWidget() {
             <div className="shrink-0 border-t bg-card px-3 pt-2">
               <button
                 type="button"
-                onClick={() => setActiveCategory(null)}
+                onClick={() => setActiveCategory("account")}
                 className="flex items-center gap-1.5 rounded-lg px-2 py-1.5 text-xs font-medium text-emerald-700 transition-colors hover:bg-emerald-50 dark:text-emerald-300 dark:hover:bg-emerald-950/30"
               >
                 <CircleHelp className="h-4 w-4" />
