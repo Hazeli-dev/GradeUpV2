@@ -320,6 +320,7 @@ export function GradeUpChatWidget() {
       }
 
       setConversation((current) =>
+        current &&
         current?.id === data.id &&
         current.status === data.status
           ? current
@@ -357,6 +358,7 @@ export function GradeUpChatWidget() {
       }
 
       setConversation((current) =>
+        current &&
         current?.id === data.id &&
         current.status === data.status
           ? current
