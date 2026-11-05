@@ -8,10 +8,10 @@ import {
   GraduationCap,
   Layers3,
   LibraryBig,
-  Search,
   Sparkles,
   ArrowRight,
   BookMarked,
+  Star,
 } from "lucide-react";
 
 import { PageHeader } from "@/components/shared/page-header";
@@ -56,16 +56,32 @@ export default function StudentCoursesPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  const [favoriteIds, setFavoriteIds] = useState<Set<string>>(new Set());
+  const [favoriteLoadingIds, setFavoriteLoadingIds] = useState<Set<string>>(
+    new Set()
+  );
+  const [favoriteError, setFavoriteError] = useState<string | null>(null);
+
   const [q, setQ] = useState("");
   const [category, setCategory] = useState("all");
   const [level, setLevel] = useState("all");
 
-  // Mengambil katalog kursus dari Supabase.
+  // Mengambil katalog kursus dan daftar favorit siswa.
   const loadCourses = useCallback(async () => {
     setLoading(true);
     setError(null);
+    setFavoriteError(null);
 
     try {
+      const {
+        data: { user },
+        error: authError,
+      } = await supabase.auth.getUser();
+
+      if (authError) {
+        throw authError;
+      }
+
       const { data, error: queryError } = await supabase
         .from("courses")
         .select(`
@@ -114,8 +130,27 @@ export default function StudentCoursesPage() {
       });
 
       setCourses(mappedCourses);
+
+      // Ambil favorit milik siswa yang sedang login.
+      if (user) {
+        const { data: favoriteData, error: favoriteQueryError } =
+          await supabase
+            .from("student_favorite_courses")
+            .select("course_id")
+            .eq("user_id", user.id);
+
+        if (favoriteQueryError) {
+          throw favoriteQueryError;
+        }
+
+        setFavoriteIds(
+          new Set((favoriteData ?? []).map((item) => item.course_id))
+        );
+      } else {
+        setFavoriteIds(new Set());
+      }
     } catch (err) {
-      console.error("Gagal mengambil katalog materi:", err);
+      console.error("Gagal mengambil katalog atau favorit:", err);
 
       setError(
         err instanceof Error
@@ -130,6 +165,82 @@ export default function StudentCoursesPage() {
   useEffect(() => {
     void loadCourses();
   }, [loadCourses]);
+
+  // Menambah atau menghapus kursus dari daftar favorit.
+  const toggleFavorite = useCallback(
+    async (courseId: string) => {
+      if (favoriteLoadingIds.has(courseId)) return;
+
+      setFavoriteLoadingIds((previous) => {
+        const next = new Set(previous);
+        next.add(courseId);
+        return next;
+      });
+
+      setFavoriteError(null);
+
+      try {
+        const {
+          data: { user },
+          error: authError,
+        } = await supabase.auth.getUser();
+
+        if (authError) throw authError;
+
+        if (!user) {
+          throw new Error("Silakan login terlebih dahulu untuk menyimpan favorit.");
+        }
+
+        const alreadyFavorite = favoriteIds.has(courseId);
+
+        if (alreadyFavorite) {
+          const { error: deleteError } = await supabase
+            .from("student_favorite_courses")
+            .delete()
+            .eq("user_id", user.id)
+            .eq("course_id", courseId);
+
+          if (deleteError) throw deleteError;
+
+          setFavoriteIds((previous) => {
+            const next = new Set(previous);
+            next.delete(courseId);
+            return next;
+          });
+        } else {
+          const { error: insertError } = await supabase
+            .from("student_favorite_courses")
+            .insert({
+              user_id: user.id,
+              course_id: courseId,
+            });
+
+          if (insertError) throw insertError;
+
+          setFavoriteIds((previous) => {
+            const next = new Set(previous);
+            next.add(courseId);
+            return next;
+          });
+        }
+      } catch (err) {
+        console.error("Gagal mengubah favorit:", err);
+
+        setFavoriteError(
+          err instanceof Error
+            ? err.message
+            : "Favorit belum berhasil diperbarui. Silakan coba lagi."
+        );
+      } finally {
+        setFavoriteLoadingIds((previous) => {
+          const next = new Set(previous);
+          next.delete(courseId);
+          return next;
+        });
+      }
+    },
+    [favoriteIds, favoriteLoadingIds]
+  );
 
   // Daftar kategori yang tersedia.
   const categories = useMemo(
@@ -151,11 +262,6 @@ export default function StudentCoursesPage() {
         (total, course) => total + (course.lessonCount ?? 0),
         0
       ),
-    [courses]
-  );
-
-  const totalModules = useMemo(
-    () => courses.length,
     [courses]
   );
 
@@ -433,6 +539,16 @@ export default function StudentCoursesPage() {
           )}
         </div>
 
+        {favoriteError && (
+          <div
+            role="alert"
+            className="flex items-start gap-2 rounded-xl border border-destructive/20 bg-destructive/5 px-3 py-2.5 text-xs text-destructive"
+          >
+            <Star className="mt-0.5 h-4 w-4 shrink-0" />
+            <span>{favoriteError}</span>
+          </div>
+        )}
+
         {loading ? (
           <CardGridSkeleton />
         ) : error ? (
@@ -471,6 +587,9 @@ export default function StudentCoursesPage() {
                 <CourseCard
                   key={course.id}
                   course={course}
+                  isFavorite={favoriteIds.has(course.id)}
+                  favoriteLoading={favoriteLoadingIds.has(course.id)}
+                  onToggleFavorite={toggleFavorite}
                   onClick={() =>
                     navigate(`/dashboard/courses/${course.id}`)
                   }
