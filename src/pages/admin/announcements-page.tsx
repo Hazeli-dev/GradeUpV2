@@ -16,6 +16,7 @@ import {
   X,
   Eye,
   EyeOff,
+  CalendarClock,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -52,6 +53,8 @@ type AnnouncementCategory =
   | "Sistem"
   | "Lainnya";
 
+type PublishMode = "Draft" | "Now" | "Schedule";
+
 interface Announcement {
   id: string;
   title: string;
@@ -69,8 +72,7 @@ interface AnnouncementDraft {
   title: string;
   content: string;
   category: AnnouncementCategory;
-  status: AnnouncementStatus;
-  published_at?: string | null;
+  scheduledAt: string;
 }
 
 const CATEGORIES: AnnouncementCategory[] = [
@@ -86,8 +88,37 @@ const getErrorMessage = (error: unknown) =>
     ? error.message
     : "Terjadi kesalahan. Silakan coba kembali.";
 
+// Mengubah ISO date menjadi format datetime-local sesuai zona waktu browser.
+const toLocalDateTime = (value: string | null) => {
+  if (!value) return "";
+
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) return "";
+
+  const offset = date.getTimezoneOffset() * 60000;
+
+  return new Date(date.getTime() - offset)
+    .toISOString()
+    .slice(0, 16);
+};
+
+// Mengambil waktu lokal saat ini untuk batas minimum jadwal.
+const getLocalNow = () => {
+  const now = new Date();
+  const offset = now.getTimezoneOffset() * 60000;
+
+  return new Date(now.getTime() - offset)
+    .toISOString()
+    .slice(0, 16);
+};
+
 const formatDate = (value: string | null) => {
   if (!value) return "Belum diterbitkan";
+
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) return "Tanggal tidak valid";
 
   return new Intl.DateTimeFormat("id-ID", {
     day: "numeric",
@@ -95,7 +126,16 @@ const formatDate = (value: string | null) => {
     year: "numeric",
     hour: "2-digit",
     minute: "2-digit",
-  }).format(new Date(value));
+    timeZone: "Asia/Jakarta",
+  }).format(date) + " WIB";
+};
+
+const isScheduled = (item: Announcement) => {
+  return (
+    item.status === "Published" &&
+    !!item.published_at &&
+    new Date(item.published_at).getTime() > Date.now()
+  );
 };
 
 export default function AdminAnnouncementsPage() {
@@ -106,10 +146,12 @@ export default function AdminAnnouncementsPage() {
 
   const [draft, setDraft] = useState<AnnouncementDraft | null>(null);
   const [removing, setRemoving] = useState<Announcement | null>(null);
+
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<
-    "Semua" | AnnouncementStatus
+    "Semua" | "Draft" | "Published" | "Terjadwal"
   >("Semua");
+
   const [formError, setFormError] = useState("");
 
   // Mengambil seluruh pengumuman.
@@ -142,7 +184,15 @@ export default function AdminAnnouncementsPage() {
 
   // Statistik.
   const publishedCount = useMemo(
-    () => items.filter((item) => item.status === "Published").length,
+    () =>
+      items.filter(
+        (item) => item.status === "Published" && !isScheduled(item)
+      ).length,
+    [items]
+  );
+
+  const scheduledCount = useMemo(
+    () => items.filter(isScheduled).length,
     [items]
   );
 
@@ -161,8 +211,15 @@ export default function AdminAnnouncementsPage() {
           value.toLocaleLowerCase("id-ID").includes(keyword)
         );
 
+      const scheduled = isScheduled(item);
+
       const matchesStatus =
-        statusFilter === "Semua" || item.status === statusFilter;
+        statusFilter === "Semua" ||
+        (statusFilter === "Terjadwal" && scheduled) ||
+        (statusFilter === "Draft" && item.status === "Draft") ||
+        (statusFilter === "Published" &&
+          item.status === "Published" &&
+          !scheduled);
 
       return matchesSearch && matchesStatus;
     });
@@ -171,30 +228,30 @@ export default function AdminAnnouncementsPage() {
   // Form pengumuman baru.
   const openCreate = () => {
     setFormError("");
+
     setDraft({
       title: "",
       content: "",
       category: "Umum",
-      status: "Draft",
-      published_at: null,
+      scheduledAt: "",
     });
   };
 
   // Form edit.
   const openEdit = (item: Announcement) => {
     setFormError("");
+
     setDraft({
       id: item.id,
       title: item.title,
       content: item.content,
       category: item.category,
-      status: item.status,
-      published_at: item.published_at,
+      scheduledAt: toLocalDateTime(item.published_at),
     });
   };
 
-  // Menyimpan atau menerbitkan pengumuman.
-  const save = async (targetStatus: AnnouncementStatus) => {
+  // Menyimpan, menerbitkan, atau menjadwalkan pengumuman.
+  const save = async (mode: PublishMode) => {
     if (!draft || saving) return;
 
     const title = draft.title.trim();
@@ -215,9 +272,38 @@ export default function AdminAnnouncementsPage() {
       return;
     }
 
-    if (targetStatus === "Published" && content.length < 10) {
+    if (mode !== "Draft" && content.length < 10) {
       setFormError("Isi pengumuman minimal 10 karakter sebelum diterbitkan.");
       return;
+    }
+
+    let publishedAt: string | null = null;
+
+    if (mode === "Now") {
+      publishedAt = new Date().toISOString();
+    }
+
+    if (mode === "Schedule") {
+      if (!draft.scheduledAt) {
+        setFormError("Silakan tentukan tanggal dan jam penerbitan.");
+        return;
+      }
+
+      const selectedDate = new Date(draft.scheduledAt);
+
+      if (Number.isNaN(selectedDate.getTime())) {
+        setFormError("Tanggal dan waktu penerbitan tidak valid.");
+        return;
+      }
+
+      if (selectedDate.getTime() <= Date.now()) {
+        setFormError(
+          "Jadwal penerbitan harus lebih dari waktu sekarang."
+        );
+        return;
+      }
+
+      publishedAt = selectedDate.toISOString();
     }
 
     setSaving(true);
@@ -233,10 +319,8 @@ export default function AdminAnnouncementsPage() {
         throw new Error("Sesi admin tidak ditemukan. Silakan login kembali.");
       }
 
-      const publishedAt =
-        targetStatus === "Published"
-          ? draft.published_at || new Date().toISOString()
-          : null;
+      const targetStatus: AnnouncementStatus =
+        mode === "Draft" ? "Draft" : "Published";
 
       const payload = {
         title,
@@ -254,12 +338,6 @@ export default function AdminAnnouncementsPage() {
           .eq("id", draft.id);
 
         if (updateError) throw updateError;
-
-        toast.success(
-          targetStatus === "Published"
-            ? "Pengumuman berhasil diterbitkan untuk semua siswa."
-            : "Pengumuman berhasil diperbarui."
-        );
       } else {
         const { error: insertError } = await supabase
           .from("announcements")
@@ -269,11 +347,17 @@ export default function AdminAnnouncementsPage() {
           });
 
         if (insertError) throw insertError;
+      }
 
+      if (mode === "Draft") {
+        toast.success("Draft pengumuman berhasil disimpan.");
+      } else if (mode === "Now") {
         toast.success(
-          targetStatus === "Published"
-            ? "Pengumuman berhasil diterbitkan untuk semua siswa."
-            : "Draft pengumuman berhasil disimpan."
+          "Pengumuman berhasil diterbitkan untuk semua siswa."
+        );
+      } else {
+        toast.success(
+          "Pengumuman berhasil dijadwalkan."
         );
       }
 
@@ -287,22 +371,14 @@ export default function AdminAnnouncementsPage() {
     }
   };
 
-  // Mengubah status Draft / Published dari daftar.
-  const changeStatus = async (
-    item: Announcement,
-    targetStatus: AnnouncementStatus
-  ) => {
-    const publishedAt =
-      targetStatus === "Published"
-        ? item.published_at || new Date().toISOString()
-        : null;
-
+  // Mengubah status pengumuman menjadi Draft.
+  const changeStatus = async (item: Announcement) => {
     try {
       const { error: updateError } = await supabase
         .from("announcements")
         .update({
-          status: targetStatus,
-          published_at: publishedAt,
+          status: "Draft",
+          published_at: null,
           updated_at: new Date().toISOString(),
         })
         .eq("id", item.id);
@@ -310,9 +386,9 @@ export default function AdminAnnouncementsPage() {
       if (updateError) throw updateError;
 
       toast.success(
-        targetStatus === "Published"
-          ? "Pengumuman berhasil diterbitkan."
-          : "Pengumuman dikembalikan menjadi Draft."
+        isScheduled(item)
+          ? "Jadwal penerbitan berhasil dibatalkan."
+          : "Pengumuman berhasil ditarik dari publikasi."
       );
 
       await fetchData();
@@ -348,7 +424,7 @@ export default function AdminAnnouncementsPage() {
       {/* HEADER */}
       <PageHeader
         title="Manajemen Pengumuman"
-        description="Buat dan kelola informasi resmi GradeUp yang akan ditampilkan kepada seluruh siswa."
+        description="Buat, terbitkan, dan jadwalkan informasi resmi GradeUp untuk seluruh siswa."
         actions={
           <div className="flex flex-wrap gap-2">
             <Button
@@ -391,20 +467,20 @@ export default function AdminAnnouncementsPage() {
               </h2>
 
               <p className="max-w-xl text-xs leading-relaxed text-muted-foreground sm:text-sm">
-                Terbitkan informasi akademik, jadwal ujian, pembaruan sistem,
-                dan informasi penting lainnya melalui menu notifikasi siswa.
+                Buat pengumuman sekarang atau atur tanggal dan jam agar
+                informasi tersedia otomatis pada waktu yang ditentukan.
               </p>
             </div>
           </div>
 
           <div className="hidden h-20 w-20 shrink-0 items-center justify-center rounded-2xl border border-primary/15 bg-background/70 text-primary shadow-sm sm:flex">
-            <Megaphone className="h-10 w-10" />
+            <CalendarClock className="h-10 w-10" />
           </div>
         </div>
       </section>
 
       {/* STATISTIK */}
-      <section className="grid gap-3 sm:grid-cols-3">
+      <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <Card>
           <CardContent className="flex items-center gap-3 p-4">
             <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
@@ -441,6 +517,23 @@ export default function AdminAnnouncementsPage() {
 
         <Card>
           <CardContent className="flex items-center gap-3 p-4">
+            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-blue-500/10 text-blue-600 dark:text-blue-400">
+              <CalendarClock className="h-5 w-5" />
+            </div>
+
+            <div>
+              <p className="text-2xl font-extrabold tabular-nums">
+                {loading ? "—" : scheduledCount}
+              </p>
+              <p className="text-xs text-muted-foreground">
+                Terjadwal
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="flex items-center gap-3 p-4">
             <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-amber-500/10 text-amber-600 dark:text-amber-400">
               <Clock3 className="h-5 w-5" />
             </div>
@@ -465,7 +558,7 @@ export default function AdminAnnouncementsPage() {
               Daftar Pengumuman
             </h3>
             <p className="text-xs text-muted-foreground">
-              Kelola informasi yang akan atau sudah ditampilkan kepada siswa.
+              Pantau pengumuman aktif, jadwal mendatang, dan draft.
             </p>
           </div>
 
@@ -476,7 +569,7 @@ export default function AdminAnnouncementsPage() {
           )}
         </div>
 
-        {/* PENCARIAN */}
+        {/* PENCARIAN DAN FILTER */}
         <div className="flex flex-col gap-3 sm:flex-row">
           <div className="relative flex-1">
             <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
@@ -504,14 +597,19 @@ export default function AdminAnnouncementsPage() {
             value={statusFilter}
             onChange={(event) =>
               setStatusFilter(
-                event.target.value as "Semua" | AnnouncementStatus
+                event.target.value as
+                  | "Semua"
+                  | "Draft"
+                  | "Published"
+                  | "Terjadwal"
               )
             }
-            className="h-11 rounded-xl border border-input bg-background px-3 text-sm outline-none transition-colors focus:border-primary sm:w-44"
+            className="h-11 rounded-xl border border-input bg-background px-3 text-sm outline-none transition-colors focus:border-primary sm:w-48"
             aria-label="Filter status pengumuman"
           >
             <option value="Semua">Semua Status</option>
-            <option value="Published">Published</option>
+            <option value="Published">Sudah Terbit</option>
+            <option value="Terjadwal">Terjadwal</option>
             <option value="Draft">Draft</option>
           </select>
         </div>
@@ -555,7 +653,9 @@ export default function AdminAnnouncementsPage() {
         ) : (
           <div className="grid gap-4">
             {filteredItems.map((item) => {
-              const isPublished = item.status === "Published";
+              const scheduled = isScheduled(item);
+              const isPublished =
+                item.status === "Published" && !scheduled;
 
               return (
                 <Card
@@ -570,10 +670,16 @@ export default function AdminAnnouncementsPage() {
                           className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl ${
                             isPublished
                               ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
-                              : "bg-amber-500/10 text-amber-600 dark:text-amber-400"
+                              : scheduled
+                                ? "bg-blue-500/10 text-blue-600 dark:text-blue-400"
+                                : "bg-amber-500/10 text-amber-600 dark:text-amber-400"
                           }`}
                         >
-                          <Megaphone className="h-5 w-5" />
+                          {scheduled ? (
+                            <CalendarClock className="h-5 w-5" />
+                          ) : (
+                            <Megaphone className="h-5 w-5" />
+                          )}
                         </div>
 
                         <div className="min-w-0 space-y-1">
@@ -584,21 +690,22 @@ export default function AdminAnnouncementsPage() {
                           <div className="flex flex-wrap items-center gap-2">
                             <Badge variant="outline">{item.category}</Badge>
 
-                            <Badge
-                              variant={isPublished ? "success" : "warning"}
-                            >
-                              {isPublished ? (
-                                <>
-                                  <Eye className="mr-1 h-3 w-3" />
-                                  Published
-                                </>
-                              ) : (
-                                <>
-                                  <FileText className="mr-1 h-3 w-3" />
-                                  Draft
-                                </>
-                              )}
-                            </Badge>
+                            {scheduled ? (
+                              <Badge variant="outline" className="border-blue-500/30 text-blue-600 dark:text-blue-400">
+                                <CalendarClock className="mr-1 h-3 w-3" />
+                                Terjadwal
+                              </Badge>
+                            ) : isPublished ? (
+                              <Badge variant="success">
+                                <Eye className="mr-1 h-3 w-3" />
+                                Published
+                              </Badge>
+                            ) : (
+                              <Badge variant="warning">
+                                <FileText className="mr-1 h-3 w-3" />
+                                Draft
+                              </Badge>
+                            )}
                           </div>
                         </div>
                       </div>
@@ -606,9 +713,11 @@ export default function AdminAnnouncementsPage() {
                       <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground sm:shrink-0">
                         <CalendarDays className="h-3.5 w-3.5" />
                         <span>
-                          {isPublished
-                            ? formatDate(item.published_at)
-                            : `Dibuat ${formatDate(item.created_at)}`}
+                          {scheduled
+                            ? `Terbit ${formatDate(item.published_at)}`
+                            : isPublished
+                              ? formatDate(item.published_at)
+                              : `Dibuat ${formatDate(item.created_at)}`}
                         </span>
                       </div>
                     </div>
@@ -620,11 +729,19 @@ export default function AdminAnnouncementsPage() {
                         : item.content}
                     </p>
 
-                    {/* TARGET */}
+                    {/* INFORMASI STATUS */}
+                    {scheduled && (
+                      <div className="flex items-center gap-2 rounded-xl bg-blue-500/5 px-3 py-2 text-xs text-blue-700 dark:text-blue-300">
+                        <Clock3 className="h-4 w-4 shrink-0" />
+                        Pengumuman akan tersedia otomatis pada jadwal yang
+                        ditentukan.
+                      </div>
+                    )}
+
                     {isPublished && (
                       <div className="flex items-center gap-2 rounded-xl bg-emerald-500/5 px-3 py-2 text-xs text-emerald-700 dark:text-emerald-300">
                         <Bell className="h-4 w-4 shrink-0" />
-                        Pengumuman ini sudah diterbitkan untuk semua siswa.
+                        Pengumuman sudah tersedia untuk semua siswa.
                       </div>
                     )}
 
@@ -642,24 +759,19 @@ export default function AdminAnnouncementsPage() {
 
                       <Button
                         size="sm"
-                        variant={isPublished ? "outline" : "default"}
-                        onClick={() =>
-                          void changeStatus(
-                            item,
-                            isPublished ? "Draft" : "Published"
-                          )
-                        }
+                        variant={item.status === "Published" ? "outline" : "default"}
+                        onClick={() => void changeStatus(item)}
                         className="gap-1.5"
                       >
-                        {isPublished ? (
+                        {item.status === "Published" ? (
                           <>
                             <EyeOff className="h-3.5 w-3.5" />
-                            Tarik Publikasi
+                            {scheduled ? "Batalkan Jadwal" : "Tarik Publikasi"}
                           </>
                         ) : (
                           <>
                             <Send className="h-3.5 w-3.5" />
-                            Terbitkan
+                            Terbitkan Sekarang
                           </>
                         )}
                       </Button>
@@ -701,8 +813,8 @@ export default function AdminAnnouncementsPage() {
                 </DialogTitle>
 
                 <DialogDescription>
-                  Informasi yang diterbitkan akan muncul pada menu notifikasi
-                  seluruh siswa GradeUp.
+                  Buat informasi untuk seluruh siswa dan tentukan kapan
+                  pengumuman akan tersedia.
                 </DialogDescription>
               </DialogHeader>
 
@@ -779,6 +891,60 @@ export default function AdminAnnouncementsPage() {
                   </p>
                 </div>
 
+                {/* JADWAL PENERBITAN */}
+                <div className="space-y-3 rounded-xl border p-4">
+                  <div className="flex items-start gap-3">
+                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-blue-500/10 text-blue-600 dark:text-blue-400">
+                      <CalendarClock className="h-5 w-5" />
+                    </div>
+
+                    <div>
+                      <p className="text-sm font-bold">
+                        Jadwal Penerbitan
+                      </p>
+                      <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+                        Tentukan kapan pengumuman tersedia untuk seluruh siswa.
+                        Kosongkan jika ingin menerbitkan sekarang.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="announcement-schedule">
+                      Tanggal dan Jam Terbit
+                    </Label>
+
+                    <Input
+                      id="announcement-schedule"
+                      type="datetime-local"
+                      value={draft.scheduledAt}
+                      min={getLocalNow()}
+                      onChange={(event) => {
+                        setDraft({
+                          ...draft,
+                          scheduledAt: event.target.value,
+                        });
+                        setFormError("");
+                      }}
+                      disabled={saving}
+                      className="h-11"
+                    />
+
+                    <p className="text-[11px] leading-relaxed text-muted-foreground">
+                      Zona waktu mengikuti pengaturan perangkat admin.
+                      Jadwal ditampilkan dalam WIB (Asia/Jakarta).
+                    </p>
+                  </div>
+
+                  {draft.scheduledAt && (
+                    <div className="flex items-center gap-2 rounded-lg bg-blue-500/5 px-3 py-2 text-xs text-blue-700 dark:text-blue-300">
+                      <Clock3 className="h-4 w-4 shrink-0" />
+                      Jadwal:{" "}
+                      {formatDate(new Date(draft.scheduledAt).toISOString())}
+                    </div>
+                  )}
+                </div>
+
                 {/* TARGET */}
                 <div className="flex items-start gap-3 rounded-xl border bg-muted/30 p-3">
                   <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
@@ -790,8 +956,8 @@ export default function AdminAnnouncementsPage() {
                       Target penerima: Semua siswa
                     </p>
                     <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">
-                      Pengumuman yang diterbitkan dapat dilihat oleh seluruh
-                      akun siswa yang sudah login ke GradeUp.
+                      Pengumuman yang sudah mencapai waktu penerbitan dapat
+                      dilihat oleh seluruh akun siswa yang login ke GradeUp.
                     </p>
                   </div>
                 </div>
@@ -803,6 +969,7 @@ export default function AdminAnnouncementsPage() {
                 )}
               </div>
 
+              {/* TOMBOL SIMPAN */}
               <DialogFooter className="flex-col gap-2 sm:flex-row sm:gap-2">
                 <Button
                   variant="outline"
@@ -825,18 +992,33 @@ export default function AdminAnnouncementsPage() {
                   Simpan Draft
                 </Button>
 
-                <Button
-                  onClick={() => void save("Published")}
-                  disabled={saving}
-                  className="gap-2"
-                >
-                  {saving ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <Send className="h-4 w-4" />
-                  )}
-                  Terbitkan
-                </Button>
+                {draft.scheduledAt ? (
+                  <Button
+                    onClick={() => void save("Schedule")}
+                    disabled={saving}
+                    className="gap-2"
+                  >
+                    {saving ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <CalendarClock className="h-4 w-4" />
+                    )}
+                    Jadwalkan
+                  </Button>
+                ) : (
+                  <Button
+                    onClick={() => void save("Now")}
+                    disabled={saving}
+                    className="gap-2"
+                  >
+                    {saving ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Send className="h-4 w-4" />
+                    )}
+                    Terbitkan Sekarang
+                  </Button>
+                )}
               </DialogFooter>
             </>
           )}
