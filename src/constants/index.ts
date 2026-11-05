@@ -17,6 +17,7 @@ import {
   SlidersHorizontal,
   Bookmark,
   Megaphone,
+  MessageCircle,
   type LucideIcon,
 } from "lucide-react";
 
@@ -35,6 +36,10 @@ export interface NavItem {
   end?: boolean;
 }
 
+// ==========================================
+// NAVIGASI HALAMAN PUBLIK
+// ==========================================
+
 export const PUBLIC_NAV: { label: string; to: string }[] = [
   { label: "Beranda", to: "/" },
   { label: "Fitur", to: "/features" },
@@ -44,25 +49,95 @@ export const PUBLIC_NAV: { label: string; to: string }[] = [
   { label: "FAQ", to: "/faq" },
 ];
 
+// ==========================================
+// NAVIGASI DASHBOARD SISWA
+// ==========================================
+
 export const STUDENT_NAV: NavItem[] = [
-  { label: "Overview", to: "/dashboard", icon: LayoutDashboard, end: true },
-  { label: "Materi Belajar", to: "/dashboard/courses", icon: BookOpen },
-  { label: "Koleksi Saya", to: "/dashboard/collections", icon: Bookmark },
-  { label: "Paket Ujian", to: "/dashboard/exams", icon: ClipboardList },
-  { label: "Hasil Belajar", to: "/dashboard/results", icon: Award },
-  { label: "Pencapaian", to: "/dashboard/achievements", icon: Trophy },
-  { label: "Statistik Belajar", to: "/dashboard/statistics", icon: BarChart3 },
-  { label: "Riwayat Aktivitas", to: "/dashboard/activity", icon: History },
-  { label: "Pengaturan", to: "/dashboard/settings", icon: Settings },
+  {
+    label: "Overview",
+    to: "/dashboard",
+    icon: LayoutDashboard,
+    end: true,
+  },
+  {
+    label: "Materi Belajar",
+    to: "/dashboard/courses",
+    icon: BookOpen,
+  },
+  {
+    label: "Koleksi Saya",
+    to: "/dashboard/collections",
+    icon: Bookmark,
+  },
+  {
+    label: "Paket Ujian",
+    to: "/dashboard/exams",
+    icon: ClipboardList,
+  },
+  {
+    label: "Hasil Belajar",
+    to: "/dashboard/results",
+    icon: Award,
+  },
+  {
+    label: "Pencapaian",
+    to: "/dashboard/achievements",
+    icon: Trophy,
+  },
+  {
+    label: "Statistik Belajar",
+    to: "/dashboard/statistics",
+    icon: BarChart3,
+  },
+  {
+    label: "Riwayat Aktivitas",
+    to: "/dashboard/activity",
+    icon: History,
+  },
+  {
+    label: "Pengaturan",
+    to: "/dashboard/settings",
+    icon: Settings,
+  },
 ];
 
+// ==========================================
+// NAVIGASI DASHBOARD ADMIN
+// ==========================================
+
 export const ADMIN_NAV: NavItem[] = [
-  { label: "Overview", to: "/admin", icon: LayoutDashboard, end: true },
-  { label: "Manajemen Pengguna", to: "/admin/users", icon: Users },
-  { label: "Manajemen Materi", to: "/admin/courses", icon: BookOpen },
-  { label: "Kategori Materi", to: "/admin/categories", icon: FolderTree },
-  { label: "Paket Ujian", to: "/admin/exams", icon: ClipboardList },
-  { label: "Bank Soal", to: "/admin/questions", icon: Library },
+  {
+    label: "Overview",
+    to: "/admin",
+    icon: LayoutDashboard,
+    end: true,
+  },
+  {
+    label: "Manajemen Pengguna",
+    to: "/admin/users",
+    icon: Users,
+  },
+  {
+    label: "Manajemen Materi",
+    to: "/admin/courses",
+    icon: BookOpen,
+  },
+  {
+    label: "Kategori Materi",
+    to: "/admin/categories",
+    icon: FolderTree,
+  },
+  {
+    label: "Paket Ujian",
+    to: "/admin/exams",
+    icon: ClipboardList,
+  },
+  {
+    label: "Bank Soal",
+    to: "/admin/questions",
+    icon: Library,
+  },
 
   // Manajemen Pengumuman
   {
@@ -71,8 +146,28 @@ export const ADMIN_NAV: NavItem[] = [
     icon: Megaphone,
   },
 
-  { label: "Transaksi", to: "/admin/transactions", icon: Receipt },
-  { label: "Laporan & Analitik", to: "/admin/reports", icon: FileBarChart },
+  // Helpdesk dan Chat Siswa
+  {
+    label: "Chat Siswa",
+    to: "/admin/chats",
+    icon: MessageCircle,
+  },
+
+  // Manajemen Transaksi
+  {
+    label: "Transaksi",
+    to: "/admin/transactions",
+    icon: Receipt,
+  },
+
+  // Laporan dan Analitik
+  {
+    label: "Laporan & Analitik",
+    to: "/admin/reports",
+    icon: FileBarChart,
+  },
+
+  // Pengaturan Sistem
   {
     label: "Pengaturan Sistem",
     to: "/admin/settings",
@@ -80,14 +175,26 @@ export const ADMIN_NAV: NavItem[] = [
   },
 ];
 
+// ==========================================
+// NAVIGASI UPGRADE PREMIUM
+// ==========================================
+
 export const UPGRADE_NAV = {
   label: "Upgrade Premium",
   icon: Crown,
 };
 
+// ==========================================
+// KONSTANTA PEMBELAJARAN
+// ==========================================
+
 export const LEVELS = ["SD", "SMP", "SMA", "Umum"] as const;
 
 export const DIFFICULTIES = ["Mudah", "Sedang", "Sulit"] as const;
+
+// ==========================================
+// WARNA GRAFIK GRADEUP
+// ==========================================
 
 export const CHART_COLORS = {
   primary: "#0F766E",
