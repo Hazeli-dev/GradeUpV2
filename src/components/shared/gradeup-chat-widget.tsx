@@ -63,6 +63,10 @@ type FAQCategory = {
   matches: (value: string) => boolean;
 };
 
+const NOTIFICATION_POLL_INTERVAL = 30_000;
+const MESSAGE_POLL_INTERVAL = 10_000;
+const STATUS_POLL_INTERVAL = 20_000;
+
 const FAQ_CATEGORIES: FAQCategory[] = [
   {
     id: "account",
@@ -116,6 +120,26 @@ const FAQ_CATEGORIES: FAQCategory[] = [
   },
 ];
 
+// Mencegah pembaruan state jika data pesan sebenarnya tidak berubah.
+function areMessagesEqual(
+  previous: ChatMessage[],
+  next: ChatMessage[]
+) {
+  if (previous.length !== next.length) return false;
+
+  return previous.every((message, index) => {
+    const nextMessage = next[index];
+
+    return (
+      message.id === nextMessage.id &&
+      message.content === nextMessage.content &&
+      message.sender_type === nextMessage.sender_type &&
+      message.created_at === nextMessage.created_at &&
+      message.read_at === nextMessage.read_at
+    );
+  });
+}
+
 export function GradeUpChatWidget() {
   const [isOpen, setIsOpen] = useState(false);
   const [conversation, setConversation] =
@@ -138,16 +162,16 @@ export function GradeUpChatWidget() {
   const [sending, setSending] = useState(false);
   const [closing, setClosing] = useState(false);
   const [userId, setUserId] = useState<string | null>(null);
-
-  // Jumlah balasan admin yang belum dibaca.
   const [unreadCount, setUnreadCount] = useState(0);
 
-  // Referensi area pesan untuk mengatur posisi scroll.
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
-
-  // Menyimpan apakah siswa sedang membaca bagian bawah chat.
   const shouldAutoScrollRef = useRef(true);
+
+  // Mencegah query yang sama berjalan bertumpuk.
+  const unreadLoadingRef = useRef(false);
+  const messagesLoadingRef = useRef(false);
+  const statusLoadingRef = useRef(false);
 
   // Mengambil identitas pengguna.
   const loadUser = useCallback(async () => {
@@ -158,17 +182,17 @@ export function GradeUpChatWidget() {
 
     if (error) throw error;
 
-    if (!user) {
-      setUserId(null);
-      return null;
-    }
+    setUserId(user?.id ?? null);
 
-    setUserId(user.id);
     return user;
   }, []);
 
-  // Mengambil jumlah balasan admin yang belum dibaca.
+  // Mengambil jumlah notifikasi yang belum dibaca.
   const loadUnreadCount = useCallback(async () => {
+    if (unreadLoadingRef.current) return;
+
+    unreadLoadingRef.current = true;
+
     try {
       const { data, error } = await supabase.rpc(
         "get_gradeup_chat_unread_count"
@@ -176,9 +200,15 @@ export function GradeUpChatWidget() {
 
       if (error) throw error;
 
-      setUnreadCount(Number(data ?? 0));
+      const nextCount = Number(data ?? 0);
+
+      setUnreadCount((current) =>
+        current === nextCount ? current : nextCount
+      );
     } catch (error) {
       console.error("Gagal mengambil notifikasi chat:", error);
+    } finally {
+      unreadLoadingRef.current = false;
     }
   }, []);
 
@@ -195,6 +225,20 @@ export function GradeUpChatWidget() {
 
         if (error) throw error;
 
+        const readAt = new Date().toISOString();
+
+        // Perbarui status baca secara lokal agar tidak terus
+        // memanggil RPC pada setiap polling.
+        setMessages((current) =>
+          current.map((message) =>
+            message.conversation_id === conversationId &&
+            message.sender_type === "admin" &&
+            !message.read_at
+              ? { ...message, read_at: readAt }
+              : message
+          )
+        );
+
         await loadUnreadCount();
       } catch (error) {
         console.error(
@@ -206,7 +250,7 @@ export function GradeUpChatWidget() {
     [loadUnreadCount]
   );
 
-  // Mengambil FAQ aktif dari Supabase.
+  // Mengambil FAQ aktif.
   const loadFAQs = useCallback(async () => {
     try {
       setFaqLoading(true);
@@ -226,10 +270,6 @@ export function GradeUpChatWidget() {
 
       setFaqs(activeFAQs);
 
-      console.info(
-        `[GradeUp Chat] FAQ berhasil dimuat: ${activeFAQs.length} data`
-      );
-
       if (activeFAQs.length === 0) {
         setFaqLoadError(
           "Belum ada FAQ aktif yang dapat ditampilkan."
@@ -239,6 +279,7 @@ export function GradeUpChatWidget() {
       console.error("Gagal memuat FAQ:", error);
 
       setFaqs([]);
+
       setFaqLoadError(
         error instanceof Error
           ? error.message
@@ -278,7 +319,12 @@ export function GradeUpChatWidget() {
         return;
       }
 
-      setConversation(data as Conversation);
+      setConversation((current) =>
+        current?.id === data.id &&
+        current.status === data.status
+          ? current
+          : (data as Conversation)
+      );
     } catch (error) {
       console.error("Gagal memuat percakapan:", error);
       toast.error("Gagal memuat percakapan chat.");
@@ -289,7 +335,9 @@ export function GradeUpChatWidget() {
 
   // Memperbarui status percakapan dari admin.
   const refreshConversationStatus = useCallback(async () => {
-    if (!conversation?.id) return;
+    if (!conversation?.id || statusLoadingRef.current) return;
+
+    statusLoadingRef.current = true;
 
     try {
       const { data, error } = await supabase
@@ -300,7 +348,6 @@ export function GradeUpChatWidget() {
 
       if (error) throw error;
 
-      // Percakapan mungkin sudah dihapus oleh admin.
       if (!data) {
         setConversation(null);
         setMessages([]);
@@ -309,18 +356,29 @@ export function GradeUpChatWidget() {
         return;
       }
 
-      setConversation(data as Conversation);
+      setConversation((current) =>
+        current?.id === data.id &&
+        current.status === data.status
+          ? current
+          : (data as Conversation)
+      );
     } catch (error) {
       console.error(
         "Gagal memperbarui status percakapan:",
         error
       );
+    } finally {
+      statusLoadingRef.current = false;
     }
   }, [conversation?.id]);
 
   // Mengambil pesan dalam percakapan.
   const loadMessages = useCallback(
     async (conversationId: string) => {
+      if (messagesLoadingRef.current) return;
+
+      messagesLoadingRef.current = true;
+
       try {
         const { data, error } = await supabase
           .from("chat_messages")
@@ -334,10 +392,12 @@ export function GradeUpChatWidget() {
 
         const loadedMessages = (data ?? []) as ChatMessage[];
 
-        setMessages(loadedMessages);
+        setMessages((current) =>
+          areMessagesEqual(current, loadedMessages)
+            ? current
+            : loadedMessages
+        );
 
-        // Hanya menandai sudah dibaca jika memang ada
-        // balasan admin yang belum dibaca.
         const hasUnreadAdminMessage = loadedMessages.some(
           (message) =>
             message.sender_type === "admin" &&
@@ -349,12 +409,14 @@ export function GradeUpChatWidget() {
         }
       } catch (error) {
         console.error("Gagal memuat pesan:", error);
+      } finally {
+        messagesLoadingRef.current = false;
       }
     },
     [isOpen, markChatAsRead]
   );
 
-  // Inisialisasi notifikasi ketika komponen aktif.
+  // Inisialisasi notifikasi.
   useEffect(() => {
     let cancelled = false;
 
@@ -380,17 +442,34 @@ export function GradeUpChatWidget() {
     };
   }, [loadUser, loadUnreadCount]);
 
-  // Memperbarui jumlah notifikasi setiap 4 detik.
+  // Polling notifikasi: setiap 30 detik.
+  // Dihentikan sementara ketika tab tidak aktif.
   useEffect(() => {
     if (!userId) return;
 
-    const interval = window.setInterval(() => {
+    const refreshIfVisible = () => {
       if (document.visibilityState === "visible") {
         void loadUnreadCount();
       }
-    }, 4000);
+    };
 
-    return () => window.clearInterval(interval);
+    const interval = window.setInterval(
+      refreshIfVisible,
+      NOTIFICATION_POLL_INTERVAL
+    );
+
+    document.addEventListener(
+      "visibilitychange",
+      refreshIfVisible
+    );
+
+    return () => {
+      window.clearInterval(interval);
+      document.removeEventListener(
+        "visibilitychange",
+        refreshIfVisible
+      );
+    };
   }, [userId, loadUnreadCount]);
 
   // Memuat FAQ dan percakapan ketika popup dibuka.
@@ -403,6 +482,8 @@ export function GradeUpChatWidget() {
       try {
         const user = await loadUser();
 
+        if (cancelled) return;
+
         if (!user) {
           setFaqs([]);
           setFaqLoadError(
@@ -410,8 +491,6 @@ export function GradeUpChatWidget() {
           );
           return;
         }
-
-        if (cancelled) return;
 
         await Promise.all([
           loadFAQs(),
@@ -435,40 +514,69 @@ export function GradeUpChatWidget() {
     };
   }, [isOpen, loadUser, loadFAQs, loadConversation]);
 
-  // Memuat pesan ketika percakapan berubah.
-  useEffect(() => {
-    if (!conversation?.id) {
-      setMessages([]);
-      return;
-    }
-
-    void loadMessages(conversation.id);
-  }, [conversation?.id, loadMessages]);
-
-  // Memperbarui pesan setiap 4 detik selama popup terbuka.
+  // Memuat pesan hanya ketika popup terbuka.
   useEffect(() => {
     if (!isOpen || !conversation?.id) return;
 
-    const interval = window.setInterval(() => {
+    void loadMessages(conversation.id);
+  }, [isOpen, conversation?.id, loadMessages]);
+
+  // Polling pesan: setiap 10 detik.
+  useEffect(() => {
+    if (!isOpen || !conversation?.id) return;
+
+    const refreshIfVisible = () => {
       if (document.visibilityState === "visible") {
         void loadMessages(conversation.id);
       }
-    }, 4000);
+    };
 
-    return () => window.clearInterval(interval);
+    const interval = window.setInterval(
+      refreshIfVisible,
+      MESSAGE_POLL_INTERVAL
+    );
+
+    document.addEventListener(
+      "visibilitychange",
+      refreshIfVisible
+    );
+
+    return () => {
+      window.clearInterval(interval);
+      document.removeEventListener(
+        "visibilitychange",
+        refreshIfVisible
+      );
+    };
   }, [isOpen, conversation?.id, loadMessages]);
 
-  // Memeriksa perubahan status dari admin setiap 4 detik.
+  // Polling status: setiap 20 detik.
   useEffect(() => {
     if (!isOpen || !conversation?.id) return;
 
-    const interval = window.setInterval(() => {
+    const refreshIfVisible = () => {
       if (document.visibilityState === "visible") {
         void refreshConversationStatus();
       }
-    }, 4000);
+    };
 
-    return () => window.clearInterval(interval);
+    const interval = window.setInterval(
+      refreshIfVisible,
+      STATUS_POLL_INTERVAL
+    );
+
+    document.addEventListener(
+      "visibilitychange",
+      refreshIfVisible
+    );
+
+    return () => {
+      window.clearInterval(interval);
+      document.removeEventListener(
+        "visibilitychange",
+        refreshIfVisible
+      );
+    };
   }, [
     isOpen,
     conversation?.id,
@@ -476,7 +584,6 @@ export function GradeUpChatWidget() {
   ]);
 
   // Scroll hanya jika siswa sedang berada di bagian bawah.
-  // Perubahan kategori FAQ tidak memicu scroll.
   useEffect(() => {
     if (!shouldAutoScrollRef.current) return;
 
@@ -486,7 +593,7 @@ export function GradeUpChatWidget() {
     });
   }, [messages.length]);
 
-  // Membuat percakapan jika belum tersedia.
+  // Membuat percakapan baru jika belum tersedia.
   const getOrCreateConversation = async () => {
     if (conversation) return conversation;
 
@@ -511,8 +618,6 @@ export function GradeUpChatWidget() {
     const newConversation = data as Conversation;
 
     setConversation(newConversation);
-
-    // Percakapan baru dimulai dari posisi paling bawah.
     shouldAutoScrollRef.current = true;
 
     return newConversation;
@@ -553,17 +658,14 @@ export function GradeUpChatWidget() {
 
       setMessageInput("");
       setActiveCategory(null);
-
-      // Setelah mengirim pesan, arahkan ke bagian bawah.
       shouldAutoScrollRef.current = true;
 
-      // Trigger database menangani jawaban FAQ atau balasan umum.
       await Promise.all([
         loadMessages(activeConversation.id),
-        refreshConversationStatus(),
+        loadUnreadCount(),
       ]);
 
-      await loadUnreadCount();
+      // Status akan diperbarui melalui polling berikutnya.
     } catch (error) {
       console.error("Gagal mengirim pesan:", error);
 
@@ -577,7 +679,6 @@ export function GradeUpChatWidget() {
     }
   };
 
-  // Mengirim pesan dari form.
   const handleSendMessage = async (
     event: FormEvent<HTMLFormElement>
   ) => {
@@ -585,12 +686,10 @@ export function GradeUpChatWidget() {
     await sendMessage(messageInput);
   };
 
-  // Siswa memilih salah satu pertanyaan FAQ.
   const handleSelectFAQ = async (faq: FAQ) => {
     await sendMessage(faq.question);
   };
 
-  // Meminta bantuan admin setelah menerima jawaban FAQ.
   const handleAskAdmin = async (messageId: string) => {
     const confirmed = window.confirm(
       "Apakah kamu masih membutuhkan bantuan admin? Pesan akan diteruskan ke antrean admin."
@@ -609,8 +708,6 @@ export function GradeUpChatWidget() {
     );
   };
 
-  // Menandai bahwa jawaban FAQ membantu.
-  // Ini tidak mengubah status percakapan menjadi resolved.
   const handleFaqResolved = (messageId: string) => {
     setHandledFaqMessages((previous) =>
       previous.includes(messageId)
@@ -623,7 +720,7 @@ export function GradeUpChatWidget() {
     );
   };
 
-  // Menutup dan menghapus seluruh riwayat dengan konfirmasi.
+  // Menghapus percakapan beserta seluruh pesannya.
   const handleCloseConversation = async () => {
     if (!conversation || closing) return;
 
@@ -654,8 +751,6 @@ export function GradeUpChatWidget() {
       setMessageInput("");
       setActiveCategory(null);
       setHandledFaqMessages([]);
-
-      // Kembalikan posisi scroll ke keadaan awal.
       shouldAutoScrollRef.current = true;
 
       await loadUnreadCount();
@@ -681,12 +776,10 @@ export function GradeUpChatWidget() {
       timeZone: "Asia/Jakarta",
     });
 
-  // Kategori yang sedang dipilih.
   const selectedCategory = FAQ_CATEGORIES.find(
     (category) => category.id === activeCategory
   );
 
-  // FAQ berdasarkan kategori.
   const categoryFAQs = selectedCategory
     ? faqs.filter((faq) => {
         const searchableText = [
@@ -698,7 +791,6 @@ export function GradeUpChatWidget() {
       })
     : [];
 
-  // Mengenali balasan yang berasal dari FAQ.
   const isFAQAnswer = (content: string) =>
     faqs.some(
       (faq) => faq.answer.trim() === content.trim()
@@ -792,7 +884,6 @@ export function GradeUpChatWidget() {
                 </button>
               </div>
 
-              {/* PEMBERITAHUAN MASALAH SELESAI */}
               {conversation.status === "resolved" && (
                 <div className="mt-3 rounded-xl border border-emerald-200 bg-emerald-50 p-3 dark:border-emerald-900 dark:bg-emerald-950/40">
                   <div className="flex items-start gap-2">
@@ -1104,7 +1195,6 @@ export function GradeUpChatWidget() {
                         )}
                       </div>
 
-                      {/* PILIHAN SETELAH JAWABAN FAQ */}
                       {showFaqActions && (
                         <div className="ml-10 max-w-[85%] rounded-xl border bg-card p-3">
                           <p className="mb-2 text-xs font-semibold">
@@ -1146,8 +1236,8 @@ export function GradeUpChatWidget() {
             )}
           </div>
 
-          {/* AKSES CEPAT FAQ */}
-          {messages.length > 0 && !activeCategory && (
+          {/* KEMBALI KE PILIHAN FAQ */}
+          {messages.length > 0 && activeCategory !== null && (
             <div className="shrink-0 border-t bg-card px-3 pt-2">
               <button
                 type="button"
@@ -1155,7 +1245,7 @@ export function GradeUpChatWidget() {
                 className="flex items-center gap-1.5 rounded-lg px-2 py-1.5 text-xs font-medium text-emerald-700 transition-colors hover:bg-emerald-50 dark:text-emerald-300 dark:hover:bg-emerald-950/30"
               >
                 <CircleHelp className="h-4 w-4" />
-                Lihat pilihan FAQ
+                Kembali ke pilihan FAQ
               </button>
             </div>
           )}
