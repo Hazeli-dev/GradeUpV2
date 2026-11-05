@@ -1,4 +1,3 @@
-
 import { Navigate, Outlet, Route, Routes } from "react-router-dom";
 
 // 1. Import Layouts
@@ -27,6 +26,7 @@ import VerifyEmailPage from "@/pages/auth/verify-email-page";
 // 4. Import Halaman Student Dashboard
 import StudentOverviewPage from "@/pages/student/overview-page";
 import StudentCoursesPage from "@/pages/student/courses-page";
+import StudentCollectionsPage from "@/pages/student/collections-page";
 import CourseDetailPage from "@/pages/student/course-detail-page";
 import LessonLearningPage from "@/pages/student/lesson-learning-page";
 import StudentExamsPage from "@/pages/student/exams-page";
@@ -132,10 +132,13 @@ export function AppRoutes() {
           <Route index element={<StudentOverviewPage />} />
 
           <Route path="courses" element={<StudentCoursesPage />} />
+          <Route path="collections" element={<StudentCollectionsPage />} />
+
           <Route
             path="courses/:courseId"
             element={<CourseDetailPage />}
           />
+
           <Route
             path="courses/:courseId/learn/:lessonId"
             element={<LessonLearningPage />}
