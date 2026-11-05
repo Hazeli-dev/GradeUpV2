@@ -1,4 +1,3 @@
-
 import { Navigate, Outlet, Route, Routes } from "react-router-dom";
 
 // 1. Import Layouts
@@ -51,6 +50,9 @@ import AdminTransactionsPage from "@/pages/admin/transactions-page";
 import AdminReportsPage from "@/pages/admin/reports-page";
 import AdminAnnouncementsPage from "@/pages/admin/announcements-page";
 import AdminSettingsPage from "@/pages/admin/settings-page";
+
+// Halaman Chat Admin
+import ChatManagementPage from "@/pages/admin/chat-management-page";
 
 // 6. Import 404
 import NotFoundPage from "@/pages/not-found-page";
@@ -136,10 +138,7 @@ export function AppRoutes() {
           <Route path="courses" element={<StudentCoursesPage />} />
           <Route path="collections" element={<StudentCollectionsPage />} />
 
-          <Route
-            path="courses/:courseId"
-            element={<CourseDetailPage />}
-          />
+          <Route path="courses/:courseId" element={<CourseDetailPage />} />
 
           <Route
             path="courses/:courseId/learn/:lessonId"
@@ -173,6 +172,12 @@ export function AppRoutes() {
           <Route
             path="announcements"
             element={<AdminAnnouncementsPage />}
+          />
+
+          {/* Chat Siswa */}
+          <Route
+            path="chats"
+            element={<ChatManagementPage />}
           />
 
           <Route path="settings" element={<AdminSettingsPage />} />
