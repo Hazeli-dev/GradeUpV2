@@ -3,7 +3,7 @@ import {
   BookOpen,
   ClipboardList,
   Trophy,
-  Award, // Impor Award untuk ikon Hasil Belajar
+  Award,
   BarChart3,
   History,
   Settings,
@@ -14,10 +14,12 @@ import {
   Receipt,
   FileBarChart,
   SlidersHorizontal,
+  Bookmark,
   type LucideIcon,
 } from "lucide-react";
 
 export const APP_NAME = "GradeUp";
+
 export const CONTACT = {
   email: "halo@gradeup.id",
   phone: "+62 21 5000 1234",
@@ -43,9 +45,10 @@ export const PUBLIC_NAV: { label: string; to: string }[] = [
 export const STUDENT_NAV: NavItem[] = [
   { label: "Overview", to: "/dashboard", icon: LayoutDashboard, end: true },
   { label: "Materi Belajar", to: "/dashboard/courses", icon: BookOpen },
+  { label: "Koleksi Saya", to: "/dashboard/collections", icon: Bookmark },
   { label: "Paket Ujian", to: "/dashboard/exams", icon: ClipboardList },
-  { label: "Hasil Belajar", to: "/dashboard/results", icon: Award }, // Diganti ke Award
-  { label: "Pencapaian", to: "/dashboard/achievements", icon: Trophy }, // MENU PENCAPAIAN DITAMBAHKAN
+  { label: "Hasil Belajar", to: "/dashboard/results", icon: Award },
+  { label: "Pencapaian", to: "/dashboard/achievements", icon: Trophy },
   { label: "Statistik Belajar", to: "/dashboard/statistics", icon: BarChart3 },
   { label: "Riwayat Aktivitas", to: "/dashboard/activity", icon: History },
   { label: "Pengaturan", to: "/dashboard/settings", icon: Settings },
@@ -63,9 +66,13 @@ export const ADMIN_NAV: NavItem[] = [
   { label: "Pengaturan Sistem", to: "/admin/settings", icon: SlidersHorizontal },
 ];
 
-export const UPGRADE_NAV = { label: "Upgrade Premium", icon: Crown };
+export const UPGRADE_NAV = {
+  label: "Upgrade Premium",
+  icon: Crown,
+};
 
 export const LEVELS = ["SD", "SMP", "SMA", "Umum"] as const;
+
 export const DIFFICULTIES = ["Mudah", "Sedang", "Sulit"] as const;
 
 export const CHART_COLORS = {
