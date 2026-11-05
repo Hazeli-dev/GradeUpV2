@@ -1,10 +1,13 @@
+
 import { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { Eye, EyeOff, Loader2 } from "lucide-react";
 import { signIn } from "@/services/auth.service";
 
 export function LoginPage() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -20,13 +23,28 @@ export function LoginPage() {
 
     try {
       const res = await signIn(email, password);
+
       if (res?.ok) {
-        navigate("/dashboard");
+        const redirect = searchParams.get("redirect");
+
+        // Hanya izinkan navigasi ke halaman internal.
+        const safeRedirect =
+          redirect &&
+          redirect.startsWith("/") &&
+          !redirect.startsWith("//")
+            ? redirect
+            : "/dashboard";
+
+        navigate(safeRedirect, { replace: true });
       } else {
         setErrorMessage(res?.message || "Email atau kata sandi salah.");
       }
-    } catch (err: any) {
-      setErrorMessage(err?.message || "Terjadi kesalahan yang tidak terduga.");
+    } catch (err: unknown) {
+      setErrorMessage(
+        err instanceof Error
+          ? err.message
+          : "Terjadi kesalahan yang tidak terduga."
+      );
     } finally {
       setIsLoading(false);
     }
@@ -34,7 +52,6 @@ export function LoginPage() {
 
   return (
     <div className="flex w-full flex-col space-y-6">
-      {/* Header Form */}
       <div className="flex flex-col space-y-2 text-left">
         <h1 className="text-3xl font-bold tracking-tight text-foreground">
           Selamat datang kembali
@@ -44,14 +61,12 @@ export function LoginPage() {
         </p>
       </div>
 
-      {/* Pesan Error */}
-      {errorMessage ? (
+      {errorMessage && (
         <div className="rounded-lg bg-destructive/15 p-3 text-sm font-medium text-destructive">
           {errorMessage}
         </div>
-      ) : null}
+      )}
 
-      {/* Form Input */}
       <form onSubmit={handleSubmit} className="flex w-full flex-col space-y-4">
         <div className="flex flex-col space-y-1.5">
           <label htmlFor="email" className="text-sm font-medium text-foreground">
@@ -70,7 +85,10 @@ export function LoginPage() {
 
         <div className="flex flex-col space-y-1.5">
           <div className="flex items-center justify-between">
-            <label htmlFor="password" className="text-sm font-medium text-foreground">
+            <label
+              htmlFor="password"
+              className="text-sm font-medium text-foreground"
+            >
               Kata sandi
             </label>
             <Link
@@ -80,6 +98,7 @@ export function LoginPage() {
               Lupa kata sandi?
             </Link>
           </div>
+
           <div className="relative flex items-center">
             <input
               id="password"
@@ -90,10 +109,12 @@ export function LoginPage() {
               onChange={(e) => setPassword(e.target.value)}
               className="w-full rounded-lg border border-input bg-background px-3.5 py-2.5 pr-10 text-sm text-foreground outline-none transition-colors focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
             />
+
             <button
               type="button"
               onClick={() => setShowPassword(!showPassword)}
               className="absolute right-3 text-muted-foreground hover:text-foreground"
+              aria-label={showPassword ? "Sembunyikan kata sandi" : "Tampilkan kata sandi"}
             >
               {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
             </button>
@@ -105,11 +126,14 @@ export function LoginPage() {
           disabled={isLoading}
           className="flex w-full items-center justify-center rounded-lg bg-emerald-500 py-2.5 text-sm font-semibold text-white transition-all hover:bg-emerald-600 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 disabled:opacity-50"
         >
-          {isLoading ? <Loader2 className="h-5 w-5 animate-spin" /> : "Masuk"}
+          {isLoading ? (
+            <Loader2 className="h-5 w-5 animate-spin" />
+          ) : (
+            "Masuk"
+          )}
         </button>
       </form>
 
-      {/* Pembatas ATAU */}
       <div className="relative flex items-center justify-center">
         <div className="absolute inset-0 flex items-center">
           <span className="w-full border-t border-border" />
@@ -119,7 +143,6 @@ export function LoginPage() {
         </span>
       </div>
 
-      {/* Tombol Login Google */}
       <button
         type="button"
         className="flex w-full items-center justify-center gap-3 rounded-lg border border-border bg-background py-2.5 text-sm font-medium text-foreground transition-all hover:bg-accent"
@@ -145,10 +168,12 @@ export function LoginPage() {
         Lanjutkan dengan Google
       </button>
 
-      {/* Link Ke Halaman Registrasi */}
       <p className="text-center text-sm text-muted-foreground">
         Belum punya akun?{" "}
-        <Link to="/register" className="font-semibold text-emerald-500 hover:underline">
+        <Link
+          to="/register"
+          className="font-semibold text-emerald-500 hover:underline"
+        >
           Daftar gratis
         </Link>
       </p>
