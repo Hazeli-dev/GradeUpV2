@@ -1,5 +1,4 @@
-
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import {
   AlertTriangle,
@@ -19,9 +18,9 @@ import {
   Target,
   Users,
   BookOpen,
-  CalendarDays,
   Play,
   Info,
+  RefreshCw,
 } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
@@ -70,19 +69,46 @@ export default function StudentExamDetailPage() {
   const [exam, setExam] = useState<ExamPackage | null>(null);
   const [history, setHistory] = useState<ExamResultHistory[]>([]);
   const [loading, setLoading] = useState(true);
+  const [historyLoading, setHistoryLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [historyError, setHistoryError] = useState<string | null>(null);
 
   const [open, setOpen] = useState(false);
   const [agreed, setAgreed] = useState(false);
 
-  // Mengambil detail ujian dan riwayat pengerjaan
-  const fetchData = async () => {
-    if (!examId) return;
+  // Mengambil detail paket dan riwayat ujian.
+  const fetchData = useCallback(async () => {
+    if (!examId) {
+      setError("ID paket ujian tidak ditemukan.");
+      setLoading(false);
+      setHistoryLoading(false);
+      return;
+    }
 
     setLoading(true);
+    setHistoryLoading(true);
     setError(null);
+    setHistoryError(null);
+    setHistory([]);
 
     try {
+      // 1. Pastikan siswa sudah login.
+      const {
+        data: { user },
+        error: userError,
+      } = await supabase.auth.getUser();
+
+      if (userError) {
+        throw userError;
+      }
+
+      if (!user) {
+        throw new Error(
+          "Sesi login tidak ditemukan. Silakan login kembali."
+        );
+      }
+
+      // 2. Ambil detail paket ujian.
       const { data: examData, error: examErr } = await supabase
         .from("exam_packages")
         .select("*")
@@ -96,13 +122,16 @@ export default function StudentExamDetailPage() {
       const safeExam: ExamPackage = {
         id: examData.id,
         title: examData.title || "Tanpa Judul",
-        description: examData.description || "Belum ada deskripsi.",
+        description:
+          examData.description || "Belum ada deskripsi.",
         category: examData.category || "Umum",
         level: examData.level || "SMA",
         difficulty: examData.difficulty || "Sedang",
         duration: Number(examData.duration) || 30,
         questionCount:
-          Number(examData.question_count || examData.questionCount) || 0,
+          Number(
+            examData.question_count || examData.questionCount
+          ) || 0,
         participants: Number(examData.participants) || 0,
         premium: Boolean(examData.premium),
         status: examData.status || "Published",
@@ -110,33 +139,61 @@ export default function StudentExamDetailPage() {
       };
 
       setExam(safeExam);
+      setLoading(false);
 
-      const { data: attemptData } = await supabase
+      // 3. Ambil riwayat berdasarkan:
+      //    - exam_id: paket ujian yang sedang dibuka.
+      //    - user_id: siswa yang sedang login.
+      //    - status completed: ujian yang sudah dikumpulkan.
+      const {
+        data: attemptData,
+        error: attemptError,
+      } = await supabase
         .from("exam_attempts")
-        .select("id, exam_package_id, score, created_at")
-        .eq("exam_package_id", examId)
+        .select("id, exam_id, score, created_at")
+        .eq("exam_id", examId)
+        .eq("user_id", user.id)
+        .eq("status", "completed")
         .order("created_at", { ascending: false });
 
-      if (attemptData) {
-        setHistory(
-          attemptData.map((item: any) => ({
-            id: item.id,
-            examId: item.exam_package_id,
-            score: item.score || 0,
-            date: item.created_at,
-          }))
-        );
+      if (attemptError) {
+        throw attemptError;
       }
-    } catch (err: any) {
-      setError(err.message || "Gagal memuat detail paket ujian.");
+
+      // 4. Simpan hasil riwayat ke state.
+      const formattedHistory: ExamResultHistory[] = (
+        attemptData || []
+      ).map((item) => ({
+        id: item.id,
+        examId: item.exam_id,
+        score: Number(item.score ?? 0),
+        date: item.created_at,
+      }));
+
+      setHistory(formattedHistory);
+    } catch (err: unknown) {
+      console.error("Gagal memuat detail ujian:", err);
+
+      const message =
+        err instanceof Error
+          ? err.message
+          : "Terjadi kesalahan saat memuat paket ujian.";
+
+      // Bedakan error detail paket dengan error riwayat.
+      if (!exam) {
+        setError(message);
+      } else {
+        setHistoryError(message);
+      }
     } finally {
       setLoading(false);
+      setHistoryLoading(false);
     }
-  };
+  }, [examId]);
 
   useEffect(() => {
     fetchData();
-  }, [examId]);
+  }, [fetchData]);
 
   if (loading) return <PageSkeleton />;
 
@@ -526,24 +583,59 @@ export default function StudentExamDetailPage() {
           {/* HISTORY */}
           <Card className="overflow-hidden rounded-2xl border-border bg-card shadow-sm">
             <CardHeader className="border-b border-border px-5 py-4">
-              <div className="flex items-center gap-2.5">
-                <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-violet-500/10 text-violet-600 dark:text-violet-400">
-                  <History className="h-4 w-4" />
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2.5">
+                  <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-violet-500/10 text-violet-600 dark:text-violet-400">
+                    <History className="h-4 w-4" />
+                  </div>
+
+                  <div>
+                    <CardTitle className="text-sm font-black">
+                      Riwayat Pengerjaan
+                    </CardTitle>
+                    <p className="mt-0.5 text-[10px] text-muted-foreground">
+                      Hasil pengerjaan paket ini
+                    </p>
+                  </div>
                 </div>
 
-                <div>
-                  <CardTitle className="text-sm font-black">
-                    Riwayat Pengerjaan
-                  </CardTitle>
-                  <p className="mt-0.5 text-[10px] text-muted-foreground">
-                    Hasil pengerjaan sebelumnya
-                  </p>
-                </div>
+                {!historyLoading && !historyError && (
+                  <Badge variant="secondary">
+                    {history.length} hasil
+                  </Badge>
+                )}
               </div>
             </CardHeader>
 
             <CardContent className="p-4">
-              {history.length === 0 ? (
+              {historyLoading ? (
+                <div className="space-y-3 py-4">
+                  <div className="h-12 animate-pulse rounded-xl bg-muted" />
+                  <div className="h-12 animate-pulse rounded-xl bg-muted" />
+                </div>
+              ) : historyError ? (
+                <div className="rounded-xl border border-rose-500/20 bg-rose-500/5 p-4 text-center">
+                  <AlertTriangle className="mx-auto h-6 w-6 text-rose-500" />
+
+                  <p className="mt-2 text-xs font-bold text-foreground">
+                    Riwayat gagal dimuat
+                  </p>
+
+                  <p className="mt-1 break-words text-[10px] leading-relaxed text-muted-foreground">
+                    {historyError}
+                  </p>
+
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={fetchData}
+                    className="mt-3 gap-2 rounded-lg"
+                  >
+                    <RefreshCw className="h-3.5 w-3.5" />
+                    Coba lagi
+                  </Button>
+                </div>
+              ) : history.length === 0 ? (
                 <div className="py-6 text-center">
                   <div className="mx-auto flex h-11 w-11 items-center justify-center rounded-xl bg-muted text-muted-foreground">
                     <FileText className="h-5 w-5" />
@@ -554,7 +646,7 @@ export default function StudentExamDetailPage() {
                   </p>
 
                   <p className="mt-1 text-[10px] text-muted-foreground">
-                    Hasil pengerjaan akan muncul di sini.
+                    Hasil pengerjaan paket ini akan muncul di sini setelah ujian dikumpulkan.
                   </p>
                 </div>
               ) : (
@@ -611,7 +703,8 @@ export default function StudentExamDetailPage() {
 
             <DialogDescription className="text-sm leading-relaxed">
               Pastikan kamu sudah memahami seluruh ketentuan berikut untuk
-              paket ujian <strong className="text-foreground">{exam.title}</strong>.
+              paket ujian{" "}
+              <strong className="text-foreground">{exam.title}</strong>.
             </DialogDescription>
           </DialogHeader>
 
