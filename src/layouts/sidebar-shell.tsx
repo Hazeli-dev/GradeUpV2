@@ -1,26 +1,70 @@
-import { useEffect, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import { NavLink, Outlet, useLocation } from "react-router-dom";
-import { Bell, ChevronsLeft, ChevronsRight, Menu, X } from "lucide-react";
+import {
+  Bell,
+  CalendarDays,
+  CheckCheck,
+  ChevronsLeft,
+  ChevronsRight,
+  Megaphone,
+  Menu,
+  X,
+} from "lucide-react";
+import { toast } from "sonner";
+
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Logo } from "@/components/shared/logo";
 import { ThemeToggle } from "@/components/shared/theme-toggle";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+
+import { supabase } from "@/lib/supabase";
 import { cn } from "@/lib/utils";
 import type { NavItem } from "@/constants";
 
 interface SidebarShellProps {
   nav: NavItem[];
-  /** Label kecil di bawah logo, mis. "Admin". */
   areaLabel?: string;
   storageKey: string;
   topbarRight: ReactNode;
   sidebarFooter?: ReactNode;
-  /** Item menu berbentuk tombol (bukan route), mis. "Upgrade Premium" yang membuka modal. */
-  actionItem?: { label: string; icon: NavItem["icon"]; onClick: () => void };
+  actionItem?: {
+    label: string;
+    icon: NavItem["icon"];
+    onClick: () => void;
+  };
 }
 
-/** Cangkang dashboard dengan sidebar yang bisa diciutkan (desktop) dan drawer (mobile). */
-export function SidebarShell({ nav, areaLabel, storageKey, topbarRight, sidebarFooter, actionItem }: SidebarShellProps) {
+type Announcement = {
+  id: string;
+  title: string;
+  content: string;
+  category: string;
+  published_at: string | null;
+  created_at: string;
+};
+
+/** Cangkang dashboard dengan sidebar yang bisa diciutkan dan drawer mobile. */
+export function SidebarShell({
+  nav,
+  areaLabel,
+  storageKey,
+  topbarRight,
+  sidebarFooter,
+  actionItem,
+}: SidebarShellProps) {
   const [collapsed, setCollapsed] = useState<boolean>(() => {
     try {
       return localStorage.getItem(storageKey) === "1";
@@ -28,28 +72,163 @@ export function SidebarShell({ nav, areaLabel, storageKey, topbarRight, sidebarF
       return false;
     }
   });
+
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [announcements, setAnnouncements] = useState<Announcement[]>([]);
+  const [readIds, setReadIds] = useState<string[]>([]);
+  const [loadingAnnouncements, setLoadingAnnouncements] = useState(false);
+  const [notificationsOpen, setNotificationsOpen] = useState(false);
+  const [selectedAnnouncement, setSelectedAnnouncement] =
+    useState<Announcement | null>(null);
+
   const location = useLocation();
 
+  const unreadCount = useMemo(
+    () => announcements.filter((item) => !readIds.includes(item.id)).length,
+    [announcements, readIds]
+  );
+
   useEffect(() => setMobileOpen(false), [location.pathname]);
+
   useEffect(() => {
     try {
       localStorage.setItem(storageKey, collapsed ? "1" : "0");
     } catch {
-      /* ignore */
+      // Abaikan jika penyimpanan browser tidak tersedia.
     }
   }, [collapsed, storageKey]);
+
   useEffect(() => {
     document.body.style.overflow = mobileOpen ? "hidden" : "";
+
     return () => {
       document.body.style.overflow = "";
     };
   }, [mobileOpen]);
 
-  const current = nav.find((n) => (n.end ? location.pathname === n.to : location.pathname.startsWith(n.to)));
+  const current = nav.find((item) =>
+    item.end
+      ? location.pathname === item.to
+      : location.pathname.startsWith(item.to)
+  );
+
+  // Mengambil pengumuman yang sudah diterbitkan dan waktunya telah tiba.
+  const loadAnnouncements = useCallback(async () => {
+    setLoadingAnnouncements(true);
+
+    try {
+      const {
+        data: { user },
+        error: authError,
+      } = await supabase.auth.getUser();
+
+      if (authError) throw authError;
+
+      if (!user) {
+        setAnnouncements([]);
+        setReadIds([]);
+        return;
+      }
+
+      const [announcementResult, readResult] = await Promise.all([
+        supabase
+          .from("announcements")
+          .select(
+            "id, title, content, category, published_at, created_at"
+          )
+          .eq("status", "Published")
+          .not("published_at", "is", null)
+          .lte("published_at", new Date().toISOString())
+          .order("published_at", { ascending: false }),
+
+        supabase
+          .from("announcement_reads")
+          .select("announcement_id")
+          .eq("user_id", user.id),
+      ]);
+
+      if (announcementResult.error) throw announcementResult.error;
+      if (readResult.error) throw readResult.error;
+
+      setAnnouncements(
+        (announcementResult.data ?? []) as Announcement[]
+      );
+
+      setReadIds(
+        (readResult.data ?? []).map((item) => item.announcement_id)
+      );
+    } catch (error) {
+      console.error("Gagal memuat pengumuman:", error);
+      toast.error("Gagal memuat notifikasi pengumuman.");
+    } finally {
+      setLoadingAnnouncements(false);
+    }
+  }, []);
+
+  // Memuat data saat dashboard dibuka.
+  useEffect(() => {
+    void loadAnnouncements();
+  }, [loadAnnouncements]);
+
+  // Memperbarui status pengumuman menjadi sudah dibaca.
+  const markAsRead = async (announcementId: string) => {
+    if (readIds.includes(announcementId)) return;
+
+    try {
+      const {
+        data: { user },
+        error: authError,
+      } = await supabase.auth.getUser();
+
+      if (authError) throw authError;
+      if (!user) return;
+
+      const { error } = await supabase
+        .from("announcement_reads")
+        .upsert(
+          {
+            announcement_id: announcementId,
+            user_id: user.id,
+          },
+          {
+            onConflict: "announcement_id,user_id",
+            ignoreDuplicates: true,
+          }
+        );
+
+      if (error) throw error;
+
+      setReadIds((previous) =>
+        previous.includes(announcementId)
+          ? previous
+          : [...previous, announcementId]
+      );
+    } catch (error) {
+      console.error("Gagal memperbarui status baca:", error);
+      toast.error("Gagal menyimpan status pengumuman.");
+    }
+  };
+
+  const openAnnouncement = (announcement: Announcement) => {
+    setSelectedAnnouncement(announcement);
+    void markAsRead(announcement.id);
+  };
+
+  const formatDate = (date: string | null) => {
+    if (!date) return "-";
+
+    return new Date(date).toLocaleString("id-ID", {
+      dateStyle: "long",
+      timeStyle: "short",
+      timeZone: "Asia/Jakarta",
+    });
+  };
 
   const links = (isCollapsed: boolean) => (
-    <nav className="flex-1 space-y-1 overflow-y-auto px-3 py-2" aria-label="Navigasi utama">
+    <nav
+      className="flex-1 space-y-1 overflow-y-auto px-3 py-2"
+      aria-label="Navigasi utama"
+    >
       {nav.map((item) => (
         <NavLink
           key={item.to}
@@ -67,9 +246,12 @@ export function SidebarShell({ nav, areaLabel, storageKey, topbarRight, sidebarF
           }
         >
           <item.icon className="h-[18px] w-[18px] shrink-0" />
-          {!isCollapsed && <span className="truncate">{item.label}</span>}
+          {!isCollapsed && (
+            <span className="truncate">{item.label}</span>
+          )}
         </NavLink>
       ))}
+
       {actionItem && (
         <button
           type="button"
@@ -81,7 +263,9 @@ export function SidebarShell({ nav, areaLabel, storageKey, topbarRight, sidebarF
           )}
         >
           <actionItem.icon className="h-[18px] w-[18px] shrink-0" />
-          {!isCollapsed && <span className="truncate">{actionItem.label}</span>}
+          {!isCollapsed && (
+            <span className="truncate">{actionItem.label}</span>
+          )}
         </button>
       )}
     </nav>
@@ -89,79 +273,313 @@ export function SidebarShell({ nav, areaLabel, storageKey, topbarRight, sidebarF
 
   return (
     <div className="min-h-screen bg-background">
-      {/* Sidebar desktop */}
+      {/* SIDEBAR DESKTOP */}
       <aside
         className={cn(
           "fixed inset-y-0 left-0 z-30 hidden flex-col border-r bg-card transition-[width] duration-300 lg:flex",
           collapsed ? "w-[76px]" : "w-64"
         )}
       >
-        <div className={cn("flex h-16 items-center border-b px-4", collapsed && "justify-center px-0")}>
+        <div
+          className={cn(
+            "flex h-16 items-center border-b px-4",
+            collapsed && "justify-center px-0"
+          )}
+        >
           <Logo compact={collapsed} />
         </div>
+
         {areaLabel && !collapsed && (
           <div className="px-5 pt-4">
             <Badge variant="default">{areaLabel}</Badge>
           </div>
         )}
-        <div className="flex flex-1 flex-col overflow-hidden pt-2">{links(collapsed)}</div>
-        {sidebarFooter && !collapsed && <div className="p-3">{sidebarFooter}</div>}
+
+        <div className="flex flex-1 flex-col overflow-hidden pt-2">
+          {links(collapsed)}
+        </div>
+
+        {sidebarFooter && !collapsed && (
+          <div className="p-3">{sidebarFooter}</div>
+        )}
+
         <div className="border-t p-3">
           <Button
             variant="ghost"
             size="sm"
-            className={cn("w-full", collapsed ? "px-0" : "justify-start")}
-            onClick={() => setCollapsed((c) => !c)}
-            aria-label={collapsed ? "Perluas sidebar" : "Ciutkan sidebar"}
+            className={cn(
+              "w-full",
+              collapsed ? "px-0" : "justify-start"
+            )}
+            onClick={() => setCollapsed((value) => !value)}
+            aria-label={
+              collapsed ? "Perluas sidebar" : "Ciutkan sidebar"
+            }
           >
-            {collapsed ? <ChevronsRight /> : <><ChevronsLeft /> Ciutkan</>}
+            {collapsed ? (
+              <ChevronsRight />
+            ) : (
+              <>
+                <ChevronsLeft />
+                Ciutkan
+              </>
+            )}
           </Button>
         </div>
       </aside>
 
-      {/* Drawer mobile */}
+      {/* DRAWER MOBILE */}
       {mobileOpen && (
-        <div className="fixed inset-0 z-40 lg:hidden" role="dialog" aria-modal="true" aria-label="Menu navigasi">
-          <div className="absolute inset-0 bg-slate-950/50 backdrop-blur-sm" onClick={() => setMobileOpen(false)} />
+        <div
+          className="fixed inset-0 z-40 lg:hidden"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Menu navigasi"
+        >
+          <div
+            className="absolute inset-0 bg-slate-950/50 backdrop-blur-sm"
+            onClick={() => setMobileOpen(false)}
+          />
+
           <aside className="absolute inset-y-0 left-0 flex w-72 max-w-[85vw] animate-fade-up flex-col bg-card shadow-2xl">
             <div className="flex h-16 items-center justify-between border-b px-4">
               <Logo />
-              <Button variant="ghost" size="icon" onClick={() => setMobileOpen(false)} aria-label="Tutup menu">
+
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => setMobileOpen(false)}
+                aria-label="Tutup menu"
+              >
                 <X />
               </Button>
             </div>
+
             {areaLabel && (
               <div className="px-5 pt-4">
                 <Badge variant="default">{areaLabel}</Badge>
               </div>
             )}
-            <div className="flex flex-1 flex-col overflow-hidden pt-2">{links(false)}</div>
-            {sidebarFooter && <div className="p-3">{sidebarFooter}</div>}
+
+            <div className="flex flex-1 flex-col overflow-hidden pt-2">
+              {links(false)}
+            </div>
+
+            {sidebarFooter && (
+              <div className="p-3">{sidebarFooter}</div>
+            )}
           </aside>
         </div>
       )}
 
-      <div className={cn("transition-[padding] duration-300", collapsed ? "lg:pl-[76px]" : "lg:pl-64")}>
+      {/* KONTEN DASHBOARD */}
+      <div
+        className={cn(
+          "transition-[padding] duration-300",
+          collapsed ? "lg:pl-[76px]" : "lg:pl-64"
+        )}
+      >
         <header className="sticky top-0 z-25 flex h-16 items-center gap-3 border-b bg-background/80 px-4 backdrop-blur-xl sm:px-6">
-          <Button variant="ghost" size="icon" className="lg:hidden" onClick={() => setMobileOpen(true)} aria-label="Buka menu">
+          <Button
+            variant="ghost"
+            size="icon"
+            className="lg:hidden"
+            onClick={() => setMobileOpen(true)}
+            aria-label="Buka menu"
+          >
             <Menu />
           </Button>
+
           <div className="min-w-0 flex-1">
-            <p className="truncate text-sm font-bold">{current?.label ?? "Dashboard"}</p>
+            <p className="truncate text-sm font-bold">
+              {current?.label ?? "Dashboard"}
+            </p>
           </div>
-          <Button variant="ghost" size="icon" aria-label="Notifikasi (demo)" className="relative">
-            <Bell className="h-[18px] w-[18px]" />
-            <span className="absolute right-2.5 top-2.5 h-2 w-2 rounded-full bg-secondary ring-2 ring-background" />
-          </Button>
+
+          {/* NOTIFIKASI PENGUMUMAN */}
+          <DropdownMenu
+            open={notificationsOpen}
+            onOpenChange={(open) => {
+              setNotificationsOpen(open);
+
+              if (open) {
+                void loadAnnouncements();
+              }
+            }}
+          >
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                aria-label="Notifikasi pengumuman"
+                className="relative"
+              >
+                <Bell className="h-[18px] w-[18px]" />
+
+                {unreadCount > 0 && (
+                  <span className="absolute right-1 top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-rose-500 px-1 text-[9px] font-bold text-white ring-2 ring-background">
+                    {unreadCount > 99 ? "99+" : unreadCount}
+                  </span>
+                )}
+              </Button>
+            </DropdownMenuTrigger>
+
+            <DropdownMenuContent
+              align="end"
+              className="max-h-[min(480px,75vh)] w-[350px] max-w-[calc(100vw-2rem)] overflow-y-auto p-0"
+            >
+              <div className="flex items-center justify-between px-4 py-3">
+                <div>
+                  <p className="text-sm font-bold">Notifikasi</p>
+                  <p className="text-xs text-muted-foreground">
+                    Pengumuman dari GradeUp
+                  </p>
+                </div>
+
+                {unreadCount > 0 && (
+                  <span className="rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300">
+                    {unreadCount} belum dibaca
+                  </span>
+                )}
+              </div>
+
+              <DropdownMenuSeparator />
+
+              {loadingAnnouncements ? (
+                <div className="flex flex-col items-center justify-center gap-2 px-4 py-10">
+                  <div className="h-6 w-6 animate-spin rounded-full border-2 border-emerald-600 border-t-transparent" />
+                  <p className="text-xs text-muted-foreground">
+                    Memuat pengumuman...
+                  </p>
+                </div>
+              ) : announcements.length === 0 ? (
+                <div className="flex flex-col items-center justify-center px-4 py-10 text-center">
+                  <Bell className="mb-3 h-8 w-8 text-muted-foreground" />
+                  <p className="text-sm font-semibold">
+                    Belum ada pengumuman
+                  </p>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    Pengumuman admin akan muncul di sini.
+                  </p>
+                </div>
+              ) : (
+                <div className="p-2">
+                  {announcements.map((announcement) => {
+                    const isRead = readIds.includes(announcement.id);
+
+                    return (
+                      <button
+                        key={announcement.id}
+                        type="button"
+                        onClick={() => {
+                          openAnnouncement(announcement);
+                          setNotificationsOpen(false);
+                        }}
+                        className="flex w-full items-start gap-3 rounded-xl px-3 py-3 text-left transition-colors hover:bg-muted"
+                      >
+                        <div className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-emerald-50 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300">
+                          <Megaphone className="h-4 w-4" />
+                        </div>
+
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-start justify-between gap-2">
+                            <p
+                              className={cn(
+                                "line-clamp-2 text-sm",
+                                isRead
+                                  ? "font-medium text-muted-foreground"
+                                  : "font-bold text-foreground"
+                              )}
+                            >
+                              {announcement.title}
+                            </p>
+
+                            {!isRead && (
+                              <span className="mt-1 h-2 w-2 shrink-0 rounded-full bg-emerald-500" />
+                            )}
+                          </div>
+
+                          <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">
+                            {announcement.content}
+                          </p>
+
+                          <div className="mt-2 flex items-center gap-2">
+                            <span className="rounded-md bg-muted px-2 py-0.5 text-[10px] font-medium text-muted-foreground">
+                              {announcement.category}
+                            </span>
+
+                            <span className="text-[10px] text-muted-foreground">
+                              {formatDate(announcement.published_at)}
+                            </span>
+                          </div>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+
+              <DropdownMenuSeparator />
+
+              <div className="flex items-center justify-center gap-2 px-3 py-2.5 text-xs text-muted-foreground">
+                <CheckCheck className="h-3.5 w-3.5" />
+                Pengumuman resmi dari admin GradeUp
+              </div>
+            </DropdownMenuContent>
+          </DropdownMenu>
+
           <ThemeToggle />
           {topbarRight}
         </header>
-        
-        {/* Konten utama tanpa key={location.pathname} agar transisi rute instan */}
+
         <main className="mx-auto w-full max-w-7xl px-4 py-6 sm:px-6 sm:py-8">
           <Outlet />
         </main>
       </div>
+
+      {/* DETAIL PENGUMUMAN */}
+      <Dialog
+        open={!!selectedAnnouncement}
+        onOpenChange={(open) => {
+          if (!open) setSelectedAnnouncement(null);
+        }}
+      >
+        <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-lg">
+          {selectedAnnouncement && (
+            <>
+              <DialogHeader>
+                <div className="mb-2 flex items-center gap-2">
+                  <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-emerald-50 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300">
+                    <Megaphone className="h-5 w-5" />
+                  </span>
+
+                  <span className="rounded-full bg-muted px-3 py-1 text-xs font-medium text-muted-foreground">
+                    {selectedAnnouncement.category}
+                  </span>
+                </div>
+
+                <DialogTitle className="text-left text-xl">
+                  {selectedAnnouncement.title}
+                </DialogTitle>
+
+                <DialogDescription className="flex items-center gap-1.5 text-left">
+                  <CalendarDays className="h-3.5 w-3.5" />
+                  {formatDate(selectedAnnouncement.published_at)}
+                </DialogDescription>
+              </DialogHeader>
+
+              <div className="mt-2 whitespace-pre-wrap break-words text-sm leading-7 text-foreground">
+                {selectedAnnouncement.content}
+              </div>
+
+              <div className="mt-3 flex items-center gap-2 rounded-lg bg-emerald-50 px-3 py-2.5 text-xs text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300">
+                <CheckCheck className="h-4 w-4 shrink-0" />
+                Pengumuman ini telah ditandai sebagai sudah dibaca.
+              </div>
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
