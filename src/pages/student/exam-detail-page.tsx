@@ -600,7 +600,7 @@ export default function StudentExamDetailPage() {
                 </div>
 
                 {!historyLoading && !historyError && (
-                  <Badge variant="secondary">
+                  <Badge variant="muted">
                     {history.length} hasil
                   </Badge>
                 )}
