@@ -33,23 +33,48 @@ export interface TransactionRecord {
   method: string;
 }
 
-function normalizeTransactionStatus(status: unknown): TransactionRecord["status"] {
+function normalizeTransactionStatus(
+  status: unknown
+): TransactionRecord["status"] {
   const value = String(status ?? "").toLowerCase().trim();
 
   if (
-    ["success", "paid", "settlement", "capture", "completed", "berhasil"].includes(value)
+    [
+      "success",
+      "paid",
+      "settlement",
+      "capture",
+      "completed",
+      "berhasil",
+    ].includes(value)
   ) {
     return "Berhasil";
   }
 
   if (
-    ["refund", "refunded", "partial_refund", "partially_refunded"].includes(value)
+    [
+      "refund",
+      "refunded",
+      "partial_refund",
+      "partially_refunded",
+    ].includes(value)
   ) {
     return "Refund";
   }
 
   if (
-    ["failed", "failure", "deny", "denied", "cancel", "cancelled", "canceled", "expire", "expired", "gagal"].includes(value)
+    [
+      "failed",
+      "failure",
+      "deny",
+      "denied",
+      "cancel",
+      "cancelled",
+      "canceled",
+      "expire",
+      "expired",
+      "gagal",
+    ].includes(value)
   ) {
     return "Gagal";
   }
@@ -96,7 +121,9 @@ export async function listTransactions(): Promise<TransactionRecord[]> {
 
   if (error) {
     console.error("Gagal mengambil transaksi:", error.message);
-    throw new Error(`Gagal mengambil data transaksi: ${error.message}`);
+    throw new Error(
+      `Gagal mengambil data transaksi: ${error.message}`
+    );
   }
 
   if (!transactions?.length) {
@@ -120,17 +147,28 @@ export async function listTransactions(): Promise<TransactionRecord[]> {
       .in("id", userIds);
 
     if (profileError) {
-      console.error("Gagal mengambil profil transaksi:", profileError.message);
-      throw new Error(`Gagal mengambil profil pengguna: ${profileError.message}`);
+      console.error(
+        "Gagal mengambil profil transaksi:",
+        profileError.message
+      );
+
+      throw new Error(
+        `Gagal mengambil profil pengguna: ${profileError.message}`
+      );
     }
 
     profilesById = new Map(
-      (profiles || []).map((profile: any) => [profile.id, profile])
+      (profiles || []).map((profile: any) => [
+        profile.id,
+        profile,
+      ])
     );
   }
 
   return transactions.map((tx: any) => {
-    const profile = tx.user_id ? profilesById.get(tx.user_id) : null;
+    const profile = tx.user_id
+      ? profilesById.get(tx.user_id)
+      : null;
 
     const email =
       profile?.email ||
@@ -143,7 +181,8 @@ export async function listTransactions(): Promise<TransactionRecord[]> {
       email ||
       "Pengguna tidak diketahui";
 
-    const createdAt = tx.created_at || new Date().toISOString();
+    const createdAt =
+      tx.created_at || new Date().toISOString();
 
     return {
       id: tx.id,
@@ -194,17 +233,30 @@ export async function updateTransactionStatus(
   );
 }
 
-// 5. Mengubah role pengguna
+// 5. Mengubah role pengguna melalui RPC khusus admin.
+// Tidak melakukan UPDATE langsung ke tabel profiles.
 export async function updateUserRole(
   userId: string,
   newRole: "admin" | "student"
 ) {
-  const { error } = await supabase
-    .from("profiles")
-    .update({ role: newRole })
-    .eq("id", userId);
+  if (!userId) {
+    throw new Error("ID pengguna tidak valid.");
+  }
+
+  if (!["admin", "student"].includes(newRole)) {
+    throw new Error("Role pengguna tidak valid.");
+  }
+
+  const { error } = await supabase.rpc(
+    "admin_update_user_role",
+    {
+      p_target_user_id: userId,
+      p_new_role: newRole,
+    }
+  );
 
   if (error) {
+    console.error("Gagal mengubah role pengguna:", error.message);
     throw new Error(error.message);
   }
 
@@ -233,7 +285,11 @@ export async function listExamPackages(): Promise<ExamPackageRecord[]> {
     .order("created_at", { ascending: false });
 
   if (error) {
-    console.error("Gagal mengambil data paket ujian:", error.message);
+    console.error(
+      "Gagal mengambil data paket ujian:",
+      error.message
+    );
+
     return [];
   }
 
