@@ -1,4 +1,4 @@
-
+```tsx
 import { useEffect, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { Check, Crown, Loader2, RefreshCw } from "lucide-react";
@@ -29,6 +29,19 @@ interface SnapCallbacks {
   onClose?: () => void;
 }
 
+interface PaymentStatusResponse {
+  success?: boolean;
+  invoice?: string;
+  amount?: number;
+  database_status?: string;
+  midtrans_status?: string;
+  payment_type?: string;
+  transaction_id?: string;
+  qris_url?: string | null;
+  message?: string;
+  error?: string;
+}
+
 declare global {
   interface Window {
     snap?: {
@@ -45,7 +58,7 @@ const SNAP_SCRIPT_URL =
 
 export function PricingCards() {
   const navigate = useNavigate();
-  const [searchParams, setSearchParams] = useSearchParams();
+  const [searchParams] = useSearchParams();
 
   const [plans, setPlans] = useState<PremiumPlan[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -53,6 +66,11 @@ export function PricingCards() {
   const [checkoutPlanId, setCheckoutPlanId] = useState<string | null>(null);
   const [snapReady, setSnapReady] = useState(false);
   const [message, setMessage] = useState("");
+
+  const [lastInvoice, setLastInvoice] = useState("");
+  const [isCheckingStatus, setIsCheckingStatus] = useState(false);
+  const [paymentStatus, setPaymentStatus] =
+    useState<PaymentStatusResponse | null>(null);
 
   const selectedPlanId = searchParams.get("plan");
 
@@ -135,10 +153,13 @@ export function PricingCards() {
     };
   }, []);
 
+  // Membuat transaksi pembayaran.
   const handleChoosePlan = async (plan: PremiumPlan) => {
     if (checkoutPlanId) return;
 
     setMessage("");
+    setPaymentStatus(null);
+    setLastInvoice("");
 
     // Pastikan pengguna sudah login.
     const {
@@ -193,6 +214,10 @@ export function PricingCards() {
         );
       }
 
+      if (typeof data.invoice === "string") {
+        setLastInvoice(data.invoice);
+      }
+
       window.snap.pay(data.snap_token, {
         onSuccess: () => {
           setMessage(
@@ -232,6 +257,92 @@ export function PricingCards() {
     }
   };
 
+  // Memeriksa status pembayaran langsung melalui Edge Function.
+  const handleCheckPaymentStatus = async () => {
+    if (!lastInvoice || isCheckingStatus) return;
+
+    setIsCheckingStatus(true);
+    setMessage("");
+
+    try {
+      // Pastikan sesi pengguna masih tersedia.
+      const {
+        data: { session },
+        error: sessionError,
+      } = await supabase.auth.getSession();
+
+      if (sessionError || !session?.user) {
+        throw new Error(
+          "Sesi login tidak tersedia. Silakan login kembali."
+        );
+      }
+
+      const { data, error } = await supabase.functions.invoke(
+        "check-payment-status",
+        {
+          body: {
+            invoice_number: lastInvoice,
+          },
+        }
+      );
+
+      if (error) {
+        console.error("Check payment status error:", error);
+        throw new Error("Gagal memeriksa status pembayaran.");
+      }
+
+      const result = data as PaymentStatusResponse;
+
+      if (!result?.success) {
+        throw new Error(
+          result?.error || "Status pembayaran belum dapat diperiksa."
+        );
+      }
+
+      setPaymentStatus(result);
+
+      const status = String(
+        result.midtrans_status || ""
+      ).toLowerCase();
+
+      if (status === "settlement" || status === "capture") {
+        setMessage(
+          "Midtrans melaporkan pembayaran berhasil. Silakan tunggu sinkronisasi status Premium."
+        );
+      } else if (status === "expire") {
+        setMessage(
+          "Transaksi sudah kedaluwarsa (expired)."
+        );
+      } else if (status === "pending") {
+        setMessage(
+          "Pembayaran masih menunggu penyelesaian."
+        );
+      } else if (status === "deny") {
+        setMessage(
+          "Pembayaran ditolak oleh penyedia pembayaran."
+        );
+      } else if (status === "cancel") {
+        setMessage(
+          "Transaksi telah dibatalkan."
+        );
+      } else {
+        setMessage(
+          `Status pembayaran dari Midtrans: ${status || "belum diketahui"}.`
+        );
+      }
+    } catch (error) {
+      console.error("Check payment status error:", error);
+
+      setMessage(
+        error instanceof Error
+          ? error.message
+          : "Terjadi kesalahan saat memeriksa pembayaran."
+      );
+    } finally {
+      setIsCheckingStatus(false);
+    }
+  };
+
   const freePlan = pricingPlans.find((plan) => plan.price === 0);
 
   return (
@@ -242,6 +353,78 @@ export function PricingCards() {
           className="mb-6 rounded-xl border border-emerald-500/20 bg-emerald-500/10 px-4 py-3 text-sm text-foreground"
         >
           {message}
+        </div>
+      )}
+
+      {/* Informasi transaksi dan pemeriksaan status. */}
+      {lastInvoice && (
+        <div className="mb-6 rounded-xl border bg-card p-4">
+          <div className="mb-3">
+            <p className="text-xs text-muted-foreground">
+              Nomor Invoice
+            </p>
+
+            <p className="mt-1 break-all text-sm font-semibold">
+              {lastInvoice}
+            </p>
+          </div>
+
+          <Button
+            variant="outline"
+            onClick={handleCheckPaymentStatus}
+            disabled={isCheckingStatus}
+          >
+            {isCheckingStatus ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Memeriksa...
+              </>
+            ) : (
+              <>
+                <RefreshCw className="mr-2 h-4 w-4" />
+                Periksa Status Pembayaran
+              </>
+            )}
+          </Button>
+
+          {paymentStatus && (
+            <div className="mt-4 rounded-lg bg-muted/50 p-3 text-sm">
+              <div className="flex justify-between gap-3">
+                <span className="text-muted-foreground">
+                  Status Midtrans
+                </span>
+                <strong className="capitalize">
+                  {paymentStatus.midtrans_status || "-"}
+                </strong>
+              </div>
+
+              <div className="mt-2 flex justify-between gap-3">
+                <span className="text-muted-foreground">
+                  Metode Pembayaran
+                </span>
+                <strong className="uppercase">
+                  {paymentStatus.payment_type || "-"}
+                </strong>
+              </div>
+
+              {paymentStatus.amount !== undefined && (
+                <div className="mt-2 flex justify-between gap-3">
+                  <span className="text-muted-foreground">
+                    Nominal
+                  </span>
+                  <strong>
+                    {formatRupiah(Number(paymentStatus.amount))}
+                  </strong>
+                </div>
+              )}
+
+              {paymentStatus.qris_url && (
+                <p className="mt-3 break-all text-xs text-muted-foreground">
+                  URL QRIS tersedia pada respons pemeriksaan.
+                </p>
+              )}
+            </div>
+          )}
         </div>
       )}
 
@@ -259,7 +442,10 @@ export function PricingCards() {
         </div>
       ) : loadingError ? (
         <div className="rounded-2xl border border-destructive/20 bg-destructive/5 p-8 text-center">
-          <p className="text-sm text-destructive">{loadingError}</p>
+          <p className="text-sm text-destructive">
+            {loadingError}
+          </p>
+
           <Button
             variant="outline"
             className="mt-4"
@@ -273,7 +459,9 @@ export function PricingCards() {
         <div className="grid gap-6 sm:grid-cols-2 xl:grid-cols-3">
           {freePlan && (
             <div className="relative flex flex-col rounded-3xl border bg-card p-7 shadow-soft transition-all duration-300 hover:-translate-y-1">
-              <h3 className="text-lg font-bold">{freePlan.name}</h3>
+              <h3 className="text-lg font-bold">
+                {freePlan.name}
+              </h3>
 
               <p className="mt-1 text-sm text-muted-foreground">
                 {freePlan.description}
@@ -283,6 +471,7 @@ export function PricingCards() {
                 <span className="text-4xl font-extrabold tracking-tight">
                   {formatRupiah(0)}
                 </span>
+
                 <span className="text-sm text-muted-foreground">
                   {freePlan.period}
                 </span>
@@ -290,10 +479,17 @@ export function PricingCards() {
 
               <ul className="mt-6 flex-1 space-y-3 text-sm">
                 {freePlan.features.map((feature) => (
-                  <li key={feature} className="flex items-start gap-2.5">
+                  <li
+                    key={feature}
+                    className="flex items-start gap-2.5"
+                  >
                     <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-soft text-primary">
-                      <Check className="h-3 w-3" strokeWidth={3.5} />
+                      <Check
+                        className="h-3 w-3"
+                        strokeWidth={3.5}
+                      />
                     </span>
+
                     {feature}
                   </li>
                 ))}
@@ -310,11 +506,12 @@ export function PricingCards() {
             </div>
           )}
 
-          {plans.map((plan, index) => {
+          {plans.map((plan) => {
             const features = Array.isArray(plan.features)
               ? plan.features.filter(
                   (feature): feature is string =>
-                    typeof feature === "string" && feature.trim().length > 0
+                    typeof feature === "string" &&
+                    feature.trim().length > 0
                 )
               : [];
 
@@ -341,7 +538,9 @@ export function PricingCards() {
                   </Badge>
                 )}
 
-                <h3 className="text-lg font-bold">{plan.name}</h3>
+                <h3 className="text-lg font-bold">
+                  {plan.name}
+                </h3>
 
                 <p className="mt-1 min-h-10 text-sm text-muted-foreground">
                   {plan.description}
@@ -351,6 +550,7 @@ export function PricingCards() {
                   <span className="text-4xl font-extrabold tracking-tight">
                     {formatRupiah(Number(plan.price))}
                   </span>
+
                   <span className="text-sm font-medium text-muted-foreground">
                     / {plan.duration_months} bulan
                   </span>
@@ -359,8 +559,12 @@ export function PricingCards() {
                 <ul className="mt-6 flex-1 space-y-3 text-sm">
                   <li className="flex items-start gap-2.5">
                     <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-soft text-primary dark:text-accent">
-                      <Check className="h-3 w-3" strokeWidth={3.5} />
+                      <Check
+                        className="h-3 w-3"
+                        strokeWidth={3.5}
+                      />
                     </span>
+
                     Akses Premium selama {plan.duration_months} bulan
                   </li>
 
@@ -370,8 +574,12 @@ export function PricingCards() {
                       className="flex items-start gap-2.5"
                     >
                       <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-soft text-primary dark:text-accent">
-                        <Check className="h-3 w-3" strokeWidth={3.5} />
+                        <Check
+                          className="h-3 w-3"
+                          strokeWidth={3.5}
+                        />
                       </span>
+
                       {feature}
                     </li>
                   ))}
@@ -409,3 +617,4 @@ export function PricingCards() {
     </div>
   );
 }
+```
