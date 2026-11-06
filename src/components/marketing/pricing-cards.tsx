@@ -1,4 +1,4 @@
-```tsx
+
 import { useEffect, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { Check, Crown, Loader2, RefreshCw } from "lucide-react";
@@ -74,7 +74,7 @@ export function PricingCards() {
 
   const selectedPlanId = searchParams.get("plan");
 
-  // Memuat paket aktif dari Supabase.
+  // Memuat paket Premium aktif.
   useEffect(() => {
     let mounted = true;
 
@@ -110,7 +110,7 @@ export function PricingCards() {
     };
   }, []);
 
-  // Memuat Midtrans Snap.js menggunakan Client Key dari Vercel.
+  // Memuat Midtrans Snap.js.
   useEffect(() => {
     if (!MIDTRANS_CLIENT_KEY) {
       console.error("VITE_MIDTRANS_CLIENT_KEY belum dikonfigurasi.");
@@ -161,7 +161,6 @@ export function PricingCards() {
     setPaymentStatus(null);
     setLastInvoice("");
 
-    // Pastikan pengguna sudah login.
     const {
       data: { session },
       error: sessionError,
@@ -185,7 +184,9 @@ export function PricingCards() {
     }
 
     if (!snapReady || !window.snap) {
-      setMessage("Midtrans belum siap dimuat. Silakan coba beberapa saat lagi.");
+      setMessage(
+        "Midtrans belum siap dimuat. Silakan coba beberapa saat lagi."
+      );
       return;
     }
 
@@ -257,15 +258,15 @@ export function PricingCards() {
     }
   };
 
-  // Memeriksa status pembayaran langsung melalui Edge Function.
+  // Memeriksa status transaksi menggunakan sesi pengguna.
   const handleCheckPaymentStatus = async () => {
     if (!lastInvoice || isCheckingStatus) return;
 
     setIsCheckingStatus(true);
     setMessage("");
+    setPaymentStatus(null);
 
     try {
-      // Pastikan sesi pengguna masih tersedia.
       const {
         data: { session },
         error: sessionError,
@@ -305,30 +306,34 @@ export function PricingCards() {
         result.midtrans_status || ""
       ).toLowerCase();
 
-      if (status === "settlement" || status === "capture") {
-        setMessage(
-          "Midtrans melaporkan pembayaran berhasil. Silakan tunggu sinkronisasi status Premium."
-        );
-      } else if (status === "expire") {
-        setMessage(
-          "Transaksi sudah kedaluwarsa (expired)."
-        );
-      } else if (status === "pending") {
-        setMessage(
-          "Pembayaran masih menunggu penyelesaian."
-        );
-      } else if (status === "deny") {
-        setMessage(
-          "Pembayaran ditolak oleh penyedia pembayaran."
-        );
-      } else if (status === "cancel") {
-        setMessage(
-          "Transaksi telah dibatalkan."
-        );
-      } else {
-        setMessage(
-          `Status pembayaran dari Midtrans: ${status || "belum diketahui"}.`
-        );
+      switch (status) {
+        case "settlement":
+        case "capture":
+          setMessage(
+            "Midtrans melaporkan pembayaran berhasil. Silakan tunggu sinkronisasi status Premium."
+          );
+          break;
+
+        case "pending":
+          setMessage("Pembayaran masih menunggu penyelesaian.");
+          break;
+
+        case "expire":
+          setMessage("Transaksi sudah kedaluwarsa (expired).");
+          break;
+
+        case "deny":
+          setMessage("Pembayaran ditolak oleh penyedia pembayaran.");
+          break;
+
+        case "cancel":
+          setMessage("Transaksi telah dibatalkan.");
+          break;
+
+        default:
+          setMessage(
+            `Status pembayaran dari Midtrans: ${status || "belum diketahui"}.`
+          );
       }
     } catch (error) {
       console.error("Check payment status error:", error);
@@ -347,6 +352,7 @@ export function PricingCards() {
 
   return (
     <div className="mx-auto max-w-6xl">
+      {/* Pesan sistem */}
       {message && (
         <div
           role="status"
@@ -356,7 +362,7 @@ export function PricingCards() {
         </div>
       )}
 
-      {/* Informasi transaksi dan pemeriksaan status. */}
+      {/* Informasi transaksi */}
       {lastInvoice && (
         <div className="mb-6 rounded-xl border bg-card p-4">
           <div className="mb-3">
@@ -393,6 +399,7 @@ export function PricingCards() {
                 <span className="text-muted-foreground">
                   Status Midtrans
                 </span>
+
                 <strong className="capitalize">
                   {paymentStatus.midtrans_status || "-"}
                 </strong>
@@ -402,6 +409,7 @@ export function PricingCards() {
                 <span className="text-muted-foreground">
                   Metode Pembayaran
                 </span>
+
                 <strong className="uppercase">
                   {paymentStatus.payment_type || "-"}
                 </strong>
@@ -412,6 +420,7 @@ export function PricingCards() {
                   <span className="text-muted-foreground">
                     Nominal
                   </span>
+
                   <strong>
                     {formatRupiah(Number(paymentStatus.amount))}
                   </strong>
@@ -419,7 +428,7 @@ export function PricingCards() {
               )}
 
               {paymentStatus.qris_url && (
-                <p className="mt-3 break-all text-xs text-muted-foreground">
+                <p className="mt-3 text-xs text-muted-foreground">
                   URL QRIS tersedia pada respons pemeriksaan.
                 </p>
               )}
@@ -428,6 +437,7 @@ export function PricingCards() {
         </div>
       )}
 
+      {/* Paket yang dipilih */}
       {selectedPlanId && (
         <div className="mb-6 rounded-xl border border-primary/20 bg-primary/5 px-4 py-3 text-sm">
           Paket pilihan Anda sudah tersimpan. Silakan lanjutkan pembayaran
@@ -435,6 +445,7 @@ export function PricingCards() {
         </div>
       )}
 
+      {/* Daftar paket */}
       {isLoading ? (
         <div className="flex min-h-48 items-center justify-center gap-3 text-sm text-muted-foreground">
           <Loader2 className="h-5 w-5 animate-spin" />
@@ -457,6 +468,7 @@ export function PricingCards() {
         </div>
       ) : (
         <div className="grid gap-6 sm:grid-cols-2 xl:grid-cols-3">
+          {/* Paket gratis */}
           {freePlan && (
             <div className="relative flex flex-col rounded-3xl border bg-card p-7 shadow-soft transition-all duration-300 hover:-translate-y-1">
               <h3 className="text-lg font-bold">
@@ -506,6 +518,7 @@ export function PricingCards() {
             </div>
           )}
 
+          {/* Paket Premium */}
           {plans.map((plan) => {
             const features = Array.isArray(plan.features)
               ? plan.features.filter(
@@ -617,4 +630,3 @@ export function PricingCards() {
     </div>
   );
 }
-```
