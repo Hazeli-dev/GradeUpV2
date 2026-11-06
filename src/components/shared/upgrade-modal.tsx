@@ -1,7 +1,12 @@
 
 import { useEffect, useState } from "react";
-import { Check, Crown, Loader2, RefreshCw } from "lucide-react";
-import { toast } from "sonner";
+import {
+  Check,
+  Crown,
+  ExternalLink,
+  Loader2,
+  RefreshCw,
+} from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -38,9 +43,16 @@ interface SnapCallbacks {
 
 interface PaymentStatusResponse {
   success?: boolean;
+  invoice?: string;
+  database_status?: string;
   midtrans_status?: string;
   payment_type?: string;
   amount?: number;
+  transaction_id?: string;
+  qris_url?: string | null;
+  qris_url_v2?: string | null;
+  qris_url_legacy?: string | null;
+  message?: string;
   error?: string;
 }
 
@@ -102,12 +114,12 @@ export function UpgradeModal({
         setLoadingError("Paket Premium gagal dimuat.");
       } else {
         const result = (data ?? []) as PremiumPlan[];
-        setPlans(result);
 
+        setPlans(result);
         setSelected(
           result.find((item) => item.code === "quarterly")?.id ??
-          result[0]?.id ??
-          ""
+            result[0]?.id ??
+            ""
         );
       }
 
@@ -139,7 +151,10 @@ export function UpgradeModal({
 
     const script = existing ?? document.createElement("script");
 
-    const onLoad = () => setSnapReady(Boolean(window.snap));
+    const onLoad = () => {
+      setSnapReady(Boolean(window.snap));
+    };
+
     const onError = () => {
       setSnapReady(false);
       console.error("Gagal memuat Midtrans Snap.");
@@ -176,11 +191,15 @@ export function UpgradeModal({
       } = await supabase.auth.getSession();
 
       if (sessionError || !session?.user) {
-        throw new Error("Sesi login tidak tersedia. Silakan login kembali.");
+        throw new Error(
+          "Sesi login tidak tersedia. Silakan login kembali."
+        );
       }
 
       if (!CLIENT_KEY || !snapReady || !window.snap) {
-        throw new Error("Midtrans belum siap. Silakan coba kembali.");
+        throw new Error(
+          "Midtrans belum siap. Silakan coba kembali."
+        );
       }
 
       setCheckoutLoading(true);
@@ -216,25 +235,34 @@ export function UpgradeModal({
           );
           setCheckoutLoading(false);
         },
+
         onPending: () => {
-          setMessage("Pembayaran masih menunggu penyelesaian.");
+          setMessage(
+            "Pembayaran masih menunggu penyelesaian."
+          );
           setCheckoutLoading(false);
         },
+
         onError: () => {
-          setMessage("Terjadi kendala pada pembayaran.");
+          setMessage(
+            "Terjadi kendala pada pembayaran."
+          );
           setCheckoutLoading(false);
         },
+
         onClose: () => {
           setCheckoutLoading(false);
         },
       });
     } catch (error) {
       console.error("Checkout:", error);
+
       setMessage(
         error instanceof Error
           ? error.message
           : "Terjadi kesalahan saat memproses pembayaran."
       );
+
       setCheckoutLoading(false);
     }
   };
@@ -257,7 +285,9 @@ export function UpgradeModal({
 
       if (error) {
         console.error("Check payment:", error);
-        throw new Error("Gagal memeriksa status pembayaran.");
+        throw new Error(
+          data?.error || "Gagal memeriksa status pembayaran."
+        );
       }
 
       const result = data as PaymentStatusResponse;
@@ -270,14 +300,18 @@ export function UpgradeModal({
 
       setPaymentStatus(result);
 
-      const status = String(result.midtrans_status ?? "").toLowerCase();
+      const status = String(
+        result.midtrans_status ?? ""
+      ).toLowerCase();
 
       if (status === "settlement" || status === "capture") {
         setMessage(
           "Pembayaran berhasil menurut Midtrans. Menunggu sinkronisasi status Premium."
         );
       } else if (status === "pending") {
-        setMessage("Pembayaran masih menunggu penyelesaian.");
+        setMessage(
+          "Pembayaran masih menunggu penyelesaian."
+        );
       } else if (status === "expire") {
         setMessage("Transaksi sudah kedaluwarsa.");
       } else if (status === "deny") {
@@ -285,9 +319,14 @@ export function UpgradeModal({
       } else if (status === "cancel") {
         setMessage("Transaksi dibatalkan.");
       } else {
-        setMessage(`Status pembayaran: ${status || "belum diketahui"}.`);
+        setMessage(
+          result.message ||
+            `Status pembayaran: ${status || "belum diketahui"}.`
+        );
       }
     } catch (error) {
+      console.error("Check payment status:", error);
+
       setMessage(
         error instanceof Error
           ? error.message
@@ -297,6 +336,26 @@ export function UpgradeModal({
       setChecking(false);
     }
   };
+
+  // Memilih URL QRIS yang benar-benar dikembalikan backend.
+  const qrisUrl =
+    paymentStatus?.qris_url ??
+    paymentStatus?.qris_url_v2 ??
+    paymentStatus?.qris_url_legacy ??
+    null;
+
+  // Hanya izinkan URL HTTPS.
+  const validQrisUrl =
+    typeof qrisUrl === "string" &&
+    (() => {
+      try {
+        return new URL(qrisUrl).protocol === "https:";
+      } catch {
+        return false;
+      }
+    })()
+      ? qrisUrl
+      : null;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -318,6 +377,7 @@ export function UpgradeModal({
         {message && (
           <div
             role="status"
+            aria-live="polite"
             className="rounded-xl border border-emerald-500/20 bg-emerald-500/10 px-4 py-3 text-sm"
           >
             {message}
@@ -326,7 +386,10 @@ export function UpgradeModal({
 
         {invoice && (
           <div className="rounded-xl border bg-card p-4">
-            <p className="text-xs text-muted-foreground">Nomor Invoice</p>
+            <p className="text-xs text-muted-foreground">
+              Nomor Invoice
+            </p>
+
             <p className="mt-1 break-all text-sm font-semibold">
               {invoice}
             </p>
@@ -342,29 +405,91 @@ export function UpgradeModal({
               ) : (
                 <RefreshCw className="mr-2 h-4 w-4" />
               )}
-              {checking ? "Memeriksa..." : "Periksa Status Pembayaran"}
+
+              {checking
+                ? "Memeriksa..."
+                : "Periksa Status Pembayaran"}
             </Button>
 
             {paymentStatus && (
-              <div className="mt-3 space-y-2 rounded-lg bg-muted/50 p-3 text-sm">
+              <div className="mt-3 space-y-3 rounded-lg bg-muted/50 p-3 text-sm">
                 <div className="flex justify-between gap-3">
                   <span>Status Midtrans</span>
+
                   <strong className="capitalize">
                     {paymentStatus.midtrans_status || "-"}
                   </strong>
                 </div>
+
                 <div className="flex justify-between gap-3">
                   <span>Metode Pembayaran</span>
+
                   <strong className="uppercase">
                     {paymentStatus.payment_type || "-"}
                   </strong>
                 </div>
+
                 {paymentStatus.amount !== undefined && (
                   <div className="flex justify-between gap-3">
                     <span>Nominal</span>
+
                     <strong>
-                      {formatRupiah(Number(paymentStatus.amount))}
+                      {formatRupiah(
+                        Number(paymentStatus.amount)
+                      )}
                     </strong>
+                  </div>
+                )}
+
+                {paymentStatus.midtrans_status?.toLowerCase() ===
+                  "pending" &&
+                  paymentStatus.payment_type?.toLowerCase() ===
+                    "qris" && (
+                    <div className="border-t pt-3">
+                      <p className="mb-2 font-semibold">
+                        Pembayaran QRIS
+                      </p>
+
+                      {validQrisUrl ? (
+                        <>
+                          <p className="mb-3 text-xs text-muted-foreground">
+                            URL QRIS tersedia dari Midtrans. Buka tautan berikut untuk melihat QRIS.
+                          </p>
+
+                          <Button
+                            type="button"
+                            className="w-full"
+                            onClick={() =>
+                              window.open(
+                                validQrisUrl,
+                                "_blank",
+                                "noopener,noreferrer"
+                              )
+                            }
+                          >
+                            <ExternalLink className="mr-2 h-4 w-4" />
+                            Buka QRIS
+                          </Button>
+                        </>
+                      ) : (
+                        <p className="text-xs text-muted-foreground">
+                          URL QRIS belum tersedia dari respons Midtrans. Silakan gunakan QRIS yang ditampilkan pada halaman pembayaran Midtrans.
+                        </p>
+                      )}
+                    </div>
+                  )}
+
+                {(paymentStatus.midtrans_status?.toLowerCase() ===
+                  "settlement" ||
+                  paymentStatus.midtrans_status?.toLowerCase() ===
+                    "capture") && (
+                  <div className="border-t pt-3 text-sm text-emerald-700 dark:text-emerald-400">
+                    <p className="font-semibold">
+                      Pembayaran terkonfirmasi
+                    </p>
+                    <p className="mt-1 text-xs">
+                      Status Premium akan mengikuti sinkronisasi data akun.
+                    </p>
                   </div>
                 )}
               </div>
@@ -410,13 +535,18 @@ export function UpgradeModal({
                     </Badge>
                   )}
 
-                  <p className="text-sm font-bold">{item.name}</p>
+                  <p className="text-sm font-bold">
+                    {item.name}
+                  </p>
+
                   <p className="mt-1 text-xl font-extrabold">
                     {formatRupiah(Number(item.price))}
+
                     <span className="text-xs font-medium text-muted-foreground">
                       {" "}/ {item.duration_months} bulan
                     </span>
                   </p>
+
                   {item.description && (
                     <p className="mt-0.5 text-xs text-muted-foreground">
                       {item.description}
@@ -429,18 +559,28 @@ export function UpgradeModal({
             {plan && (
               <ul className="grid gap-2 text-sm sm:grid-cols-2">
                 <li className="flex items-start gap-2">
-                  <Check className="mt-0.5 h-4 w-4 shrink-0 text-secondary" strokeWidth={3} />
+                  <Check
+                    className="mt-0.5 h-4 w-4 shrink-0 text-secondary"
+                    strokeWidth={3}
+                  />
                   Akses Premium selama {plan.duration_months} bulan
                 </li>
 
                 {(plan.features ?? [])
                   .filter(
                     (feature) =>
-                      typeof feature === "string" && feature.trim()
+                      typeof feature === "string" &&
+                      feature.trim()
                   )
                   .map((feature) => (
-                    <li key={feature} className="flex items-start gap-2">
-                      <Check className="mt-0.5 h-4 w-4 shrink-0 text-secondary" strokeWidth={3} />
+                    <li
+                      key={feature}
+                      className="flex items-start gap-2"
+                    >
+                      <Check
+                        className="mt-0.5 h-4 w-4 shrink-0 text-secondary"
+                        strokeWidth={3}
+                      />
                       {feature}
                     </li>
                   ))}
@@ -451,7 +591,11 @@ export function UpgradeModal({
               size="lg"
               className="w-full"
               onClick={handleChoosePlan}
-              disabled={!plan || checkoutLoading || !snapReady}
+              disabled={
+                !plan ||
+                checkoutLoading ||
+                !snapReady
+              }
             >
               {checkoutLoading ? (
                 <>
