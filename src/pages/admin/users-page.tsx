@@ -91,6 +91,7 @@ function getErrorMessage(error: any): string {
 
 export function AdminUsersPage() {
   const [users, setUsers] = useState<UserProfile[]>([]);
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [search, setSearch] = useState("");
@@ -114,7 +115,6 @@ export function AdminUsersPage() {
     setErrorMessage("");
 
     try {
-      // 1. Periksa sesi login
       const {
         data: { session },
         error: sessionError,
@@ -132,6 +132,7 @@ export function AdminUsersPage() {
       }
 
       if (!session) {
+        setCurrentUserId(null);
         setUsers([]);
         setErrorMessage(
           "Sesi login tidak ditemukan. Silakan login kembali."
@@ -139,7 +140,9 @@ export function AdminUsersPage() {
         return;
       }
 
-      // 2. Pastikan akun yang login adalah admin
+      setCurrentUserId(session.user.id);
+
+      // Pastikan akun yang login adalah admin.
       const { data: currentProfile, error: profileError } =
         await supabase
           .from("profiles")
@@ -160,7 +163,7 @@ export function AdminUsersPage() {
         return;
       }
 
-      // 3. Ambil seluruh profil pengguna
+      // Ambil seluruh profil pengguna.
       const { data, error } = await supabase
         .from("profiles")
         .select(
@@ -447,6 +450,69 @@ export function AdminUsersPage() {
   };
 
   // =====================================================
+  // UBAH ROLE PENGGUNA
+  // =====================================================
+
+  const handleUpdateRole = async (user: UserProfile) => {
+    if (saving || loading) return;
+
+    // Cegah admin mengubah role akunnya sendiri.
+    if (user.id === currentUserId) {
+      window.alert(
+        "Role akun yang sedang digunakan tidak dapat diubah."
+      );
+      return;
+    }
+
+    const newRole = user.role === "admin" ? "student" : "admin";
+
+    const userName =
+      user.full_name || user.email || "pengguna ini";
+
+    const confirmed = window.confirm(
+      newRole === "admin"
+        ? `Jadikan ${userName} sebagai administrator GradeUp? Pengguna akan mendapatkan hak akses admin.`
+        : `Ubah ${userName} menjadi siswa? Hak akses administrator akan dicabut.`
+    );
+
+    if (!confirmed) return;
+
+    setSaving(true);
+    setErrorMessage("");
+
+    try {
+      const { error } = await supabase.rpc(
+        "admin_update_user_role",
+        {
+          p_target_user_id: user.id,
+          p_new_role: newRole,
+        }
+      );
+
+      if (error) {
+        console.error("GAGAL MENGUBAH ROLE:", error);
+        throw error;
+      }
+
+      await fetchUsers();
+
+      window.alert(
+        newRole === "admin"
+          ? "Role berhasil diubah menjadi Admin."
+          : "Role berhasil diubah menjadi Siswa."
+      );
+    } catch (error: any) {
+      console.error("ROLE UPDATE ERROR:", error);
+
+      setErrorMessage(
+        "Gagal mengubah role: " + getErrorMessage(error)
+      );
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // =====================================================
   // FORMAT DATA
   // =====================================================
 
@@ -520,8 +586,8 @@ export function AdminUsersPage() {
             </h1>
 
             <p className="mt-2 max-w-xl text-sm leading-relaxed text-muted-foreground">
-              Kelola akun, pantau status keanggotaan, dan atur akses
-              Premium seluruh pengguna GradeUp.
+              Kelola akun, pantau status keanggotaan, atur role,
+              dan kelola akses Premium seluruh pengguna GradeUp.
             </p>
           </div>
 
@@ -547,7 +613,7 @@ export function AdminUsersPage() {
           <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
           <div className="min-w-0 flex-1">
             <p className="font-semibold">
-              Gagal memuat data pengguna
+              Terjadi Kesalahan
             </p>
             <p className="mt-1 break-words">{errorMessage}</p>
             <Button
@@ -677,7 +743,7 @@ export function AdminUsersPage() {
                 <TableHead className="min-w-[130px]">
                   Tanggal Daftar
                 </TableHead>
-                <TableHead className="pr-5 text-right">
+                <TableHead className="min-w-[240px] pr-5 text-right">
                   Aksi
                 </TableHead>
               </TableRow>
@@ -723,6 +789,7 @@ export function AdminUsersPage() {
                   const remainingDays = getRemainingDays(
                     user.premium_until
                   );
+                  const isCurrentUser = user.id === currentUserId;
 
                   return (
                     <TableRow
@@ -749,6 +816,11 @@ export function AdminUsersPage() {
                           <div className="min-w-0">
                             <p className="truncate font-semibold">
                               {user.full_name || "Tanpa Nama"}
+                              {isCurrentUser && (
+                                <span className="ml-2 text-xs font-normal text-muted-foreground">
+                                  (Anda)
+                                </span>
+                              )}
                             </p>
                             <p className="mt-0.5 flex items-center gap-1.5 truncate text-xs text-muted-foreground">
                               <Mail className="h-3 w-3 shrink-0" />
@@ -826,23 +898,40 @@ export function AdminUsersPage() {
                         {formatDate(user.created_at)}
                       </TableCell>
 
-                      <TableCell className="pr-5 text-right">
-                        {user.role === "admin" ? (
-                          <span className="text-xs text-muted-foreground">
-                            Khusus Admin
-                          </span>
-                        ) : (
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => handleOpenSetting(user)}
-                            disabled={saving}
-                            className="gap-1.5 rounded-lg"
-                          >
-                            <Sliders className="h-3.5 w-3.5" />
-                            Atur Paket
-                          </Button>
-                        )}
+                      <TableCell className="pr-5">
+                        <div className="flex min-w-[220px] flex-wrap justify-end gap-2">
+                          {isCurrentUser ? (
+                            <Badge variant="outline" className="text-xs">
+                              Akun Anda
+                            </Badge>
+                          ) : (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => void handleUpdateRole(user)}
+                              disabled={saving || loading}
+                              className="gap-1.5 rounded-lg"
+                            >
+                              <Shield className="h-3.5 w-3.5" />
+                              {user.role === "admin"
+                                ? "Jadikan Siswa"
+                                : "Jadikan Admin"}
+                            </Button>
+                          )}
+
+                          {user.role !== "admin" && (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleOpenSetting(user)}
+                              disabled={saving || loading}
+                              className="gap-1.5 rounded-lg"
+                            >
+                              <Sliders className="h-3.5 w-3.5" />
+                              Atur Paket
+                            </Button>
+                          )}
+                        </div>
                       </TableCell>
                     </TableRow>
                   );
