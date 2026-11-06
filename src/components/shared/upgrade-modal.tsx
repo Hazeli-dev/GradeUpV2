@@ -6,7 +6,6 @@ import {
   ExternalLink,
   Loader2,
   RefreshCw,
-  FlaskConical,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -58,37 +57,21 @@ interface PaymentStatusResponse {
   error?: string;
 }
 
-interface QrisTestResponse {
-  success?: boolean;
-  test_only?: boolean;
-  environment?: string;
-  invoice_number?: string;
-  transaction_id?: string;
-  transaction_status?: string;
-  payment_method?: string;
-  qr_available?: boolean;
-  error?: string;
-  message?: string;
-  stage?: string;
-  detail?: string;
-  gateway_status?: number;
-  gateway_code?: string | null;
-  gateway_message?: string;
-}
-
 declare global {
   interface Window {
     snap?: {
-      pay: (token: string, callbacks?: SnapCallbacks) => void;
+      pay: (
+        token: string,
+        callbacks?: SnapCallbacks
+      ) => void;
     };
   }
 }
 
 const CLIENT_KEY = import.meta.env.VITE_MIDTRANS_CLIENT_KEY;
-const SNAP_URL = "https://app.sandbox.midtrans.com/snap/snap.js";
 
-const MONTHLY_PLAN_ID =
-  "e9a20e84-877d-4d2b-ab59-acc121d7f73d";
+const SNAP_URL =
+  "https://app.sandbox.midtrans.com/snap/snap.js";
 
 export function UpgradeModal({
   open,
@@ -106,17 +89,14 @@ export function UpgradeModal({
   const [invoice, setInvoice] = useState("");
   const [message, setMessage] = useState("");
   const [checking, setChecking] = useState(false);
+
   const [paymentStatus, setPaymentStatus] =
     useState<PaymentStatusResponse | null>(null);
-
-  const [qrisTestLoading, setQrisTestLoading] = useState(false);
-  const [qrisTestResult, setQrisTestResult] =
-    useState<QrisTestResponse | null>(null);
 
   const plan =
     plans.find((item) => item.id === selected) ?? plans[0];
 
-  // Memuat paket Premium.
+  // Load Premium plans.
   useEffect(() => {
     if (!open) return;
 
@@ -161,10 +141,11 @@ export function UpgradeModal({
     };
   }, [open]);
 
-  // Memuat Midtrans Snap.
+  // Load Midtrans Snap.
   useEffect(() => {
     if (!CLIENT_KEY) {
       console.error("VITE_MIDTRANS_CLIENT_KEY belum tersedia.");
+      setSnapReady(false);
       return;
     }
 
@@ -204,7 +185,7 @@ export function UpgradeModal({
     };
   }, []);
 
-  // Memulai pembayaran Snap.
+  // Start Snap checkout.
   const handleChoosePlan = async () => {
     if (!plan || checkoutLoading) return;
 
@@ -241,9 +222,8 @@ export function UpgradeModal({
 
       if (error) {
         console.error("Create payment:", error);
-
         throw new Error(
-          data?.error || "Gagal membuat transaksi pembayaran."
+          "Gagal membuat transaksi pembayaran."
         );
       }
 
@@ -294,155 +274,7 @@ export function UpgradeModal({
     }
   };
 
-  // Mengambil detail error dari Edge Function.
-  const getQrisErrorDetails = async (
-    error: { message: string; context?: unknown },
-    data: unknown
-  ): Promise<QrisTestResponse> => {
-    let responseData =
-      data && typeof data === "object"
-        ? (data as QrisTestResponse)
-        : null;
-
-    let httpStatus: number | undefined;
-
-    try {
-      const context = error.context;
-
-      if (context instanceof Response) {
-        httpStatus = context.status;
-
-        const parsed = await context.clone().json();
-
-        if (parsed && typeof parsed === "object") {
-          responseData = {
-            ...responseData,
-            ...parsed,
-          };
-        }
-      }
-    } catch (parseError) {
-      console.warn("Tidak dapat membaca detail respons QRIS:", parseError);
-    }
-
-    const details = [
-      responseData?.stage
-        ? `Tahap: ${responseData.stage}`
-        : null,
-      responseData?.error || error.message,
-      responseData?.detail,
-      responseData?.gateway_status
-        ? `HTTP Midtrans: ${responseData.gateway_status}`
-        : null,
-      responseData?.gateway_code
-        ? `Kode Midtrans: ${responseData.gateway_code}`
-        : null,
-      responseData?.gateway_message,
-      httpStatus
-        ? `HTTP Edge Function: ${httpStatus}`
-        : null,
-    ].filter(Boolean);
-
-    return {
-      error: details.join(" | "),
-      stage: responseData?.stage,
-      detail: responseData?.detail,
-      gateway_status: responseData?.gateway_status,
-      gateway_code: responseData?.gateway_code,
-      gateway_message: responseData?.gateway_message,
-    };
-  };
-
-  // Tes QRIS Core API Sandbox.
-  const handleTestQrisCoreApi = async () => {
-    if (qrisTestLoading) return;
-
-    setQrisTestLoading(true);
-    setQrisTestResult(null);
-    setMessage("");
-
-    try {
-      const {
-        data: { session },
-        error: sessionError,
-      } = await supabase.auth.getSession();
-
-      if (sessionError || !session?.user) {
-        throw new Error("Silakan login kembali.");
-      }
-
-      const monthlyPlan = plans.find(
-        (item) =>
-          item.code === "monthly" &&
-          item.id === MONTHLY_PLAN_ID
-      );
-
-      if (!monthlyPlan || !monthlyPlan.is_active) {
-        throw new Error(
-          "Paket Premium Bulanan tidak ditemukan atau tidak aktif."
-        );
-      }
-
-      const { data, error } = await supabase.functions.invoke(
-        "create-qris-coreapi-test",
-        {
-          body: {
-            plan_id: monthlyPlan.id,
-          },
-        }
-      );
-
-      if (error) {
-        console.error("QRIS Core API test:", {
-          message: error.message,
-          context: error.context,
-          response: data,
-        });
-
-        const errorDetails = await getQrisErrorDetails(
-          error,
-          data
-        );
-
-        throw new Error(
-          errorDetails.error || "Gagal membuat transaksi QRIS Sandbox."
-        );
-      }
-
-      const result = data as QrisTestResponse;
-
-      if (
-        !result?.success ||
-        result.environment !== "sandbox" ||
-        result.test_only !== true
-      ) {
-        throw new Error(
-          result?.error ||
-            result?.detail ||
-            "Respons pengujian QRIS tidak sesuai."
-        );
-      }
-
-      setQrisTestResult(result);
-
-      setMessage(
-        "Transaksi QRIS Sandbox berhasil dibuat. Tidak ada pembayaran yang dilakukan."
-      );
-    } catch (error) {
-      console.error("QRIS test:", error);
-
-      setQrisTestResult({
-        error:
-          error instanceof Error
-            ? error.message
-            : "Pengujian QRIS gagal.",
-      });
-    } finally {
-      setQrisTestLoading(false);
-    }
-  };
-
-  // Memeriksa status transaksi Snap.
+  // Check Snap payment status.
   const handleCheckStatus = async () => {
     if (!invoice || checking) return;
 
@@ -460,9 +292,8 @@ export function UpgradeModal({
 
       if (error) {
         console.error("Check payment:", error);
-
         throw new Error(
-          data?.error || "Gagal memeriksa status pembayaran."
+          "Gagal memeriksa status pembayaran."
         );
       }
 
@@ -482,7 +313,7 @@ export function UpgradeModal({
 
       if (status === "settlement" || status === "capture") {
         setMessage(
-          "Pembayaran berhasil menurut Midtrans. Menunggu sinkronisasi status Premium."
+          "Pembayaran berhasil menurut Midtrans. Status Premium mengikuti verifikasi server."
         );
       } else if (status === "pending") {
         setMessage(
@@ -513,25 +344,26 @@ export function UpgradeModal({
     }
   };
 
+  // Resolve QRIS URL returned by the server.
   const qrisUrl =
     paymentStatus?.qris_url ??
     paymentStatus?.qris_url_v2 ??
     paymentStatus?.qris_url_legacy ??
     null;
 
-  const validQrisUrl =
-    typeof qrisUrl === "string" &&
-    (() => {
-      try {
-        const parsedUrl = new URL(qrisUrl);
+  const validQrisUrl = (() => {
+    if (typeof qrisUrl !== "string") return null;
 
-        return parsedUrl.protocol === "https:";
-      } catch {
-        return false;
-      }
-    })()
-      ? qrisUrl
-      : null;
+    try {
+      const parsedUrl = new URL(qrisUrl);
+
+      if (parsedUrl.protocol !== "https:") return null;
+
+      return parsedUrl.toString();
+    } catch {
+      return null;
+    }
+  })();
 
   const paymentMethod = String(
     paymentStatus?.payment_type ||
@@ -627,9 +459,7 @@ export function UpgradeModal({
                     <span>Nominal</span>
 
                     <strong>
-                      {formatRupiah(
-                        Number(paymentStatus.amount)
-                      )}
+                      {formatRupiah(Number(paymentStatus.amount))}
                     </strong>
                   </div>
                 )}
@@ -643,7 +473,7 @@ export function UpgradeModal({
                     {validQrisUrl ? (
                       <>
                         <p className="mb-3 text-xs text-muted-foreground">
-                          URL QRIS tersedia dari Midtrans.
+                          QRIS tersedia dari transaksi Midtrans Snap.
                         </p>
 
                         <Button
@@ -663,7 +493,7 @@ export function UpgradeModal({
                       </>
                     ) : (
                       <p className="text-xs text-muted-foreground">
-                        URL QRIS belum tersedia dari respons Midtrans.
+                        URL QRIS belum tersedia dari respons server.
                       </p>
                     )}
                   </div>
@@ -676,7 +506,7 @@ export function UpgradeModal({
                     </p>
 
                     <p className="mt-1 text-xs">
-                      Status Premium akan mengikuti sinkronisasi data akun.
+                      Status Premium mengikuti sinkronisasi data akun.
                     </p>
                   </div>
                 )}
@@ -705,9 +535,7 @@ export function UpgradeModal({
                 <button
                   key={item.id}
                   type="button"
-                  onClick={() => {
-                    setSelected(item.id);
-                  }}
+                  onClick={() => setSelected(item.id)}
                   className={cn(
                     "relative rounded-2xl border-2 p-4 text-left transition-all",
                     selected === item.id
@@ -798,94 +626,11 @@ export function UpgradeModal({
                 `Pilih ${plan?.name ?? "Paket"}`
               )}
             </Button>
-
-            <div className="rounded-xl border border-dashed p-4 space-y-3">
-              <div className="flex items-center gap-2">
-                <FlaskConical className="h-4 w-4 text-muted-foreground" />
-                <p className="text-sm font-semibold">
-                  Pengujian Developer
-                </p>
-                <Badge variant="outline">Sandbox</Badge>
-              </div>
-
-              <p className="text-xs text-muted-foreground">
-                Pengujian teknis Core API menggunakan paket Premium
-                Bulanan. Tidak melakukan pembayaran atau mengaktifkan Premium.
-              </p>
-
-              <Button
-                type="button"
-                variant="outline"
-                className="w-full border-dashed"
-                onClick={handleTestQrisCoreApi}
-                disabled={qrisTestLoading || loading}
-              >
-                {qrisTestLoading ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Menguji QRIS Sandbox...
-                  </>
-                ) : (
-                  "Tes QRIS Core API (Sandbox)"
-                )}
-              </Button>
-
-              {qrisTestResult && (
-                <div className="rounded-lg bg-muted/50 p-3 text-sm space-y-2">
-                  <p className="font-semibold">
-                    Hasil Pengujian QRIS
-                  </p>
-
-                  {qrisTestResult.error ? (
-                    <div className="space-y-2">
-                      <p className="break-words text-destructive">
-                        {qrisTestResult.error}
-                      </p>
-
-                      {qrisTestResult.stage && (
-                        <p className="text-xs text-muted-foreground">
-                          Tahap: {qrisTestResult.stage}
-                        </p>
-                      )}
-                    </div>
-                  ) : (
-                    <>
-                      <div className="flex justify-between gap-2">
-                        <span>Invoice</span>
-                        <strong className="break-all text-right">
-                          {qrisTestResult.invoice_number || "-"}
-                        </strong>
-                      </div>
-
-                      <div className="flex justify-between gap-2">
-                        <span>Transaction ID</span>
-                        <strong className="break-all text-right">
-                          {qrisTestResult.transaction_id || "-"}
-                        </strong>
-                      </div>
-
-                      <div className="flex justify-between gap-2">
-                        <span>Status QR</span>
-                        <strong>
-                          {qrisTestResult.qr_available
-                            ? "Tersedia"
-                            : "Belum tersedia"}
-                        </strong>
-                      </div>
-
-                      <p className="text-xs text-muted-foreground">
-                        Sandbox saja. Jangan pindai atau lakukan pembayaran.
-                      </p>
-                    </>
-                  )}
-                </div>
-              )}
-            </div>
           </>
         )}
 
         <p className="text-center text-xs text-muted-foreground">
-          Pembayaran diproses melalui Midtrans.
+          Pembayaran diproses melalui Midtrans Snap.
         </p>
       </DialogContent>
     </Dialog>
