@@ -69,6 +69,11 @@ interface QrisTestResponse {
   qr_available?: boolean;
   error?: string;
   message?: string;
+  stage?: string;
+  detail?: string;
+  gateway_status?: number;
+  gateway_code?: string | null;
+  gateway_message?: string;
 }
 
 declare global {
@@ -289,6 +294,65 @@ export function UpgradeModal({
     }
   };
 
+  // Mengambil detail error dari Edge Function.
+  const getQrisErrorDetails = async (
+    error: { message: string; context?: unknown },
+    data: unknown
+  ): Promise<QrisTestResponse> => {
+    let responseData =
+      data && typeof data === "object"
+        ? (data as QrisTestResponse)
+        : null;
+
+    let httpStatus: number | undefined;
+
+    try {
+      const context = error.context;
+
+      if (context instanceof Response) {
+        httpStatus = context.status;
+
+        const parsed = await context.clone().json();
+
+        if (parsed && typeof parsed === "object") {
+          responseData = {
+            ...responseData,
+            ...parsed,
+          };
+        }
+      }
+    } catch (parseError) {
+      console.warn("Tidak dapat membaca detail respons QRIS:", parseError);
+    }
+
+    const details = [
+      responseData?.stage
+        ? `Tahap: ${responseData.stage}`
+        : null,
+      responseData?.error || error.message,
+      responseData?.detail,
+      responseData?.gateway_status
+        ? `HTTP Midtrans: ${responseData.gateway_status}`
+        : null,
+      responseData?.gateway_code
+        ? `Kode Midtrans: ${responseData.gateway_code}`
+        : null,
+      responseData?.gateway_message,
+      httpStatus
+        ? `HTTP Edge Function: ${httpStatus}`
+        : null,
+    ].filter(Boolean);
+
+    return {
+      error: details.join(" | "),
+      stage: responseData?.stage,
+      detail: responseData?.detail,
+      gateway_status: responseData?.gateway_status,
+      gateway_code: responseData?.gateway_code,
+      gateway_message: responseData?.gateway_message,
+    };
+  };
+
   // Tes QRIS Core API Sandbox.
   const handleTestQrisCoreApi = async () => {
     if (qrisTestLoading) return;
@@ -329,12 +393,19 @@ export function UpgradeModal({
       );
 
       if (error) {
-        console.error("QRIS Core API test:", error);
+        console.error("QRIS Core API test:", {
+          message: error.message,
+          context: error.context,
+          response: data,
+        });
+
+        const errorDetails = await getQrisErrorDetails(
+          error,
+          data
+        );
 
         throw new Error(
-          data?.error ||
-            error.message ||
-            "Gagal membuat transaksi QRIS Sandbox."
+          errorDetails.error || "Gagal membuat transaksi QRIS Sandbox."
         );
       }
 
@@ -347,6 +418,7 @@ export function UpgradeModal({
       ) {
         throw new Error(
           result?.error ||
+            result?.detail ||
             "Respons pengujian QRIS tidak sesuai."
         );
       }
@@ -765,9 +837,17 @@ export function UpgradeModal({
                   </p>
 
                   {qrisTestResult.error ? (
-                    <p className="text-destructive">
-                      {qrisTestResult.error}
-                    </p>
+                    <div className="space-y-2">
+                      <p className="break-words text-destructive">
+                        {qrisTestResult.error}
+                      </p>
+
+                      {qrisTestResult.stage && (
+                        <p className="text-xs text-muted-foreground">
+                          Tahap: {qrisTestResult.stage}
+                        </p>
+                      )}
+                    </div>
                   ) : (
                     <>
                       <div className="flex justify-between gap-2">
