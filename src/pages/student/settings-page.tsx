@@ -1,3 +1,4 @@
+
 import { useEffect, useState, type FormEvent } from "react";
 import {
   Bell,
@@ -70,7 +71,6 @@ export default function StudentSettingsPage() {
   const [savingProfile, setSavingProfile] = useState(false);
   const [savingPassword, setSavingPassword] = useState(false);
 
-  // Profil siswa
   const [profile, setProfile] = useState<ProfileData>({
     name: "",
     email: "",
@@ -82,7 +82,6 @@ export default function StudentSettingsPage() {
 
   const [profileErr, setProfileErr] = useState<Record<string, string>>({});
 
-  // Kata sandi
   const [pw, setPw] = useState({
     current: "",
     next: "",
@@ -91,7 +90,6 @@ export default function StudentSettingsPage() {
 
   const [pwErr, setPwErr] = useState<Record<string, string>>({});
 
-  // Preferensi
   const [prefs, setPrefs] = useState({
     language: "id",
     dailyGoal: "30",
@@ -99,7 +97,6 @@ export default function StudentSettingsPage() {
     showTimer: true,
   });
 
-  // Notifikasi
   const [notif, setNotif] = useState({
     email: true,
     reminder: true,
@@ -114,7 +111,7 @@ export default function StudentSettingsPage() {
     GRADES_BY_LEVEL[profile.educationLevel]
   );
 
-  // Memuat profil dari Supabase
+  // Memuat profil siswa dari Supabase.
   useEffect(() => {
     let mounted = true;
 
@@ -165,13 +162,13 @@ export default function StudentSettingsPage() {
               : "",
           targetExams: profData?.target_exams ?? 10,
         });
-      } catch (err) {
-        console.error("Gagal memuat profil user:", err);
+      } catch (error) {
+        console.error("Gagal memuat profil user:", error);
 
         if (mounted) {
           toast.error(
-            err instanceof Error
-              ? err.message
+            error instanceof Error
+              ? error.message
               : "Gagal memuat data profil."
           );
         }
@@ -189,7 +186,7 @@ export default function StudentSettingsPage() {
     };
   }, []);
 
-  // Mengubah jenjang dan menyesuaikan pilihan kelas
+  // Mengubah jenjang pendidikan dan mengosongkan kelas sebelumnya.
   const handleEducationLevelChange = (value: string) => {
     const nextLevel = value === NO_SELECTION ? "" : value;
 
@@ -206,8 +203,11 @@ export default function StudentSettingsPage() {
     }));
   };
 
-  // Mengubah data profil
-  const updateProfile = (field: keyof ProfileData, value: string | number) => {
+  // Mengubah data profil.
+  const updateProfile = (
+    field: keyof ProfileData,
+    value: string | number
+  ) => {
     setProfile((prev) => ({
       ...prev,
       [field]: value,
@@ -219,7 +219,7 @@ export default function StudentSettingsPage() {
     }));
   };
 
-  // Validasi profil
+  // Validasi data profil.
   const validateProfile = () => {
     const err: Record<string, string> = {};
 
@@ -260,7 +260,8 @@ export default function StudentSettingsPage() {
     return Object.keys(err).length === 0;
   };
 
-  // Menyimpan profil ke Supabase
+  // Menyimpan profil siswa.
+  // Hanya memperbarui kolom profil yang boleh diedit siswa.
   const saveProfile = async (e?: FormEvent) => {
     e?.preventDefault();
 
@@ -285,51 +286,39 @@ export default function StudentSettingsPage() {
       }
 
       const profilePayload = {
-        id: user.id,
         full_name: profile.name.trim(),
         school: profile.school.trim() || null,
-
-        // Jenjang pendidikan disimpan di kolom khusus.
         education_level: profile.educationLevel,
-
-        // Kelas disimpan sebagai angka.
         grade: requiresGrade ? Number(profile.grade) : null,
-
         target_exams: profile.targetExams,
-        updated_at: new Date().toISOString(),
       };
 
+      // UPDATE hanya pada baris milik pengguna yang sedang login.
+      // Tidak menggunakan UPSERT agar tidak membuat baris profil baru.
       const { error } = await supabase
         .from("profiles")
-        .upsert(profilePayload, {
-          onConflict: "id",
-        });
+        .update(profilePayload)
+        .eq("id", user.id);
 
       if (error) throw error;
 
       toast.success("Profil berhasil diperbarui!");
-
       setProfileErr({});
-    } catch (error: any) {
-  console.error("DETAIL ERROR SIMPAN PROFIL:", error);
+    } catch (error: unknown) {
+      console.error("DETAIL ERROR SIMPAN PROFIL:", error);
 
-  const message =
-    error?.message ||
-    error?.details ||
-    error?.hint ||
-    "Terjadi kesalahan yang tidak diketahui.";
+      const message =
+        error instanceof Error
+          ? error.message
+          : "Terjadi kesalahan yang tidak diketahui.";
 
-  toast.error("Gagal menyimpan profil: " + message);
-
-  console.error("Kode error:", error?.code);
-  console.error("Detail:", error?.details);
-  console.error("Hint:", error?.hint);
-} finally {
+      toast.error("Gagal menyimpan profil: " + message);
+    } finally {
       setSavingProfile(false);
     }
   };
 
-  // Mengubah kata sandi melalui Supabase Auth
+  // Memperbarui kata sandi melalui Supabase Auth.
   const savePassword = async (e: FormEvent) => {
     e.preventDefault();
 
@@ -576,19 +565,17 @@ export default function StudentSettingsPage() {
                             ))}
                           </SelectContent>
                         </Select>
-
                         <FieldError message={profileErr.grade} />
                       </div>
                     )}
                   </div>
 
-                  {!requiresGrade &&
-                    profile.educationLevel && (
-                      <p className="text-xs text-muted-foreground">
-                        Jenjang ini tidak memerlukan pilihan kelas
-                        sekolah formal.
-                      </p>
-                    )}
+                  {!requiresGrade && profile.educationLevel && (
+                    <p className="text-xs text-muted-foreground">
+                      Jenjang ini tidak memerlukan pilihan kelas
+                      sekolah formal.
+                    </p>
+                  )}
                 </div>
 
                 <div className="flex flex-wrap items-center justify-between gap-3 border-t pt-4">
@@ -673,7 +660,6 @@ export default function StudentSettingsPage() {
           <Card>
             <CardHeader>
               <CardTitle>Preferensi Belajar & Target</CardTitle>
-
               <CardDescription>
                 Atur target belajar pribadi Anda.
               </CardDescription>
@@ -713,8 +699,8 @@ export default function StudentSettingsPage() {
 
                   <Select
                     value={prefs.dailyGoal}
-                    onValueChange={(v) =>
-                      setPrefs({ ...prefs, dailyGoal: v })
+                    onValueChange={(value) =>
+                      setPrefs({ ...prefs, dailyGoal: value })
                     }
                   >
                     <SelectTrigger>
@@ -722,9 +708,12 @@ export default function StudentSettingsPage() {
                     </SelectTrigger>
 
                     <SelectContent>
-                      {["15", "30", "60", "90"].map((m) => (
-                        <SelectItem key={m} value={m}>
-                          {m} menit / hari
+                      {["15", "30", "60", "90"].map((minutes) => (
+                        <SelectItem
+                          key={minutes}
+                          value={minutes}
+                        >
+                          {minutes} menit / hari
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -737,8 +726,8 @@ export default function StudentSettingsPage() {
                 title="Putar pelajaran berikutnya otomatis"
                 description="Lanjut ke pembahasan berikutnya secara otomatis."
                 checked={prefs.autoplay}
-                onChange={(v) =>
-                  setPrefs({ ...prefs, autoplay: v })
+                onChange={(value) =>
+                  setPrefs({ ...prefs, autoplay: value })
                 }
               />
 
@@ -747,8 +736,8 @@ export default function StudentSettingsPage() {
                 title="Tampilkan timer saat ujian"
                 description="Timer selalu terlihat di ruang ujian."
                 checked={prefs.showTimer}
-                onChange={(v) =>
-                  setPrefs({ ...prefs, showTimer: v })
+                onChange={(value) =>
+                  setPrefs({ ...prefs, showTimer: value })
                 }
               />
 
@@ -771,7 +760,6 @@ export default function StudentSettingsPage() {
           <Card>
             <CardHeader>
               <CardTitle>Notifikasi</CardTitle>
-
               <CardDescription>
                 Atur pemberitahuan yang ingin Anda terima.
               </CardDescription>
@@ -783,8 +771,8 @@ export default function StudentSettingsPage() {
                 title="Notifikasi email"
                 description="Terima ringkasan aktivitas melalui email."
                 checked={notif.email}
-                onChange={(v) =>
-                  setNotif({ ...notif, email: v })
+                onChange={(value) =>
+                  setNotif({ ...notif, email: value })
                 }
               />
 
@@ -793,8 +781,8 @@ export default function StudentSettingsPage() {
                 title="Pengingat belajar"
                 description="Ingatkan saya agar menjaga streak harian."
                 checked={notif.reminder}
-                onChange={(v) =>
-                  setNotif({ ...notif, reminder: v })
+                onChange={(value) =>
+                  setNotif({ ...notif, reminder: value })
                 }
               />
 
@@ -803,8 +791,8 @@ export default function StudentSettingsPage() {
                 title="Hasil ujian"
                 description="Beritahu saya saat hasil ujian tersedia."
                 checked={notif.results}
-                onChange={(v) =>
-                  setNotif({ ...notif, results: v })
+                onChange={(value) =>
+                  setNotif({ ...notif, results: value })
                 }
               />
 
@@ -813,15 +801,17 @@ export default function StudentSettingsPage() {
                 title="Info promo"
                 description="Kabar tentang fitur baru dan penawaran."
                 checked={notif.promo}
-                onChange={(v) =>
-                  setNotif({ ...notif, promo: v })
+                onChange={(value) =>
+                  setNotif({ ...notif, promo: value })
                 }
               />
 
               <div className="pt-5">
                 <Button
                   onClick={() =>
-                    toast.success("Preferensi notifikasi diperbarui")
+                    toast.success(
+                      "Preferensi notifikasi diperbarui"
+                    )
                   }
                 >
                   Simpan Notifikasi
@@ -836,7 +826,6 @@ export default function StudentSettingsPage() {
           <Card>
             <CardHeader>
               <CardTitle>Tampilan</CardTitle>
-
               <CardDescription>
                 Pilih mode terang atau gelap. Pilihan disimpan di
                 perangkat ini.
