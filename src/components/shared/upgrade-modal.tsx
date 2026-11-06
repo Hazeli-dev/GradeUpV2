@@ -640,4 +640,3 @@ export function UpgradeModal({
     </Dialog>
   );
 }
-```
