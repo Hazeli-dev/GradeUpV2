@@ -45,6 +45,7 @@ interface PaymentStatusResponse {
   success?: boolean;
   invoice?: string;
   database_status?: string;
+  database_payment_method?: string | null;
   midtrans_status?: string;
   payment_type?: string;
   amount?: number;
@@ -213,6 +214,7 @@ export function UpgradeModal({
 
       if (error) {
         console.error("Create payment:", error);
+
         throw new Error(
           data?.error || "Gagal membuat transaksi pembayaran."
         );
@@ -285,6 +287,7 @@ export function UpgradeModal({
 
       if (error) {
         console.error("Check payment:", error);
+
         throw new Error(
           data?.error || "Gagal memeriksa status pembayaran."
         );
@@ -337,25 +340,45 @@ export function UpgradeModal({
     }
   };
 
-  // Memilih URL QRIS yang benar-benar dikembalikan backend.
+  // Memilih URL QRIS yang dikembalikan backend.
   const qrisUrl =
     paymentStatus?.qris_url ??
     paymentStatus?.qris_url_v2 ??
     paymentStatus?.qris_url_legacy ??
     null;
 
-  // Hanya izinkan URL HTTPS.
+  // Hanya mengizinkan URL HTTPS.
   const validQrisUrl =
     typeof qrisUrl === "string" &&
     (() => {
       try {
-        return new URL(qrisUrl).protocol === "https:";
+        const parsedUrl = new URL(qrisUrl);
+
+        return parsedUrl.protocol === "https:";
       } catch {
         return false;
       }
     })()
       ? qrisUrl
       : null;
+
+  // Metode pembayaran dari Midtrans atau database.
+  const paymentMethod = String(
+    paymentStatus?.payment_type ||
+      paymentStatus?.database_payment_method ||
+      ""
+  ).toLowerCase();
+
+  const isPendingQris =
+    paymentStatus?.midtrans_status?.toLowerCase() === "pending" &&
+    paymentMethod === "qris";
+
+  const isPaymentSuccessful = [
+    "settlement",
+    "capture",
+  ].includes(
+    String(paymentStatus?.midtrans_status ?? "").toLowerCase()
+  );
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -425,7 +448,7 @@ export function UpgradeModal({
                   <span>Metode Pembayaran</span>
 
                   <strong className="uppercase">
-                    {paymentStatus.payment_type || "-"}
+                    {paymentMethod || "-"}
                   </strong>
                 </div>
 
@@ -441,52 +464,49 @@ export function UpgradeModal({
                   </div>
                 )}
 
-                {paymentStatus.midtrans_status?.toLowerCase() ===
-                  "pending" &&
-                  paymentStatus.payment_type?.toLowerCase() ===
-                    "qris" && (
-                    <div className="border-t pt-3">
-                      <p className="mb-2 font-semibold">
-                        Pembayaran QRIS
-                      </p>
+                {isPendingQris && (
+                  <div className="border-t pt-3">
+                    <p className="mb-2 font-semibold">
+                      Pembayaran QRIS
+                    </p>
 
-                      {validQrisUrl ? (
-                        <>
-                          <p className="mb-3 text-xs text-muted-foreground">
-                            URL QRIS tersedia dari Midtrans. Buka tautan berikut untuk melihat QRIS.
-                          </p>
-
-                          <Button
-                            type="button"
-                            className="w-full"
-                            onClick={() =>
-                              window.open(
-                                validQrisUrl,
-                                "_blank",
-                                "noopener,noreferrer"
-                              )
-                            }
-                          >
-                            <ExternalLink className="mr-2 h-4 w-4" />
-                            Buka QRIS
-                          </Button>
-                        </>
-                      ) : (
-                        <p className="text-xs text-muted-foreground">
-                          URL QRIS belum tersedia dari respons Midtrans. Silakan gunakan QRIS yang ditampilkan pada halaman pembayaran Midtrans.
+                    {validQrisUrl ? (
+                      <>
+                        <p className="mb-3 text-xs text-muted-foreground">
+                          URL QRIS tersedia dari Midtrans. Buka tautan berikut untuk melihat QRIS.
                         </p>
-                      )}
-                    </div>
-                  )}
 
-                {(paymentStatus.midtrans_status?.toLowerCase() ===
-                  "settlement" ||
-                  paymentStatus.midtrans_status?.toLowerCase() ===
-                    "capture") && (
+                        <Button
+                          type="button"
+                          className="w-full"
+                          onClick={() => {
+                            window.open(
+                              validQrisUrl,
+                              "_blank",
+                              "noopener,noreferrer"
+                            );
+                          }}
+                        >
+                          <ExternalLink className="mr-2 h-4 w-4" />
+                          Buka QRIS
+                        </Button>
+                      </>
+                    ) : (
+                      <p className="text-xs text-muted-foreground">
+                        URL QRIS belum tersedia dari respons Midtrans.
+                        Silakan periksa kembali halaman pembayaran Midtrans
+                        untuk melihat informasi pembayaran yang tersedia.
+                      </p>
+                    )}
+                  </div>
+                )}
+
+                {isPaymentSuccessful && (
                   <div className="border-t pt-3 text-sm text-emerald-700 dark:text-emerald-400">
                     <p className="font-semibold">
                       Pembayaran terkonfirmasi
                     </p>
+
                     <p className="mt-1 text-xs">
                       Status Premium akan mengikuti sinkronisasi data akun.
                     </p>
@@ -517,7 +537,9 @@ export function UpgradeModal({
                 <button
                   key={item.id}
                   type="button"
-                  onClick={() => setSelected(item.id)}
+                  onClick={() => {
+                    setSelected(item.id);
+                  }}
                   className={cn(
                     "relative rounded-2xl border-2 p-4 text-left transition-all",
                     selected === item.id
@@ -618,3 +640,4 @@ export function UpgradeModal({
     </Dialog>
   );
 }
+```
