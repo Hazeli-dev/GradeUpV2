@@ -130,6 +130,19 @@ type LearningProgress = {
   } | null;
 };
 
+type SubmitAnswerResult = {
+  success: boolean;
+  already_correct?: boolean;
+  is_correct: boolean;
+  message: string;
+  attempt_count: number;
+  explanation: string | null;
+  correct_answers?: number;
+  total_questions?: number;
+  completed?: boolean;
+  next_question?: AssessmentQuestion | null;
+};
+
 // =====================================================
 // PARAGRAPH LAYOUT EXTENSION
 // =====================================================
@@ -144,7 +157,8 @@ const ParagraphLayout = Extension.create({
         attributes: {
           textIndent: {
             default: null,
-            parseHTML: (element) => element.style.textIndent || null,
+            parseHTML: (element) =>
+              element.style.textIndent || null,
             renderHTML: (attributes) =>
               attributes.textIndent
                 ? { style: `text-indent: ${attributes.textIndent}` }
@@ -152,7 +166,8 @@ const ParagraphLayout = Extension.create({
           },
           leftIndent: {
             default: null,
-            parseHTML: (element) => element.style.marginLeft || null,
+            parseHTML: (element) =>
+              element.style.marginLeft || null,
             renderHTML: (attributes) =>
               attributes.leftIndent
                 ? { style: `margin-left: ${attributes.leftIndent}` }
@@ -160,7 +175,8 @@ const ParagraphLayout = Extension.create({
           },
           rightIndent: {
             default: null,
-            parseHTML: (element) => element.style.marginRight || null,
+            parseHTML: (element) =>
+              element.style.marginRight || null,
             renderHTML: (attributes) =>
               attributes.rightIndent
                 ? { style: `margin-right: ${attributes.rightIndent}` }
@@ -168,7 +184,8 @@ const ParagraphLayout = Extension.create({
           },
           lineHeight: {
             default: null,
-            parseHTML: (element) => element.style.lineHeight || null,
+            parseHTML: (element) =>
+              element.style.lineHeight || null,
             renderHTML: (attributes) =>
               attributes.lineHeight
                 ? { style: `line-height: ${attributes.lineHeight}` }
@@ -176,7 +193,8 @@ const ParagraphLayout = Extension.create({
           },
           marginTop: {
             default: null,
-            parseHTML: (element) => element.style.marginTop || null,
+            parseHTML: (element) =>
+              element.style.marginTop || null,
             renderHTML: (attributes) =>
               attributes.marginTop
                 ? { style: `margin-top: ${attributes.marginTop}` }
@@ -184,7 +202,8 @@ const ParagraphLayout = Extension.create({
           },
           marginBottom: {
             default: null,
-            parseHTML: (element) => element.style.marginBottom || null,
+            parseHTML: (element) =>
+              element.style.marginBottom || null,
             renderHTML: (attributes) =>
               attributes.marginBottom
                 ? { style: `margin-bottom: ${attributes.marginBottom}` }
@@ -200,9 +219,19 @@ const ParagraphLayout = Extension.create({
 // HELPERS
 // =====================================================
 
-function formatError(error: unknown) {
+function formatError(error: unknown): string {
   if (error instanceof Error) return error.message;
   if (typeof error === "string") return error;
+
+  if (
+    error &&
+    typeof error === "object" &&
+    "message" in error &&
+    typeof error.message === "string"
+  ) {
+    return error.message;
+  }
+
   return "Terjadi kesalahan. Silakan coba kembali.";
 }
 
@@ -210,14 +239,41 @@ function getOptionList(value: unknown): QuestionOption[] {
   if (!Array.isArray(value)) return [];
 
   return value
-    .filter(
-      (item): item is QuestionOption =>
+    .filter((item): item is Record<string, unknown> => {
+      return (
         item !== null &&
         typeof item === "object" &&
-        typeof item.id === "string" &&
-        typeof item.text === "string"
-    )
+        !Array.isArray(item) &&
+        typeof (item as Record<string, unknown>).id === "string" &&
+        typeof (item as Record<string, unknown>).text === "string"
+      );
+    })
+    .map((item) => ({
+      id: item.id as string,
+      text: item.text as string,
+    }))
     .sort((a, b) => a.id.localeCompare(b.id));
+}
+
+function getLearningProgress(value: unknown): LearningProgress {
+  if (!value || typeof value !== "object") {
+    throw new Error("Data progres pembelajaran tidak valid.");
+  }
+
+  const data = value as Record<string, unknown>;
+
+  return {
+    lesson_id:
+      typeof data.lesson_id === "string" ? data.lesson_id : "",
+    sections: Array.isArray(data.sections)
+      ? (data.sections as LessonSection[])
+      : [],
+    final_assessment:
+      data.final_assessment &&
+      typeof data.final_assessment === "object"
+        ? (data.final_assessment as LearningProgress["final_assessment"])
+        : null,
+  };
 }
 
 // =====================================================
@@ -287,7 +343,9 @@ export default function LessonLearningPage() {
   const activitySessionRef = useRef<string | null>(null);
 
   const activityType = activeAssessment ? "practice" : "reading";
-  const activityReferenceId = activeAssessment?.id ?? lessonId ?? null;
+
+  const activityReferenceId =
+    activeAssessment?.id ?? lessonId ?? null;
 
   useEffect(() => {
     if (!lesson || !lessonId || !courseId || !activityReferenceId) {
@@ -297,6 +355,7 @@ export default function LessonLearningPage() {
     let cancelled = false;
     let finalized = false;
     let finishRequested = false;
+
     let activityId: string | null = null;
     let intervalId: ReturnType<typeof setInterval> | null = null;
 
@@ -305,7 +364,7 @@ export default function LessonLearningPage() {
     let activeSegmentStartedAt: number | null =
       document.visibilityState === "visible" ? Date.now() : null;
 
-    // Menjaga agar proses penyimpanan berjalan berurutan.
+    // Antrean penyimpanan agar update tidak saling menimpa.
     let writeQueue: Promise<void> = Promise.resolve();
 
     const isPractice = activityType === "practice";
@@ -379,7 +438,10 @@ export default function LessonLearningPage() {
             .eq("id", activityId);
 
           if (updateError) {
-            console.error("Update learning activity:", updateError);
+            console.error(
+              "Update learning activity:",
+              updateError
+            );
             return;
           }
 
@@ -418,7 +480,7 @@ export default function LessonLearningPage() {
         } = await supabase.auth.getUser();
 
         if (authError) throw authError;
-        if (!user) return;
+        if (cancelled || !user) return;
 
         const { data, error: insertError } = await supabase
           .from("learning_activities")
@@ -451,8 +513,8 @@ export default function LessonLearningPage() {
         activityId = data.id;
         activitySessionRef.current = data.id;
 
-        // Jika komponen sudah ditutup sebelum insert selesai,
-        // aktivitas langsung diselesaikan setelah ID tersedia.
+        // Jika halaman ditutup ketika insert berlangsung,
+        // aktivitas tetap diselesaikan setelah ID diperoleh.
         if (cancelled || finishRequested) {
           queueSave(true);
           return;
@@ -470,6 +532,8 @@ export default function LessonLearningPage() {
 
         if (document.visibilityState !== "visible") {
           pauseTimer();
+        } else {
+          resumeTimer();
         }
       } catch (err) {
         console.error("Start learning activity:", err);
@@ -697,6 +761,9 @@ export default function LessonLearningPage() {
         .single();
 
       if (lessonError) throw lessonError;
+      if (!lessonData) {
+        throw new Error("Data materi tidak ditemukan.");
+      }
 
       const moduleData = Array.isArray(lessonData.module)
         ? lessonData.module[0]
@@ -706,7 +773,7 @@ export default function LessonLearningPage() {
         ? moduleData.course[0]
         : moduleData?.course;
 
-      if (!courseData || courseData.id !== courseId) {
+      if (!moduleData || !courseData || courseData.id !== courseId) {
         throw new Error("Materi tidak ditemukan dalam kursus ini.");
       }
 
@@ -746,26 +813,33 @@ export default function LessonLearningPage() {
       if (assessmentErrorResult) throw assessmentErrorResult;
       if (progressError) throw progressError;
 
-      const progress = progressData as LearningProgress;
+      const progress = getLearningProgress(progressData);
+      const availableSections = Array.isArray(sectionData)
+        ? sectionData
+        : [];
 
-      const mappedSections: LessonSection[] = (
-        progress.sections || []
-      ).map((item) => {
-        const sectionContent = (sectionData || []).find(
-          (section) => section.id === item.section_id
-        );
+      const mappedSections: LessonSection[] = progress.sections.map(
+        (item) => {
+          const sectionContent = availableSections.find(
+            (section) => section.id === item.section_id
+          );
 
-        return {
-          ...item,
-          content_json: sectionContent?.content_json || {
-            type: "doc",
-            content: [{ type: "paragraph" }],
-          },
-        };
-      });
+          return {
+            ...item,
+            content_json: sectionContent?.content_json || {
+              type: "doc",
+              content: [{ type: "paragraph" }],
+            },
+          };
+        }
+      );
+
+      const mappedAssessments = Array.isArray(assessmentData)
+        ? (assessmentData as AssessmentInfo[])
+        : [];
 
       setSections(mappedSections);
-      setAssessments((assessmentData || []) as AssessmentInfo[]);
+      setAssessments(mappedAssessments);
       setLearningProgress(progress);
 
       const firstIncompleteIndex = mappedSections.findIndex(
@@ -822,6 +896,10 @@ export default function LessonLearningPage() {
     [assessments]
   );
 
+  // ===================================================
+  // REFRESH LEARNING PROGRESS
+  // ===================================================
+
   const refreshLearningProgress = useCallback(async () => {
     if (!lessonId) return;
 
@@ -832,7 +910,8 @@ export default function LessonLearningPage() {
 
     if (progressError) throw progressError;
 
-    const progress = data as LearningProgress;
+    const progress = getLearningProgress(data);
+
     setLearningProgress(progress);
 
     setSections((previous) =>
@@ -856,7 +935,7 @@ export default function LessonLearningPage() {
   // ===================================================
 
   const startAssessment = async (assessment: AssessmentInfo) => {
-    if (startingAssessment) return;
+    if (startingAssessment || activeAssessment) return;
 
     setStartingAssessment(true);
     setAssessmentError("");
@@ -875,16 +954,20 @@ export default function LessonLearningPage() {
 
       const result = data as AssessmentResult;
 
+      if (!result?.attempt_id) {
+        throw new Error("Sesi pengerjaan tidak berhasil dibuat.");
+      }
+
       setActiveAssessment(assessment);
       setAttemptId(result.attempt_id);
 
       setAssessmentStats({
-        total: result.total_questions,
-        correct: result.correct_answers,
-        completed: result.completed,
+        total: result.total_questions ?? 0,
+        correct: result.correct_answers ?? 0,
+        completed: result.completed === true,
       });
 
-      setCurrentQuestion(result.next_question);
+      setCurrentQuestion(result.next_question ?? null);
     } catch (err) {
       console.error("Start assessment:", err);
       setAssessmentError(formatError(err));
@@ -923,42 +1006,35 @@ export default function LessonLearningPage() {
 
       if (submitError) throw submitError;
 
-      const result = data as {
-        success: boolean;
-        already_correct?: boolean;
-        is_correct: boolean;
-        message: string;
-        attempt_count: number;
-        explanation: string | null;
-        correct_answers?: number;
-        total_questions?: number;
-        completed?: boolean;
-        next_question?: AssessmentQuestion | null;
-      };
+      const result = data as SubmitAnswerResult;
 
-      if (!result.success) {
-        throw new Error(result.message || "Jawaban gagal disimpan.");
+      if (!result?.success) {
+        throw new Error(
+          result?.message || "Jawaban gagal disimpan."
+        );
       }
 
       if (result.already_correct) {
-        const { data: progressData, error: progressError } =
-          await supabase.rpc("get_lesson_assessment_progress", {
-            p_attempt_id: attemptId,
-          });
+        const {
+          data: progressData,
+          error: progressError,
+        } = await supabase.rpc("get_lesson_assessment_progress", {
+          p_attempt_id: attemptId,
+        });
 
         if (progressError) throw progressError;
 
         const progress = progressData as ProgressResult;
 
-        setCurrentQuestion(progress.next_question);
+        setCurrentQuestion(progress.next_question ?? null);
         setPendingNextQuestion(null);
         setSelectedAnswer("");
         setAnswerFeedback(null);
 
         setAssessmentStats({
-          total: progress.total_questions,
-          correct: progress.correct_answers,
-          completed: progress.completed,
+          total: progress.total_questions ?? 0,
+          correct: progress.correct_answers ?? 0,
+          completed: progress.completed === true,
         });
 
         return;
@@ -970,6 +1046,7 @@ export default function LessonLearningPage() {
           message: result.message,
           explanation: null,
         });
+
         return;
       }
 
@@ -992,21 +1069,23 @@ export default function LessonLearningPage() {
       } else if (result.next_question) {
         setPendingNextQuestion(result.next_question);
       } else {
-        const { data: progressData, error: progressError } =
-          await supabase.rpc("get_lesson_assessment_progress", {
-            p_attempt_id: attemptId,
-          });
+        const {
+          data: progressData,
+          error: progressError,
+        } = await supabase.rpc("get_lesson_assessment_progress", {
+          p_attempt_id: attemptId,
+        });
 
         if (progressError) throw progressError;
 
         const progress = progressData as ProgressResult;
 
-        setPendingNextQuestion(progress.next_question);
+        setPendingNextQuestion(progress.next_question ?? null);
 
         setAssessmentStats({
-          total: progress.total_questions,
-          correct: progress.correct_answers,
-          completed: progress.completed,
+          total: progress.total_questions ?? 0,
+          correct: progress.correct_answers ?? 0,
+          completed: progress.completed === true,
         });
       }
     } catch (err) {
@@ -1043,6 +1122,8 @@ export default function LessonLearningPage() {
   // ===================================================
 
   const closeAssessment = async () => {
+    if (submitting) return;
+
     if (assessmentStats.completed) {
       try {
         await refreshLearningProgress();
@@ -1095,8 +1176,11 @@ export default function LessonLearningPage() {
         <div className="rounded-2xl bg-emerald-500/10 p-4">
           <Loader2 className="h-8 w-8 animate-spin text-emerald-600" />
         </div>
+
         <div className="text-center">
-          <p className="font-semibold">Menyiapkan ruang belajar</p>
+          <p className="font-semibold">
+            Menyiapkan ruang belajar
+          </p>
           <p className="mt-1 text-sm text-muted-foreground">
             Mohon tunggu sebentar...
           </p>
@@ -1116,10 +1200,15 @@ export default function LessonLearningPage() {
           <div className="mb-4 inline-flex rounded-2xl bg-red-500/10 p-3">
             <XCircle className="h-8 w-8 text-red-500" />
           </div>
-          <h2 className="text-xl font-bold">Materi tidak dapat dibuka</h2>
+
+          <h2 className="text-xl font-bold">
+            Materi tidak dapat dibuka
+          </h2>
+
           <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
             {error || "Data materi tidak ditemukan."}
           </p>
+
           <button
             onClick={() => navigate(`/dashboard/courses/${courseId}`)}
             className="mt-6 inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-emerald-700"
@@ -1154,8 +1243,9 @@ export default function LessonLearningPage() {
       <div className="gu-learning-page min-h-screen bg-background px-4 py-6 text-foreground md:py-10">
         <div className="mx-auto max-w-4xl">
           <button
-            onClick={closeAssessment}
-            className="mb-6 inline-flex items-center gap-2 rounded-lg text-sm font-medium text-muted-foreground transition hover:text-foreground"
+            onClick={() => void closeAssessment()}
+            disabled={submitting}
+            className="mb-6 inline-flex items-center gap-2 rounded-lg text-sm font-medium text-muted-foreground transition hover:text-foreground disabled:opacity-50"
           >
             <ArrowLeft className="h-4 w-4" />
             Kembali ke materi
@@ -1180,8 +1270,8 @@ export default function LessonLearningPage() {
 
                 <p className="mt-3 max-w-2xl text-sm leading-relaxed text-emerald-50 md:text-base">
                   Jawab semua pertanyaan dengan benar untuk melanjutkan
-                  pembelajaran. Jika jawaban belum tepat, kamu dapat mencoba
-                  kembali.
+                  pembelajaran. Jika jawaban belum tepat, kamu dapat
+                  mencoba kembali.
                 </p>
               </div>
             </div>
@@ -1189,11 +1279,14 @@ export default function LessonLearningPage() {
             <div className="p-5 md:p-9">
               <div className="mb-3 flex items-center justify-between gap-3">
                 <div>
-                  <p className="text-sm font-semibold">Progres pengerjaan</p>
+                  <p className="text-sm font-semibold">
+                    Progres pengerjaan
+                  </p>
                   <p className="mt-1 text-xs text-muted-foreground">
                     Jawaban benar yang sudah tersimpan
                   </p>
                 </div>
+
                 <span className="rounded-xl bg-emerald-500/10 px-3 py-2 text-sm font-bold tabular-nums text-emerald-600 dark:text-emerald-400">
                   {assessmentStats.correct}/{assessmentStats.total}
                 </span>
@@ -1228,23 +1321,25 @@ export default function LessonLearningPage() {
                   <p className="mb-2 text-sm font-semibold uppercase tracking-wider text-emerald-600 dark:text-emerald-400">
                     Evaluasi selesai
                   </p>
+
                   <h2 className="text-2xl font-bold md:text-3xl">
                     Hebat! Kamu berhasil!
                   </h2>
+
                   <p className="mx-auto mt-3 max-w-md text-sm leading-relaxed text-muted-foreground">
-                    Semua pertanyaan telah dijawab dengan benar. Kamu dapat
-                    melanjutkan pembelajaran.
+                    Semua pertanyaan telah dijawab dengan benar.
+                    Kamu dapat melanjutkan pembelajaran.
                   </p>
 
                   <div className="mt-7 inline-flex items-center gap-2 rounded-2xl border border-emerald-500/20 bg-emerald-500/10 px-5 py-3 font-semibold text-emerald-700 dark:text-emerald-300">
                     <CheckCircle2 className="h-5 w-5" />
-                    {assessmentStats.correct} dari {assessmentStats.total}{" "}
-                    jawaban benar
+                    {assessmentStats.correct} dari{" "}
+                    {assessmentStats.total} jawaban benar
                   </div>
 
                   <div>
                     <button
-                      onClick={closeAssessment}
+                      onClick={() => void closeAssessment()}
                       className="mt-8 inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-6 py-3 font-semibold text-white shadow-sm transition hover:bg-emerald-700"
                     >
                       Lanjutkan belajar
@@ -1259,6 +1354,7 @@ export default function LessonLearningPage() {
                       <FileText className="h-4 w-4" />
                       Pertanyaan {questionNumber}
                     </span>
+
                     <span className="text-xs text-muted-foreground">
                       Pilih satu jawaban
                     </span>
@@ -1352,6 +1448,7 @@ export default function LessonLearningPage() {
                             <p className="mb-1 text-sm font-bold text-emerald-800 dark:text-emerald-200">
                               Pembahasan
                             </p>
+
                             <p className="text-sm leading-relaxed text-emerald-800 dark:text-emerald-100">
                               {answerFeedback.explanation}
                             </p>
@@ -1371,6 +1468,7 @@ export default function LessonLearningPage() {
                             ? "Selesaikan evaluasi"
                             : "Lanjutkan"
                           : "Coba kembali"}
+
                         <ArrowRight className="h-4 w-4" />
                       </button>
                     </div>
@@ -1378,7 +1476,7 @@ export default function LessonLearningPage() {
 
                   {!answerFeedback && (
                     <button
-                      onClick={submitAnswer}
+                      onClick={() => void submitAnswer()}
                       disabled={!selectedAnswer || submitting}
                       className="mt-7 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-600 px-7 py-3.5 font-semibold text-white shadow-sm transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50 md:w-auto"
                     >
@@ -1425,16 +1523,22 @@ export default function LessonLearningPage() {
             className="inline-flex items-center gap-2 rounded-lg text-sm font-semibold text-muted-foreground transition hover:text-emerald-600"
           >
             <ArrowLeft className="h-4 w-4" />
-            <span className="hidden sm:inline">Kembali ke kursus</span>
+            <span className="hidden sm:inline">
+              Kembali ke kursus
+            </span>
           </button>
 
           <div className="max-w-md flex-1">
             <div className="mb-1.5 flex items-center justify-between text-xs">
-              <span className="text-muted-foreground">Progres sesi</span>
+              <span className="text-muted-foreground">
+                Progres sesi
+              </span>
+
               <span className="font-bold text-emerald-600 dark:text-emerald-400">
                 {completedSections}/{sections.length} bagian
               </span>
             </div>
+
             <div className="h-2 overflow-hidden rounded-full bg-muted">
               <div
                 className="h-full rounded-full bg-emerald-500 transition-all duration-500"
@@ -1476,8 +1580,12 @@ export default function LessonLearningPage() {
                 <p className="text-xs font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400">
                   Struktur belajar
                 </p>
-                <h2 className="mt-1 font-bold">Daftar bagian</h2>
+
+                <h2 className="mt-1 font-bold">
+                  Daftar bagian
+                </h2>
               </div>
+
               <ChevronDown
                 className={`h-5 w-5 text-muted-foreground transition-transform ${
                   showOutline ? "" : "-rotate-90"
@@ -1519,6 +1627,7 @@ export default function LessonLearningPage() {
                         <p className="text-xs text-muted-foreground">
                           Bagian {index + 1}
                         </p>
+
                         <p
                           className={`mt-0.5 text-sm font-semibold ${
                             active
@@ -1528,6 +1637,7 @@ export default function LessonLearningPage() {
                         >
                           {section.title}
                         </p>
+
                         <p className="mt-1 text-xs text-muted-foreground">
                           {completed
                             ? "Checkpoint selesai"
@@ -1553,7 +1663,10 @@ export default function LessonLearningPage() {
                     </div>
 
                     <div>
-                      <p className="text-sm font-semibold">Evaluasi Akhir</p>
+                      <p className="text-sm font-semibold">
+                        Evaluasi Akhir
+                      </p>
+
                       <p className="mt-1 text-xs text-muted-foreground">
                         {learningProgress?.final_assessment?.completed
                           ? "Sudah diselesaikan"
@@ -1578,6 +1691,7 @@ export default function LessonLearningPage() {
                     <BookOpen className="h-3.5 w-3.5" />
                     Materi pembelajaran
                   </span>
+
                   {lesson.module.course.premium && (
                     <span className="rounded-full bg-amber-500/10 px-3 py-1.5 text-xs font-semibold text-amber-700 dark:text-amber-300">
                       Premium
@@ -1601,6 +1715,7 @@ export default function LessonLearningPage() {
                       <BookOpen className="h-4 w-4" />
                       {sections.length} bagian materi
                     </span>
+
                     <span className="inline-flex items-center gap-1.5">
                       <Clock3 className="h-4 w-4" />
                       Estimasi {lesson.estimated_minutes || 0} menit
@@ -1609,7 +1724,7 @@ export default function LessonLearningPage() {
 
                   <button
                     type="button"
-                    onClick={toggleBookmark}
+                    onClick={() => void toggleBookmark()}
                     disabled={bookmarkLoading || bookmarkChecking}
                     className={`inline-flex items-center justify-center gap-2 rounded-xl border px-4 py-2.5 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-60 ${
                       isBookmarked
@@ -1650,6 +1765,7 @@ export default function LessonLearningPage() {
                       <FileText className="h-4 w-4" />
                       Bagian {selectedSectionIndex + 1}
                     </div>
+
                     <h2 className="mt-2 text-xl font-bold tracking-tight md:text-2xl">
                       {selectedSection.title}
                     </h2>
@@ -1670,6 +1786,7 @@ export default function LessonLearningPage() {
                           <CheckCircle2 className="h-5 w-5" />
                           Checkpoint bagian ini sudah selesai
                         </div>
+
                         <p className="mt-2 text-sm leading-relaxed text-emerald-700 dark:text-emerald-200">
                           Kamu sudah menjawab semua pertanyaan dengan benar.
                           Bagian berikutnya sekarang dapat dibuka.
@@ -1681,6 +1798,7 @@ export default function LessonLearningPage() {
                           <h3 className="font-bold">
                             Siap menguji pemahaman?
                           </h3>
+
                           <p className="mt-1 text-sm leading-relaxed text-muted-foreground">
                             Selesaikan checkpoint untuk membuka bagian
                             berikutnya.
@@ -1708,6 +1826,7 @@ export default function LessonLearningPage() {
                           ) : (
                             <ShieldCheck className="h-4 w-4" />
                           )}
+
                           Mulai checkpoint
                         </button>
                       </div>
@@ -1742,7 +1861,7 @@ export default function LessonLearningPage() {
                           </button>
                         ) : (
                           <button
-                            disabled={!canOpenFinalAssessment}
+                            disabled={!canOpenFinalAssessment || startingAssessment}
                             onClick={() => {
                               if (finalAssessment) {
                                 void startAssessment(finalAssessment);
@@ -1767,7 +1886,11 @@ export default function LessonLearningPage() {
                   <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-muted">
                     <BookOpen className="h-8 w-8 text-muted-foreground" />
                   </div>
-                  <h2 className="mt-4 font-bold">Belum ada bagian materi</h2>
+
+                  <h2 className="mt-4 font-bold">
+                    Belum ada bagian materi
+                  </h2>
+
                   <p className="mx-auto mt-2 max-w-sm text-sm leading-relaxed text-muted-foreground">
                     Admin belum menambahkan bagian materi untuk sesi ini.
                   </p>
@@ -1775,7 +1898,7 @@ export default function LessonLearningPage() {
               )}
             </section>
 
-            {/* FINAL ASSESSMENT CARD */}
+            {/* ASSESSMENT ERROR */}
             {assessmentError && !activeAssessment && (
               <div className="mt-4 flex items-start gap-3 rounded-xl border border-amber-500/20 bg-amber-500/10 p-4 text-sm text-amber-700 dark:text-amber-300">
                 <XCircle className="mt-0.5 h-5 w-5 shrink-0" />
@@ -1783,6 +1906,7 @@ export default function LessonLearningPage() {
               </div>
             )}
 
+            {/* FINAL ASSESSMENT CARD */}
             {canOpenFinalAssessment && finalAssessment && (
               <section className="mt-5 rounded-2xl border border-emerald-500/20 bg-emerald-500/5 p-5 md:p-6">
                 <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
@@ -1790,10 +1914,12 @@ export default function LessonLearningPage() {
                     <div className="rounded-xl bg-emerald-500/10 p-3">
                       <Trophy className="h-6 w-6 text-emerald-600 dark:text-emerald-400" />
                     </div>
+
                     <div>
                       <h3 className="font-bold text-emerald-800 dark:text-emerald-200">
                         Semua checkpoint telah selesai
                       </h3>
+
                       <p className="mt-1 text-sm leading-relaxed text-muted-foreground">
                         Lanjutkan dengan evaluasi akhir untuk menyelesaikan
                         sesi pembelajaran ini.
@@ -1811,6 +1937,7 @@ export default function LessonLearningPage() {
                     ) : (
                       <ArrowRight className="h-4 w-4" />
                     )}
+
                     Mulai evaluasi
                   </button>
                 </div>
