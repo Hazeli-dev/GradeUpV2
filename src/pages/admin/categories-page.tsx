@@ -1379,7 +1379,7 @@ export default function AdminCategoriesPage() {
                                 </Badge>
                               ) : (
                                 <div className="max-w-[150px]">
-                                  <Badge variant="destructive">
+                                  <Badge variant="danger">
                                     Dilewati
                                   </Badge>
                                   <p className="mt-1 text-[10px] leading-relaxed text-destructive">
