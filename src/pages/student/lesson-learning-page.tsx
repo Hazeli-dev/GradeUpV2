@@ -290,25 +290,23 @@ export default function LessonLearningPage() {
   const activityReferenceId = activeAssessment?.id ?? lessonId ?? null;
 
   useEffect(() => {
-    if (
-      !lesson ||
-      !lessonId ||
-      !courseId ||
-      !activityReferenceId
-    ) {
+    if (!lesson || !lessonId || !courseId || !activityReferenceId) {
       return;
     }
 
     let cancelled = false;
     let finalized = false;
-    let saving = false;
-
+    let finishRequested = false;
     let activityId: string | null = null;
     let intervalId: ReturnType<typeof setInterval> | null = null;
 
     let accumulatedMilliseconds = 0;
+
     let activeSegmentStartedAt: number | null =
       document.visibilityState === "visible" ? Date.now() : null;
+
+    // Menjaga agar proses penyimpanan berjalan berurutan.
+    let writeQueue: Promise<void> = Promise.resolve();
 
     const isPractice = activityType === "practice";
 
@@ -329,76 +327,87 @@ export default function LessonLearningPage() {
       return Math.max(0, Math.floor(total / 1000));
     };
 
-    const persistActivity = async (finish = false) => {
-      if (!activityId || finalized || saving) return;
-
-      saving = true;
-
-      const durationSeconds = getDurationSeconds();
-
-      const updatePayload: {
-        duration_seconds: number;
-        status?: "completed";
-        ended_at?: string;
-      } = {
-        duration_seconds: durationSeconds,
-      };
-
-      if (finish) {
-        updatePayload.status = "completed";
-        updatePayload.ended_at = new Date().toISOString();
-      }
-
-      try {
-        const { error: updateError } = await supabase
-          .from("learning_activities")
-          .update(updatePayload)
-          .eq("id", activityId);
-
-        if (updateError) {
-          console.error("Update learning activity:", updateError);
-          return;
-        }
-
-        if (finish) {
-          finalized = true;
-          activitySessionRef.current = null;
-        }
-      } catch (err) {
-        console.error("Save learning activity:", err);
-      } finally {
-        saving = false;
-      }
-    };
-
-    const pauseActivity = () => {
+    const pauseTimer = () => {
       if (activeSegmentStartedAt !== null) {
         accumulatedMilliseconds +=
           Date.now() - activeSegmentStartedAt;
 
         activeSegmentStartedAt = null;
       }
-
-      void persistActivity();
     };
 
-    const resumeActivity = () => {
-      if (!cancelled && !finalized && activeSegmentStartedAt === null) {
+    const resumeTimer = () => {
+      if (
+        !cancelled &&
+        !finalized &&
+        !finishRequested &&
+        activeSegmentStartedAt === null &&
+        document.visibilityState === "visible"
+      ) {
         activeSegmentStartedAt = Date.now();
       }
     };
 
+    const queueSave = (finish = false) => {
+      if (finish) {
+        finishRequested = true;
+        pauseTimer();
+      }
+
+      if (!activityId || finalized) return;
+
+      writeQueue = writeQueue
+        .then(async () => {
+          if (!activityId || finalized) return;
+
+          const payload: {
+            duration_seconds: number;
+            status?: "completed";
+            ended_at?: string;
+          } = {
+            duration_seconds: getDurationSeconds(),
+          };
+
+          if (finishRequested) {
+            payload.status = "completed";
+            payload.ended_at = new Date().toISOString();
+          }
+
+          const { error: updateError } = await supabase
+            .from("learning_activities")
+            .update(payload)
+            .eq("id", activityId);
+
+          if (updateError) {
+            console.error("Update learning activity:", updateError);
+            return;
+          }
+
+          if (finishRequested) {
+            finalized = true;
+
+            if (activitySessionRef.current === activityId) {
+              activitySessionRef.current = null;
+            }
+          }
+        })
+        .catch((err) => {
+          console.error("Save learning activity:", err);
+        });
+    };
+
     const handleVisibilityChange = () => {
       if (document.visibilityState === "hidden") {
-        pauseActivity();
+        pauseTimer();
+        queueSave();
       } else {
-        resumeActivity();
+        resumeTimer();
       }
     };
 
     const handlePageHide = () => {
-      pauseActivity();
-      void persistActivity(true);
+      pauseTimer();
+      queueSave(true);
     };
 
     const startActivity = async () => {
@@ -409,7 +418,7 @@ export default function LessonLearningPage() {
         } = await supabase.auth.getUser();
 
         if (authError) throw authError;
-        if (!user || cancelled) return;
+        if (!user) return;
 
         const { data, error: insertError } = await supabase
           .from("learning_activities")
@@ -442,29 +451,26 @@ export default function LessonLearningPage() {
         activityId = data.id;
         activitySessionRef.current = data.id;
 
-        // Jika halaman sudah berpindah sebelum insert selesai,
-        // sesi langsung ditutup.
-        if (cancelled) {
-          await supabase
-            .from("learning_activities")
-            .update({
-              status: "completed",
-              ended_at: new Date().toISOString(),
-              duration_seconds: 0,
-            })
-            .eq("id", data.id);
-
+        // Jika komponen sudah ditutup sebelum insert selesai,
+        // aktivitas langsung diselesaikan setelah ID tersedia.
+        if (cancelled || finishRequested) {
+          queueSave(true);
           return;
         }
 
         intervalId = setInterval(() => {
           if (
             document.visibilityState === "visible" &&
-            !finalized
+            !finalized &&
+            !finishRequested
           ) {
-            void persistActivity();
+            queueSave();
           }
         }, 15000);
+
+        if (document.visibilityState !== "visible") {
+          pauseTimer();
+        }
       } catch (err) {
         console.error("Start learning activity:", err);
       }
@@ -493,14 +499,8 @@ export default function LessonLearningPage() {
 
       window.removeEventListener("pagehide", handlePageHide);
 
-      if (activeSegmentStartedAt !== null) {
-        accumulatedMilliseconds +=
-          Date.now() - activeSegmentStartedAt;
-
-        activeSegmentStartedAt = null;
-      }
-
-      void persistActivity(true);
+      pauseTimer();
+      queueSave(true);
     };
   }, [
     courseId,
@@ -748,21 +748,21 @@ export default function LessonLearningPage() {
 
       const progress = progressData as LearningProgress;
 
-      const mappedSections: LessonSection[] = (progress.sections || []).map(
-        (item) => {
-          const sectionContent = (sectionData || []).find(
-            (section) => section.id === item.section_id
-          );
+      const mappedSections: LessonSection[] = (
+        progress.sections || []
+      ).map((item) => {
+        const sectionContent = (sectionData || []).find(
+          (section) => section.id === item.section_id
+        );
 
-          return {
-            ...item,
-            content_json: sectionContent?.content_json || {
-              type: "doc",
-              content: [{ type: "paragraph" }],
-            },
-          };
-        }
-      );
+        return {
+          ...item,
+          content_json: sectionContent?.content_json || {
+            type: "doc",
+            content: [{ type: "paragraph" }],
+          },
+        };
+      });
 
       setSections(mappedSections);
       setAssessments((assessmentData || []) as AssessmentInfo[]);
@@ -856,6 +856,8 @@ export default function LessonLearningPage() {
   // ===================================================
 
   const startAssessment = async (assessment: AssessmentInfo) => {
+    if (startingAssessment) return;
+
     setStartingAssessment(true);
     setAssessmentError("");
     setAnswerFeedback(null);
@@ -1045,7 +1047,7 @@ export default function LessonLearningPage() {
       try {
         await refreshLearningProgress();
       } catch (err) {
-        console.error(err);
+        console.error("Refresh learning progress:", err);
       }
     }
 
@@ -1442,7 +1444,7 @@ export default function LessonLearningPage() {
           </div>
 
           <button
-            onClick={loadLearningData}
+            onClick={() => void loadLearningData()}
             title="Muat ulang progres"
             className="rounded-xl border border-border p-2.5 text-muted-foreground transition hover:bg-muted hover:text-foreground"
           >
