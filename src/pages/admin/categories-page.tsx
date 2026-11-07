@@ -1,5 +1,6 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import * as XLSX from "xlsx";
 import {
   Pencil,
   Plus,
@@ -20,6 +21,9 @@ import {
   CircleDashed,
   ChevronDown,
   ShieldAlert,
+  FileSpreadsheet,
+  Upload,
+  Download,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -57,6 +61,15 @@ interface CategoryItem {
   created_at?: string;
 }
 
+interface ExcelCategoryRow {
+  name: string;
+  description: string;
+  color: string;
+  slug: string;
+  valid: boolean;
+  message: string;
+}
+
 const DEFAULT_COLOR = "#10B981";
 
 const slugify = (value: string) =>
@@ -68,10 +81,24 @@ const slugify = (value: string) =>
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/(^-|-$)/g, "");
 
-const getErrorMessage = (error: unknown) =>
-  error instanceof Error
-    ? error.message
-    : "Terjadi kesalahan. Silakan coba kembali.";
+const getErrorMessage = (error: unknown) => {
+  if (error instanceof Error) {
+    return error.message;
+  }
+
+  if (
+    typeof error === "object" &&
+    error !== null &&
+    "message" in error
+  ) {
+    return String(
+      (error as { message?: unknown }).message ??
+        "Terjadi kesalahan."
+    );
+  }
+
+  return "Terjadi kesalahan. Silakan coba kembali.";
+};
 
 const formatDate = (value?: string) => {
   if (!value) return "-";
@@ -86,6 +113,9 @@ const formatDate = (value?: string) => {
     year: "numeric",
   }).format(date);
 };
+
+const normalizeExcelValue = (value: unknown) =>
+  String(value ?? "").trim();
 
 export default function AdminCategoriesPage() {
   const [items, setItems] = useState<CategoryItem[]>([]);
@@ -106,6 +136,12 @@ export default function AdminCategoriesPage() {
   const [sortBy, setSortBy] = useState<"name" | "courses" | "newest">(
     "name"
   );
+
+  // State import Excel.
+  const [importOpen, setImportOpen] = useState(false);
+  const [importing, setImporting] = useState(false);
+  const [excelRows, setExcelRows] = useState<ExcelCategoryRow[]>([]);
+  const [excelFileName, setExcelFileName] = useState("");
 
   // Mengambil kategori dan jumlah kursus dari Supabase.
   const fetchData = useCallback(async () => {
@@ -221,6 +257,8 @@ export default function AdminCategoriesPage() {
 
     if (!trimmedName) {
       validationErrors.name = "Nama kategori wajib diisi.";
+    } else if (trimmedName.length > 80) {
+      validationErrors.name = "Nama kategori maksimal 80 karakter.";
     } else if (
       items.some(
         (item) =>
@@ -246,6 +284,11 @@ export default function AdminCategoriesPage() {
     ) {
       validationErrors.name =
         "Slug kategori sudah digunakan. Gunakan nama yang berbeda.";
+    }
+
+    if ((draft.description?.length ?? 0) > 300) {
+      validationErrors.description =
+        "Deskripsi maksimal 300 karakter.";
     }
 
     setErr(validationErrors);
@@ -321,6 +364,283 @@ export default function AdminCategoriesPage() {
     }
   };
 
+  // Mengunduh template Excel.
+  const downloadCategoryTemplate = () => {
+    const data = [
+      ["name", "description", "color"],
+      [
+        "Matematika",
+        "Materi pembelajaran matematika untuk siswa SD.",
+        "#3B82F6",
+      ],
+      [
+        "IPA",
+        "Materi ilmu pengetahuan alam.",
+        "#10B981",
+      ],
+      [
+        "Bahasa Inggris",
+        "Materi pembelajaran bahasa Inggris.",
+        "#8B5CF6",
+      ],
+    ];
+
+    const worksheet = XLSX.utils.aoa_to_sheet(data);
+
+    worksheet["!cols"] = [
+      { wch: 28 },
+      { wch: 65 },
+      { wch: 16 },
+    ];
+
+    const workbook = XLSX.utils.book_new();
+
+    XLSX.utils.book_append_sheet(
+      workbook,
+      worksheet,
+      "Kategori"
+    );
+
+    const instructionSheet = XLSX.utils.aoa_to_sheet([
+      ["PETUNJUK PENGISIAN TEMPLATE KATEGORI GRADEUP"],
+      [""],
+      ["Kolom", "Keterangan"],
+      ["name", "Wajib diisi. Nama kategori maksimal 80 karakter."],
+      ["description", "Opsional. Deskripsi maksimal 300 karakter."],
+      ["color", "Opsional. Gunakan format HEX, contoh #3B82F6."],
+      [""],
+      ["CATATAN"],
+      ["1. Jangan mengubah nama kolom pada baris pertama sheet Kategori."],
+      ["2. Setiap baris mewakili satu kategori."],
+      ["3. Slug akan dibuat otomatis oleh GradeUp."],
+      ["4. Hapus contoh data sebelum memasukkan data sebenarnya."],
+      ["5. Kategori dengan nama yang sudah terdaftar akan dilewati."],
+    ]);
+
+    instructionSheet["!cols"] = [
+      { wch: 24 },
+      { wch: 85 },
+    ];
+
+    XLSX.utils.book_append_sheet(
+      workbook,
+      instructionSheet,
+      "Petunjuk"
+    );
+
+    XLSX.writeFile(
+      workbook,
+      "Template-Kategori-GradeUp.xlsx"
+    );
+  };
+
+  // Membaca dan memvalidasi file Excel.
+  const handleExcelUpload = async (
+    event: React.ChangeEvent<HTMLInputElement>
+  ) => {
+    const file = event.target.files?.[0];
+
+    if (!file) return;
+
+    try {
+      const extension = file.name.split(".").pop()?.toLowerCase();
+
+      if (!["xlsx", "xls"].includes(extension ?? "")) {
+        toast.error("Gunakan file Excel .xlsx atau .xls.");
+        return;
+      }
+
+      if (file.size > 10 * 1024 * 1024) {
+        toast.error("Ukuran file maksimal 10 MB.");
+        return;
+      }
+
+      const buffer = await file.arrayBuffer();
+      const workbook = XLSX.read(buffer, { type: "array" });
+      const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+
+      if (!firstSheet) {
+        toast.error("Sheet Excel tidak ditemukan.");
+        return;
+      }
+
+      const rawRows = XLSX.utils.sheet_to_json<
+        Record<string, unknown>
+      >(firstSheet, {
+        defval: "",
+      });
+
+      if (rawRows.length === 0) {
+        toast.error("File Excel belum berisi data.");
+        return;
+      }
+
+      const existingNames = new Set(
+        items.map((item) =>
+          item.name.trim().toLocaleLowerCase("id-ID")
+        )
+      );
+
+      const usedSlugs = new Set(
+        items.map((item) => item.slug.trim().toLowerCase())
+      );
+
+      const seenNames = new Set<string>();
+
+      const rows: ExcelCategoryRow[] = rawRows.map((raw) => {
+        const normalized: Record<string, unknown> = {};
+
+        Object.entries(raw).forEach(([key, value]) => {
+          normalized[key.trim().toLowerCase()] = value;
+        });
+
+        const name = normalizeExcelValue(normalized.name);
+        const description = normalizeExcelValue(
+          normalized.description
+        );
+        const rawColor = normalizeExcelValue(normalized.color);
+
+        const normalizedName = name.toLocaleLowerCase("id-ID");
+
+        let valid = true;
+        let message = "Siap diimpor";
+
+        if (!name) {
+          valid = false;
+          message = "Nama kategori wajib diisi.";
+        } else if (name.length > 80) {
+          valid = false;
+          message = "Nama maksimal 80 karakter.";
+        } else if (description.length > 300) {
+          valid = false;
+          message = "Deskripsi maksimal 300 karakter.";
+        } else if (
+          rawColor &&
+          !/^#[0-9A-Fa-f]{6}$/.test(rawColor)
+        ) {
+          valid = false;
+          message = "Format warna harus HEX, contoh #10B981.";
+        } else if (
+          existingNames.has(normalizedName) ||
+          seenNames.has(normalizedName)
+        ) {
+          valid = false;
+          message =
+            "Nama kategori sudah terdaftar atau duplikat.";
+        }
+
+        const generatedSlug = slugify(name);
+
+        if (valid && !generatedSlug) {
+          valid = false;
+          message =
+            "Nama harus mengandung huruf atau angka.";
+        }
+
+        let uniqueSlug = generatedSlug;
+        let suffix = 2;
+
+        while (
+          uniqueSlug &&
+          usedSlugs.has(uniqueSlug.toLowerCase())
+        ) {
+          uniqueSlug = `${generatedSlug}-${suffix}`;
+          suffix++;
+        }
+
+        if (valid) {
+          seenNames.add(normalizedName);
+          usedSlugs.add(uniqueSlug.toLowerCase());
+        }
+
+        return {
+          name,
+          description,
+          color: rawColor ? rawColor.toUpperCase() : DEFAULT_COLOR,
+          slug: uniqueSlug,
+          valid,
+          message,
+        };
+      });
+
+      setExcelRows(rows);
+      setExcelFileName(file.name);
+      setImportOpen(true);
+
+      const validCount = rows.filter((row) => row.valid).length;
+      const invalidCount = rows.length - validCount;
+
+      toast.success(
+        `File berhasil dibaca. ${validCount} kategori siap diimpor${
+          invalidCount > 0
+            ? ` dan ${invalidCount} baris perlu diperbaiki`
+            : ""
+        }.`
+      );
+    } catch (uploadError) {
+      console.error("Read Excel error:", uploadError);
+      toast.error("Gagal membaca file Excel.");
+    } finally {
+      event.target.value = "";
+    }
+  };
+
+  // Menyimpan kategori hasil import ke Supabase.
+  const importExcelCategories = async () => {
+    if (importing) return;
+
+    const validRows = excelRows.filter((row) => row.valid);
+
+    if (validRows.length === 0) {
+      toast.error("Tidak ada kategori valid untuk diimpor.");
+      return;
+    }
+
+    setImporting(true);
+
+    try {
+      const payload = validRows.map((row) => ({
+        name: row.name,
+        slug: row.slug,
+        description: row.description,
+        color: row.color,
+      }));
+
+      const { error } = await supabase
+        .from("categories")
+        .insert(payload);
+
+      if (error) throw error;
+
+      toast.success(
+        `${payload.length} kategori berhasil diimpor ke GradeUp.`
+      );
+
+      setImportOpen(false);
+      setExcelRows([]);
+      setExcelFileName("");
+
+      await fetchData();
+    } catch (importError) {
+      console.error("Import categories error:", importError);
+
+      toast.error(
+        "Import gagal: " + getErrorMessage(importError)
+      );
+    } finally {
+      setImporting(false);
+    }
+  };
+
+  // Menutup dialog import dan membersihkan pratinjau.
+  const closeImportDialog = () => {
+    if (importing) return;
+
+    setImportOpen(false);
+    setExcelRows([]);
+    setExcelFileName("");
+  };
+
   return (
     <div className="min-w-0 space-y-6 pb-10">
       {/* HEADER */}
@@ -340,6 +660,26 @@ export default function AdminCategoriesPage() {
               />
               <span className="hidden sm:inline">Muat Ulang</span>
               <span className="sm:hidden">Refresh</span>
+            </Button>
+
+            <Button
+              variant="outline"
+              onClick={downloadCategoryTemplate}
+              className="h-9 gap-2"
+            >
+              <Download className="h-4 w-4" />
+              <span className="hidden sm:inline">
+                Template Excel
+              </span>
+            </Button>
+
+            <Button
+              variant="outline"
+              onClick={() => setImportOpen(true)}
+              className="h-9 gap-2"
+            >
+              <FileSpreadsheet className="h-4 w-4" />
+              <span>Import Excel</span>
             </Button>
 
             <Button onClick={openCreate} className="h-9 gap-2">
@@ -384,7 +724,9 @@ export default function AdminCategoriesPage() {
               <p className="text-[10px] font-medium text-muted-foreground">
                 Modul administrasi
               </p>
-              <p className="text-xs font-semibold">Kategori Materi</p>
+              <p className="text-xs font-semibold">
+                Kategori Materi
+              </p>
             </div>
           </div>
         </CardContent>
@@ -398,7 +740,9 @@ export default function AdminCategoriesPage() {
               <Layers3 className="h-5 w-5" />
             </div>
             <div className="min-w-0">
-              <p className="text-xs text-muted-foreground">Total kategori</p>
+              <p className="text-xs text-muted-foreground">
+                Total kategori
+              </p>
               <p className="mt-0.5 text-2xl font-bold tabular-nums">
                 {loading ? "—" : items.length}
               </p>
@@ -412,7 +756,9 @@ export default function AdminCategoriesPage() {
               <BookOpen className="h-5 w-5" />
             </div>
             <div className="min-w-0">
-              <p className="text-xs text-muted-foreground">Total kursus</p>
+              <p className="text-xs text-muted-foreground">
+                Total kursus
+              </p>
               <p className="mt-0.5 text-2xl font-bold tabular-nums">
                 {loading ? "—" : totalCourses}
               </p>
@@ -426,7 +772,9 @@ export default function AdminCategoriesPage() {
               <CheckCircle2 className="h-5 w-5" />
             </div>
             <div className="min-w-0">
-              <p className="text-xs text-muted-foreground">Kategori digunakan</p>
+              <p className="text-xs text-muted-foreground">
+                Kategori digunakan
+              </p>
               <p className="mt-0.5 text-2xl font-bold tabular-nums">
                 {loading ? "—" : usedCategories}
               </p>
@@ -440,7 +788,9 @@ export default function AdminCategoriesPage() {
               <CircleDashed className="h-5 w-5" />
             </div>
             <div className="min-w-0">
-              <p className="text-xs text-muted-foreground">Belum digunakan</p>
+              <p className="text-xs text-muted-foreground">
+                Belum digunakan
+              </p>
               <p className="mt-0.5 text-2xl font-bold tabular-nums">
                 {loading ? "—" : unusedCategories}
               </p>
@@ -812,6 +1162,276 @@ export default function AdminCategoriesPage() {
         )}
       </section>
 
+      {/* DIALOG IMPORT EXCEL */}
+      <Dialog
+        open={importOpen}
+        onOpenChange={(open) => {
+          if (!open) {
+            closeImportDialog();
+          } else {
+            setImportOpen(true);
+          }
+        }}
+      >
+        <DialogContent className="max-h-[92vh] overflow-y-auto sm:max-w-3xl">
+          <DialogHeader>
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                <FileSpreadsheet className="h-5 w-5" />
+              </div>
+
+              <div>
+                <DialogTitle>
+                  Import Kategori dari Excel
+                </DialogTitle>
+                <DialogDescription className="mt-1 text-xs">
+                  Unggah file Excel untuk menambahkan banyak kategori
+                  sekaligus.
+                </DialogDescription>
+              </div>
+            </div>
+          </DialogHeader>
+
+          <div className="space-y-4 py-3">
+            {/* UPLOAD AREA */}
+            <div className="rounded-xl border border-dashed bg-muted/20 p-5 text-center">
+              <Upload className="mx-auto h-8 w-8 text-muted-foreground" />
+
+              <p className="mt-2 text-sm font-semibold">
+                Pilih file Excel
+              </p>
+
+              <p className="mt-1 text-xs text-muted-foreground">
+                Format yang didukung: .xlsx dan .xls. Maksimal 10 MB.
+              </p>
+
+              <Input
+                type="file"
+                accept=".xlsx,.xls"
+                onChange={(event) => void handleExcelUpload(event)}
+                disabled={importing}
+                className="mx-auto mt-4 max-w-sm cursor-pointer"
+              />
+
+              {excelFileName && (
+                <div className="mx-auto mt-3 flex max-w-sm items-center justify-center gap-2 rounded-lg bg-primary/5 px-3 py-2">
+                  <FileSpreadsheet className="h-4 w-4 shrink-0 text-primary" />
+                  <p className="truncate text-xs font-medium text-primary">
+                    {excelFileName}
+                  </p>
+                </div>
+              )}
+
+              <Button
+                type="button"
+                variant="link"
+                size="sm"
+                onClick={downloadCategoryTemplate}
+                className="mt-2 gap-1"
+              >
+                <Download className="h-3.5 w-3.5" />
+                Unduh template Excel
+              </Button>
+            </div>
+
+            {/* FORMAT INFORMATION */}
+            <div className="rounded-lg border bg-muted/20 p-3">
+              <p className="text-xs font-semibold">
+                Format kolom Excel
+              </p>
+
+              <div className="mt-2 grid gap-2 sm:grid-cols-3">
+                <div>
+                  <p className="text-xs font-medium">
+                    name <span className="text-destructive">*</span>
+                  </p>
+                  <p className="text-[10px] text-muted-foreground">
+                    Nama kategori, wajib diisi.
+                  </p>
+                </div>
+
+                <div>
+                  <p className="text-xs font-medium">
+                    description
+                  </p>
+                  <p className="text-[10px] text-muted-foreground">
+                    Deskripsi maksimal 300 karakter.
+                  </p>
+                </div>
+
+                <div>
+                  <p className="text-xs font-medium">
+                    color
+                  </p>
+                  <p className="text-[10px] text-muted-foreground">
+                    Warna HEX, contoh #3B82F6.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* PREVIEW */}
+            {excelRows.length > 0 && (
+              <>
+                <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+                  <Card>
+                    <CardContent className="p-3">
+                      <p className="text-[11px] text-muted-foreground">
+                        Total baris
+                      </p>
+                      <p className="mt-1 text-xl font-bold tabular-nums">
+                        {excelRows.length}
+                      </p>
+                    </CardContent>
+                  </Card>
+
+                  <Card>
+                    <CardContent className="p-3">
+                      <p className="text-[11px] text-muted-foreground">
+                        Siap diimpor
+                      </p>
+                      <p className="mt-1 text-xl font-bold tabular-nums text-emerald-600">
+                        {excelRows.filter((row) => row.valid).length}
+                      </p>
+                    </CardContent>
+                  </Card>
+
+                  <Card className="col-span-2 sm:col-span-1">
+                    <CardContent className="p-3">
+                      <p className="text-[11px] text-muted-foreground">
+                        Perlu diperbaiki
+                      </p>
+                      <p className="mt-1 text-xl font-bold tabular-nums text-destructive">
+                        {excelRows.filter((row) => !row.valid).length}
+                      </p>
+                    </CardContent>
+                  </Card>
+                </div>
+
+                <div className="space-y-2">
+                  <div>
+                    <h4 className="text-sm font-bold">
+                      Pratinjau Data
+                    </h4>
+                    <p className="text-xs text-muted-foreground">
+                      Baris yang tidak valid akan dilewati. Periksa
+                      kembali data sebelum menyimpannya.
+                    </p>
+                  </div>
+
+                  <div className="max-h-72 overflow-auto rounded-lg border">
+                    <table className="w-full min-w-[650px] text-left text-xs">
+                      <thead className="sticky top-0 bg-muted">
+                        <tr>
+                          <th className="px-3 py-3">
+                            Nama kategori
+                          </th>
+                          <th className="px-3 py-3">
+                            Deskripsi
+                          </th>
+                          <th className="px-3 py-3">
+                            Warna
+                          </th>
+                          <th className="px-3 py-3">
+                            Status
+                          </th>
+                        </tr>
+                      </thead>
+
+                      <tbody className="divide-y">
+                        {excelRows.map((row, index) => (
+                          <tr
+                            key={`${row.name}-${index}`}
+                            className={
+                              row.valid ? "" : "bg-destructive/5"
+                            }
+                          >
+                            <td className="px-3 py-3 font-medium">
+                              {row.name || "-"}
+                              <p className="mt-1 text-[10px] text-muted-foreground">
+                                {row.slug || "Slug tidak tersedia"}
+                              </p>
+                            </td>
+
+                            <td className="max-w-[220px] px-3 py-3">
+                              <p className="line-clamp-2 text-muted-foreground">
+                                {row.description || "Tanpa deskripsi"}
+                              </p>
+                            </td>
+
+                            <td className="px-3 py-3">
+                              <div className="flex items-center gap-2">
+                                <span
+                                  className="h-4 w-4 shrink-0 rounded border"
+                                  style={{
+                                    backgroundColor: row.color,
+                                  }}
+                                />
+                                <span>{row.color}</span>
+                              </div>
+                            </td>
+
+                            <td className="px-3 py-3">
+                              {row.valid ? (
+                                <Badge variant="success">
+                                  <CheckCircle2 className="mr-1 h-3 w-3" />
+                                  Siap
+                                </Badge>
+                              ) : (
+                                <div className="max-w-[150px]">
+                                  <Badge variant="destructive">
+                                    Dilewati
+                                  </Badge>
+                                  <p className="mt-1 text-[10px] leading-relaxed text-destructive">
+                                    {row.message}
+                                  </p>
+                                </div>
+                              )}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </>
+            )}
+          </div>
+
+          <DialogFooter className="gap-2 border-t pt-4 sm:gap-2">
+            <Button
+              variant="outline"
+              onClick={closeImportDialog}
+              disabled={importing}
+            >
+              Batal
+            </Button>
+
+            <Button
+              onClick={() => void importExcelCategories()}
+              disabled={
+                importing ||
+                !excelRows.some((row) => row.valid)
+              }
+              className="gap-2"
+            >
+              {importing ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Mengimpor...
+                </>
+              ) : (
+                <>
+                  <Upload className="h-4 w-4" />
+                  Import{" "}
+                  {excelRows.filter((row) => row.valid).length} Kategori
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {/* FORM TAMBAH / EDIT */}
       <Dialog
         open={!!draft}
@@ -876,7 +1496,12 @@ export default function AdminCategoriesPage() {
                           name: event.target.value,
                         });
 
-                        if (err.name) setErr({});
+                        if (err.name) {
+                          setErr((current) => ({
+                            ...current,
+                            name: "",
+                          }));
+                        }
                       }}
                       placeholder="Contoh: Matematika"
                       maxLength={80}
@@ -936,9 +1561,12 @@ export default function AdminCategoriesPage() {
                     disabled={saving}
                   />
 
-                  <p className="text-right text-[10px] text-muted-foreground">
-                    {(draft.description ?? "").length}/300 karakter
-                  </p>
+                  <div className="flex items-center justify-between">
+                    <FieldError message={err.description} />
+                    <p className="text-right text-[10px] text-muted-foreground">
+                      {(draft.description ?? "").length}/300 karakter
+                    </p>
+                  </div>
                 </section>
 
                 {/* WARNA */}
@@ -1051,7 +1679,9 @@ export default function AdminCategoriesPage() {
                       ) : (
                         <Plus className="h-4 w-4" />
                       )}
-                      {draft.id ? "Simpan Perubahan" : "Tambah Kategori"}
+                      {draft.id
+                        ? "Simpan Perubahan"
+                        : "Tambah Kategori"}
                     </>
                   )}
                 </Button>
