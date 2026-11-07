@@ -74,7 +74,10 @@ export function SidebarShell({
   });
 
   const [mobileOpen, setMobileOpen] = useState(false);
+
+  // null berarti status Premium belum berhasil diperiksa.
   const [isPremium, setIsPremium] = useState<boolean | null>(null);
+
   const [announcements, setAnnouncements] = useState<Announcement[]>([]);
   const [readIds, setReadIds] = useState<string[]>([]);
   const [loadingAnnouncements, setLoadingAnnouncements] = useState(false);
@@ -84,7 +87,7 @@ export function SidebarShell({
 
   const location = useLocation();
 
-  // Memeriksa status Premium pengguna dari tabel profiles.
+  // Memeriksa status Premium berdasarkan data profil dan masa berlaku.
   useEffect(() => {
     let active = true;
 
@@ -92,7 +95,6 @@ export function SidebarShell({
       try {
         let currentUserId = userId;
 
-        // Pada pemeriksaan awal, ambil pengguna yang sedang login.
         if (currentUserId === undefined) {
           const {
             data: { user },
@@ -110,34 +112,59 @@ export function SidebarShell({
 
         const { data, error } = await supabase
           .from("profiles")
-          .select("is_premium")
+          .select("plan, is_premium, premium_until")
           .eq("id", currentUserId)
           .maybeSingle();
 
         if (error) throw error;
 
+        const premiumUntil = data?.premium_until
+          ? new Date(data.premium_until).getTime()
+          : 0;
+
+        const isPremiumActive =
+          data?.plan === "Premium" &&
+          data?.is_premium === true &&
+          Number.isFinite(premiumUntil) &&
+          premiumUntil > Date.now();
+
         if (active) {
-          setIsPremium(data?.is_premium === true);
+          setIsPremium(isPremiumActive);
         }
       } catch (error) {
         console.error("Gagal memeriksa status Premium:", error);
-        // Jika gagal membaca profil, pertahankan status sebelumnya.
+
+        // Jika pemeriksaan gagal, status tetap null.
+        // Menu Upgrade tidak akan ditampilkan sampai status terverifikasi.
+        if (active) setIsPremium(null);
       }
     };
 
     void loadPremiumStatus();
 
     // Perbarui status ketika pengguna login atau logout.
-    // Gunakan user dari session agar tidak memanggil getUser di dalam callback auth.
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event, session) => {
       void loadPremiumStatus(session?.user?.id ?? "");
     });
 
+    // Sinkronisasi ulang ketika pengguna kembali ke tab dashboard.
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        void loadPremiumStatus();
+      }
+    };
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+
     return () => {
       active = false;
       subscription.unsubscribe();
+      document.removeEventListener(
+        "visibilitychange",
+        handleVisibilityChange
+      );
     };
   }, []);
 
@@ -165,16 +192,15 @@ export function SidebarShell({
     };
   }, [mobileOpen]);
 
-  // Menu upgrade hanya ditampilkan setelah status berhasil dipastikan bukan Premium.
-  // Saat status masih dimuat (null), menu tetap tersedia agar tidak salah menyembunyikan.
+  // Upgrade hanya tampil setelah status berhasil diverifikasi dan akun bukan Premium.
   const visibleNav = nav.filter((item) => {
     const isUpgradeMenu = /upgrade\s*premium/i.test(item.label);
-    return !isUpgradeMenu || isPremium !== true;
+    return !isUpgradeMenu || isPremium === false;
   });
 
   const visibleActionItem =
     actionItem &&
-    (!/upgrade\s*premium/i.test(actionItem.label) || isPremium !== true)
+    (!/upgrade\s*premium/i.test(actionItem.label) || isPremium === false)
       ? actionItem
       : undefined;
 
@@ -253,7 +279,6 @@ export function SidebarShell({
   // Memeriksa pengumuman baru secara otomatis setiap 30 detik.
   useEffect(() => {
     const notificationInterval = window.setInterval(() => {
-      // Tidak perlu melakukan pemeriksaan ketika tab sedang tidak aktif.
       if (document.visibilityState === "visible") {
         void loadAnnouncements(false);
       }
@@ -514,7 +539,6 @@ export function SidebarShell({
               >
                 <Bell className="h-[18px] w-[18px]" />
 
-                {/* BADGE JUMLAH NOTIFIKASI BELUM DIBACA */}
                 {unreadCount > 0 && (
                   <span className="absolute -right-0.5 -top-0.5 flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-rose-500 px-1 text-[10px] font-bold leading-none text-white ring-2 ring-background">
                     {unreadCount > 99 ? "99+" : unreadCount}
