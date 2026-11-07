@@ -1,4 +1,11 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { EditorContent, useEditor } from "@tiptap/react";
 import { Extension, type JSONContent } from "@tiptap/core";
@@ -274,6 +281,240 @@ export default function LessonLearningPage() {
   const [bookmarkError, setBookmarkError] = useState("");
 
   // ===================================================
+  // LEARNING ACTIVITY TRACKER
+  // ===================================================
+
+  const activitySessionRef = useRef<string | null>(null);
+
+  const activityType = activeAssessment ? "practice" : "reading";
+  const activityReferenceId = activeAssessment?.id ?? lessonId ?? null;
+
+  useEffect(() => {
+    if (
+      !lesson ||
+      !lessonId ||
+      !courseId ||
+      !activityReferenceId
+    ) {
+      return;
+    }
+
+    let cancelled = false;
+    let finalized = false;
+    let saving = false;
+
+    let activityId: string | null = null;
+    let intervalId: ReturnType<typeof setInterval> | null = null;
+
+    let accumulatedMilliseconds = 0;
+    let activeSegmentStartedAt: number | null =
+      document.visibilityState === "visible" ? Date.now() : null;
+
+    const isPractice = activityType === "practice";
+
+    const activityTitle = isPractice
+      ? activeAssessment?.title ?? "Latihan"
+      : lesson.title;
+
+    const getDurationSeconds = () => {
+      let total = accumulatedMilliseconds;
+
+      if (
+        activeSegmentStartedAt !== null &&
+        document.visibilityState === "visible"
+      ) {
+        total += Date.now() - activeSegmentStartedAt;
+      }
+
+      return Math.max(0, Math.floor(total / 1000));
+    };
+
+    const persistActivity = async (finish = false) => {
+      if (!activityId || finalized || saving) return;
+
+      saving = true;
+
+      const durationSeconds = getDurationSeconds();
+
+      const updatePayload: {
+        duration_seconds: number;
+        status?: "completed";
+        ended_at?: string;
+      } = {
+        duration_seconds: durationSeconds,
+      };
+
+      if (finish) {
+        updatePayload.status = "completed";
+        updatePayload.ended_at = new Date().toISOString();
+      }
+
+      try {
+        const { error: updateError } = await supabase
+          .from("learning_activities")
+          .update(updatePayload)
+          .eq("id", activityId);
+
+        if (updateError) {
+          console.error("Update learning activity:", updateError);
+          return;
+        }
+
+        if (finish) {
+          finalized = true;
+          activitySessionRef.current = null;
+        }
+      } catch (err) {
+        console.error("Save learning activity:", err);
+      } finally {
+        saving = false;
+      }
+    };
+
+    const pauseActivity = () => {
+      if (activeSegmentStartedAt !== null) {
+        accumulatedMilliseconds +=
+          Date.now() - activeSegmentStartedAt;
+
+        activeSegmentStartedAt = null;
+      }
+
+      void persistActivity();
+    };
+
+    const resumeActivity = () => {
+      if (!cancelled && !finalized && activeSegmentStartedAt === null) {
+        activeSegmentStartedAt = Date.now();
+      }
+    };
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "hidden") {
+        pauseActivity();
+      } else {
+        resumeActivity();
+      }
+    };
+
+    const handlePageHide = () => {
+      pauseActivity();
+      void persistActivity(true);
+    };
+
+    const startActivity = async () => {
+      try {
+        const {
+          data: { user },
+          error: authError,
+        } = await supabase.auth.getUser();
+
+        if (authError) throw authError;
+        if (!user || cancelled) return;
+
+        const { data, error: insertError } = await supabase
+          .from("learning_activities")
+          .insert({
+            user_id: user.id,
+            activity_type: activityType,
+            title: activityTitle,
+            reference_id: activityReferenceId,
+            duration_seconds: 0,
+            status: "started",
+            metadata: {
+              course_id: courseId,
+              lesson_id: lessonId,
+              module_id: lesson.module.id,
+              source: "LessonLearningPage",
+              ...(isPractice
+                ? {
+                    assessment_id: activityReferenceId,
+                    assessment_type:
+                      activeAssessment?.assessment_type ?? null,
+                  }
+                : {}),
+            },
+          })
+          .select("id")
+          .single();
+
+        if (insertError) throw insertError;
+
+        activityId = data.id;
+        activitySessionRef.current = data.id;
+
+        // Jika halaman sudah berpindah sebelum insert selesai,
+        // sesi langsung ditutup.
+        if (cancelled) {
+          await supabase
+            .from("learning_activities")
+            .update({
+              status: "completed",
+              ended_at: new Date().toISOString(),
+              duration_seconds: 0,
+            })
+            .eq("id", data.id);
+
+          return;
+        }
+
+        intervalId = setInterval(() => {
+          if (
+            document.visibilityState === "visible" &&
+            !finalized
+          ) {
+            void persistActivity();
+          }
+        }, 15000);
+      } catch (err) {
+        console.error("Start learning activity:", err);
+      }
+    };
+
+    document.addEventListener(
+      "visibilitychange",
+      handleVisibilityChange
+    );
+
+    window.addEventListener("pagehide", handlePageHide);
+
+    void startActivity();
+
+    return () => {
+      cancelled = true;
+
+      if (intervalId) {
+        clearInterval(intervalId);
+      }
+
+      document.removeEventListener(
+        "visibilitychange",
+        handleVisibilityChange
+      );
+
+      window.removeEventListener("pagehide", handlePageHide);
+
+      if (activeSegmentStartedAt !== null) {
+        accumulatedMilliseconds +=
+          Date.now() - activeSegmentStartedAt;
+
+        activeSegmentStartedAt = null;
+      }
+
+      void persistActivity(true);
+    };
+  }, [
+    courseId,
+    lessonId,
+    lesson?.id,
+    lesson?.title,
+    lesson?.module.id,
+    activityType,
+    activityReferenceId,
+    activeAssessment?.title,
+    activeAssessment?.assessment_type,
+  ]);
+
+  // ===================================================
   // LOAD BOOKMARK STATUS
   // ===================================================
 
@@ -543,7 +784,7 @@ export default function LessonLearningPage() {
   }, [courseId, lessonId]);
 
   useEffect(() => {
-    loadLearningData();
+    void loadLearningData();
   }, [loadLearningData]);
 
   // ===================================================
@@ -1451,7 +1692,7 @@ export default function LessonLearningPage() {
                               getCheckpointAssessment(selectedSection);
 
                             if (assessment) {
-                              startAssessment(assessment);
+                              void startAssessment(assessment);
                             } else {
                               setAssessmentError(
                                 "Checkpoint untuk bagian ini belum tersedia."
@@ -1502,7 +1743,7 @@ export default function LessonLearningPage() {
                             disabled={!canOpenFinalAssessment}
                             onClick={() => {
                               if (finalAssessment) {
-                                startAssessment(finalAssessment);
+                                void startAssessment(finalAssessment);
                               } else {
                                 setAssessmentError(
                                   "Evaluasi akhir belum tersedia."
@@ -1559,7 +1800,7 @@ export default function LessonLearningPage() {
                   </div>
 
                   <button
-                    onClick={() => startAssessment(finalAssessment)}
+                    onClick={() => void startAssessment(finalAssessment)}
                     disabled={startingAssessment}
                     className="inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-700 px-5 py-3 text-sm font-semibold text-white transition hover:bg-emerald-800 disabled:cursor-not-allowed disabled:opacity-50"
                   >
