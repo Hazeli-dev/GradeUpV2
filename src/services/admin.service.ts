@@ -1,4 +1,3 @@
-
 import { supabase } from "@/lib/supabase";
 import { delay } from "./delay";
 
@@ -29,8 +28,11 @@ export interface TransactionRecord {
   status: "Berhasil" | "Menunggu" | "Gagal" | "Refund";
   created_at: string;
   date: string;
-  invoice: string;
+  merchant_order_id: string; // Properti utama Order ID Duitku
+  invoice: string;           // Fallback untuk komponen UI lama
   method: string;
+  payment_url?: string;
+  reference?: string;
 }
 
 function normalizeTransactionStatus(
@@ -43,7 +45,6 @@ function normalizeTransactionStatus(
       "success",
       "paid",
       "settlement",
-      "capture",
       "completed",
       "berhasil",
     ].includes(value)
@@ -56,7 +57,6 @@ function normalizeTransactionStatus(
       "refund",
       "refunded",
       "partial_refund",
-      "partially_refunded",
     ].includes(value)
   ) {
     return "Refund";
@@ -110,17 +110,21 @@ export async function listUsers(): Promise<ProfileRecord[]> {
   })) as ProfileRecord[];
 }
 
-// 2. Daftar transaksi asli beserta profil pengguna
+// 2. Daftar transaksi Duitku beserta profil pengguna
 export async function listTransactions(): Promise<TransactionRecord[]> {
   await delay();
 
+  // Mengambil data dari tabel payment_transactions (Tabel resmi Duitku GradeUp)
   const { data: transactions, error } = await supabase
-    .from("transactions")
-    .select("*")
+    .from("payment_transactions")
+    .select(`
+      *,
+      premium_plans ( name )
+    `)
     .order("created_at", { ascending: false });
 
   if (error) {
-    console.error("Gagal mengambil transaksi:", error.message);
+    console.error("Gagal mengambil transaksi Duitku:", error.message);
     throw new Error(
       `Gagal mengambil data transaksi: ${error.message}`
     );
@@ -170,10 +174,7 @@ export async function listTransactions(): Promise<TransactionRecord[]> {
       ? profilesById.get(tx.user_id)
       : null;
 
-    const email =
-      profile?.email ||
-      tx.metadata?.user_email ||
-      "";
+    const email = profile?.email || "";
 
     const name =
       profile?.full_name ||
@@ -181,8 +182,17 @@ export async function listTransactions(): Promise<TransactionRecord[]> {
       email ||
       "Pengguna tidak diketahui";
 
-    const createdAt =
-      tx.created_at || new Date().toISOString();
+    const createdAt = tx.created_at || new Date().toISOString();
+
+    const orderId =
+      tx.merchant_order_id ||
+      tx.invoice_number ||
+      `INV-${String(tx.id).slice(0, 8).toUpperCase()}`;
+
+    const planName =
+      tx.premium_plans?.name ||
+      tx.plan_name ||
+      "Paket Premium";
 
     return {
       id: tx.id,
@@ -190,25 +200,22 @@ export async function listTransactions(): Promise<TransactionRecord[]> {
       user_email: email,
       userEmail: email,
       userName: name,
-      plan_name: tx.plan_name || "",
-      plan: tx.plan_name || "Paket Premium",
-      amount: Number(tx.gross_amount ?? tx.amount ?? 0),
+      plan_name: planName,
+      plan: planName,
+      amount: Number(tx.amount ?? 0),
       status: normalizeTransactionStatus(tx.status),
       created_at: createdAt,
       date: createdAt,
-      invoice:
-        tx.invoice_number ||
-        `INV-${String(tx.id).slice(0, 8).toUpperCase()}`,
-      method:
-        tx.payment_method ||
-        tx.payment_provider ||
-        "Belum ditentukan",
+      merchant_order_id: orderId,
+      invoice: orderId, // Kompatibilitas ganda agar tidak merusak UI lama
+      method: tx.payment_method || "Duitku",
+      payment_url: tx.payment_url,
+      reference: tx.reference,
     };
   });
 }
 
 // 3. Pembuatan transaksi harus dilakukan melalui backend pembayaran.
-// Jangan membuat transaksi pembayaran langsung dari browser.
 export async function createTransaction(_payload: {
   user_id: string;
   user_email: string;
@@ -218,23 +225,21 @@ export async function createTransaction(_payload: {
   method?: string;
 }) {
   throw new Error(
-    "Pembuatan transaksi harus dilakukan melalui backend pembayaran yang tervalidasi."
+    "Pembuatan transaksi harus dilakukan melalui backend Edge Function create-payment."
   );
 }
 
-// 4. Status pembayaran hanya boleh diperbarui oleh backend
-// setelah menerima dan memverifikasi notifikasi payment gateway.
+// 4. Status pembayaran hanya boleh diperbarui oleh Edge Function duitku-callback.
 export async function updateTransactionStatus(
   _transactionId: string,
   _newStatus: any
 ) {
   throw new Error(
-    "Perubahan status transaksi harus dilakukan melalui backend pembayaran."
+    "Perubahan status transaksi disinkronkan otomatis oleh webhook Duitku."
   );
 }
 
 // 5. Mengubah role pengguna melalui RPC khusus admin.
-// Tidak melakukan UPDATE langsung ke tabel profiles.
 export async function updateUserRole(
   userId: string,
   newRole: "admin" | "student"
