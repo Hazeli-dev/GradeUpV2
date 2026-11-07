@@ -1089,7 +1089,7 @@ export default function LessonAssessmentPanel({
                   <h4 className="font-semibold">
                     Daftar Checkpoint
                   </h4>
-                  <Badge variant="secondary">
+                  <Badge variant="muted">
                     {assessments.length}
                   </Badge>
                 </div>
@@ -1200,7 +1200,7 @@ export default function LessonAssessmentPanel({
                     Judul Evaluasi
                   </Label>
 
-                  <Badge variant="secondary">
+                  <Badge variant="muted">
                     {questions.length} soal
                   </Badge>
                 </div>
@@ -1343,7 +1343,7 @@ export default function LessonAssessmentPanel({
                         </span>
                       </div>
 
-                      <Badge variant="secondary">
+                      <Badge variant="muted">
                         {importPreview.length} soal
                       </Badge>
                     </div>
@@ -1615,7 +1615,7 @@ export default function LessonAssessmentPanel({
                         <div className="flex items-start justify-between gap-3">
                           <div className="min-w-0 flex-1">
                             <div className="mb-2 flex flex-wrap items-center gap-2">
-                              <Badge variant="secondary">
+                              <Badge variant="muted">
                                 Soal {index + 1}
                               </Badge>
 
