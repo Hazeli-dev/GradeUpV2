@@ -74,6 +74,7 @@ export function SidebarShell({
   });
 
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [isPremium, setIsPremium] = useState<boolean | null>(null);
   const [announcements, setAnnouncements] = useState<Announcement[]>([]);
   const [readIds, setReadIds] = useState<string[]>([]);
   const [loadingAnnouncements, setLoadingAnnouncements] = useState(false);
@@ -82,6 +83,63 @@ export function SidebarShell({
     useState<Announcement | null>(null);
 
   const location = useLocation();
+
+  // Memeriksa status Premium pengguna dari tabel profiles.
+  useEffect(() => {
+    let active = true;
+
+    const loadPremiumStatus = async (userId?: string) => {
+      try {
+        let currentUserId = userId;
+
+        // Pada pemeriksaan awal, ambil pengguna yang sedang login.
+        if (currentUserId === undefined) {
+          const {
+            data: { user },
+            error: authError,
+          } = await supabase.auth.getUser();
+
+          if (authError) throw authError;
+          currentUserId = user?.id;
+        }
+
+        if (!currentUserId) {
+          if (active) setIsPremium(false);
+          return;
+        }
+
+        const { data, error } = await supabase
+          .from("profiles")
+          .select("is_premium")
+          .eq("id", currentUserId)
+          .maybeSingle();
+
+        if (error) throw error;
+
+        if (active) {
+          setIsPremium(data?.is_premium === true);
+        }
+      } catch (error) {
+        console.error("Gagal memeriksa status Premium:", error);
+        // Jika gagal membaca profil, pertahankan status sebelumnya.
+      }
+    };
+
+    void loadPremiumStatus();
+
+    // Perbarui status ketika pengguna login atau logout.
+    // Gunakan user dari session agar tidak memanggil getUser di dalam callback auth.
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      void loadPremiumStatus(session?.user?.id ?? "");
+    });
+
+    return () => {
+      active = false;
+      subscription.unsubscribe();
+    };
+  }, []);
 
   // Menghitung jumlah pengumuman yang belum dibaca.
   const unreadCount = useMemo(
@@ -107,7 +165,20 @@ export function SidebarShell({
     };
   }, [mobileOpen]);
 
-  const current = nav.find((item) =>
+  // Menu upgrade hanya ditampilkan setelah status berhasil dipastikan bukan Premium.
+  // Saat status masih dimuat (null), menu tetap tersedia agar tidak salah menyembunyikan.
+  const visibleNav = nav.filter((item) => {
+    const isUpgradeMenu = /upgrade\s*premium/i.test(item.label);
+    return !isUpgradeMenu || isPremium !== true;
+  });
+
+  const visibleActionItem =
+    actionItem &&
+    (!/upgrade\s*premium/i.test(actionItem.label) || isPremium !== true)
+      ? actionItem
+      : undefined;
+
+  const current = visibleNav.find((item) =>
     item.end
       ? location.pathname === item.to
       : location.pathname.startsWith(item.to)
@@ -252,7 +323,7 @@ export function SidebarShell({
       className="flex-1 space-y-1 overflow-y-auto px-3 py-2"
       aria-label="Navigasi utama"
     >
-      {nav.map((item) => (
+      {visibleNav.map((item) => (
         <NavLink
           key={item.to}
           to={item.to}
@@ -275,19 +346,19 @@ export function SidebarShell({
         </NavLink>
       ))}
 
-      {actionItem && (
+      {visibleActionItem && (
         <button
           type="button"
-          onClick={actionItem.onClick}
-          title={isCollapsed ? actionItem.label : undefined}
+          onClick={visibleActionItem.onClick}
+          title={isCollapsed ? visibleActionItem.label : undefined}
           className={cn(
             "flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold text-primary transition-all hover:bg-soft dark:text-accent",
             isCollapsed && "justify-center px-0"
           )}
         >
-          <actionItem.icon className="h-[18px] w-[18px] shrink-0" />
+          <visibleActionItem.icon className="h-[18px] w-[18px] shrink-0" />
           {!isCollapsed && (
-            <span className="truncate">{actionItem.label}</span>
+            <span className="truncate">{visibleActionItem.label}</span>
           )}
         </button>
       )}
