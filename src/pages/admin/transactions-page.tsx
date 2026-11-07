@@ -1,15 +1,12 @@
-
 import { useMemo, useState } from "react";
 import {
-  ArrowDownRight,
-  ArrowUpRight,
   CheckCircle2,
   Clock3,
   CreditCard,
+  ExternalLink,
   Eye,
-  RefreshCw,
   ReceiptText,
-  Search,
+  RefreshCw,
   Wallet,
   XCircle,
 } from "lucide-react";
@@ -47,10 +44,13 @@ import { formatDate, formatRupiah } from "@/utils/format";
 import type { Transaction } from "@/types";
 
 const STATUS_OPTIONS = [
+  "success",
+  "pending",
+  "failed",
+  "expired",
   "Berhasil",
   "Menunggu",
   "Gagal",
-  "Refund",
 ];
 
 function StatCard({
@@ -137,16 +137,20 @@ export default function AdminTransactionsPage() {
       .filter((transaction) => {
         if (!keyword) return true;
 
+        const orderId = (transaction.merchant_order_id || transaction.invoice || "").toLowerCase();
+
         return (
-          transaction.invoice.toLowerCase().includes(keyword) ||
+          orderId.includes(keyword) ||
           transaction.userName.toLowerCase().includes(keyword) ||
           transaction.userEmail.toLowerCase().includes(keyword)
         );
       })
-      .filter(
-        (transaction) =>
-          status === "all" || transaction.status === status
-      )
+      .filter((transaction) => {
+        if (status === "all") return true;
+        return (
+          transaction.status.toLowerCase() === status.toLowerCase()
+        );
+      })
       .filter(
         (transaction) =>
           plan === "all" || transaction.plan === plan
@@ -154,17 +158,13 @@ export default function AdminTransactionsPage() {
   }, [transactions, q, status, plan]);
 
   const stats = useMemo(() => {
-    const successful = transactions.filter(
-      (transaction) => transaction.status === "Berhasil"
-    );
+    const isSuccessful = (s: string) => ["success", "berhasil", "settlement"].includes(s.toLowerCase());
+    const isPending = (s: string) => ["pending", "menunggu"].includes(s.toLowerCase());
+    const isFailed = (s: string) => ["failed", "gagal", "expired", "expire"].includes(s.toLowerCase());
 
-    const pending = transactions.filter(
-      (transaction) => transaction.status === "Menunggu"
-    );
-
-    const failed = transactions.filter(
-      (transaction) => transaction.status === "Gagal"
-    );
+    const successful = transactions.filter((t) => isSuccessful(t.status));
+    const pending = transactions.filter((t) => isPending(t.status));
+    const failed = transactions.filter((t) => isFailed(t.status));
 
     const revenue = successful.reduce(
       (sum, transaction) => sum + transaction.amount,
@@ -182,7 +182,7 @@ export default function AdminTransactionsPage() {
   return (
     <div className="min-h-full space-y-7 pb-8">
       <PageHeader
-        title="Manajemen Transaksi"
+        title="Manajemen Transaksi Duitku"
         description="Pantau pembayaran, pendapatan, dan aktivitas langganan GradeUp."
       />
 
@@ -199,7 +199,7 @@ export default function AdminTransactionsPage() {
         <StatCard
           title="Pembayaran Berhasil"
           value={stats.successful.toLocaleString("id-ID")}
-          description="Transaksi telah dibayar"
+          description="Transaksi terkonfirmasi"
           icon={CheckCircle2}
           tone="blue"
         />
@@ -232,10 +232,10 @@ export default function AdminTransactionsPage() {
 
               <div>
                 <h2 className="text-base font-bold">
-                  Riwayat Transaksi
+                  Riwayat Transaksi Duitku
                 </h2>
                 <p className="text-xs text-muted-foreground">
-                  Daftar seluruh pembayaran yang tercatat di GradeUp
+                  Daftar seluruh pembayaran yang tercatat di sistem GradeUp
                 </p>
               </div>
             </div>
@@ -261,7 +261,7 @@ export default function AdminTransactionsPage() {
             <SearchInput
               value={q}
               onChange={setQ}
-              placeholder="Cari invoice, nama, atau email..."
+              placeholder="Cari Order ID Duitku, nama, atau email..."
               className="w-full"
             />
           </div>
@@ -302,11 +302,8 @@ export default function AdminTransactionsPage() {
             <span className="font-bold text-emerald-600 dark:text-emerald-400">
               {formatRupiah(
                 filtered
-                  .filter((transaction) => transaction.status === "Berhasil")
-                  .reduce(
-                    (sum, transaction) => sum + transaction.amount,
-                    0
-                  )
+                  .filter((t) => ["success", "berhasil", "settlement"].includes(t.status.toLowerCase()))
+                  .reduce((sum, t) => sum + t.amount, 0)
               )}
             </span>
           </p>
@@ -326,7 +323,7 @@ export default function AdminTransactionsPage() {
             {transactions.length === 0 ? (
               <EmptyState
                 title="Belum ada transaksi"
-                description="Transaksi pembayaran yang tercatat akan muncul di halaman ini."
+                description="Transaksi pembayaran Duitku akan muncul di halaman ini."
               />
             ) : (
               <EmptyState
@@ -341,13 +338,16 @@ export default function AdminTransactionsPage() {
               <TableHeader>
                 <TableRow className="bg-muted/30 hover:bg-muted/30">
                   <TableHead className="whitespace-nowrap pl-5">
-                    Invoice
+                    Order ID Duitku
                   </TableHead>
                   <TableHead className="whitespace-nowrap">
                     Pengguna
                   </TableHead>
                   <TableHead className="whitespace-nowrap">
                     Paket
+                  </TableHead>
+                  <TableHead className="whitespace-nowrap">
+                    Metode
                   </TableHead>
                   <TableHead className="whitespace-nowrap">
                     Jumlah
@@ -365,68 +365,76 @@ export default function AdminTransactionsPage() {
               </TableHeader>
 
               <TableBody>
-                {filtered.map((transaction) => (
-                  <TableRow
-                    key={transaction.id}
-                    className="transition-colors hover:bg-muted/30"
-                  >
-                    <TableCell className="whitespace-nowrap pl-5">
-                      <div className="flex items-center gap-2">
-                        <div className="rounded-lg bg-muted p-2">
-                          <ReceiptText className="h-4 w-4 text-muted-foreground" />
+                {filtered.map((transaction) => {
+                  const displayOrderId = transaction.merchant_order_id || transaction.invoice || "-";
+
+                  return (
+                    <TableRow
+                      key={transaction.id}
+                      className="transition-colors hover:bg-muted/30"
+                    >
+                      <TableCell className="whitespace-nowrap pl-5">
+                        <div className="flex items-center gap-2">
+                          <div className="rounded-lg bg-muted p-2">
+                            <ReceiptText className="h-4 w-4 text-muted-foreground" />
+                          </div>
+
+                          <span className="font-mono text-xs font-semibold">
+                            {displayOrderId}
+                          </span>
                         </div>
+                      </TableCell>
 
-                        <span className="font-mono text-xs font-semibold">
-                          {transaction.invoice}
-                        </span>
-                      </div>
-                    </TableCell>
+                      <TableCell>
+                        <div className="min-w-[150px]">
+                          <p className="font-semibold text-foreground">
+                            {transaction.userName}
+                          </p>
+                          <p className="mt-0.5 text-xs text-muted-foreground">
+                            {transaction.userEmail || "Email tidak tersedia"}
+                          </p>
+                        </div>
+                      </TableCell>
 
-                    <TableCell>
-                      <div className="min-w-[150px]">
-                        <p className="font-semibold text-foreground">
-                          {transaction.userName}
-                        </p>
-                        <p className="mt-0.5 text-xs text-muted-foreground">
-                          {transaction.userEmail || "Email tidak tersedia"}
-                        </p>
-                      </div>
-                    </TableCell>
+                      <TableCell className="whitespace-nowrap">
+                        <div className="flex items-center gap-2">
+                          <CreditCard className="h-4 w-4 text-muted-foreground" />
+                          <span className="text-sm font-medium">
+                            {transaction.plan}
+                          </span>
+                        </div>
+                      </TableCell>
 
-                    <TableCell className="whitespace-nowrap">
-                      <div className="flex items-center gap-2">
-                        <CreditCard className="h-4 w-4 text-muted-foreground" />
-                        <span className="text-sm font-medium">
-                          {transaction.plan}
-                        </span>
-                      </div>
-                    </TableCell>
+                      <TableCell className="whitespace-nowrap text-xs font-bold uppercase">
+                        {transaction.method || "Duitku"}
+                      </TableCell>
 
-                    <TableCell className="whitespace-nowrap font-bold">
-                      {formatRupiah(transaction.amount)}
-                    </TableCell>
+                      <TableCell className="whitespace-nowrap font-bold">
+                        {formatRupiah(transaction.amount)}
+                      </TableCell>
 
-                    <TableCell>
-                      <PaymentBadge status={transaction.status} />
-                    </TableCell>
+                      <TableCell>
+                        <PaymentBadge status={transaction.status} />
+                      </TableCell>
 
-                    <TableCell className="whitespace-nowrap text-sm text-muted-foreground">
-                      {formatDate(transaction.date)}
-                    </TableCell>
+                      <TableCell className="whitespace-nowrap text-sm text-muted-foreground">
+                        {formatDate(transaction.date)}
+                      </TableCell>
 
-                    <TableCell className="pr-5 text-right">
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="gap-2"
-                        onClick={() => setDetail(transaction)}
-                      >
-                        <Eye className="h-4 w-4" />
-                        Detail
-                      </Button>
-                    </TableCell>
-                  </TableRow>
-                ))}
+                      <TableCell className="pr-5 text-right">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="gap-2"
+                          onClick={() => setDetail(transaction)}
+                        >
+                          <Eye className="h-4 w-4" />
+                          Detail
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
               </TableBody>
             </Table>
           </div>
@@ -436,7 +444,7 @@ export default function AdminTransactionsPage() {
         {!loading && !error && filtered.length > 0 && (
           <div className="flex flex-col gap-2 border-t border-border/60 bg-muted/20 px-5 py-3 sm:flex-row sm:items-center sm:justify-between">
             <p className="text-xs text-muted-foreground">
-              Data bersumber dari database transaksi GradeUp.
+              Data tersinkronisasi otomatis dengan Duitku Payment Gateway.
             </p>
             <p className="text-xs font-medium text-muted-foreground">
               {filtered.length} transaksi ditampilkan
@@ -445,7 +453,7 @@ export default function AdminTransactionsPage() {
         )}
       </Card>
 
-      {/* TRANSACTION DETAIL */}
+      {/* TRANSACTION DETAIL MODAL */}
       <Dialog
         open={!!detail}
         onOpenChange={(open) => !open && setDetail(null)}
@@ -459,11 +467,11 @@ export default function AdminTransactionsPage() {
                 </div>
 
                 <DialogTitle className="text-xl font-bold">
-                  Detail Transaksi
+                  Detail Transaksi Duitku
                 </DialogTitle>
 
                 <DialogDescription className="font-mono text-xs">
-                  {detail.invoice}
+                  {detail.merchant_order_id || detail.invoice}
                 </DialogDescription>
               </DialogHeader>
 
@@ -527,8 +535,8 @@ export default function AdminTransactionsPage() {
                       <span className="text-sm text-muted-foreground">
                         Metode Pembayaran
                       </span>
-                      <span className="text-right text-sm font-semibold">
-                        {detail.method}
+                      <span className="text-right text-sm font-semibold uppercase">
+                        {detail.method || "Duitku"}
                       </span>
                     </div>
 
@@ -541,9 +549,20 @@ export default function AdminTransactionsPage() {
                       </span>
                     </div>
 
+                    {detail.reference && (
+                      <div className="flex items-center justify-between gap-4 p-3">
+                        <span className="text-sm text-muted-foreground">
+                          Referensi Duitku
+                        </span>
+                        <span className="max-w-[60%] break-all text-right font-mono text-xs font-semibold">
+                          {detail.reference}
+                        </span>
+                      </div>
+                    )}
+
                     <div className="flex items-center justify-between gap-4 p-3">
                       <span className="text-sm text-muted-foreground">
-                        ID Transaksi
+                        ID Sistem (UUID)
                       </span>
                       <span className="max-w-[60%] break-all text-right font-mono text-xs">
                         {detail.id}
@@ -551,6 +570,21 @@ export default function AdminTransactionsPage() {
                     </div>
                   </div>
                 </div>
+
+                {detail.payment_url && (
+                  <Button
+                    className="w-full gap-2"
+                    onClick={() =>
+                      window.open(
+                        detail.payment_url,
+                        "_blank",
+                        "noopener,noreferrer"
+                      )
+                    }
+                  >
+                    <ExternalLink className="h-4 w-4" /> Buka Checkout Duitku
+                  </Button>
+                )}
 
                 <div className="flex justify-end pt-1">
                   <Button
