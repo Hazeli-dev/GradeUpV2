@@ -99,18 +99,34 @@ export interface AppUser {
   avgScore: number;
 }
 
-export type PaymentStatus = "Berhasil" | "Menunggu" | "Gagal" | "Refund";
+// Status Transaksi Duitku & Database Supabase
+export type PaymentStatus = "success" | "pending" | "failed" | "expired" | "Berhasil" | "Menunggu" | "Gagal" | "Refund";
 
 export interface Transaction {
   id: string;
-  invoice: string;
+  merchant_order_id: string; // Order ID Duitku (misal: PREM-1741234567-890)
   userName: string;
   userEmail: string;
   plan: string;
   amount: number;
-  method: string;
+  method: string; // Kode metode Duitku (misal: VC, BC, QR, SP)
   status: PaymentStatus;
+  payment_url?: string; // Hosted checkout URL Duitku
+  reference?: string; // Duitku reference code
   date: string;
+}
+
+// Response dari Edge Function `check-payment-status` / Duitku
+export interface PaymentStatusResponse {
+  success?: boolean;
+  order_id?: string;
+  merchant_order_id?: string;
+  database_status?: string;
+  payment_method?: string | null;
+  amount?: number;
+  reference?: string;
+  message?: string;
+  error?: string;
 }
 
 export interface Testimonial {
