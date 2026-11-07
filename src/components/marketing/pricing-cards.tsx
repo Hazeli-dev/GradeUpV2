@@ -1,4 +1,3 @@
-
 import { useEffect, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { Check, Crown, Loader2, RefreshCw } from "lucide-react";
@@ -22,39 +21,15 @@ interface PremiumPlan {
   sort_order: number;
 }
 
-interface SnapCallbacks {
-  onSuccess?: (result: unknown) => void;
-  onPending?: (result: unknown) => void;
-  onError?: (result: unknown) => void;
-  onClose?: () => void;
-}
-
 interface PaymentStatusResponse {
   success?: boolean;
-  invoice?: string;
-  amount?: number;
+  order_id?: string;
   database_status?: string;
-  midtrans_status?: string;
-  payment_type?: string;
-  transaction_id?: string;
-  qris_url?: string | null;
+  payment_method?: string | null;
+  amount?: number;
   message?: string;
   error?: string;
 }
-
-declare global {
-  interface Window {
-    snap?: {
-      pay: (token: string, callbacks?: SnapCallbacks) => void;
-    };
-  }
-}
-
-const MIDTRANS_CLIENT_KEY =
-  import.meta.env.VITE_MIDTRANS_CLIENT_KEY;
-
-const SNAP_SCRIPT_URL =
-  "https://app.sandbox.midtrans.com/snap/snap.js";
 
 export function PricingCards() {
   const navigate = useNavigate();
@@ -64,7 +39,6 @@ export function PricingCards() {
   const [isLoading, setIsLoading] = useState(true);
   const [loadingError, setLoadingError] = useState("");
   const [checkoutPlanId, setCheckoutPlanId] = useState<string | null>(null);
-  const [snapReady, setSnapReady] = useState(false);
   const [message, setMessage] = useState("");
 
   const [lastInvoice, setLastInvoice] = useState("");
@@ -110,50 +84,7 @@ export function PricingCards() {
     };
   }, []);
 
-  // Memuat Midtrans Snap.js.
-  useEffect(() => {
-    if (!MIDTRANS_CLIENT_KEY) {
-      console.error("VITE_MIDTRANS_CLIENT_KEY belum dikonfigurasi.");
-      return;
-    }
-
-    if (window.snap) {
-      setSnapReady(true);
-      return;
-    }
-
-    const existingScript = document.querySelector<HTMLScriptElement>(
-      `script[src="${SNAP_SCRIPT_URL}"]`
-    );
-
-    const script = existingScript ?? document.createElement("script");
-
-    const handleLoad = () => {
-      setSnapReady(Boolean(window.snap));
-    };
-
-    const handleError = () => {
-      setSnapReady(false);
-      console.error("Gagal memuat Midtrans Snap.");
-    };
-
-    script.addEventListener("load", handleLoad);
-    script.addEventListener("error", handleError);
-
-    if (!existingScript) {
-      script.src = SNAP_SCRIPT_URL;
-      script.async = true;
-      script.setAttribute("data-client-key", MIDTRANS_CLIENT_KEY);
-      document.body.appendChild(script);
-    }
-
-    return () => {
-      script.removeEventListener("load", handleLoad);
-      script.removeEventListener("error", handleError);
-    };
-  }, []);
-
-  // Membuat transaksi pembayaran.
+  // Membuat transaksi pembayaran Duitku.
   const handleChoosePlan = async (plan: PremiumPlan) => {
     if (checkoutPlanId) return;
 
@@ -178,18 +109,6 @@ export function PricingCards() {
       return;
     }
 
-    if (!MIDTRANS_CLIENT_KEY) {
-      setMessage("Konfigurasi pembayaran belum tersedia.");
-      return;
-    }
-
-    if (!snapReady || !window.snap) {
-      setMessage(
-        "Midtrans belum siap dimuat. Silakan coba beberapa saat lagi."
-      );
-      return;
-    }
-
     setCheckoutPlanId(plan.id);
 
     try {
@@ -198,6 +117,7 @@ export function PricingCards() {
         {
           body: {
             plan_id: plan.id,
+            payment_method: "VC", // Default Duitku hosted checkout
           },
         }
       );
@@ -205,46 +125,22 @@ export function PricingCards() {
       if (error) {
         console.error("Create payment error:", error);
         throw new Error(
-          data?.error || "Gagal membuat transaksi pembayaran."
+          error.message || "Gagal membuat transaksi pembayaran."
         );
       }
 
-      if (!data?.success || !data?.snap_token) {
+      if (!data?.payment_url) {
         throw new Error(
-          data?.error || "Token pembayaran tidak diterima."
+          data?.error || "URL pembayaran tidak diterima dari Duitku."
         );
       }
 
-      if (typeof data.invoice === "string") {
-        setLastInvoice(data.invoice);
+      if (typeof data.order_id === "string") {
+        setLastInvoice(data.order_id);
       }
 
-      window.snap.pay(data.snap_token, {
-        onSuccess: () => {
-          setMessage(
-            "Pembayaran diterima. GradeUp sedang menunggu verifikasi dari Midtrans."
-          );
-          setCheckoutPlanId(null);
-        },
-
-        onPending: () => {
-          setMessage(
-            "Pembayaran masih menunggu penyelesaian. Status Premium akan diperbarui setelah pembayaran terverifikasi."
-          );
-          setCheckoutPlanId(null);
-        },
-
-        onError: () => {
-          setMessage(
-            "Terjadi kendala pada pembayaran. Silakan periksa transaksi Anda."
-          );
-          setCheckoutPlanId(null);
-        },
-
-        onClose: () => {
-          setCheckoutPlanId(null);
-        },
-      });
+      // Redirect langsung ke hosted checkout Duitku
+      window.location.href = data.payment_url;
     } catch (error) {
       console.error("Checkout error:", error);
 
@@ -258,7 +154,7 @@ export function PricingCards() {
     }
   };
 
-  // Memeriksa status transaksi menggunakan sesi pengguna.
+  // Memeriksa status transaksi Duitku.
   const handleCheckPaymentStatus = async () => {
     if (!lastInvoice || isCheckingStatus) return;
 
@@ -282,7 +178,7 @@ export function PricingCards() {
         "check-payment-status",
         {
           body: {
-            invoice_number: lastInvoice,
+            merchant_order_id: lastInvoice,
           },
         }
       );
@@ -303,14 +199,14 @@ export function PricingCards() {
       setPaymentStatus(result);
 
       const status = String(
-        result.midtrans_status || ""
+        result.database_status || ""
       ).toLowerCase();
 
       switch (status) {
+        case "success":
         case "settlement":
-        case "capture":
           setMessage(
-            "Midtrans melaporkan pembayaran berhasil. Silakan tunggu sinkronisasi status Premium."
+            "Pembayaran terkonfirmasi! Status Premium Anda telah aktif."
           );
           break;
 
@@ -318,21 +214,14 @@ export function PricingCards() {
           setMessage("Pembayaran masih menunggu penyelesaian.");
           break;
 
+        case "failed":
         case "expire":
-          setMessage("Transaksi sudah kedaluwarsa (expired).");
-          break;
-
-        case "deny":
-          setMessage("Pembayaran ditolak oleh penyedia pembayaran.");
-          break;
-
-        case "cancel":
-          setMessage("Transaksi telah dibatalkan.");
+          setMessage("Transaksi gagal atau sudah kedaluwarsa (expired).");
           break;
 
         default:
           setMessage(
-            `Status pembayaran dari Midtrans: ${status || "belum diketahui"}.`
+            `Status pembayaran: ${status || "belum diketahui"}.`
           );
       }
     } catch (error) {
@@ -367,7 +256,7 @@ export function PricingCards() {
         <div className="mb-6 rounded-xl border bg-card p-4">
           <div className="mb-3">
             <p className="text-xs text-muted-foreground">
-              Nomor Invoice
+              ID Transaksi Duitku
             </p>
 
             <p className="mt-1 break-all text-sm font-semibold">
@@ -397,23 +286,25 @@ export function PricingCards() {
             <div className="mt-4 rounded-lg bg-muted/50 p-3 text-sm">
               <div className="flex justify-between gap-3">
                 <span className="text-muted-foreground">
-                  Status Midtrans
+                  Status Transaksi
                 </span>
 
                 <strong className="capitalize">
-                  {paymentStatus.midtrans_status || "-"}
+                  {paymentStatus.database_status || "-"}
                 </strong>
               </div>
 
-              <div className="mt-2 flex justify-between gap-3">
-                <span className="text-muted-foreground">
-                  Metode Pembayaran
-                </span>
+              {paymentStatus.payment_method && (
+                <div className="mt-2 flex justify-between gap-3">
+                  <span className="text-muted-foreground">
+                    Metode Pembayaran
+                  </span>
 
-                <strong className="uppercase">
-                  {paymentStatus.payment_type || "-"}
-                </strong>
-              </div>
+                  <strong className="uppercase">
+                    {paymentStatus.payment_method}
+                  </strong>
+                </div>
+              )}
 
               {paymentStatus.amount !== undefined && (
                 <div className="mt-2 flex justify-between gap-3">
@@ -425,12 +316,6 @@ export function PricingCards() {
                     {formatRupiah(Number(paymentStatus.amount))}
                   </strong>
                 </div>
-              )}
-
-              {paymentStatus.qris_url && (
-                <p className="mt-3 text-xs text-muted-foreground">
-                  URL QRIS tersedia pada respons pemeriksaan.
-                </p>
               )}
             </div>
           )}
