@@ -100,19 +100,28 @@ export interface AppUser {
 }
 
 // Status Transaksi Duitku & Database Supabase
-export type PaymentStatus = "success" | "pending" | "failed" | "expired" | "Berhasil" | "Menunggu" | "Gagal" | "Refund";
+export type PaymentStatus =
+  | "success"
+  | "pending"
+  | "failed"
+  | "expired"
+  | "Berhasil"
+  | "Menunggu"
+  | "Gagal"
+  | "Refund";
 
 export interface Transaction {
   id: string;
-  merchant_order_id: string; // Order ID Duitku (misal: PREM-1741234567-890)
+  merchant_order_id?: string; // Order ID Duitku (misal: PREM-1741234567-890)
+  invoice?: string;           // Dual-compatibility untuk komponen UI lama
   userName: string;
   userEmail: string;
   plan: string;
   amount: number;
-  method: string; // Kode metode Duitku (misal: VC, BC, QR, SP)
+  method: string;             // Kode metode Duitku (misal: VC, BC, QR, SP)
   status: PaymentStatus;
-  payment_url?: string; // Hosted checkout URL Duitku
-  reference?: string; // Duitku reference code
+  payment_url?: string;       // Hosted checkout URL Duitku
+  reference?: string;         // Duitku reference code
   date: string;
 }
 
