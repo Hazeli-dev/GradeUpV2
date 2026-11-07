@@ -65,12 +65,18 @@ type LessonInfo = {
   };
 };
 
+type CheckpointProgress = {
+  id: string;
+  title: string;
+  sort_order: number;
+  completed: boolean;
+};
+
 type LessonSection = {
   section_id: string;
   title: string;
   sort_order: number;
-  checkpoint_id: string | null;
-  checkpoint_title: string | null;
+  checkpoints: CheckpointProgress[];
   checkpoint_completed: boolean;
   content_json?: JSONContent;
 };
@@ -262,17 +268,76 @@ function getLearningProgress(value: unknown): LearningProgress {
 
   const data = value as Record<string, unknown>;
 
+  const rawSections = Array.isArray(data.sections)
+    ? data.sections
+    : [];
+
+  const parsedSections: LessonSection[] = rawSections.map(
+    (rawSection) => {
+      if (
+        !rawSection ||
+        typeof rawSection !== "object" ||
+        Array.isArray(rawSection)
+      ) {
+        throw new Error("Data section pembelajaran tidak valid.");
+      }
+
+      const section = rawSection as Record<string, unknown>;
+
+      const rawCheckpoints = Array.isArray(section.checkpoints)
+        ? section.checkpoints
+        : [];
+
+      const checkpoints: CheckpointProgress[] = rawCheckpoints
+        .filter(
+          (item): item is Record<string, unknown> =>
+            item !== null &&
+            typeof item === "object" &&
+            !Array.isArray(item)
+        )
+        .map((checkpoint) => ({
+          id: String(checkpoint.id ?? ""),
+          title: String(checkpoint.title ?? "Checkpoint"),
+          sort_order: Number(checkpoint.sort_order ?? 0),
+          completed: checkpoint.completed === true,
+        }))
+        .filter((checkpoint) => checkpoint.id !== "")
+        .sort((a, b) => a.sort_order - b.sort_order);
+
+      return {
+        section_id: String(section.section_id ?? ""),
+        title: String(section.title ?? ""),
+        sort_order: Number(section.sort_order ?? 0),
+        checkpoints,
+        checkpoint_completed:
+          section.checkpoint_completed === true,
+      };
+    }
+  );
+
+  const rawFinal = data.final_assessment;
+
+  const finalAssessment =
+    rawFinal &&
+    typeof rawFinal === "object" &&
+    !Array.isArray(rawFinal)
+      ? {
+          assessment_id: String(
+            (rawFinal as Record<string, unknown>).assessment_id ?? ""
+          ),
+          title: String(
+            (rawFinal as Record<string, unknown>).title ?? ""
+          ),
+          completed:
+            (rawFinal as Record<string, unknown>).completed === true,
+        }
+      : null;
+
   return {
     lesson_id:
       typeof data.lesson_id === "string" ? data.lesson_id : "",
-    sections: Array.isArray(data.sections)
-      ? (data.sections as LessonSection[])
-      : [],
-    final_assessment:
-      data.final_assessment &&
-      typeof data.final_assessment === "object"
-        ? (data.final_assessment as LearningProgress["final_assessment"])
-        : null,
+    sections: parsedSections,
+    final_assessment: finalAssessment,
   };
 }
 
@@ -364,7 +429,6 @@ export default function LessonLearningPage() {
     let activeSegmentStartedAt: number | null =
       document.visibilityState === "visible" ? Date.now() : null;
 
-    // Antrean penyimpanan agar update tidak saling menimpa.
     let writeQueue: Promise<void> = Promise.resolve();
 
     const isPractice = activityType === "practice";
@@ -513,8 +577,6 @@ export default function LessonLearningPage() {
         activityId = data.id;
         activitySessionRef.current = data.id;
 
-        // Jika halaman ditutup ketika insert berlangsung,
-        // aktivitas tetap diselesaikan setelah ID diperoleh.
         if (cancelled || finishRequested) {
           queueSave(true);
           return;
@@ -740,27 +802,29 @@ export default function LessonLearningPage() {
     setError("");
 
     try {
-      const { data: lessonData, error: lessonError } = await supabase
-        .from("course_lessons")
-        .select(`
-          id,
-          title,
-          description,
-          estimated_minutes,
-          module:course_modules!inner (
+      const { data: lessonData, error: lessonError } =
+        await supabase
+          .from("course_lessons")
+          .select(`
             id,
             title,
-            course:courses!inner (
+            description,
+            estimated_minutes,
+            module:course_modules!inner (
               id,
               title,
-              premium
+              course:courses!inner (
+                id,
+                title,
+                premium
+              )
             )
-          )
-        `)
-        .eq("id", lessonId)
-        .single();
+          `)
+          .eq("id", lessonId)
+          .single();
 
       if (lessonError) throw lessonError;
+
       if (!lessonData) {
         throw new Error("Data materi tidak ditemukan.");
       }
@@ -814,25 +878,26 @@ export default function LessonLearningPage() {
       if (progressError) throw progressError;
 
       const progress = getLearningProgress(progressData);
+
       const availableSections = Array.isArray(sectionData)
         ? sectionData
         : [];
 
-      const mappedSections: LessonSection[] = progress.sections.map(
-        (item) => {
+      const mappedSections: LessonSection[] =
+        progress.sections.map((item) => {
           const sectionContent = availableSections.find(
             (section) => section.id === item.section_id
           );
 
           return {
             ...item,
+            checkpoints: item.checkpoints ?? [],
             content_json: sectionContent?.content_json || {
               type: "doc",
               content: [{ type: "paragraph" }],
             },
           };
-        }
-      );
+        });
 
       const mappedAssessments = Array.isArray(assessmentData)
         ? (assessmentData as AssessmentInfo[])
@@ -883,16 +948,34 @@ export default function LessonLearningPage() {
   // ASSESSMENT HELPERS
   // ===================================================
 
-  const getCheckpointAssessment = (section: LessonSection) =>
-    assessments.find(
-      (item) =>
-        item.assessment_type === "checkpoint" &&
-        item.section_id === section.section_id
-    );
+  const getCheckpointAssessments = (
+    section: LessonSection
+  ): AssessmentInfo[] => {
+    return section.checkpoints
+      .map((checkpoint) => {
+        const assessment = assessments.find(
+          (item) =>
+            item.id === checkpoint.id &&
+            item.assessment_type === "checkpoint"
+        );
+
+        return (
+          assessment ?? {
+            id: checkpoint.id,
+            section_id: section.section_id,
+            assessment_type: "checkpoint" as const,
+            title: checkpoint.title,
+            sort_order: checkpoint.sort_order,
+          }
+        );
+      })
+      .sort((a, b) => a.sort_order - b.sort_order);
+  };
 
   const finalAssessment = useMemo(
     () =>
-      assessments.find((item) => item.assessment_type === "final") || null,
+      assessments.find((item) => item.assessment_type === "final") ||
+      null,
     [assessments]
   );
 
@@ -923,6 +1006,7 @@ export default function LessonLearningPage() {
         return updated
           ? {
               ...section,
+              checkpoints: updated.checkpoints,
               checkpoint_completed: updated.checkpoint_completed,
             }
           : section;
@@ -1600,6 +1684,14 @@ export default function LessonLearningPage() {
                   const completed = section.checkpoint_completed;
                   const active = index === selectedSectionIndex;
 
+                  const completedCheckpointCount =
+                    section.checkpoints.filter(
+                      (checkpoint) => checkpoint.completed
+                    ).length;
+
+                  const totalCheckpointCount =
+                    section.checkpoints.length;
+
                   return (
                     <button
                       key={section.section_id}
@@ -1640,9 +1732,11 @@ export default function LessonLearningPage() {
 
                         <p className="mt-1 text-xs text-muted-foreground">
                           {completed
-                            ? "Checkpoint selesai"
+                            ? "Semua checkpoint selesai"
                             : accessible
-                              ? "Materi tersedia"
+                              ? totalCheckpointCount > 0
+                                ? `${completedCheckpointCount}/${totalCheckpointCount} checkpoint selesai`
+                                : "Tidak ada checkpoint"
                               : "Selesaikan bagian sebelumnya"}
                         </p>
                       </div>
@@ -1780,105 +1874,224 @@ export default function LessonLearningPage() {
 
                   {/* CHECKPOINT AREA */}
                   <div className="border-t border-border bg-muted/40 p-5 md:px-8 md:py-6">
-                    {selectedSection.checkpoint_completed ? (
-                      <div className="rounded-2xl border border-emerald-500/20 bg-emerald-500/10 p-5">
-                        <div className="flex items-center gap-2 font-bold text-emerald-700 dark:text-emerald-300">
-                          <CheckCircle2 className="h-5 w-5" />
-                          Checkpoint bagian ini sudah selesai
-                        </div>
+                    {(() => {
+                      const checkpointList =
+                        getCheckpointAssessments(selectedSection);
 
-                        <p className="mt-2 text-sm leading-relaxed text-emerald-700 dark:text-emerald-200">
-                          Kamu sudah menjawab semua pertanyaan dengan benar.
-                          Bagian berikutnya sekarang dapat dibuka.
-                        </p>
-                      </div>
-                    ) : (
-                      <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
-                        <div>
-                          <h3 className="font-bold">
-                            Siap menguji pemahaman?
-                          </h3>
+                      const completedCount =
+                        checkpointList.filter((checkpoint) =>
+                          selectedSection.checkpoints.some(
+                            (item) =>
+                              item.id === checkpoint.id &&
+                              item.completed
+                          )
+                        ).length;
 
-                          <p className="mt-1 text-sm leading-relaxed text-muted-foreground">
-                            Selesaikan checkpoint untuk membuka bagian
-                            berikutnya.
-                          </p>
-                        </div>
+                      const totalCount = checkpointList.length;
 
-                        <button
-                          disabled={startingAssessment}
-                          onClick={() => {
-                            const assessment =
-                              getCheckpointAssessment(selectedSection);
+                      const allCompleted =
+                        selectedSection.checkpoint_completed;
 
-                            if (assessment) {
-                              void startAssessment(assessment);
-                            } else {
-                              setAssessmentError(
-                                "Checkpoint untuk bagian ini belum tersedia."
-                              );
-                            }
-                          }}
-                          className="inline-flex shrink-0 items-center justify-center gap-2 rounded-xl bg-emerald-600 px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50"
-                        >
-                          {startingAssessment ? (
-                            <Loader2 className="h-4 w-4 animate-spin" />
+                      return (
+                        <>
+                          <div className="mb-5 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                            <div>
+                              <h3 className="font-bold">
+                                Checkpoint pemahaman
+                              </h3>
+
+                              <p className="mt-1 text-sm text-muted-foreground">
+                                Selesaikan semua checkpoint untuk membuka
+                                bagian berikutnya.
+                              </p>
+                            </div>
+
+                            {totalCount > 0 && (
+                              <span className="w-fit rounded-xl bg-emerald-500/10 px-3 py-2 text-xs font-bold text-emerald-700 dark:text-emerald-300">
+                                {completedCount}/{totalCount} selesai
+                              </span>
+                            )}
+                          </div>
+
+                          {totalCount === 0 ? (
+                            <div className="rounded-2xl border border-emerald-500/20 bg-emerald-500/10 p-5">
+                              <div className="flex items-center gap-2 font-bold text-emerald-700 dark:text-emerald-300">
+                                <CheckCircle2 className="h-5 w-5" />
+                                Tidak ada checkpoint pada bagian ini
+                              </div>
+
+                              <p className="mt-2 text-sm text-emerald-700 dark:text-emerald-200">
+                                Kamu dapat melanjutkan ke bagian berikutnya.
+                              </p>
+                            </div>
                           ) : (
-                            <ShieldCheck className="h-4 w-4" />
+                            <div className="space-y-3">
+                              {checkpointList.map(
+                                (checkpoint, index) => {
+                                  const checkpointProgress =
+                                    selectedSection.checkpoints.find(
+                                      (item) =>
+                                        item.id === checkpoint.id
+                                    );
+
+                                  const completed =
+                                    checkpointProgress?.completed === true;
+
+                                  return (
+                                    <div
+                                      key={checkpoint.id}
+                                      className={`flex flex-col gap-4 rounded-2xl border p-4 sm:flex-row sm:items-center sm:justify-between ${
+                                        completed
+                                          ? "border-emerald-500/20 bg-emerald-500/5"
+                                          : "border-border bg-card"
+                                      }`}
+                                    >
+                                      <div className="flex min-w-0 items-start gap-3">
+                                        <div
+                                          className={`mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${
+                                            completed
+                                              ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
+                                              : "bg-muted text-muted-foreground"
+                                          }`}
+                                        >
+                                          {completed ? (
+                                            <CheckCircle2 className="h-5 w-5" />
+                                          ) : (
+                                            <ShieldCheck className="h-5 w-5" />
+                                          )}
+                                        </div>
+
+                                        <div className="min-w-0">
+                                          <p className="text-xs font-semibold text-muted-foreground">
+                                            Checkpoint {index + 1}
+                                          </p>
+
+                                          <h4 className="mt-1 font-bold">
+                                            {checkpoint.title}
+                                          </h4>
+
+                                          <p
+                                            className={`mt-1 text-xs font-medium ${
+                                              completed
+                                                ? "text-emerald-600 dark:text-emerald-400"
+                                                : "text-muted-foreground"
+                                            }`}
+                                          >
+                                            {completed
+                                              ? "Sudah diselesaikan"
+                                              : "Belum dikerjakan"}
+                                          </p>
+                                        </div>
+                                      </div>
+
+                                      <button
+                                        type="button"
+                                        disabled={
+                                          completed || startingAssessment
+                                        }
+                                        onClick={() =>
+                                          void startAssessment(checkpoint)
+                                        }
+                                        className={`inline-flex shrink-0 items-center justify-center gap-2 rounded-xl px-5 py-3 text-sm font-semibold transition disabled:cursor-not-allowed ${
+                                          completed
+                                            ? "border border-emerald-500/20 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300"
+                                            : "bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-50"
+                                        }`}
+                                      >
+                                        {startingAssessment ? (
+                                          <Loader2 className="h-4 w-4 animate-spin" />
+                                        ) : completed ? (
+                                          <CheckCircle2 className="h-4 w-4" />
+                                        ) : (
+                                          <ArrowRight className="h-4 w-4" />
+                                        )}
+
+                                        {completed ? "Selesai" : "Kerjakan"}
+                                      </button>
+                                    </div>
+                                  );
+                                }
+                              )}
+                            </div>
                           )}
 
-                          Mulai checkpoint
-                        </button>
-                      </div>
-                    )}
+                          {allCompleted && (
+                            <div className="mt-4 rounded-2xl border border-emerald-500/20 bg-emerald-500/10 p-5">
+                              <div className="flex items-center gap-2 font-bold text-emerald-700 dark:text-emerald-300">
+                                <CheckCircle2 className="h-5 w-5" />
+                                Semua checkpoint bagian ini selesai!
+                              </div>
 
-                    {selectedSection.checkpoint_completed && (
-                      <div className="mt-4 flex flex-wrap justify-between gap-3">
-                        <button
-                          disabled={selectedSectionIndex === 0}
-                          onClick={() =>
-                            setSelectedSectionIndex((index) =>
-                              Math.max(0, index - 1)
-                            )
-                          }
-                          className="inline-flex items-center gap-2 rounded-xl border border-border bg-card px-4 py-2.5 text-sm font-semibold text-muted-foreground transition hover:bg-muted disabled:cursor-not-allowed disabled:opacity-40"
-                        >
-                          <ArrowLeft className="h-4 w-4" />
-                          Bagian sebelumnya
-                        </button>
+                              <p className="mt-2 text-sm text-emerald-700 dark:text-emerald-200">
+                                Kamu sudah menyelesaikan seluruh checkpoint
+                                pada bagian ini. Silakan lanjutkan pembelajaran.
+                              </p>
+                            </div>
+                          )}
 
-                        {selectedSectionIndex < sections.length - 1 ? (
-                          <button
-                            onClick={() =>
-                              setSelectedSectionIndex((index) =>
-                                Math.min(sections.length - 1, index + 1)
-                              )
-                            }
-                            className="inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-emerald-700"
-                          >
-                            Bagian berikutnya
-                            <ArrowRight className="h-4 w-4" />
-                          </button>
-                        ) : (
-                          <button
-                            disabled={!canOpenFinalAssessment || startingAssessment}
-                            onClick={() => {
-                              if (finalAssessment) {
-                                void startAssessment(finalAssessment);
-                              } else {
-                                setAssessmentError(
-                                  "Evaluasi akhir belum tersedia."
-                                );
-                              }
-                            }}
-                            className="inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50"
-                          >
-                            <GraduationCap className="h-4 w-4" />
-                            Evaluasi akhir
-                          </button>
-                        )}
-                      </div>
-                    )}
+                          {allCompleted && (
+                            <div className="mt-4 flex flex-wrap justify-between gap-3">
+                              <button
+                                disabled={selectedSectionIndex === 0}
+                                onClick={() =>
+                                  setSelectedSectionIndex((index) =>
+                                    Math.max(0, index - 1)
+                                  )
+                                }
+                                className="inline-flex items-center gap-2 rounded-xl border border-border bg-card px-4 py-2.5 text-sm font-semibold text-muted-foreground transition hover:bg-muted disabled:cursor-not-allowed disabled:opacity-40"
+                              >
+                                <ArrowLeft className="h-4 w-4" />
+                                Bagian sebelumnya
+                              </button>
+
+                              {selectedSectionIndex <
+                              sections.length - 1 ? (
+                                <button
+                                  disabled={
+                                    !isSectionAccessible(
+                                      selectedSectionIndex + 1
+                                    )
+                                  }
+                                  onClick={() =>
+                                    setSelectedSectionIndex((index) =>
+                                      Math.min(
+                                        sections.length - 1,
+                                        index + 1
+                                      )
+                                    )
+                                  }
+                                  className="inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50"
+                                >
+                                  Bagian berikutnya
+                                  <ArrowRight className="h-4 w-4" />
+                                </button>
+                              ) : (
+                                <button
+                                  disabled={
+                                    !canOpenFinalAssessment ||
+                                    startingAssessment ||
+                                    !finalAssessment
+                                  }
+                                  onClick={() => {
+                                    if (finalAssessment) {
+                                      void startAssessment(finalAssessment);
+                                    } else {
+                                      setAssessmentError(
+                                        "Evaluasi akhir belum tersedia."
+                                      );
+                                    }
+                                  }}
+                                  className="inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50"
+                                >
+                                  <GraduationCap className="h-4 w-4" />
+                                  Evaluasi akhir
+                                </button>
+                              )}
+                            </div>
+                          )}
+                        </>
+                      );
+                    })()}
                   </div>
                 </>
               ) : (
