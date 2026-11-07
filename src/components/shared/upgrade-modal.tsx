@@ -1,9 +1,7 @@
-
 import { useEffect, useState } from "react";
 import {
   Check,
   Crown,
-  ExternalLink,
   Loader2,
   RefreshCw,
 } from "lucide-react";
@@ -34,44 +32,15 @@ interface PremiumPlan {
   sort_order: number;
 }
 
-interface SnapCallbacks {
-  onSuccess?: (result: unknown) => void;
-  onPending?: (result: unknown) => void;
-  onError?: (result: unknown) => void;
-  onClose?: () => void;
-}
-
 interface PaymentStatusResponse {
   success?: boolean;
-  invoice?: string;
+  order_id?: string;
   database_status?: string;
-  database_payment_method?: string | null;
-  midtrans_status?: string;
-  payment_type?: string;
+  payment_method?: string | null;
   amount?: number;
-  transaction_id?: string;
-  qris_url?: string | null;
-  qris_url_v2?: string | null;
-  qris_url_legacy?: string | null;
   message?: string;
   error?: string;
 }
-
-declare global {
-  interface Window {
-    snap?: {
-      pay: (
-        token: string,
-        callbacks?: SnapCallbacks
-      ) => void;
-    };
-  }
-}
-
-const CLIENT_KEY = import.meta.env.VITE_MIDTRANS_CLIENT_KEY;
-
-const SNAP_URL =
-  "https://app.sandbox.midtrans.com/snap/snap.js";
 
 export function UpgradeModal({
   open,
@@ -85,7 +54,6 @@ export function UpgradeModal({
   const [loading, setLoading] = useState(false);
   const [loadingError, setLoadingError] = useState("");
   const [checkoutLoading, setCheckoutLoading] = useState(false);
-  const [snapReady, setSnapReady] = useState(false);
   const [invoice, setInvoice] = useState("");
   const [message, setMessage] = useState("");
   const [checking, setChecking] = useState(false);
@@ -96,7 +64,7 @@ export function UpgradeModal({
   const plan =
     plans.find((item) => item.id === selected) ?? plans[0];
 
-  // Load Premium plans.
+  // Load Premium plans
   useEffect(() => {
     if (!open) return;
 
@@ -141,51 +109,7 @@ export function UpgradeModal({
     };
   }, [open]);
 
-  // Load Midtrans Snap.
-  useEffect(() => {
-    if (!CLIENT_KEY) {
-      console.error("VITE_MIDTRANS_CLIENT_KEY belum tersedia.");
-      setSnapReady(false);
-      return;
-    }
-
-    if (window.snap) {
-      setSnapReady(true);
-      return;
-    }
-
-    const existing = document.querySelector<HTMLScriptElement>(
-      `script[src="${SNAP_URL}"]`
-    );
-
-    const script = existing ?? document.createElement("script");
-
-    const onLoad = () => {
-      setSnapReady(Boolean(window.snap));
-    };
-
-    const onError = () => {
-      setSnapReady(false);
-      console.error("Gagal memuat Midtrans Snap.");
-    };
-
-    script.addEventListener("load", onLoad);
-    script.addEventListener("error", onError);
-
-    if (!existing) {
-      script.src = SNAP_URL;
-      script.async = true;
-      script.setAttribute("data-client-key", CLIENT_KEY);
-      document.body.appendChild(script);
-    }
-
-    return () => {
-      script.removeEventListener("load", onLoad);
-      script.removeEventListener("error", onError);
-    };
-  }, []);
-
-  // Start Snap checkout.
+  // Start Duitku checkout
   const handleChoosePlan = async () => {
     if (!plan || checkoutLoading) return;
 
@@ -205,64 +129,39 @@ export function UpgradeModal({
         );
       }
 
-      if (!CLIENT_KEY || !snapReady || !window.snap) {
-        throw new Error(
-          "Midtrans belum siap. Silakan coba kembali."
-        );
-      }
-
       setCheckoutLoading(true);
 
       const { data, error } = await supabase.functions.invoke(
         "create-payment",
         {
-          body: { plan_id: plan.id },
+          body: {
+            plan_id: plan.id,
+            payment_method: "VC", // Default Duitku hosted checkout
+          },
         }
       );
 
       if (error) {
-        console.error("Create payment:", error);
+        console.error("Create payment error:", error);
         throw new Error(
-          "Gagal membuat transaksi pembayaran."
+          error.message || "Gagal membuat transaksi pembayaran Duitku."
         );
       }
 
-      if (!data?.success || !data?.snap_token) {
+      if (!data?.payment_url) {
         throw new Error(
-          data?.error || "Token pembayaran tidak diterima."
+          data?.error || "URL pembayaran tidak diterima dari Duitku."
         );
       }
 
-      if (typeof data.invoice === "string") {
-        setInvoice(data.invoice);
+      if (typeof data.order_id === "string") {
+        setInvoice(data.order_id);
       }
 
-      window.snap.pay(data.snap_token, {
-        onSuccess: () => {
-          setMessage(
-            "Pembayaran diterima. Menunggu verifikasi dari Midtrans."
-          );
-          setCheckoutLoading(false);
-        },
-
-        onPending: () => {
-          setMessage(
-            "Pembayaran masih menunggu penyelesaian."
-          );
-          setCheckoutLoading(false);
-        },
-
-        onError: () => {
-          setMessage("Terjadi kendala pada pembayaran.");
-          setCheckoutLoading(false);
-        },
-
-        onClose: () => {
-          setCheckoutLoading(false);
-        },
-      });
+      // Redirect langsung ke hosted checkout Duitku
+      window.location.href = data.payment_url;
     } catch (error) {
-      console.error("Checkout:", error);
+      console.error("Checkout error:", error);
 
       setMessage(
         error instanceof Error
@@ -274,7 +173,7 @@ export function UpgradeModal({
     }
   };
 
-  // Check Snap payment status.
+  // Check payment status
   const handleCheckStatus = async () => {
     if (!invoice || checking) return;
 
@@ -286,7 +185,7 @@ export function UpgradeModal({
       const { data, error } = await supabase.functions.invoke(
         "check-payment-status",
         {
-          body: { invoice_number: invoice },
+          body: { merchant_order_id: invoice },
         }
       );
 
@@ -308,23 +207,19 @@ export function UpgradeModal({
       setPaymentStatus(result);
 
       const status = String(
-        result.midtrans_status ?? ""
+        result.database_status ?? ""
       ).toLowerCase();
 
-      if (status === "settlement" || status === "capture") {
+      if (status === "success" || status === "settlement") {
         setMessage(
-          "Pembayaran berhasil menurut Midtrans. Status Premium mengikuti verifikasi server."
+          "Pembayaran berhasil terverifikasi. Premium Anda telah aktif!"
         );
       } else if (status === "pending") {
         setMessage(
           "Pembayaran masih menunggu penyelesaian."
         );
-      } else if (status === "expire") {
-        setMessage("Transaksi sudah kedaluwarsa.");
-      } else if (status === "deny") {
-        setMessage("Pembayaran ditolak.");
-      } else if (status === "cancel") {
-        setMessage("Transaksi dibatalkan.");
+      } else if (status === "failed" || status === "expire") {
+        setMessage("Transaksi gagal atau sudah kedaluwarsa.");
       } else {
         setMessage(
           result.message ||
@@ -344,42 +239,11 @@ export function UpgradeModal({
     }
   };
 
-  // Resolve QRIS URL returned by the server.
-  const qrisUrl =
-    paymentStatus?.qris_url ??
-    paymentStatus?.qris_url_v2 ??
-    paymentStatus?.qris_url_legacy ??
-    null;
-
-  const validQrisUrl = (() => {
-    if (typeof qrisUrl !== "string") return null;
-
-    try {
-      const parsedUrl = new URL(qrisUrl);
-
-      if (parsedUrl.protocol !== "https:") return null;
-
-      return parsedUrl.toString();
-    } catch {
-      return null;
-    }
-  })();
-
-  const paymentMethod = String(
-    paymentStatus?.payment_type ||
-      paymentStatus?.database_payment_method ||
-      ""
-  ).toLowerCase();
-
-  const isPendingQris =
-    paymentStatus?.midtrans_status?.toLowerCase() === "pending" &&
-    paymentMethod === "qris";
-
   const isPaymentSuccessful = [
+    "success",
     "settlement",
-    "capture",
   ].includes(
-    String(paymentStatus?.midtrans_status ?? "").toLowerCase()
+    String(paymentStatus?.database_status ?? "").toLowerCase()
   );
 
   return (
@@ -403,7 +267,7 @@ export function UpgradeModal({
           <div
             role="status"
             aria-live="polite"
-            className="rounded-xl border border-emerald-500/20 bg-emerald-500/10 px-4 py-3 text-sm"
+            className="rounded-xl border border-emerald-500/20 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-800 dark:text-emerald-300"
           >
             {message}
           </div>
@@ -412,7 +276,7 @@ export function UpgradeModal({
         {invoice && (
           <div className="rounded-xl border bg-card p-4">
             <p className="text-xs text-muted-foreground">
-              Nomor Invoice
+              ID Transaksi Duitku
             </p>
 
             <p className="mt-1 break-all text-sm font-semibold">
@@ -439,20 +303,22 @@ export function UpgradeModal({
             {paymentStatus && (
               <div className="mt-3 space-y-3 rounded-lg bg-muted/50 p-3 text-sm">
                 <div className="flex justify-between gap-3">
-                  <span>Status Midtrans</span>
+                  <span>Status Transaksi</span>
 
                   <strong className="capitalize">
-                    {paymentStatus.midtrans_status || "-"}
+                    {paymentStatus.database_status || "-"}
                   </strong>
                 </div>
 
-                <div className="flex justify-between gap-3">
-                  <span>Metode Pembayaran</span>
+                {paymentStatus.payment_method && (
+                  <div className="flex justify-between gap-3">
+                    <span>Metode Pembayaran</span>
 
-                  <strong className="uppercase">
-                    {paymentMethod || "-"}
-                  </strong>
-                </div>
+                    <strong className="uppercase">
+                      {paymentStatus.payment_method}
+                    </strong>
+                  </div>
+                )}
 
                 {paymentStatus.amount !== undefined && (
                   <div className="flex justify-between gap-3">
@@ -464,45 +330,10 @@ export function UpgradeModal({
                   </div>
                 )}
 
-                {isPendingQris && (
-                  <div className="border-t pt-3">
-                    <p className="mb-2 font-semibold">
-                      Pembayaran QRIS
-                    </p>
-
-                    {validQrisUrl ? (
-                      <>
-                        <p className="mb-3 text-xs text-muted-foreground">
-                          QRIS tersedia dari transaksi Midtrans Snap.
-                        </p>
-
-                        <Button
-                          type="button"
-                          className="w-full"
-                          onClick={() => {
-                            window.open(
-                              validQrisUrl,
-                              "_blank",
-                              "noopener,noreferrer"
-                            );
-                          }}
-                        >
-                          <ExternalLink className="mr-2 h-4 w-4" />
-                          Buka QRIS
-                        </Button>
-                      </>
-                    ) : (
-                      <p className="text-xs text-muted-foreground">
-                        URL QRIS belum tersedia dari respons server.
-                      </p>
-                    )}
-                  </div>
-                )}
-
                 {isPaymentSuccessful && (
                   <div className="border-t pt-3 text-sm text-emerald-700 dark:text-emerald-400">
                     <p className="font-semibold">
-                      Pembayaran terkonfirmasi
+                      Pembayaran terkonfirmasi!
                     </p>
 
                     <p className="mt-1 text-xs">
@@ -609,19 +440,13 @@ export function UpgradeModal({
               size="lg"
               className="w-full"
               onClick={handleChoosePlan}
-              disabled={
-                !plan ||
-                checkoutLoading ||
-                !snapReady
-              }
+              disabled={!plan || checkoutLoading}
             >
               {checkoutLoading ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                   Menyiapkan pembayaran...
                 </>
-              ) : !snapReady ? (
-                "Menyiapkan pembayaran..."
               ) : (
                 `Pilih ${plan?.name ?? "Paket"}`
               )}
@@ -630,7 +455,7 @@ export function UpgradeModal({
         )}
 
         <p className="text-center text-xs text-muted-foreground">
-          Pembayaran diproses melalui Midtrans Snap.
+          Pembayaran otomatis & aman melalui Duitku Payment Gateway.
         </p>
       </DialogContent>
     </Dialog>
