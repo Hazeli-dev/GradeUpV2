@@ -61,6 +61,12 @@ interface ExamResultHistory {
   date: string;
 }
 
+interface ExamRule {
+  title: string;
+  description: string;
+  icon: typeof Clock;
+}
+
 export default function StudentExamDetailPage() {
   const { examId } = useParams<{ examId: string }>();
   const navigate = useNavigate();
@@ -68,39 +74,38 @@ export default function StudentExamDetailPage() {
 
   const [exam, setExam] = useState<ExamPackage | null>(null);
   const [history, setHistory] = useState<ExamResultHistory[]>([]);
+
   const [loading, setLoading] = useState(true);
   const [historyLoading, setHistoryLoading] = useState(true);
+
   const [error, setError] = useState<string | null>(null);
   const [historyError, setHistoryError] = useState<string | null>(null);
 
   const [open, setOpen] = useState(false);
   const [agreed, setAgreed] = useState(false);
 
-  // Mengambil detail paket dan riwayat ujian.
-  const fetchData = useCallback(async () => {
+  // =========================================================
+  // FETCH DETAIL PAKET
+  // =========================================================
+
+  const fetchExamDetail = useCallback(async () => {
     if (!examId) {
       setError("ID paket ujian tidak ditemukan.");
       setLoading(false);
-      setHistoryLoading(false);
-      return;
+      return null;
     }
 
     setLoading(true);
-    setHistoryLoading(true);
     setError(null);
-    setHistoryError(null);
-    setHistory([]);
+    setExam(null);
 
     try {
-      // 1. Pastikan siswa sudah login.
       const {
         data: { user },
         error: userError,
       } = await supabase.auth.getUser();
 
-      if (userError) {
-        throw userError;
-      }
+      if (userError) throw userError;
 
       if (!user) {
         throw new Error(
@@ -108,94 +113,140 @@ export default function StudentExamDetailPage() {
         );
       }
 
-      // 2. Ambil detail paket ujian.
-      const { data: examData, error: examErr } = await supabase
+      const { data, error: examError } = await supabase
         .from("exam_packages")
         .select("*")
         .eq("id", examId)
-        .single();
+        .maybeSingle();
 
-      if (examErr || !examData) {
+      if (examError) throw examError;
+
+      if (!data) {
         throw new Error("Paket ujian tidak ditemukan.");
       }
 
+      const duration =
+        Number(data.duration ?? data.duration_minutes) || 30;
+
+      const questionCount =
+        Number(
+          data.question_count ??
+            data.total_questions ??
+            data.questionCount
+        ) || 0;
+
       const safeExam: ExamPackage = {
-        id: examData.id,
-        title: examData.title || "Tanpa Judul",
+        id: data.id,
+        title: data.title || "Tanpa Judul",
         description:
-          examData.description || "Belum ada deskripsi.",
-        category: examData.category || "Umum",
-        level: examData.level || "SMA",
-        difficulty: examData.difficulty || "Sedang",
-        duration: Number(examData.duration) || 30,
-        questionCount:
-          Number(
-            examData.question_count || examData.questionCount
-          ) || 0,
-        participants: Number(examData.participants) || 0,
-        premium: Boolean(examData.premium),
-        status: examData.status || "Published",
+          data.description || "Belum ada deskripsi.",
+        category: data.category || "Umum",
+        level: data.level || "SMA",
+        difficulty: data.difficulty || "Sedang",
+        duration,
+        questionCount,
+        participants: Number(data.participants) || 0,
+        premium: Boolean(data.premium),
+        status: data.status || "Published",
         questionIds: [],
       };
 
       setExam(safeExam);
-      setLoading(false);
+      return user;
+    } catch (err: unknown) {
+      console.error("Gagal memuat detail paket ujian:", err);
 
-      // 3. Ambil riwayat berdasarkan:
-      //    - exam_id: paket ujian yang sedang dibuka.
-      //    - user_id: siswa yang sedang login.
-      //    - status completed: ujian yang sudah dikumpulkan.
-      const {
-        data: attemptData,
-        error: attemptError,
-      } = await supabase
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Terjadi kesalahan saat memuat paket ujian."
+      );
+
+      return null;
+    } finally {
+      setLoading(false);
+    }
+  }, [examId]);
+
+  // =========================================================
+  // FETCH RIWAYAT PENGERJAAN
+  // =========================================================
+
+  const fetchHistory = useCallback(async (userId: string) => {
+    if (!examId) {
+      setHistory([]);
+      setHistoryLoading(false);
+      return;
+    }
+
+    setHistoryLoading(true);
+    setHistoryError(null);
+
+    try {
+      const { data, error: attemptError } = await supabase
         .from("exam_attempts")
         .select("id, exam_id, score, created_at")
         .eq("exam_id", examId)
-        .eq("user_id", user.id)
+        .eq("user_id", userId)
         .eq("status", "completed")
         .order("created_at", { ascending: false });
 
-      if (attemptError) {
-        throw attemptError;
-      }
+      if (attemptError) throw attemptError;
 
-      // 4. Simpan hasil riwayat ke state.
-      const formattedHistory: ExamResultHistory[] = (
-        attemptData || []
-      ).map((item) => ({
-        id: item.id,
-        examId: item.exam_id,
-        score: Number(item.score ?? 0),
-        date: item.created_at,
-      }));
+      const formattedHistory: ExamResultHistory[] = (data || []).map(
+        (item) => ({
+          id: item.id,
+          examId: item.exam_id,
+          score: Number(item.score ?? 0),
+          date: item.created_at,
+        })
+      );
 
       setHistory(formattedHistory);
     } catch (err: unknown) {
-      console.error("Gagal memuat detail ujian:", err);
+      console.error("Gagal memuat riwayat ujian:", err);
 
-      const message =
+      setHistory([]);
+      setHistoryError(
         err instanceof Error
           ? err.message
-          : "Terjadi kesalahan saat memuat paket ujian.";
-
-      // Bedakan error detail paket dengan error riwayat.
-      if (!exam) {
-        setError(message);
-      } else {
-        setHistoryError(message);
-      }
+          : "Terjadi kesalahan saat memuat riwayat ujian."
+      );
     } finally {
-      setLoading(false);
       setHistoryLoading(false);
     }
   }, [examId]);
 
+  // =========================================================
+  // LOAD DATA
+  // =========================================================
+
+  const fetchData = useCallback(async () => {
+    setHistory([]);
+    setHistoryError(null);
+    setHistoryLoading(true);
+
+    const user = await fetchExamDetail();
+
+    if (!user) {
+      setHistoryLoading(false);
+      return;
+    }
+
+    await fetchHistory(user.id);
+  }, [fetchExamDetail, fetchHistory]);
+
   useEffect(() => {
-    fetchData();
+    void fetchData();
   }, [fetchData]);
 
-  if (loading) return <PageSkeleton />;
+  // =========================================================
+  // LOADING & ERROR STATE
+  // =========================================================
+
+  if (loading) {
+    return <PageSkeleton />;
+  }
 
   if (error) {
     return <ErrorState message={error} onRetry={fetchData} />;
@@ -214,7 +265,11 @@ export default function StudentExamDetailPage() {
     );
   }
 
-  const start = () => {
+  // =========================================================
+  // START EXAM
+  // =========================================================
+
+  const handleStartExam = () => {
     if (exam.premium) {
       openUpgrade();
       return;
@@ -224,7 +279,19 @@ export default function StudentExamDetailPage() {
     setOpen(true);
   };
 
-  const rules = [
+  const handleConfirmStart = () => {
+    if (!agreed) return;
+
+    setOpen(false);
+
+    navigate(`/dashboard/exams/${exam.id}/attempt`);
+  };
+
+  // =========================================================
+  // EXAM RULES
+  // =========================================================
+
+  const rules: ExamRule[] = [
     {
       title: "Perhatikan waktu pengerjaan",
       description: `Waktu yang tersedia adalah ${formatDuration(
@@ -251,6 +318,10 @@ export default function StudentExamDetailPage() {
       icon: ShieldCheck,
     },
   ];
+
+  // =========================================================
+  // EXAM STATISTICS
+  // =========================================================
 
   const examStats = [
     {
@@ -287,6 +358,10 @@ export default function StudentExamDetailPage() {
     },
   ];
 
+  // =========================================================
+  // MAIN PAGE
+  // =========================================================
+
   return (
     <div className="w-full space-y-6 pb-12 text-foreground">
       {/* NAVIGATION */}
@@ -305,11 +380,15 @@ export default function StudentExamDetailPage() {
         </div>
       </div>
 
-      {/* MAIN HERO */}
+      {/* =====================================================
+          HERO
+      ===================================================== */}
+
       <section className="relative isolate overflow-hidden rounded-[28px] border border-emerald-500/20 bg-slate-950 shadow-xl shadow-emerald-950/10">
         <div className="absolute inset-0 -z-10 bg-gradient-to-br from-emerald-700 via-teal-800 to-slate-950" />
 
         <div className="absolute -right-20 -top-28 -z-10 h-80 w-80 rounded-full bg-emerald-400/20 blur-3xl" />
+
         <div className="absolute -bottom-32 left-1/3 -z-10 h-80 w-80 rounded-full bg-cyan-400/10 blur-3xl" />
 
         <div className="absolute right-6 top-6 hidden opacity-[0.07] sm:block">
@@ -368,10 +447,13 @@ export default function StudentExamDetailPage() {
         </div>
       </section>
 
-      {/* MAIN CONTENT */}
+      {/* =====================================================
+          MAIN CONTENT
+      ===================================================== */}
+
       <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_340px]">
         <div className="min-w-0 space-y-6">
-          {/* EXAM STATISTICS */}
+          {/* STATISTICS */}
           <section className="grid grid-cols-2 gap-3 sm:grid-cols-4">
             {examStats.map((stat) => {
               const Icon = stat.icon;
@@ -421,6 +503,7 @@ export default function StudentExamDetailPage() {
                   <CardTitle className="text-base font-black">
                     Instruksi Ujian
                   </CardTitle>
+
                   <p className="mt-1 text-xs text-muted-foreground">
                     Baca panduan berikut sebelum memulai
                   </p>
@@ -467,7 +550,7 @@ export default function StudentExamDetailPage() {
             </CardContent>
           </Card>
 
-          {/* EXAM PREPARATION NOTE */}
+          {/* PREPARATION NOTE */}
           <div className="rounded-2xl border border-sky-500/20 bg-sky-500/5 p-4 sm:p-5">
             <div className="flex items-start gap-3">
               <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-sky-500/10 text-sky-600 dark:text-sky-400">
@@ -481,15 +564,18 @@ export default function StudentExamDetailPage() {
 
                 <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
                   Pastikan perangkat dan koneksi internet siap digunakan.
-                  Kerjakan setiap soal dengan teliti dan perhatikan waktu yang
-                  tersedia.
+                  Kerjakan setiap soal dengan teliti dan perhatikan waktu
+                  yang tersedia.
                 </p>
               </div>
             </div>
           </div>
         </div>
 
-        {/* RIGHT SIDEBAR */}
+        {/* ===================================================
+            RIGHT SIDEBAR
+        =================================================== */}
+
         <aside className="space-y-5 lg:sticky lg:top-5">
           {/* START EXAM CARD */}
           <Card className="overflow-hidden rounded-2xl border-border bg-card shadow-md">
@@ -529,6 +615,7 @@ export default function StudentExamDetailPage() {
               <div className="space-y-3 rounded-xl border border-border bg-muted/30 p-3.5">
                 <div className="flex items-center justify-between text-xs">
                   <span className="text-muted-foreground">Durasi</span>
+
                   <span className="font-bold text-foreground">
                     {formatDuration(exam.duration)}
                   </span>
@@ -538,6 +625,7 @@ export default function StudentExamDetailPage() {
 
                 <div className="flex items-center justify-between text-xs">
                   <span className="text-muted-foreground">Jumlah soal</span>
+
                   <span className="font-bold text-foreground">
                     {exam.questionCount} soal
                   </span>
@@ -547,6 +635,7 @@ export default function StudentExamDetailPage() {
 
                 <div className="flex items-center justify-between text-xs">
                   <span className="text-muted-foreground">Kesulitan</span>
+
                   <DifficultyBadge difficulty={exam.difficulty} />
                 </div>
               </div>
@@ -554,7 +643,7 @@ export default function StudentExamDetailPage() {
               <Button
                 size="lg"
                 className="h-12 w-full gap-2 rounded-xl bg-emerald-600 font-bold text-white shadow-lg shadow-emerald-600/15 transition-all hover:bg-emerald-700 hover:shadow-xl"
-                onClick={start}
+                onClick={handleStartExam}
               >
                 {exam.premium ? (
                   <>
@@ -572,9 +661,10 @@ export default function StudentExamDetailPage() {
 
               <div className="flex items-start gap-2 text-[10px] leading-relaxed text-muted-foreground">
                 <ShieldCheck className="mt-0.5 h-3.5 w-3.5 shrink-0 text-emerald-600 dark:text-emerald-400" />
+
                 <span>
-                  Jawaban dan hasil ujian diproses melalui sistem GradeUp dan
-                  disimpan sesuai mekanisme pengerjaan ujian.
+                  Jawaban dan hasil ujian diproses melalui sistem GradeUp
+                  dan disimpan sesuai mekanisme pengerjaan ujian.
                 </span>
               </div>
             </CardContent>
@@ -593,6 +683,7 @@ export default function StudentExamDetailPage() {
                     <CardTitle className="text-sm font-black">
                       Riwayat Pengerjaan
                     </CardTitle>
+
                     <p className="mt-0.5 text-[10px] text-muted-foreground">
                       Hasil pengerjaan paket ini
                     </p>
@@ -628,7 +719,21 @@ export default function StudentExamDetailPage() {
                   <Button
                     size="sm"
                     variant="outline"
-                    onClick={fetchData}
+                    onClick={() => {
+                      void (async () => {
+                        const {
+                          data: { user },
+                        } = await supabase.auth.getUser();
+
+                        if (user) {
+                          await fetchHistory(user.id);
+                        } else {
+                          setHistoryError(
+                            "Sesi login tidak ditemukan. Silakan login kembali."
+                          );
+                        }
+                      })();
+                    }}
                     className="mt-3 gap-2 rounded-lg"
                   >
                     <RefreshCw className="h-3.5 w-3.5" />
@@ -646,7 +751,8 @@ export default function StudentExamDetailPage() {
                   </p>
 
                   <p className="mt-1 text-[10px] text-muted-foreground">
-                    Hasil pengerjaan paket ini akan muncul di sini setelah ujian dikumpulkan.
+                    Hasil pengerjaan paket ini akan muncul di sini setelah
+                    ujian dikumpulkan.
                   </p>
                 </div>
               ) : (
@@ -668,7 +774,9 @@ export default function StudentExamDetailPage() {
                           </p>
 
                           <p className="mt-1 text-[10px] text-muted-foreground">
-                            {formatDate(item.date)}
+                            {item.date
+                              ? formatDate(item.date)
+                              : "Tanggal tidak tersedia"}
                           </p>
                         </div>
                       </div>
@@ -689,8 +797,20 @@ export default function StudentExamDetailPage() {
         </aside>
       </div>
 
-      {/* CONFIRMATION DIALOG */}
-      <Dialog open={open} onOpenChange={setOpen}>
+      {/* =====================================================
+          CONFIRMATION DIALOG
+      ===================================================== */}
+
+      <Dialog
+        open={open}
+        onOpenChange={(nextOpen) => {
+          setOpen(nextOpen);
+
+          if (!nextOpen) {
+            setAgreed(false);
+          }
+        }}
+      >
         <DialogContent className="max-h-[90vh] max-w-xl overflow-y-auto rounded-2xl border-border bg-card">
           <DialogHeader>
             <div className="mb-2 flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
@@ -702,12 +822,13 @@ export default function StudentExamDetailPage() {
             </DialogTitle>
 
             <DialogDescription className="text-sm leading-relaxed">
-              Pastikan kamu sudah memahami seluruh ketentuan berikut untuk
-              paket ujian{" "}
+              Pastikan kamu sudah memahami seluruh ketentuan berikut
+              untuk paket ujian{" "}
               <strong className="text-foreground">{exam.title}</strong>.
             </DialogDescription>
           </DialogHeader>
 
+          {/* EXAM SUMMARY */}
           <div className="my-2 grid grid-cols-2 gap-3">
             <div className="rounded-xl border border-border bg-muted/30 p-3">
               <div className="flex items-center gap-2 text-muted-foreground">
@@ -723,7 +844,9 @@ export default function StudentExamDetailPage() {
             <div className="rounded-xl border border-border bg-muted/30 p-3">
               <div className="flex items-center gap-2 text-muted-foreground">
                 <HelpCircle className="h-4 w-4" />
-                <span className="text-[10px] font-semibold">Jumlah soal</span>
+                <span className="text-[10px] font-semibold">
+                  Jumlah soal
+                </span>
               </div>
 
               <p className="mt-2 text-sm font-black text-foreground">
@@ -732,6 +855,7 @@ export default function StudentExamDetailPage() {
             </div>
           </div>
 
+          {/* RULES */}
           <div className="space-y-3">
             {rules.map((rule, index) => {
               const Icon = rule.icon;
@@ -756,6 +880,7 @@ export default function StudentExamDetailPage() {
             })}
           </div>
 
+          {/* WARNING */}
           <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-3.5">
             <div className="flex items-start gap-2.5">
               <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400" />
@@ -766,13 +891,15 @@ export default function StudentExamDetailPage() {
                 </p>
 
                 <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
-                  Setelah masuk ke ruang ujian, perhatikan timer dan ikuti
-                  petunjuk pengerjaan. Pastikan kamu siap sebelum melanjutkan.
+                  Setelah masuk ke ruang ujian, perhatikan timer dan
+                  ikuti petunjuk pengerjaan. Pastikan kamu siap sebelum
+                  melanjutkan.
                 </p>
               </div>
             </div>
           </div>
 
+          {/* AGREEMENT */}
           <div className="flex items-start gap-3 rounded-xl border border-border bg-muted/30 p-3.5">
             <Checkbox
               id="agree"
@@ -785,25 +912,29 @@ export default function StudentExamDetailPage() {
               htmlFor="agree"
               className="cursor-pointer text-xs font-medium leading-relaxed text-muted-foreground"
             >
-              Saya sudah membaca dan memahami instruksi serta siap mengerjakan
-              ujian ini.
+              Saya sudah membaca dan memahami instruksi serta siap
+              mengerjakan ujian ini.
             </Label>
           </div>
 
+          {/* ACTIONS */}
           <DialogFooter className="gap-2 sm:gap-2">
             <Button
+              type="button"
               variant="outline"
-              onClick={() => setOpen(false)}
+              onClick={() => {
+                setOpen(false);
+                setAgreed(false);
+              }}
               className="rounded-xl"
             >
               Batal
             </Button>
 
             <Button
+              type="button"
               disabled={!agreed}
-              onClick={() =>
-                navigate(`/dashboard/exams/${exam.id}/attempt`)
-              }
+              onClick={handleConfirmStart}
               className="gap-2 rounded-xl bg-emerald-600 font-bold text-white hover:bg-emerald-700"
             >
               <Play className="h-4 w-4 fill-current" />
