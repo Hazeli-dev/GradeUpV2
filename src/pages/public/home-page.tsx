@@ -1,7 +1,7 @@
 
 import { useEffect, useState } from "react";
 import type { ReactNode } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import {
   ArrowRight,
   Sparkles,
@@ -69,20 +69,16 @@ const hasDescription = (description: string | null) =>
       description.trim().toLowerCase() !== "belum ada deskripsi."
   );
 
-const mutedText =
-  "text-slate-600 dark:text-slate-300";
+const mutedText = "text-slate-600 dark:text-slate-300";
 
-const headingText =
-  "text-slate-950 dark:text-white";
+const headingText = "text-slate-950 dark:text-white";
 
 const cardSurface =
   "border border-slate-200/80 bg-white dark:border-slate-700/70 dark:bg-slate-900";
 
-const softSurface =
-  "bg-cyan-50/70 dark:bg-slate-900";
+const softSurface = "bg-cyan-50/70 dark:bg-slate-900";
 
-const smooth =
-  "transition-colors duration-300 ease-in-out";
+const smooth = "transition-colors duration-300 ease-in-out";
 
 function SectionLabel({ children }: { children: ReactNode }) {
   return (
@@ -166,11 +162,42 @@ function EmptyState({
 
 export default function HomePage() {
   const { requireLogin } = useGuestGate();
+  const navigate = useNavigate();
 
   const [featuredCourses, setFeaturedCourses] = useState<FeaturedCourse[]>([]);
   const [featuredExams, setFeaturedExams] = useState<FeaturedExam[]>([]);
   const [loadingCourses, setLoadingCourses] = useState(true);
   const [loadingExams, setLoadingExams] = useState(true);
+
+  /**
+   * Memeriksa sesi Supabase setiap kali tombol aktivitas belajar diklik.
+   * Jika sudah login, pengguna langsung diarahkan.
+   * Jika belum login, modal login akan menyimpan tujuan redirect.
+   */
+  const handleProtectedAction = async (
+    path: string,
+    activity: string
+  ) => {
+    try {
+      const { data, error } = await supabase.auth.getSession();
+
+      if (error) {
+        console.error("Gagal memeriksa sesi login:", error);
+        requireLogin(activity, path);
+        return;
+      }
+
+      if (data.session?.user) {
+        navigate(path);
+        return;
+      }
+
+      requireLogin(activity, path);
+    } catch (error) {
+      console.error("Terjadi kesalahan saat memeriksa login:", error);
+      requireLogin(activity, path);
+    }
+  };
 
   useEffect(() => {
     let active = true;
@@ -280,7 +307,12 @@ export default function HomePage() {
                 size="lg"
                 variant="outline"
                 className="h-12 rounded-xl border-slate-300 bg-white/80 px-7 font-bold text-slate-700 transition-all duration-300 hover:border-cyan-300 hover:bg-cyan-50 dark:border-slate-700 dark:bg-slate-900/80 dark:text-slate-100 dark:hover:border-cyan-700 dark:hover:bg-slate-800"
-                onClick={() => requireLogin("mencoba simulasi ujian")}
+                onClick={() =>
+                  handleProtectedAction(
+                    "/dashboard/exams",
+                    "mencoba simulasi ujian"
+                  )
+                }
               >
                 <Play className="mr-2 h-4 w-4 fill-current" />
                 Coba Simulasi Ujian
@@ -645,7 +677,10 @@ export default function HomePage() {
                           size="sm"
                           className="shrink-0 rounded-xl bg-cyan-600 font-bold text-white transition-colors duration-300 hover:bg-cyan-700 dark:bg-cyan-500 dark:text-slate-950 dark:hover:bg-cyan-400"
                           onClick={() =>
-                            requireLogin(`mempelajari materi "${course.title}"`)
+                            handleProtectedAction(
+                              `/dashboard/courses/${course.id}`,
+                              `mempelajari materi "${course.title}"`
+                            )
                           }
                         >
                           Pelajari
@@ -745,7 +780,9 @@ export default function HomePage() {
                     )}
                   </div>
 
-                  <p className={`mt-4 line-clamp-2 min-h-12 text-sm leading-6 ${mutedText}`}>
+                  <p
+                    className={`mt-4 line-clamp-2 min-h-12 text-sm leading-6 ${mutedText}`}
+                  >
                     {hasDescription(exam.description)
                       ? exam.description
                       : "Latih kemampuan dan uji pemahamanmu melalui paket ujian GradeUp."}
@@ -798,7 +835,10 @@ export default function HomePage() {
                   <Button
                     className="mt-6 w-full rounded-xl bg-cyan-600 font-bold text-white transition-colors duration-300 hover:bg-cyan-700 dark:bg-cyan-500 dark:text-slate-950 dark:hover:bg-cyan-400"
                     onClick={() =>
-                      requireLogin(`mengerjakan paket "${exam.title}"`)
+                      handleProtectedAction(
+                        `/dashboard/exams/${exam.id}`,
+                        `mengerjakan paket "${exam.title}"`
+                      )
                     }
                   >
                     Mulai Ujian
@@ -832,7 +872,9 @@ export default function HomePage() {
               </span>
             </h2>
 
-            <p className={`mx-auto mt-5 max-w-2xl text-sm leading-7 sm:text-base sm:leading-8 ${mutedText}`}>
+            <p
+              className={`mx-auto mt-5 max-w-2xl text-sm leading-7 sm:text-base sm:leading-8 ${mutedText}`}
+            >
               Temukan pilihan paket Premium yang sesuai dengan kebutuhan
               belajarmu dan nikmati akses sesuai ketentuan masing-masing paket.
             </p>
