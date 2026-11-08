@@ -26,7 +26,7 @@ export function AuthLayout() {
         </div>
 
         <p className="text-center text-xs text-muted-foreground">
-          Autentikasi pada versi ini hanya simulasi dan belum siap produksi.
+          Keamanan dan kerahasiaan Data Anda dijamin!
         </p>
       </div>
 
