@@ -12,13 +12,21 @@ export interface ExcelQuestionRow {
   explanation?: string;
 }
 
-type ParsedExamQuestion = {
+export type ParsedExamQuestion = {
   exam_package_id: string;
   category: string;
   question_text: string;
   options: { id: string; text: string }[];
   correct_answer: string;
   explanation: string | null;
+  image_url: string | null;
+};
+
+export type ExamQuestionPreview = Omit<
+  ParsedExamQuestion,
+  "exam_package_id"
+> & {
+  image_enabled: boolean;
 };
 
 const normalize = (value: unknown): string =>
@@ -109,6 +117,7 @@ export const parseQuestionsExcel = async (file: File): Promise<any[]> => {
 
   return rows.map((row, index) => {
     const questionText = normalize(row.question_text);
+
     const options = [
       { id: "A", text: normalize(row.option_a) },
       { id: "B", text: normalize(row.option_b) },
@@ -138,20 +147,14 @@ export const parseQuestionsExcel = async (file: File): Promise<any[]> => {
   });
 };
 
-// Parser khusus paket ujian.
-// Semua soal wajib valid dan terikat ke satu paket.
-export const parseQuestionsExcelForExam = async (
+// Parser untuk preview sebelum soal disimpan ke database.
+export const parseQuestionsExcelPreview = async (
   file: File,
-  examPackageId: string,
   category: string
-): Promise<ParsedExamQuestion[]> => {
+): Promise<ExamQuestionPreview[]> => {
   const rows = await readExcelRows(file);
 
-  if (!examPackageId) {
-    throw new Error("ID paket ujian tidak ditemukan.");
-  }
-
-  const questions: ParsedExamQuestion[] = rows.map((row, index) => {
+  return rows.map((row, index) => {
     const questionText = normalize(row.question_text);
 
     const options = [
@@ -182,14 +185,37 @@ export const parseQuestionsExcelForExam = async (
     }
 
     return {
-      exam_package_id: examPackageId,
-      category,
+      category: category || normalize(row.category) || "Umum",
       question_text: questionText,
       options,
       correct_answer: correctAnswer,
       explanation: normalize(row.explanation) || null,
+      image_url: null,
+      image_enabled: false,
     };
   });
+};
 
-  return questions;
+// Parser khusus paket ujian.
+// Tetap tersedia untuk kompatibilitas dengan pemanggil lama.
+export const parseQuestionsExcelForExam = async (
+  file: File,
+  examPackageId: string,
+  category: string
+): Promise<ParsedExamQuestion[]> => {
+  if (!examPackageId) {
+    throw new Error("ID paket ujian tidak ditemukan.");
+  }
+
+  const previewQuestions = await parseQuestionsExcelPreview(file, category);
+
+  return previewQuestions.map((question) => ({
+    exam_package_id: examPackageId,
+    category: question.category,
+    question_text: question.question_text,
+    options: question.options,
+    correct_answer: question.correct_answer,
+    explanation: question.explanation,
+    image_url: question.image_url,
+  }));
 };
