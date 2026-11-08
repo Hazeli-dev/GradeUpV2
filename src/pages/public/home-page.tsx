@@ -76,14 +76,14 @@ const headingText = "text-slate-950 dark:text-white";
 const cardSurface =
   "border border-slate-200/80 bg-white dark:border-slate-700/70 dark:bg-slate-900";
 
-const softSurface = "bg-cyan-50/70 dark:bg-slate-900";
+const softSurface = "bg-emerald-50/70 dark:bg-slate-900";
 
 const smooth = "transition-colors duration-300 ease-in-out";
 
 function SectionLabel({ children }: { children: ReactNode }) {
   return (
-    <span className="inline-flex items-center gap-2 rounded-full border border-cyan-200/80 bg-cyan-50 px-3.5 py-2 text-[10px] font-bold uppercase tracking-[0.16em] text-cyan-800 transition-colors duration-300 dark:border-cyan-800/70 dark:bg-cyan-950/60 dark:text-cyan-200 sm:text-[11px]">
-      <span className="h-1.5 w-1.5 rounded-full bg-cyan-500" />
+    <span className="inline-flex items-center gap-2 rounded-full border border-teal-200/80 bg-teal-50 px-3.5 py-2 text-[10px] font-bold uppercase tracking-[0.16em] text-teal-800 transition-colors duration-300 dark:border-teal-800/70 dark:bg-teal-950/60 dark:text-teal-200 sm:text-[11px]">
+      <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
       {children}
     </span>
   );
@@ -125,7 +125,7 @@ function LoadingState() {
       className={`col-span-full flex min-h-56 items-center justify-center rounded-3xl ${cardSurface}`}
     >
       <div className="flex flex-col items-center gap-3">
-        <Loader2 className="h-7 w-7 animate-spin text-cyan-600 dark:text-cyan-400" />
+        <Loader2 className="h-7 w-7 animate-spin text-teal-600 dark:text-teal-400" />
         <p className="text-xs font-medium text-slate-500 dark:text-slate-400">
           Memuat konten...
         </p>
@@ -147,7 +147,7 @@ function EmptyState({
     <div
       className={`col-span-full rounded-3xl px-6 py-16 text-center ${cardSurface}`}
     >
-      <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-cyan-50 text-cyan-700 dark:bg-cyan-950 dark:text-cyan-300">
+      <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-teal-50 text-teal-700 dark:bg-teal-950 dark:text-teal-300">
         <Icon className="h-7 w-7" />
       </div>
 
@@ -258,29 +258,29 @@ export default function HomePage() {
     <>
       {/* HERO */}
       <section
-        className={`relative isolate overflow-hidden bg-[#f5fbfd] dark:bg-[#081923] ${smooth}`}
+        className={`relative isolate overflow-hidden bg-[#f5faf6] dark:bg-[#0d1f15] ${smooth}`}
       >
         <div className="pointer-events-none absolute inset-0 -z-10 overflow-hidden">
-          <div className="absolute -left-40 -top-40 h-[480px] w-[480px] rounded-full bg-cyan-200/35 blur-[100px] dark:bg-cyan-800/15" />
-          <div className="absolute -right-32 top-10 h-[430px] w-[430px] rounded-full bg-sky-200/40 blur-[110px] dark:bg-sky-800/15" />
-          <div className="absolute bottom-0 left-1/2 h-px w-3/4 -translate-x-1/2 bg-gradient-to-r from-transparent via-cyan-300/60 to-transparent dark:via-cyan-700/50" />
+          <div className="absolute -left-40 -top-40 h-[480px] w-[480px] rounded-full bg-emerald-200/35 blur-[100px] dark:bg-emerald-800/15" />
+          <div className="absolute -right-32 top-10 h-[430px] w-[430px] rounded-full bg-teal-200/40 blur-[110px] dark:bg-teal-800/15" />
+          <div className="absolute bottom-0 left-1/2 h-px w-3/4 -translate-x-1/2 bg-gradient-to-r from-transparent via-emerald-300/60 to-transparent dark:via-emerald-700/50" />
         </div>
 
         <div className="container grid items-center gap-14 pb-20 pt-16 sm:pb-24 sm:pt-20 lg:min-h-[670px] lg:grid-cols-[1fr_0.95fr] lg:gap-12 lg:py-24">
           <div className="relative z-10 text-center lg:text-left">
             <SectionLabel>
-              <Sparkles className="h-3.5 w-3.5 text-cyan-500" />
+              <Sparkles className="h-3.5 w-3.5 text-emerald-500" />
               Platform belajar digital
             </SectionLabel>
 
             <h1
               className={`mt-7 text-[2.65rem] font-black leading-[1.08] tracking-[-0.055em] sm:text-6xl lg:text-[4.25rem] ${headingText}`}
             >
-              Cara Baru untuk
-              <span className="mt-1 block bg-gradient-to-r from-cyan-600 to-sky-500 bg-clip-text text-transparent dark:from-cyan-300 dark:to-sky-300">
-                Belajar Lebih
+              Naik Level
+              <span className="mt-1 block bg-gradient-to-r from-teal-700 to-emerald-500 bg-clip-text text-transparent dark:from-teal-300 dark:to-emerald-300">
+                Lebih Cepat
               </span>
-              <span className="block">Maju.</span>
+              <span className="block">Dengan GradeUp</span>
             </h1>
 
             <p
@@ -295,7 +295,7 @@ export default function HomePage() {
               <Button
                 asChild
                 size="lg"
-                className="h-12 rounded-xl bg-cyan-600 px-7 font-bold text-white shadow-lg shadow-cyan-600/20 transition-all duration-300 hover:-translate-y-0.5 hover:bg-cyan-700 hover:shadow-xl dark:bg-cyan-500 dark:text-slate-950 dark:hover:bg-cyan-400"
+                className="h-12 rounded-xl bg-teal-700 px-7 font-bold text-white shadow-lg shadow-teal-700/20 transition-all duration-300 hover:-translate-y-0.5 hover:bg-teal-800 hover:shadow-xl dark:bg-emerald-500 dark:text-slate-950 dark:hover:bg-emerald-400"
               >
                 <Link to="/register">
                   Mulai Belajar Gratis
@@ -306,7 +306,7 @@ export default function HomePage() {
               <Button
                 size="lg"
                 variant="outline"
-                className="h-12 rounded-xl border-slate-300 bg-white/80 px-7 font-bold text-slate-700 transition-all duration-300 hover:border-cyan-300 hover:bg-cyan-50 dark:border-slate-700 dark:bg-slate-900/80 dark:text-slate-100 dark:hover:border-cyan-700 dark:hover:bg-slate-800"
+                className="h-12 rounded-xl border-slate-300 bg-white/80 px-7 font-bold text-slate-700 transition-all duration-300 hover:border-teal-300 hover:bg-teal-50 dark:border-slate-700 dark:bg-slate-900/80 dark:text-slate-100 dark:hover:border-teal-700 dark:hover:bg-slate-800"
                 onClick={() =>
                   handleProtectedAction(
                     "/dashboard/exams",
@@ -326,7 +326,7 @@ export default function HomePage() {
                 "Evaluasi progres",
               ].map((item) => (
                 <span key={item} className="flex items-center gap-2">
-                  <CheckCircle2 className="h-4 w-4 text-cyan-600 dark:text-cyan-400" />
+                  <CheckCircle2 className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
                   {item}
                 </span>
               ))}
@@ -335,37 +335,37 @@ export default function HomePage() {
 
           {/* HERO VISUAL */}
           <div className="relative mx-auto w-full max-w-[540px]">
-            <div className="absolute -inset-6 rounded-[3rem] bg-cyan-300/20 blur-3xl dark:bg-cyan-700/10" />
+            <div className="absolute -inset-6 rounded-[3rem] bg-emerald-300/20 blur-3xl dark:bg-emerald-700/10" />
 
-            <div className="relative rounded-[2rem] border border-white/80 bg-white/90 p-2.5 shadow-[0_30px_90px_-35px_rgba(8,145,178,0.35)] backdrop-blur-xl transition-colors duration-300 dark:border-slate-700/80 dark:bg-slate-900/90 sm:p-3.5">
-              <div className="overflow-hidden rounded-[1.5rem] bg-[#092f43] text-white">
+            <div className="relative rounded-[2rem] border border-white/80 bg-white/90 p-2.5 shadow-[0_30px_90px_-35px_rgba(15,118,110,0.30)] backdrop-blur-xl transition-colors duration-300 dark:border-slate-700/80 dark:bg-slate-900/90 sm:p-3.5">
+              <div className="overflow-hidden rounded-[1.5rem] bg-[#123b29] text-white">
                 <div className="relative overflow-hidden px-6 pb-8 pt-6 sm:px-8 sm:pt-8">
-                  <div className="absolute -right-16 -top-20 h-64 w-64 rounded-full border border-cyan-300/15" />
-                  <div className="absolute -right-6 -top-10 h-44 w-44 rounded-full border border-cyan-300/20" />
-                  <div className="absolute bottom-0 right-0 h-40 w-40 rounded-full bg-cyan-400/10 blur-3xl" />
+                  <div className="absolute -right-16 -top-20 h-64 w-64 rounded-full border border-emerald-300/15" />
+                  <div className="absolute -right-6 -top-10 h-44 w-44 rounded-full border border-emerald-300/20" />
+                  <div className="absolute bottom-0 right-0 h-40 w-40 rounded-full bg-emerald-400/10 blur-3xl" />
 
                   <div className="relative flex items-center justify-between gap-3">
                     <div className="flex items-center gap-3">
-                      <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-cyan-400 text-[#073044]">
+                      <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-emerald-400 text-[#123b29]">
                         <GraduationCap className="h-6 w-6" />
                       </div>
                       <div>
                         <p className="text-sm font-extrabold tracking-wide">
                           GRADEUP
                         </p>
-                        <p className="mt-0.5 text-[9px] font-semibold tracking-[0.17em] text-cyan-100/70">
+                        <p className="mt-0.5 text-[9px] font-semibold tracking-[0.17em] text-emerald-100/70">
                           LEARNING EXPERIENCE
                         </p>
                       </div>
                     </div>
 
-                    <span className="hidden rounded-full border border-cyan-200/20 bg-white/10 px-3 py-1.5 text-[9px] font-bold tracking-wide text-cyan-100 sm:inline-flex">
+                    <span className="hidden rounded-full border border-emerald-200/20 bg-white/10 px-3 py-1.5 text-[9px] font-bold tracking-wide text-emerald-100 sm:inline-flex">
                       YOUR LEARNING SPACE
                     </span>
                   </div>
 
                   <div className="relative mt-10 max-w-sm">
-                    <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-cyan-300">
+                    <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-emerald-300">
                       Explore your potential
                     </p>
                     <h2 className="mt-3 text-[2rem] font-extrabold leading-[1.15] tracking-tight sm:text-[2.5rem]">
@@ -378,13 +378,13 @@ export default function HomePage() {
                   </div>
 
                   <div className="relative mt-8 flex items-center gap-2">
-                    <span className="h-1.5 w-9 rounded-full bg-cyan-400" />
+                    <span className="h-1.5 w-9 rounded-full bg-emerald-400" />
                     <span className="h-1.5 w-3 rounded-full bg-white/25" />
                     <span className="h-1.5 w-3 rounded-full bg-white/25" />
                   </div>
                 </div>
 
-                <div className="space-y-3 bg-[#f4fbfd] p-4 dark:bg-slate-800 sm:p-5">
+                <div className="space-y-3 bg-[#f3faf5] p-4 dark:bg-slate-800 sm:p-5">
                   <div className="flex items-center justify-between px-1">
                     <div>
                       <p className="text-sm font-extrabold text-slate-900 dark:text-white">
@@ -394,14 +394,14 @@ export default function HomePage() {
                         Pilih cara untuk terus berkembang
                       </p>
                     </div>
-                    <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-white text-cyan-700 shadow-sm dark:bg-slate-700 dark:text-cyan-300">
+                    <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-white text-teal-700 shadow-sm dark:bg-slate-700 dark:text-emerald-300">
                       <Sparkles className="h-4 w-4" />
                     </div>
                   </div>
 
                   <div className="grid grid-cols-2 gap-3">
-                    <div className="rounded-2xl border border-cyan-100 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900">
-                      <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-cyan-50 text-cyan-700 dark:bg-cyan-950 dark:text-cyan-300">
+                    <div className="rounded-2xl border border-emerald-100 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900">
+                      <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-50 text-teal-700 dark:bg-emerald-950 dark:text-emerald-300">
                         <BookMarked className="h-5 w-5" />
                       </div>
                       <h3 className="mt-4 text-sm font-bold text-slate-900 dark:text-white">
@@ -412,8 +412,8 @@ export default function HomePage() {
                       </p>
                     </div>
 
-                    <div className="rounded-2xl border border-sky-100 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900">
-                      <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-sky-50 text-sky-700 dark:bg-sky-950 dark:text-sky-300">
+                    <div className="rounded-2xl border border-teal-100 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900">
+                      <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-teal-50 text-teal-700 dark:bg-teal-950 dark:text-teal-300">
                         <Target className="h-5 w-5" />
                       </div>
                       <h3 className="mt-4 text-sm font-bold text-slate-900 dark:text-white">
@@ -425,7 +425,7 @@ export default function HomePage() {
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-3 rounded-2xl border border-cyan-100 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900">
+                  <div className="flex items-center gap-3 rounded-2xl border border-emerald-100 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900">
                     <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-amber-50 text-amber-600 dark:bg-amber-950 dark:text-amber-300">
                       <Award className="h-5 w-5" />
                     </div>
@@ -437,14 +437,14 @@ export default function HomePage() {
                         Jadikan setiap latihan sebagai langkah kemajuan.
                       </p>
                     </div>
-                    <ArrowRight className="ml-auto h-4 w-4 shrink-0 text-cyan-600 dark:text-cyan-400" />
+                    <ArrowRight className="ml-auto h-4 w-4 shrink-0 text-teal-600 dark:text-emerald-400" />
                   </div>
                 </div>
               </div>
             </div>
 
-            <div className="absolute -left-5 top-[38%] hidden items-center gap-3 rounded-2xl border border-cyan-100 bg-white px-4 py-3 shadow-xl shadow-cyan-900/10 dark:border-slate-700 dark:bg-slate-900 sm:flex">
-              <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-cyan-50 text-cyan-700 dark:bg-cyan-950 dark:text-cyan-300">
+            <div className="absolute -left-5 top-[38%] hidden items-center gap-3 rounded-2xl border border-emerald-100 bg-white px-4 py-3 shadow-xl shadow-emerald-900/10 dark:border-slate-700 dark:bg-slate-900 sm:flex">
+              <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-emerald-50 text-teal-700 dark:bg-emerald-950 dark:text-emerald-300">
                 <Lightbulb className="h-5 w-5" />
               </div>
               <div>
@@ -457,7 +457,7 @@ export default function HomePage() {
               </div>
             </div>
 
-            <div className="absolute -right-3 bottom-10 hidden items-center gap-3 rounded-2xl border border-cyan-100 bg-white px-4 py-3 shadow-xl shadow-cyan-900/10 dark:border-slate-700 dark:bg-slate-900 sm:flex">
+            <div className="absolute -right-3 bottom-10 hidden items-center gap-3 rounded-2xl border border-emerald-100 bg-white px-4 py-3 shadow-xl shadow-emerald-900/10 dark:border-slate-700 dark:bg-slate-900 sm:flex">
               <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-amber-50 text-amber-600 dark:bg-amber-950 dark:text-amber-300">
                 <Star className="h-5 w-5" />
               </div>
@@ -484,13 +484,13 @@ export default function HomePage() {
               icon: BookOpen,
               title: "Materi Terstruktur",
               description: "Belajar sesuai kebutuhan",
-              color: "bg-cyan-50 text-cyan-700 dark:bg-cyan-950 dark:text-cyan-300",
+              color: "bg-emerald-50 text-teal-700 dark:bg-emerald-950 dark:text-emerald-300",
             },
             {
               icon: ClipboardList,
               title: "Latihan dan Ujian",
               description: "Asah pemahaman secara aktif",
-              color: "bg-sky-50 text-sky-700 dark:bg-sky-950 dark:text-sky-300",
+              color: "bg-teal-50 text-teal-700 dark:bg-teal-950 dark:text-teal-300",
             },
             {
               icon: ChartNoAxesCombined,
@@ -533,7 +533,7 @@ export default function HomePage() {
           <Button
             asChild
             variant="outline"
-            className="w-fit rounded-xl border-slate-300 font-semibold text-slate-700 transition-colors duration-300 hover:border-cyan-300 hover:bg-cyan-50 dark:border-slate-700 dark:text-slate-200 dark:hover:border-cyan-700 dark:hover:bg-slate-800"
+            className="w-fit rounded-xl border-slate-300 font-semibold text-slate-700 transition-colors duration-300 hover:border-teal-300 hover:bg-teal-50 dark:border-slate-700 dark:text-slate-200 dark:hover:border-teal-700 dark:hover:bg-slate-800"
           >
             <Link to="/features">
               Jelajahi Fitur
@@ -546,13 +546,13 @@ export default function HomePage() {
           {features.map((feature, index) => (
             <article
               key={feature.title}
-              className={`group relative overflow-hidden rounded-3xl p-7 transition-all duration-300 hover:-translate-y-1 hover:border-cyan-200 hover:shadow-[0_20px_50px_-25px_rgba(8,145,178,0.22)] dark:hover:border-cyan-800 ${cardSurface}`}
+              className={`group relative overflow-hidden rounded-3xl p-7 transition-all duration-300 hover:-translate-y-1 hover:border-emerald-200 hover:shadow-[0_20px_50px_-25px_rgba(15,118,110,0.20)] dark:hover:border-emerald-800 ${cardSurface}`}
             >
-              <span className="absolute right-6 top-5 text-5xl font-black tracking-tighter text-slate-100 transition-colors duration-300 group-hover:text-cyan-50 dark:text-slate-800 dark:group-hover:text-cyan-950/50">
+              <span className="absolute right-6 top-5 text-5xl font-black tracking-tighter text-slate-100 transition-colors duration-300 group-hover:text-emerald-50 dark:text-slate-800 dark:group-hover:text-emerald-950/50">
                 {String(index + 1).padStart(2, "0")}
               </span>
 
-              <div className="relative flex h-14 w-14 items-center justify-center rounded-2xl bg-cyan-50 text-cyan-700 transition-all duration-300 group-hover:bg-cyan-600 group-hover:text-white dark:bg-cyan-950 dark:text-cyan-300 dark:group-hover:bg-cyan-500 dark:group-hover:text-slate-950">
+              <div className="relative flex h-14 w-14 items-center justify-center rounded-2xl bg-emerald-50 text-teal-700 transition-all duration-300 group-hover:bg-teal-700 group-hover:text-white dark:bg-emerald-950 dark:text-emerald-300 dark:group-hover:bg-emerald-500 dark:group-hover:text-slate-950">
                 <feature.icon className="h-6 w-6" />
               </div>
 
@@ -564,7 +564,7 @@ export default function HomePage() {
                 {feature.description}
               </p>
 
-              <div className="mt-6 h-1 w-10 rounded-full bg-cyan-200 transition-all duration-300 group-hover:w-16 group-hover:bg-cyan-500 dark:bg-cyan-900" />
+              <div className="mt-6 h-1 w-10 rounded-full bg-emerald-200 transition-all duration-300 group-hover:w-16 group-hover:bg-emerald-500 dark:bg-emerald-900" />
             </article>
           ))}
         </div>
@@ -572,7 +572,7 @@ export default function HomePage() {
 
       {/* COURSES */}
       <section
-        className={`border-y border-cyan-100/80 bg-[#f4fafc] py-20 dark:border-slate-800 dark:bg-[#0b1c27] sm:py-28 ${smooth}`}
+        className={`border-y border-emerald-100/80 bg-[#f3faf5] py-20 dark:border-slate-800 dark:bg-[#0d2116] sm:py-28 ${smooth}`}
       >
         <div className="container">
           <div className="flex flex-col justify-between gap-6 md:flex-row md:items-end">
@@ -585,7 +585,7 @@ export default function HomePage() {
             <Button
               asChild
               variant="outline"
-              className="w-fit shrink-0 rounded-xl border-slate-300 bg-white font-semibold text-slate-700 transition-colors duration-300 hover:border-cyan-300 hover:bg-cyan-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:border-cyan-700 dark:hover:bg-slate-800"
+              className="w-fit shrink-0 rounded-xl border-slate-300 bg-white font-semibold text-slate-700 transition-colors duration-300 hover:border-teal-300 hover:bg-teal-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:border-teal-700 dark:hover:bg-slate-800"
             >
               <Link to="/courses">
                 Semua Materi
@@ -611,9 +611,9 @@ export default function HomePage() {
                 return (
                   <article
                     key={course.id}
-                    className={`group overflow-hidden rounded-3xl shadow-sm transition-all duration-300 hover:-translate-y-1 hover:border-cyan-200 hover:shadow-xl dark:hover:border-cyan-800 ${cardSurface}`}
+                    className={`group overflow-hidden rounded-3xl shadow-sm transition-all duration-300 hover:-translate-y-1 hover:border-emerald-200 hover:shadow-xl dark:hover:border-emerald-800 ${cardSurface}`}
                   >
-                    <div className="relative aspect-[16/10] overflow-hidden bg-gradient-to-br from-cyan-100 to-sky-50 dark:from-cyan-950 dark:to-slate-800">
+                    <div className="relative aspect-[16/10] overflow-hidden bg-gradient-to-br from-emerald-100 to-teal-50 dark:from-emerald-950 dark:to-slate-800">
                       {isImage ? (
                         <img
                           src={thumbnail}
@@ -623,14 +623,14 @@ export default function HomePage() {
                         />
                       ) : (
                         <div className="flex h-full w-full items-center justify-center">
-                          <div className="flex h-20 w-20 items-center justify-center rounded-3xl border border-white/70 bg-white/70 text-cyan-700 shadow-lg dark:border-slate-700 dark:bg-slate-900/70 dark:text-cyan-300">
+                          <div className="flex h-20 w-20 items-center justify-center rounded-3xl border border-white/70 bg-white/70 text-teal-700 shadow-lg dark:border-slate-700 dark:bg-slate-900/70 dark:text-emerald-300">
                             <BookOpen className="h-9 w-9" />
                           </div>
                         </div>
                       )}
 
                       <div className="absolute left-4 top-4 flex flex-wrap gap-2">
-                        <span className="rounded-full border border-white/70 bg-white/95 px-3 py-1.5 text-[10px] font-bold uppercase tracking-wide text-cyan-800 shadow-sm dark:border-slate-700 dark:bg-slate-900/95 dark:text-cyan-200">
+                        <span className="rounded-full border border-white/70 bg-white/95 px-3 py-1.5 text-[10px] font-bold uppercase tracking-wide text-teal-800 shadow-sm dark:border-slate-700 dark:bg-slate-900/95 dark:text-emerald-200">
                           {course.category}
                         </span>
                       </div>
@@ -643,7 +643,7 @@ export default function HomePage() {
                       )}
 
                       <div className="absolute bottom-4 left-4 flex items-center gap-2 rounded-xl border border-white/70 bg-white/95 px-3 py-2 text-[11px] font-bold text-slate-700 shadow-sm dark:border-slate-700 dark:bg-slate-900/95 dark:text-slate-200">
-                        <Layers3 className="h-3.5 w-3.5 text-cyan-600 dark:text-cyan-400" />
+                        <Layers3 className="h-3.5 w-3.5 text-teal-600 dark:text-emerald-400" />
                         {course.level || "Semua Tingkat"}
                       </div>
                     </div>
@@ -675,7 +675,7 @@ export default function HomePage() {
 
                         <Button
                           size="sm"
-                          className="shrink-0 rounded-xl bg-cyan-600 font-bold text-white transition-colors duration-300 hover:bg-cyan-700 dark:bg-cyan-500 dark:text-slate-950 dark:hover:bg-cyan-400"
+                          className="shrink-0 rounded-xl bg-teal-700 font-bold text-white transition-colors duration-300 hover:bg-teal-800 dark:bg-emerald-500 dark:text-slate-950 dark:hover:bg-emerald-400"
                           onClick={() =>
                             handleProtectedAction(
                               `/dashboard/courses/${course.id}`,
@@ -708,7 +708,7 @@ export default function HomePage() {
           <Button
             asChild
             variant="outline"
-            className="w-fit shrink-0 rounded-xl border-slate-300 font-semibold text-slate-700 transition-colors duration-300 hover:border-cyan-300 hover:bg-cyan-50 dark:border-slate-700 dark:text-slate-200 dark:hover:border-cyan-700 dark:hover:bg-slate-800"
+            className="w-fit shrink-0 rounded-xl border-slate-300 font-semibold text-slate-700 transition-colors duration-300 hover:border-teal-300 hover:bg-teal-50 dark:border-slate-700 dark:text-slate-200 dark:hover:border-teal-700 dark:hover:bg-slate-800"
           >
             <Link to="/exams">
               Semua Paket Ujian
@@ -730,18 +730,18 @@ export default function HomePage() {
             featuredExams.map((exam) => (
               <article
                 key={exam.id}
-                className={`group flex flex-col overflow-hidden rounded-3xl transition-all duration-300 hover:-translate-y-1 hover:border-cyan-200 hover:shadow-xl dark:hover:border-cyan-800 ${cardSurface}`}
+                className={`group flex flex-col overflow-hidden rounded-3xl transition-all duration-300 hover:-translate-y-1 hover:border-emerald-200 hover:shadow-xl dark:hover:border-emerald-800 ${cardSurface}`}
               >
-                <div className="relative overflow-hidden bg-[#092f43] px-6 pb-7 pt-6 text-white">
-                  <div className="absolute -right-8 -top-12 h-40 w-40 rounded-full border border-cyan-300/20" />
-                  <div className="absolute -right-2 -top-7 h-28 w-28 rounded-full bg-cyan-400/10 blur-xl" />
+                <div className="relative overflow-hidden bg-[#123b29] px-6 pb-7 pt-6 text-white">
+                  <div className="absolute -right-8 -top-12 h-40 w-40 rounded-full border border-emerald-300/20" />
+                  <div className="absolute -right-2 -top-7 h-28 w-28 rounded-full bg-emerald-400/10 blur-xl" />
 
                   <div className="relative flex items-start justify-between gap-3">
-                    <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-cyan-400 text-[#08374a]">
+                    <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald-400 text-[#123b29]">
                       <ClipboardList className="h-6 w-6" />
                     </div>
 
-                    <span className="rounded-full border border-white/20 bg-white/10 px-3 py-1.5 text-xs font-bold text-cyan-100">
+                    <span className="rounded-full border border-white/20 bg-white/10 px-3 py-1.5 text-xs font-bold text-emerald-100">
                       {Number(exam.price ?? 0) <= 0
                         ? "GRATIS"
                         : formatPrice(Number(exam.price))}
@@ -749,7 +749,7 @@ export default function HomePage() {
                   </div>
 
                   <div className="relative mt-6">
-                    <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-cyan-300">
+                    <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-emerald-300">
                       Paket evaluasi
                     </p>
                     <h3 className="mt-2 line-clamp-2 min-h-[3.5rem] text-xl font-bold leading-snug">
@@ -761,7 +761,7 @@ export default function HomePage() {
                 <div className="flex flex-1 flex-col p-6">
                   <div className="flex flex-wrap gap-2">
                     {exam.type && (
-                      <span className="rounded-full bg-cyan-50 px-3 py-1.5 text-[10px] font-bold text-cyan-800 dark:bg-cyan-950 dark:text-cyan-200">
+                      <span className="rounded-full bg-emerald-50 px-3 py-1.5 text-[10px] font-bold text-teal-800 dark:bg-emerald-950 dark:text-emerald-200">
                         {exam.type}
                       </span>
                     )}
@@ -790,7 +790,7 @@ export default function HomePage() {
 
                   <div className="mt-5 grid grid-cols-2 gap-3 border-y border-slate-100 py-4 dark:border-slate-800">
                     <div className="flex items-center gap-2">
-                      <Clock3 className="h-4 w-4 shrink-0 text-cyan-600 dark:text-cyan-400" />
+                      <Clock3 className="h-4 w-4 shrink-0 text-teal-600 dark:text-emerald-400" />
                       <div>
                         <p className="text-[10px] text-slate-400 dark:text-slate-500">
                           Durasi
@@ -804,7 +804,7 @@ export default function HomePage() {
                     </div>
 
                     <div className="flex items-center gap-2">
-                      <ClipboardList className="h-4 w-4 shrink-0 text-cyan-600 dark:text-cyan-400" />
+                      <ClipboardList className="h-4 w-4 shrink-0 text-teal-600 dark:text-emerald-400" />
                       <div>
                         <p className="text-[10px] text-slate-400 dark:text-slate-500">
                           Jumlah soal
@@ -820,7 +820,7 @@ export default function HomePage() {
 
                   {exam.subject && (
                     <p className="mt-4 flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
-                      <GraduationCap className="h-4 w-4 text-cyan-600 dark:text-cyan-400" />
+                      <GraduationCap className="h-4 w-4 text-teal-600 dark:text-emerald-400" />
                       {exam.subject}
                     </p>
                   )}
@@ -833,7 +833,7 @@ export default function HomePage() {
                   )}
 
                   <Button
-                    className="mt-6 w-full rounded-xl bg-cyan-600 font-bold text-white transition-colors duration-300 hover:bg-cyan-700 dark:bg-cyan-500 dark:text-slate-950 dark:hover:bg-cyan-400"
+                    className="mt-6 w-full rounded-xl bg-teal-700 font-bold text-white transition-colors duration-300 hover:bg-teal-800 dark:bg-emerald-500 dark:text-slate-950 dark:hover:bg-emerald-400"
                     onClick={() =>
                       handleProtectedAction(
                         `/dashboard/exams/${exam.id}`,
@@ -853,10 +853,10 @@ export default function HomePage() {
 
       {/* PREMIUM */}
       <section
-        className={`relative isolate overflow-hidden border-y border-cyan-100/80 bg-[#f1f9fc] py-20 dark:border-slate-800 dark:bg-[#0b1c27] sm:py-28 ${smooth}`}
+        className={`relative isolate overflow-hidden border-y border-emerald-100/80 bg-[#f1f8f2] py-20 dark:border-slate-800 dark:bg-[#0d2116] sm:py-28 ${smooth}`}
       >
-        <div className="pointer-events-none absolute -right-40 top-0 -z-10 h-96 w-96 rounded-full bg-cyan-200/30 blur-3xl dark:bg-cyan-900/15" />
-        <div className="pointer-events-none absolute -left-40 bottom-0 -z-10 h-96 w-96 rounded-full bg-sky-200/30 blur-3xl dark:bg-sky-900/15" />
+        <div className="pointer-events-none absolute -right-40 top-0 -z-10 h-96 w-96 rounded-full bg-emerald-200/30 blur-3xl dark:bg-emerald-900/15" />
+        <div className="pointer-events-none absolute -left-40 bottom-0 -z-10 h-96 w-96 rounded-full bg-teal-200/30 blur-3xl dark:bg-teal-900/15" />
 
         <div className="container">
           <div className="mx-auto max-w-3xl text-center">
@@ -866,7 +866,7 @@ export default function HomePage() {
               className={`mt-5 text-[1.9rem] font-black leading-[1.2] tracking-[-0.04em] sm:text-4xl lg:text-5xl ${headingText}`}
             >
               Lebih banyak kesempatan untuk
-              <span className="text-cyan-600 dark:text-cyan-400">
+              <span className="text-teal-700 dark:text-emerald-400">
                 {" "}
                 berkembang.
               </span>
@@ -900,7 +900,7 @@ export default function HomePage() {
               <Button
                 asChild
                 variant="outline"
-                className="rounded-xl border-slate-300 font-semibold text-slate-700 transition-colors duration-300 hover:border-cyan-300 hover:bg-cyan-50 dark:border-slate-700 dark:text-slate-200 dark:hover:border-cyan-700 dark:hover:bg-slate-800"
+                className="rounded-xl border-slate-300 font-semibold text-slate-700 transition-colors duration-300 hover:border-teal-300 hover:bg-teal-50 dark:border-slate-700 dark:text-slate-200 dark:hover:border-teal-700 dark:hover:bg-slate-800"
               >
                 <Link to="/faq">
                   Kunjungi Pusat Bantuan
@@ -920,19 +920,19 @@ export default function HomePage() {
 
       {/* FINAL CTA */}
       <section className="container pb-20 sm:pb-28">
-        <div className="relative isolate overflow-hidden rounded-[2rem] bg-gradient-to-br from-[#07374a] via-[#08465a] to-[#08647a] px-6 py-16 text-center text-white shadow-[0_30px_80px_-30px_rgba(8,145,178,0.4)] sm:px-12 sm:py-20">
-          <div className="pointer-events-none absolute -right-20 -top-28 -z-10 h-80 w-80 rounded-full border border-cyan-300/15" />
-          <div className="pointer-events-none absolute -right-4 -top-12 -z-10 h-48 w-48 rounded-full bg-cyan-400/10 blur-2xl" />
-          <div className="pointer-events-none absolute -bottom-36 -left-24 -z-10 h-80 w-80 rounded-full bg-cyan-500/15 blur-3xl" />
+        <div className="relative isolate overflow-hidden rounded-[2rem] bg-gradient-to-br from-[#123b29] via-[#174b34] to-[#1e6842] px-6 py-16 text-center text-white shadow-[0_30px_80px_-30px_rgba(15,118,110,0.35)] sm:px-12 sm:py-20">
+          <div className="pointer-events-none absolute -right-20 -top-28 -z-10 h-80 w-80 rounded-full border border-emerald-300/15" />
+          <div className="pointer-events-none absolute -right-4 -top-12 -z-10 h-48 w-48 rounded-full bg-emerald-400/10 blur-2xl" />
+          <div className="pointer-events-none absolute -bottom-36 -left-24 -z-10 h-80 w-80 rounded-full bg-emerald-500/15 blur-3xl" />
 
-          <span className="inline-flex items-center gap-2 rounded-full border border-cyan-200/20 bg-white/10 px-4 py-2 text-xs font-bold text-cyan-100">
-            <Sparkles className="h-4 w-4 text-cyan-300" />
+          <span className="inline-flex items-center gap-2 rounded-full border border-emerald-200/20 bg-white/10 px-4 py-2 text-xs font-bold text-emerald-100">
+            <Sparkles className="h-4 w-4 text-emerald-300" />
             Mulai perjalananmu bersama GradeUp
           </span>
 
           <h2 className="mx-auto mt-7 max-w-3xl text-[1.9rem] font-black leading-[1.2] tracking-[-0.04em] sm:text-4xl lg:text-5xl">
             Langkah besar dimulai dari
-            <span className="text-cyan-300"> belajar hari ini.</span>
+            <span className="text-emerald-300"> belajar hari ini.</span>
           </h2>
 
           <p className="mx-auto mt-5 max-w-xl text-sm leading-7 text-slate-300 sm:text-base sm:leading-8">
@@ -944,7 +944,7 @@ export default function HomePage() {
             <Button
               asChild
               size="lg"
-              className="h-12 rounded-xl bg-cyan-400 px-7 font-extrabold text-[#07374a] transition-all duration-300 hover:-translate-y-0.5 hover:bg-cyan-300"
+              className="h-12 rounded-xl bg-emerald-400 px-7 font-extrabold text-[#123b29] transition-all duration-300 hover:-translate-y-0.5 hover:bg-emerald-300"
             >
               <Link to="/register">
                 Daftar Gratis Sekarang
