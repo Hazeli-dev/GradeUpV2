@@ -58,7 +58,7 @@ function Navbar() {
       className={cn(
         "sticky top-0 z-40 w-full border-b transition-all duration-300",
         scrolled || open
-          ? "border-cyan-100/80 bg-background/90 shadow-sm backdrop-blur-xl dark:border-cyan-950"
+          ? "border-emerald-100/80 bg-background/90 shadow-sm backdrop-blur-xl dark:border-emerald-950"
           : "border-transparent bg-background/80 backdrop-blur-md"
       )}
     >
@@ -80,7 +80,7 @@ function Navbar() {
                 cn(
                   "relative rounded-xl px-3.5 py-2 text-sm font-semibold transition-all duration-200",
                   isActive
-                    ? "bg-cyan-100 text-cyan-800 shadow-sm dark:bg-cyan-950 dark:text-cyan-300"
+                    ? "bg-emerald-100 text-emerald-800 shadow-sm dark:bg-emerald-950 dark:text-emerald-300"
                     : "text-muted-foreground hover:bg-background hover:text-foreground"
                 )
               }
@@ -104,7 +104,7 @@ function Navbar() {
 
             <Button
               asChild
-              className="rounded-xl bg-cyan-600 px-5 font-bold text-white shadow-sm shadow-cyan-600/20 transition-all hover:bg-cyan-700 hover:shadow-md hover:shadow-cyan-600/25"
+              className="rounded-xl bg-emerald-600 px-5 font-bold text-white shadow-sm shadow-emerald-600/20 transition-all hover:bg-emerald-700 hover:shadow-md hover:shadow-emerald-600/25"
             >
               <Link to="/register">
                 Daftar Gratis
@@ -134,7 +134,7 @@ function Navbar() {
       {open && (
         <div
           id="mobile-navigation"
-          className="animate-fade-up border-t border-cyan-100 bg-background shadow-lg shadow-cyan-950/5 dark:border-cyan-950 lg:hidden"
+          className="animate-fade-up border-t border-emerald-100 bg-background shadow-lg shadow-emerald-950/5 dark:border-emerald-950 lg:hidden"
         >
           <nav
             className="container flex flex-col gap-1 py-4"
@@ -149,7 +149,7 @@ function Navbar() {
                   cn(
                     "flex items-center rounded-xl px-4 py-3 text-sm font-semibold transition-colors",
                     isActive
-                      ? "bg-cyan-50 text-cyan-800 dark:bg-cyan-950 dark:text-cyan-300"
+                      ? "bg-emerald-50 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300"
                       : "text-muted-foreground hover:bg-muted hover:text-foreground"
                   )
                 }
@@ -169,7 +169,7 @@ function Navbar() {
 
               <Button
                 asChild
-                className="rounded-xl bg-cyan-600 font-bold text-white hover:bg-cyan-700"
+                className="rounded-xl bg-emerald-600 font-bold text-white hover:bg-emerald-700"
               >
                 <Link to="/register">Daftar Gratis</Link>
               </Button>
@@ -189,31 +189,38 @@ function Footer() {
     let active = true;
 
     async function fetchContact() {
-      try {
-        const { data, error } = await supabase
-          .from("system_settings")
-          .select("value")
-          .eq("key", "platform_contact")
-          .maybeSingle();
+      const { data, error } = await supabase
+        .from("system_settings")
+        .select("value")
+        .eq("key", "platform_contact")
+        .maybeSingle();
 
-        if (error) throw error;
-
-        if (!active || !data?.value) return;
-
-        const value = data.value as Partial<PlatformContact>;
-
-        setContact({
-          email: value.email ?? CONTACT.email,
-          phone: value.phone ?? CONTACT.phone,
-          address: value.address ?? CONTACT.address,
-        });
-      } catch (error) {
+      if (error) {
         console.error(
           "Gagal mengambil informasi kontak footer:",
           error
         );
-        // Tetap gunakan CONTACT sebagai nilai cadangan.
+        return;
       }
+
+      if (!active || !data?.value) return;
+
+      const value = data.value as Partial<PlatformContact>;
+
+      setContact({
+        email:
+          typeof value.email === "string" && value.email.trim()
+            ? value.email.trim()
+            : DEFAULT_CONTACT.email,
+        phone:
+          typeof value.phone === "string" && value.phone.trim()
+            ? value.phone.trim()
+            : DEFAULT_CONTACT.phone,
+        address:
+          typeof value.address === "string" && value.address.trim()
+            ? value.address.trim()
+            : DEFAULT_CONTACT.address,
+      });
     }
 
     fetchContact();
@@ -254,8 +261,8 @@ function Footer() {
   const phoneHref = `tel:${contact.phone.replace(/[^\d+]/g, "")}`;
 
   return (
-    <footer className="relative border-t border-cyan-100/80 bg-white dark:border-cyan-950 dark:bg-card">
-      <div className="pointer-events-none absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-cyan-200 via-cyan-500 to-teal-300 opacity-70" />
+    <footer className="relative border-t border-emerald-100/80 bg-white dark:border-emerald-950 dark:bg-card">
+      <div className="pointer-events-none absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-emerald-200 via-emerald-500 to-green-300 opacity-70" />
 
       <div className="container grid gap-10 py-12 md:grid-cols-2 md:py-14 lg:grid-cols-5">
         <div className="space-y-5 lg:col-span-2">
@@ -268,33 +275,33 @@ function Footer() {
 
           <ul className="space-y-3 text-sm text-muted-foreground">
             <li className="flex items-center gap-3">
-              <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-cyan-50 text-cyan-700 dark:bg-cyan-950 dark:text-cyan-300">
+              <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-emerald-50 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300">
                 <Mail className="h-4 w-4" />
               </span>
 
               <a
                 href={`mailto:${contact.email}`}
-                className="break-all transition-colors hover:text-cyan-700 dark:hover:text-cyan-300"
+                className="break-all transition-colors hover:text-emerald-700 dark:hover:text-emerald-300"
               >
                 {contact.email}
               </a>
             </li>
 
             <li className="flex items-center gap-3">
-              <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-cyan-50 text-cyan-700 dark:bg-cyan-950 dark:text-cyan-300">
+              <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-emerald-50 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300">
                 <Phone className="h-4 w-4" />
               </span>
 
               <a
                 href={phoneHref}
-                className="transition-colors hover:text-cyan-700 dark:hover:text-cyan-300"
+                className="transition-colors hover:text-emerald-700 dark:hover:text-emerald-300"
               >
                 {contact.phone}
               </a>
             </li>
 
             <li className="flex items-start gap-3">
-              <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-cyan-50 text-cyan-700 dark:bg-cyan-950 dark:text-cyan-300">
+              <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-emerald-50 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300">
                 <MapPin className="h-4 w-4" />
               </span>
 
@@ -316,7 +323,7 @@ function Footer() {
                 <li key={to}>
                   <Link
                     to={to}
-                    className="inline-flex items-center text-muted-foreground transition-colors hover:translate-x-0.5 hover:text-cyan-700 dark:hover:text-cyan-300"
+                    className="inline-flex items-center text-muted-foreground transition-colors hover:translate-x-0.5 hover:text-emerald-700 dark:hover:text-emerald-300"
                   >
                     {label}
                   </Link>
@@ -335,7 +342,7 @@ function Footer() {
           </p>
 
           <p>
-            Versi kerangka aplikasi · data pada situs ini adalah contoh (demo)
+            Belajar lebih terarah, raih hasil terbaik bersama {APP_NAME}.
           </p>
         </div>
       </div>
