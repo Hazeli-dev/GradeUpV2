@@ -30,7 +30,12 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Input, Textarea } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -163,6 +168,7 @@ type Draft = {
   published: boolean;
   startTime: string;
   endTime: string;
+  noEndDate: boolean;
   excelFile: File | null;
 };
 
@@ -193,6 +199,7 @@ const emptyDraft: Draft = {
   published: true,
   startTime: nowIso,
   endTime: defaultEndIso,
+  noEndDate: false,
   excelFile: null,
 };
 
@@ -393,7 +400,13 @@ export default function AdminExamsPage() {
       validation.examType = "Jenis ujian wajib dipilih.";
     }
 
+    if (!draft.noEndDate && !draft.endTime) {
+      validation.endTime =
+        "Tanggal selesai wajib diisi atau pilih Terbit Selamanya.";
+    }
+
     if (
+      !draft.noEndDate &&
       draft.startTime &&
       draft.endTime &&
       new Date(draft.endTime).getTime() <
@@ -416,10 +429,8 @@ export default function AdminExamsPage() {
       description:
         draft.description.trim() || "Belum ada deskripsi.",
 
-      // Kompatibilitas kategori lama dan impor Excel
       category: draft.category,
 
-      // Identitas akademik baru
       subject: draft.subject,
       type: draft.examType,
       level: draft.level,
@@ -434,9 +445,9 @@ export default function AdminExamsPage() {
       status: draft.published ? "Published" : "Draft",
 
       start_time: new Date(draft.startTime).toISOString(),
-      end_time: draft.endTime
-        ? new Date(draft.endTime).toISOString()
-        : null,
+      end_time: draft.noEndDate
+        ? null
+        : new Date(draft.endTime).toISOString(),
     };
 
     try {
@@ -597,7 +608,7 @@ export default function AdminExamsPage() {
 
       grade: item.grade
         ? Number(item.grade)
-        : getLegacyGrade(item.category, examLevel),
+        : getLegacyGrade(exam.category, examLevel),
 
       difficulty: exam.difficulty || "Sedang",
 
@@ -624,7 +635,9 @@ export default function AdminExamsPage() {
         ? new Date(item.end_time)
             .toISOString()
             .slice(0, 16)
-        : defaultEndIso,
+        : "",
+
+      noEndDate: !item.end_time,
 
       excelFile: null,
     });
@@ -883,7 +896,7 @@ export default function AdminExamsPage() {
                           year: "numeric",
                         }
                       )
-                    : "Tanpa Batas";
+                    : "Selamanya";
 
                   return (
                     <tr
@@ -1186,7 +1199,6 @@ export default function AdminExamsPage() {
                           )}
                         </SelectContent>
                       </Select>
-
                       <FieldError message={errs.grade} />
                     </div>
 
@@ -1223,7 +1235,6 @@ export default function AdminExamsPage() {
                           )}
                         </SelectContent>
                       </Select>
-
                       <FieldError message={errs.subject} />
                     </div>
 
@@ -1258,7 +1269,6 @@ export default function AdminExamsPage() {
                           ))}
                         </SelectContent>
                       </Select>
-
                       <FieldError message={errs.examType} />
                     </div>
 
@@ -1346,62 +1356,108 @@ export default function AdminExamsPage() {
 
                 {/* JADWAL */}
 
-                <div className="grid gap-3 rounded-xl border bg-muted/20 p-3 sm:grid-cols-2">
-                  <div className="space-y-1">
-                    <Label
-                      htmlFor="x-start"
-                      className="font-bold text-emerald-600 dark:text-emerald-400"
-                    >
-                      📅 Tanggal & Jam Mulai *
-                    </Label>
+                <div className="space-y-4 rounded-xl border bg-muted/20 p-4">
+                  <div className="grid gap-3 sm:grid-cols-2">
 
-                    <Input
-                      id="x-start"
-                      type="datetime-local"
-                      value={draft.startTime}
-                      onChange={(e) =>
-                        setDraft({
-                          ...draft,
-                          startTime: e.target.value,
-                        })
-                      }
-                      className="h-10 rounded-xl bg-background"
-                    />
+                    {/* TANGGAL MULAI */}
 
-                    <p className="text-[10px] text-muted-foreground">
-                      Jika diatur ke masa depan, paket menjadi
-                      Akan Datang.
-                    </p>
+                    <div className="space-y-1">
+                      <Label
+                        htmlFor="x-start"
+                        className="font-bold text-emerald-600 dark:text-emerald-400"
+                      >
+                        📅 Tanggal & Jam Mulai *
+                      </Label>
 
-                    <FieldError message={errs.startTime} />
+                      <Input
+                        id="x-start"
+                        type="datetime-local"
+                        value={draft.startTime}
+                        onChange={(e) =>
+                          setDraft({
+                            ...draft,
+                            startTime: e.target.value,
+                          })
+                        }
+                        className="h-10 rounded-xl bg-background"
+                      />
+
+                      <p className="text-[10px] text-muted-foreground">
+                        Jika diatur ke masa depan, paket menjadi
+                        Akan Datang.
+                      </p>
+
+                      <FieldError message={errs.startTime} />
+                    </div>
+
+                    {/* TANGGAL SELESAI */}
+
+                    <div className="space-y-1">
+                      <Label
+                        htmlFor="x-end"
+                        className="font-bold text-amber-600 dark:text-amber-400"
+                      >
+                        🏁 Tanggal & Jam Selesai
+                      </Label>
+
+                      <Input
+                        id="x-end"
+                        type="datetime-local"
+                        value={draft.endTime}
+                        disabled={draft.noEndDate}
+                        onChange={(e) =>
+                          setDraft({
+                            ...draft,
+                            endTime: e.target.value,
+                          })
+                        }
+                        className="h-10 rounded-xl bg-background disabled:cursor-not-allowed disabled:opacity-50"
+                      />
+
+                      {!draft.noEndDate && (
+                        <FieldError message={errs.endTime} />
+                      )}
+
+                      <p className="text-[10px] text-muted-foreground">
+                        {draft.noEndDate
+                          ? "Paket tidak memiliki batas tanggal akhir."
+                          : "Tentukan kapan paket ujian berakhir."}
+                      </p>
+                    </div>
                   </div>
 
-                  <div className="space-y-1">
-                    <Label
-                      htmlFor="x-end"
-                      className="font-bold text-amber-600 dark:text-amber-400"
-                    >
-                      🏁 Tanggal & Jam Selesai
-                    </Label>
+                  {/* TERBIT SELAMANYA */}
 
-                    <Input
-                      id="x-end"
-                      type="datetime-local"
-                      value={draft.endTime}
-                      onChange={(e) =>
+                  <div className="flex items-start gap-3 rounded-xl border border-emerald-500/30 bg-emerald-500/5 p-3">
+                    <Switch
+                      id="x-no-end"
+                      checked={draft.noEndDate}
+                      onCheckedChange={(value) =>
                         setDraft({
                           ...draft,
-                          endTime: e.target.value,
+                          noEndDate: value,
+                          endTime: value
+                            ? ""
+                            : draft.endTime || defaultEndIso,
                         })
                       }
-                      className="h-10 rounded-xl bg-background"
                     />
 
-                    <p className="text-[10px] text-muted-foreground">
-                      Kosongkan jika paket tidak memiliki batas akhir.
-                    </p>
+                    <div className="space-y-1">
+                      <Label
+                        htmlFor="x-no-end"
+                        className="cursor-pointer font-extrabold text-emerald-600 dark:text-emerald-400"
+                      >
+                        Terbit Selamanya
+                      </Label>
 
-                    <FieldError message={errs.endTime} />
+                      <p className="text-[11px] leading-relaxed text-muted-foreground">
+                        Aktifkan agar paket ujian tidak memiliki
+                        tanggal kedaluwarsa. Paket tetap tersedia
+                        setelah tanggal mulai dan tidak otomatis
+                        masuk arsip karena tanggal selesai.
+                      </p>
+                    </div>
                   </div>
                 </div>
 
