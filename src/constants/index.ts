@@ -18,6 +18,7 @@ import {
   Bookmark,
   Megaphone,
   MessageCircle,
+  CalendarDays,
   type LucideIcon,
 } from "lucide-react";
 
@@ -64,6 +65,11 @@ export const STUDENT_NAV: NavItem[] = [
     label: "Materi Belajar",
     to: "/dashboard/courses",
     icon: BookOpen,
+  },
+  {
+    label: "Jadwal Belajar",
+    to: "/dashboard/learning-schedule",
+    icon: CalendarDays,
   },
   {
     label: "Koleksi Saya",
