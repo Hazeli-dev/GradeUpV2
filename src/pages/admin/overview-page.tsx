@@ -817,7 +817,17 @@ export default function AdminOverviewPage() {
                     </p>
                   </div>
 
-                  <PaymentBadge status={transaction.status as PaymentStatus} />
+                  <PaymentBadge
+  status={
+    transaction.status === "settlement"
+      ? "Berhasil"
+      : transaction.status === "pending"
+        ? "Menunggu"
+        : transaction.status === "refund"
+          ? "Refund"
+          : "Gagal"
+  }
+/>
                 </div>
               ))
             ) : (
