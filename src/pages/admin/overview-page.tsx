@@ -817,7 +817,7 @@ export default function AdminOverviewPage() {
                     </p>
                   </div>
 
-                  <PaymentBadge status={transaction.status} />
+                  <PaymentBadge status={transaction.status as PaymentStatus} />
                 </div>
               ))
             ) : (
