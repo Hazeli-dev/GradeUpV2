@@ -10,11 +10,11 @@ import {
   Timer,
   Loader2,
   Zap,
-  BookOpen,
   CircleHelp,
   AlertCircle,
   LayoutGrid,
   Trophy,
+  ImageOff,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -49,6 +49,7 @@ interface QuestionItem {
   id: string;
   category: string;
   question_text: string;
+  image_url: string | null;
   options: QuestionOption[];
 }
 
@@ -252,10 +253,16 @@ export default function ExamAttemptPage() {
             ? parsedOptions
             : [];
 
+          const rawImageUrl =
+            typeof question.image_url === "string"
+              ? question.image_url.trim()
+              : "";
+
           return {
             id: String(question.id),
             category: String(question.category || ""),
             question_text: String(question.question_text || ""),
+            image_url: rawImageUrl || null,
             options: options.map((option: any, index: number) => ({
               id: String(
                 option?.id || String.fromCharCode(65 + index)
@@ -577,7 +584,9 @@ export default function ExamAttemptPage() {
             </Badge>
 
             <h1 className="mt-4 text-2xl font-black tracking-tight sm:text-3xl">
-              {finalPassed ? "Selamat, kamu berhasil!" : "Ujian berhasil dikumpulkan"}
+              {finalPassed
+                ? "Selamat, kamu berhasil!"
+                : "Ujian berhasil dikumpulkan"}
             </h1>
 
             <p className="mx-auto mt-2 max-w-md text-sm leading-relaxed text-white/80">
@@ -816,6 +825,14 @@ export default function ExamAttemptPage() {
                 {currentQuestion.question_text}
               </h2>
 
+              {/* Gambar soal */}
+              {currentQuestion.image_url && (
+                <QuestionImage
+                  key={currentQuestion.id}
+                  src={currentQuestion.image_url}
+                />
+              )}
+
               <div
                 className="space-y-3"
                 role="radiogroup"
@@ -1024,7 +1041,9 @@ export default function ExamAttemptPage() {
                     </p>
                   </div>
                   <div className="rounded-xl bg-muted p-3">
-                    <p className="text-xs text-muted-foreground">Belum dijawab</p>
+                    <p className="text-xs text-muted-foreground">
+                      Belum dijawab
+                    </p>
                     <p className="mt-1 text-lg font-extrabold text-foreground">
                       {unanswered}
                     </p>
@@ -1074,5 +1093,34 @@ export default function ExamAttemptPage() {
         onConfirm={() => submit(false)}
       />
     </div>
+  );
+}
+
+// Komponen gambar terpisah agar kegagalan gambar tidak mengganggu halaman CBT.
+function QuestionImage({ src }: { src: string }) {
+  const [failed, setFailed] = useState(false);
+
+  if (failed) {
+    return (
+      <div className="flex min-h-24 items-center justify-center gap-2 rounded-2xl border border-dashed border-border bg-muted/30 p-5 text-sm text-muted-foreground">
+        <ImageOff className="h-5 w-5 shrink-0" />
+        <span>Gambar soal tidak dapat dimuat.</span>
+      </div>
+    );
+  }
+
+  return (
+    <figure className="overflow-hidden rounded-2xl border border-border bg-muted/20 p-2 sm:p-3">
+      <img
+        src={src}
+        alt="Gambar pendukung soal"
+        loading="eager"
+        onError={() => setFailed(true)}
+        className="mx-auto max-h-[520px] w-auto max-w-full rounded-xl object-contain"
+      />
+      <figcaption className="mt-2 text-center text-xs text-muted-foreground">
+        Gambar pendukung soal
+      </figcaption>
+    </figure>
   );
 }
