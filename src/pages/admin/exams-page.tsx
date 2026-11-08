@@ -1,5 +1,5 @@
-
 import { useEffect, useMemo, useState } from "react";
+import * as XLSX from "xlsx";
 import {
   Plus,
   Search,
@@ -19,6 +19,9 @@ import {
   Image as ImageIcon,
   X,
   Eye,
+  Upload,
+  Send,
+  ClipboardList,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -70,8 +73,11 @@ import {
 import type { Difficulty, ExamPackage, Level } from "@/types";
 
 // =====================================================
-// KONFIGURASI JENJANG, KELAS, MAPEL, DAN JENIS UJIAN
+// KONFIGURASI
 // =====================================================
+
+const MAX_BULK_PACKAGES = 500;
+const MAX_EXCEL_SIZE = 10 * 1024 * 1024;
 
 const GRADES_BY_LEVEL: Record<string, number[]> = {
   SD: [1, 2, 3, 4, 5, 6],
@@ -132,24 +138,22 @@ const EXAM_TYPES = [
   "Simulasi TKA",
 ];
 
-const getDefaultGrade = (level: string): number => {
-  return GRADES_BY_LEVEL[level]?.[0] ?? 1;
-};
+const getDefaultGrade = (level: string) =>
+  GRADES_BY_LEVEL[level]?.[0] ?? 1;
+
+const getDefaultSubject = (level: string) =>
+  SUBJECTS_BY_LEVEL[level]?.[0] ?? "Bahasa Indonesia";
 
 const getLegacyGrade = (
   category: string | null | undefined,
   level: string
-): number => {
+) => {
   const match = category?.match(/kelas\s*(\d+)/i);
   const grade = match ? Number(match[1]) : getDefaultGrade(level);
 
   return (GRADES_BY_LEVEL[level] ?? []).includes(grade)
     ? grade
     : getDefaultGrade(level);
-};
-
-const getDefaultSubject = (level: string): string => {
-  return SUBJECTS_BY_LEVEL[level]?.[0] ?? "Bahasa Indonesia";
 };
 
 // =====================================================
@@ -173,7 +177,6 @@ type Draft = {
   startTime: string;
   endTime: string;
   noEndDate: boolean;
-  excelFile: File | null;
 };
 
 type EditableQuestion = ExamQuestionPreview & {
@@ -181,17 +184,39 @@ type EditableQuestion = ExamQuestionPreview & {
   isExisting: boolean;
 };
 
+type BulkPackage = {
+  title: string;
+  description: string;
+  level: string;
+  grade: number;
+  subject: string;
+  examType: string;
+  category: string;
+  difficulty: string;
+  duration: number;
+  questionCount: number;
+  premium: boolean;
+  startTime: string;
+  endTime: string | null;
+  errors: string[];
+};
+
+type ExamStatus = "Draft" | "Aktif" | "Akan Datang" | "Arsip";
+
 // =====================================================
 // DEFAULT FORM
 // =====================================================
 
-const nowIso = new Date().toISOString().slice(0, 16);
+const toLocalDateTime = (date: Date) => {
+  const offset = date.getTimezoneOffset() * 60000;
+  return new Date(date.getTime() - offset).toISOString().slice(0, 16);
+};
 
-const defaultEndIso = new Date(
-  Date.now() + 30 * 24 * 60 * 60 * 1000
-)
-  .toISOString()
-  .slice(0, 16);
+const nowIso = toLocalDateTime(new Date());
+
+const defaultEndIso = toLocalDateTime(
+  new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
+);
 
 const emptyDraft: Draft = {
   title: "",
@@ -199,47 +224,37 @@ const emptyDraft: Draft = {
   category: "Matematika",
   subject: "Matematika",
   examType: "Latihan",
-  level: "SMA",
-  grade: 10,
+  level: "SD",
+  grade: 1,
   difficulty: "Sedang",
   duration: 30,
   questionCount: 10,
   premium: false,
-  published: true,
+  published: false,
   startTime: nowIso,
   endTime: defaultEndIso,
   noEndDate: false,
-  excelFile: null,
 };
 
 // =====================================================
-// HELPER URL GAMBAR
+// HELPER
 // =====================================================
 
-const normalizeImageUrl = (
-  value: string | null | undefined
-): string => {
-  return (value ?? "").trim();
-};
+const normalizeImageUrl = (value: string | null | undefined) =>
+  (value ?? "").trim();
 
-const isValidImageUrl = (value: string): boolean => {
+const isValidImageUrl = (value: string) => {
   try {
     const url = new URL(value);
-
     return url.protocol === "http:" || url.protocol === "https:";
   } catch {
     return false;
   }
 };
 
-// =====================================================
-// NORMALISASI PILIHAN JAWABAN
-// =====================================================
-
-const normalizeOptions = (value: unknown): {
-  id: string;
-  text: string;
-}[] => {
+const normalizeOptions = (
+  value: unknown
+): { id: string; text: string }[] => {
   if (!Array.isArray(value)) return [];
 
   return value.map((option: any, index: number) => ({
@@ -248,13 +263,367 @@ const normalizeOptions = (value: unknown): {
   }));
 };
 
+const normalizeText = (value: unknown) =>
+  String(value ?? "").trim();
+
+const parseBoolean = (value: unknown) => {
+  if (typeof value === "boolean") return value;
+
+  const normalized = String(value ?? "")
+    .trim()
+    .toLowerCase();
+
+  return ["true", "1", "ya", "yes", "premium"].includes(normalized);
+};
+
+const parseExcelDate = (value: unknown): string | null => {
+  if (!value) return null;
+
+  if (value instanceof Date && !Number.isNaN(value.getTime())) {
+    return value.toISOString();
+  }
+
+  if (typeof value === "number") {
+    const parsed = XLSX.SSF.parse_date_code(value);
+
+    if (parsed) {
+      const date = new Date(
+        parsed.y,
+        parsed.m - 1,
+        parsed.d,
+        parsed.H,
+        parsed.M,
+        parsed.S
+      );
+
+      return date.toISOString();
+    }
+  }
+
+  const date = new Date(String(value));
+
+  if (Number.isNaN(date.getTime())) return null;
+
+  return date.toISOString();
+};
+
+const getExcelCell = (
+  row: Record<string, unknown>,
+  ...keys: string[]
+) => {
+  for (const key of keys) {
+    if (row[key] !== undefined && row[key] !== null) {
+      return row[key];
+    }
+  }
+
+  return undefined;
+};
+
+const createBlankQuestion = (
+  category: string
+): EditableQuestion => ({
+  question_text: "",
+  category,
+  options: [
+    { id: "A", text: "" },
+    { id: "B", text: "" },
+    { id: "C", text: "" },
+    { id: "D", text: "" },
+  ],
+  correct_answer: "A",
+  explanation: "",
+  image_url: null,
+  image_enabled: false,
+  isExisting: false,
+});
+
+// =====================================================
+// TEMPLATE EXCEL PAKET
+// =====================================================
+
+const downloadPackageTemplate = () => {
+  const headers = [
+    "title",
+    "description",
+    "level",
+    "grade",
+    "subject",
+    "exam_type",
+    "category",
+    "difficulty",
+    "duration",
+    "question_count",
+    "premium",
+    "start_time",
+    "end_time",
+  ];
+
+  const exampleRows = [
+    [
+      "Simulasi TKA Matematika Kelas 6",
+      "Latihan persiapan TKA Matematika",
+      "SD",
+      6,
+      "Matematika",
+      "Simulasi TKA",
+      "Matematika",
+      "Sedang",
+      90,
+      30,
+      false,
+      "2026-12-01 08:00",
+      "2026-12-31 23:59",
+    ],
+    [
+      "Ulangan Harian Bahasa Indonesia Kelas 5",
+      "Evaluasi materi Bahasa Indonesia",
+      "SD",
+      5,
+      "Bahasa Indonesia",
+      "Ulangan Harian",
+      "Bahasa Indonesia",
+      "Mudah",
+      45,
+      20,
+      false,
+      "",
+      "",
+    ],
+  ];
+
+  const worksheet = XLSX.utils.aoa_to_sheet([
+    headers,
+    ...exampleRows,
+  ]);
+
+  worksheet["!cols"] = headers.map(() => ({ wch: 24 }));
+
+  const guide = XLSX.utils.aoa_to_sheet([
+    ["PETUNJUK IMPOR PAKET UJIAN GRADEUP"],
+    [""],
+    ["Kolom", "Keterangan"],
+    ["title", "Wajib. Judul paket, minimal 5 karakter."],
+    ["description", "Opsional. Deskripsi paket ujian."],
+    ["level", "Wajib. SD, SMP, SMA, atau SMK."],
+    ["grade", "Wajib. SD 1-6, SMP 7-9, SMA/SMK 10-12."],
+    ["subject", "Wajib. Nama mata pelajaran."],
+    ["exam_type", "Latihan, Ulangan Harian, PTS, PAS, Tryout, Simulasi TKA."],
+    ["category", "Kategori paket. Jika kosong akan mengikuti subject."],
+    ["difficulty", "Mudah, Sedang, atau Sulit."],
+    ["duration", "Durasi ujian dalam menit, 5-240."],
+    ["question_count", "Jumlah soal yang direncanakan, 1-200."],
+    ["premium", "TRUE/FALSE atau YA/TIDAK."],
+    ["start_time", "Opsional. Format YYYY-MM-DD HH:mm."],
+    ["end_time", "Opsional. Format YYYY-MM-DD HH:mm."],
+    [""],
+    ["PENTING"],
+    ["Semua paket hasil impor otomatis disimpan sebagai DRAFT."],
+    ["File ini hanya untuk data paket, bukan untuk memasukkan soal."],
+    ["Maksimal 500 paket dalam satu kali impor."],
+    ["Soal ditambahkan setelah paket dibuat melalui menu Edit."],
+  ]);
+
+  guide["!cols"] = [{ wch: 24 }, { wch: 75 }];
+
+  const workbook = XLSX.utils.book_new();
+
+  XLSX.utils.book_append_sheet(workbook, worksheet, "Paket Ujian");
+  XLSX.utils.book_append_sheet(workbook, guide, "Petunjuk");
+
+  XLSX.writeFile(workbook, "Template_Import_Paket_GradeUp.xlsx");
+};
+
+// =====================================================
+// PARSE EXCEL PAKET
+// =====================================================
+
+const parsePackageExcel = async (
+  file: File
+): Promise<BulkPackage[]> => {
+  const buffer = await file.arrayBuffer();
+
+  const workbook = XLSX.read(buffer, {
+    type: "array",
+    cellDates: true,
+  });
+
+  const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+
+  if (!firstSheet) {
+    throw new Error("Worksheet Excel tidak ditemukan.");
+  }
+
+  const rawRows = XLSX.utils.sheet_to_json<Record<string, unknown>>(
+    firstSheet,
+    {
+      defval: "",
+      raw: false,
+    }
+  );
+
+  if (rawRows.length === 0) {
+    throw new Error("File Excel belum berisi data paket.");
+  }
+
+  if (rawRows.length > MAX_BULK_PACKAGES) {
+    throw new Error(
+      `Maksimal ${MAX_BULK_PACKAGES} paket dalam satu kali impor. File kamu berisi ${rawRows.length} baris.`
+    );
+  }
+
+  return rawRows.map((raw, index) => {
+    const row: Record<string, unknown> = {};
+
+    Object.entries(raw).forEach(([key, value]) => {
+      row[key.trim().toLowerCase()] = value;
+    });
+
+    const title = normalizeText(
+      getExcelCell(row, "title", "judul", "nama_paket")
+    );
+
+    const description = normalizeText(
+      getExcelCell(row, "description", "deskripsi")
+    );
+
+    const level = normalizeText(
+      getExcelCell(row, "level", "jenjang")
+    ).toUpperCase();
+
+    const grade = Number(
+      getExcelCell(row, "grade", "kelas")
+    );
+
+    const subject = normalizeText(
+      getExcelCell(row, "subject", "mapel", "mata_pelajaran")
+    );
+
+    const examType = normalizeText(
+      getExcelCell(row, "exam_type", "jenis_ujian", "type")
+    );
+
+    const category =
+      normalizeText(getExcelCell(row, "category", "kategori")) ||
+      subject;
+
+    const difficulty =
+      normalizeText(
+        getExcelCell(row, "difficulty", "kesulitan")
+      ) || "Sedang";
+
+    const duration = Number(
+      getExcelCell(row, "duration", "durasi")
+    );
+
+    const questionCount = Number(
+      getExcelCell(
+        row,
+        "question_count",
+        "jumlah_soal",
+        "total_soal"
+      )
+    );
+
+    const premium = parseBoolean(
+      getExcelCell(row, "premium", "is_premium")
+    );
+
+    const startRaw = getExcelCell(
+      row,
+      "start_time",
+      "tanggal_mulai"
+    );
+
+    const endRaw = getExcelCell(
+      row,
+      "end_time",
+      "tanggal_selesai"
+    );
+
+    const startTime = startRaw
+      ? parseExcelDate(startRaw)
+      : new Date().toISOString();
+
+    const endTime = endRaw ? parseExcelDate(endRaw) : null;
+
+    const errors: string[] = [];
+
+    if (title.length < 5) {
+      errors.push("Judul minimal 5 karakter.");
+    }
+
+    if (!["SD", "SMP", "SMA", "SMK"].includes(level)) {
+      errors.push("Jenjang harus SD, SMP, SMA, atau SMK.");
+    } else if (
+      !(GRADES_BY_LEVEL[level] ?? []).includes(grade)
+    ) {
+      errors.push(`Kelas tidak sesuai dengan jenjang ${level}.`);
+    }
+
+    if (!subject) errors.push("Mata pelajaran wajib diisi.");
+
+    if (!EXAM_TYPES.includes(examType)) {
+      errors.push("Jenis ujian tidak dikenali.");
+    }
+
+    if (!["Mudah", "Sedang", "Sulit"].includes(difficulty)) {
+      errors.push("Kesulitan harus Mudah, Sedang, atau Sulit.");
+    }
+
+    if (!Number.isInteger(duration) || duration < 5 || duration > 240) {
+      errors.push("Durasi harus 5-240 menit.");
+    }
+
+    if (
+      !Number.isInteger(questionCount) ||
+      questionCount < 1 ||
+      questionCount > 200
+    ) {
+      errors.push("Jumlah soal harus 1-200.");
+    }
+
+    if (startRaw && !startTime) {
+      errors.push("Format tanggal mulai tidak valid.");
+    }
+
+    if (endRaw && !endTime) {
+      errors.push("Format tanggal selesai tidak valid.");
+    }
+
+    if (
+      startTime &&
+      endTime &&
+      new Date(endTime).getTime() < new Date(startTime).getTime()
+    ) {
+      errors.push("Tanggal selesai sebelum tanggal mulai.");
+    }
+
+    return {
+      title,
+      description,
+      level,
+      grade,
+      subject,
+      examType,
+      category,
+      difficulty,
+      duration,
+      questionCount,
+      premium,
+      startTime: startTime || new Date().toISOString(),
+      endTime,
+      errors: errors.map((error) => `Baris ${index + 2}: ${error}`),
+    };
+  });
+};
+
 // =====================================================
 // KOMPONEN UTAMA
 // =====================================================
 
 export default function AdminExamsPage() {
   const [items, setItems] = useState<ExamPackage[]>([]);
-
   const [categories, setCategories] = useState<
     { id: string; name: string }[]
   >([]);
@@ -278,6 +647,13 @@ export default function AdminExamsPage() {
 
   const [parsingExcel, setParsingExcel] = useState(false);
 
+  // Impor massal paket
+  const [bulkOpen, setBulkOpen] = useState(false);
+  const [bulkFile, setBulkFile] = useState<File | null>(null);
+  const [bulkRows, setBulkRows] = useState<BulkPackage[]>([]);
+  const [bulkParsing, setBulkParsing] = useState(false);
+  const [bulkSaving, setBulkSaving] = useState(false);
+
   // =====================================================
   // FETCH DATA
   // =====================================================
@@ -287,23 +663,23 @@ export default function AdminExamsPage() {
     setError(null);
 
     try {
-      const { data: catData, error: catError } = await supabase
-        .from("categories")
-        .select("id, name")
-        .order("name");
+      const [categoryResult, examResult] = await Promise.all([
+        supabase
+          .from("categories")
+          .select("id, name")
+          .order("name"),
 
-      if (catError) throw catError;
+        supabase
+          .from("exam_packages")
+          .select("*")
+          .order("created_at", { ascending: false }),
+      ]);
 
-      setCategories(catData ?? []);
+      if (categoryResult.error) throw categoryResult.error;
+      if (examResult.error) throw examResult.error;
 
-      const { data: examData, error: examErr } = await supabase
-        .from("exam_packages")
-        .select("*")
-        .order("created_at", { ascending: false });
-
-      if (examErr) throw examErr;
-
-      setItems((examData ?? []) as ExamPackage[]);
+      setCategories(categoryResult.data ?? []);
+      setItems((examResult.data ?? []) as ExamPackage[]);
     } catch (err: unknown) {
       setError(
         err instanceof Error
@@ -331,8 +707,16 @@ export default function AdminExamsPage() {
     setLoadingQuestions(false);
   };
 
+  const resetBulk = () => {
+    setBulkOpen(false);
+    setBulkFile(null);
+    setBulkRows([]);
+    setBulkParsing(false);
+    setBulkSaving(false);
+  };
+
   // =====================================================
-  // UPDATE ISI SOAL
+  // UPDATE SOAL
   // =====================================================
 
   const updateQuestion = (
@@ -342,18 +726,11 @@ export default function AdminExamsPage() {
     setQuestionPreview((current) =>
       current.map((question, questionIndex) =>
         questionIndex === index
-          ? {
-              ...question,
-              ...updates,
-            }
+          ? { ...question, ...updates }
           : question
       )
     );
   };
-
-  // =====================================================
-  // UPDATE PILIHAN JAWABAN
-  // =====================================================
 
   const updateQuestionOption = (
     questionIndex: number,
@@ -367,10 +744,7 @@ export default function AdminExamsPage() {
               ...question,
               options: question.options.map((option) =>
                 option.id === optionId
-                  ? {
-                      ...option,
-                      text,
-                    }
+                  ? { ...option, text }
                   : option
               ),
             }
@@ -379,23 +753,32 @@ export default function AdminExamsPage() {
     );
   };
 
-  // =====================================================
-  // UPDATE GAMBAR PER SOAL
-  // =====================================================
+  const removeQuestion = (index: number) => {
+    const question = questionPreview[index];
 
-  const updateQuestionImage = (
-    index: number,
-    updates: Partial<EditableQuestion>
-  ) => {
-    updateQuestion(index, updates);
+    if (question?.isExisting) {
+      toast.error(
+        "Soal yang sudah tersimpan tidak bisa dihapus dari preview ini."
+      );
+      return;
+    }
+
+    setQuestionPreview((current) =>
+      current.filter((_, questionIndex) => questionIndex !== index)
+    );
   };
 
   // =====================================================
-  // IMPORT EXCEL DAN PREVIEW
+  // IMPOR SOAL EXCEL DI MENU EDIT
   // =====================================================
 
-  const handleExcelChange = async (file: File | null) => {
-    if (!file || !draft) return;
+  const handleQuestionExcel = async (file: File | null) => {
+    if (!file || !draft?.id) {
+      if (!draft?.id) {
+        toast.error("Simpan paket terlebih dahulu sebelum menambahkan soal.");
+      }
+      return;
+    }
 
     const extension = file.name.split(".").pop()?.toLowerCase();
 
@@ -404,22 +787,13 @@ export default function AdminExamsPage() {
       return;
     }
 
-    if (file.size > 10 * 1024 * 1024) {
+    if (file.size > MAX_EXCEL_SIZE) {
       toast.error("Ukuran file maksimal 10 MB.");
       return;
     }
 
     setParsingExcel(true);
     setErrs({});
-
-    setDraft((current) =>
-      current
-        ? {
-            ...current,
-            excelFile: null,
-          }
-        : current
-    );
 
     try {
       const parsed = await parseQuestionsExcelPreview(
@@ -445,17 +819,8 @@ export default function AdminExamsPage() {
         ...newQuestions,
       ]);
 
-      setDraft((current) =>
-        current
-          ? {
-              ...current,
-              excelFile: file,
-            }
-          : current
-      );
-
       toast.success(
-        `${parsed.length} soal baru berhasil ditambahkan ke preview.`
+        `${parsed.length} soal berhasil ditambahkan ke preview. Simpan perubahan untuk memasukkannya ke database.`
       );
     } catch (err: unknown) {
       toast.error(
@@ -469,64 +834,32 @@ export default function AdminExamsPage() {
   };
 
   // =====================================================
-  // HAPUS SOAL HASIL IMPOR SAJA
-  // =====================================================
-
-  const clearImportedQuestions = () => {
-    const existingCount = questionPreview.filter(
-      (question) => question.isExisting
-    ).length;
-
-    setQuestionPreview((current) =>
-      current.filter((question) => question.isExisting)
-    );
-
-    setDraft((current) =>
-      current
-        ? {
-            ...current,
-            excelFile: null,
-          }
-        : current
-    );
-
-    setErrs({});
-
-    toast.success(
-      existingCount > 0
-        ? "Soal impor dibersihkan. Soal lama tetap dipertahankan."
-        : "Soal impor berhasil dibersihkan."
-    );
-  };
-
-  // =====================================================
   // STATUS PAKET
   // =====================================================
 
-  const getExamStatus = (
-    exam: ExamPackage
-  ): "Aktif" | "Akan Datang" | "Arsip" => {
+  const getExamStatus = (exam: ExamPackage): ExamStatus => {
     const item = exam as any;
 
     if (
-      exam.status === "Draft" ||
-      item.is_published === false
+      item.status === "Draft" ||
+      item.is_published === false ||
+      item.is_published == null
     ) {
-      return "Arsip";
+      return "Draft";
     }
 
     const now = Date.now();
 
     const start = item.start_time
       ? new Date(item.start_time).getTime()
-      : now;
+      : 0;
 
     const end = item.end_time
       ? new Date(item.end_time).getTime()
       : Infinity;
 
-    if (now < start) return "Akan Datang";
-    if (now > end) return "Arsip";
+    if (end !== Infinity && now > end) return "Arsip";
+    if (start && now < start) return "Akan Datang";
 
     return "Aktif";
   };
@@ -536,33 +869,32 @@ export default function AdminExamsPage() {
   // =====================================================
 
   const counts = useMemo(() => {
-    let aktif = 0;
-    let akanDatang = 0;
-    let arsip = 0;
+    const result = {
+      aktif: 0,
+      akanDatang: 0,
+      draft: 0,
+      arsip: 0,
+    };
 
     items.forEach((item) => {
       const status = getExamStatus(item);
 
-      if (status === "Aktif") aktif++;
-      else if (status === "Akan Datang") akanDatang++;
-      else arsip++;
+      if (status === "Aktif") result.aktif++;
+      else if (status === "Akan Datang") result.akanDatang++;
+      else if (status === "Draft") result.draft++;
+      else result.arsip++;
     });
 
-    return {
-      aktif,
-      akanDatang,
-      arsip,
-    };
+    return result;
   }, [items]);
 
   // =====================================================
-  // FILTER PAKET
+  // FILTER
   // =====================================================
 
   const filtered = useMemo(() => {
     return items.filter((exam) => {
       const item = exam as any;
-
       const keyword = q.toLocaleLowerCase("id-ID");
 
       const searchableText = [
@@ -577,10 +909,7 @@ export default function AdminExamsPage() {
         .toLocaleLowerCase("id-ID");
 
       const matchQuery = searchableText.includes(keyword);
-
-      const matchLevel =
-        level === "all" || exam.level === level;
-
+      const matchLevel = level === "all" || exam.level === level;
       const status = getExamStatus(exam);
 
       const matchTab =
@@ -591,10 +920,10 @@ export default function AdminExamsPage() {
   }, [items, q, level, activeTab]);
 
   // =====================================================
-  // VALIDASI FORM
+  // VALIDASI DATA PAKET
   // =====================================================
 
-  const validateDraft = (): Record<string, string> => {
+  const validatePackage = (): Record<string, string> => {
     if (!draft) return {};
 
     const validation: Record<string, string> = {};
@@ -604,18 +933,13 @@ export default function AdminExamsPage() {
     }
 
     if (!(draft.duration >= 5 && draft.duration <= 240)) {
-      validation.duration = "Durasi 5–240 menit.";
+      validation.duration = "Durasi 5-240 menit.";
     }
 
     if (
-      !(draft.questionCount >= 1 &&
-        draft.questionCount <= 200)
+      !(draft.questionCount >= 1 && draft.questionCount <= 200)
     ) {
-      validation.questionCount = "Jumlah soal 1–200.";
-    }
-
-    if (!draft.startTime) {
-      validation.startTime = "Tanggal mulai wajib diisi.";
+      validation.questionCount = "Jumlah soal 1-200.";
     }
 
     if (!draft.subject.trim()) {
@@ -627,8 +951,7 @@ export default function AdminExamsPage() {
         Number(draft.grade)
       )
     ) {
-      validation.grade =
-        "Kelas tidak sesuai dengan jenjang pendidikan.";
+      validation.grade = "Kelas tidak sesuai dengan jenjang.";
     }
 
     if (!draft.examType) {
@@ -636,8 +959,7 @@ export default function AdminExamsPage() {
     }
 
     if (!draft.noEndDate && !draft.endTime) {
-      validation.endTime =
-        "Tanggal selesai wajib diisi atau pilih Terbit Selamanya.";
+      validation.endTime = "Tanggal selesai wajib diisi.";
     }
 
     if (
@@ -651,10 +973,15 @@ export default function AdminExamsPage() {
         "Tanggal selesai tidak boleh sebelum tanggal mulai.";
     }
 
-    if (parsingExcel) {
-      validation.excelFile =
-        "Tunggu sampai proses membaca Excel selesai.";
-    }
+    return validation;
+  };
+
+  // =====================================================
+  // VALIDASI SOAL
+  // =====================================================
+
+  const validateQuestions = () => {
+    const validation: Record<string, string> = {};
 
     questionPreview.forEach((question, index) => {
       if (!question.question_text.trim()) {
@@ -662,22 +989,20 @@ export default function AdminExamsPage() {
           `Pertanyaan nomor ${index + 1} belum diisi.`;
       }
 
-      if (!Array.isArray(question.options) ||
-        question.options.length < 2) {
-        validation[`options_${index}`] =
-          `Soal nomor ${index + 1} harus memiliki pilihan jawaban.`;
-      } else if (
-        question.options.some(
-          (option) => !option.text.trim()
-        )
+      if (
+        !Array.isArray(question.options) ||
+        question.options.length < 2
       ) {
         validation[`options_${index}`] =
-          `Lengkapi seluruh pilihan jawaban soal nomor ${index + 1}.`;
+          `Soal nomor ${index + 1} minimal memiliki 2 pilihan jawaban.`;
+      } else if (
+        question.options.some((option) => !option.text.trim())
+      ) {
+        validation[`options_${index}`] =
+          `Lengkapi pilihan jawaban soal nomor ${index + 1}.`;
       }
 
-      const optionIds = question.options.map(
-        (option) => option.id
-      );
+      const optionIds = question.options.map((option) => option.id);
 
       if (!optionIds.includes(question.correct_answer)) {
         validation[`answer_${index}`] =
@@ -685,9 +1010,7 @@ export default function AdminExamsPage() {
       }
 
       if (question.image_enabled) {
-        const imageUrl = normalizeImageUrl(
-          question.image_url
-        );
+        const imageUrl = normalizeImageUrl(question.image_url);
 
         if (!imageUrl) {
           validation[`image_${index}`] =
@@ -703,53 +1026,77 @@ export default function AdminExamsPage() {
   };
 
   // =====================================================
-  // SIMPAN / UPDATE PAKET DAN SOAL
+  // SIMPAN PAKET DAN SOAL
   // =====================================================
 
-  const save = async () => {
+  const save = async (publishAfterSave = false) => {
     if (!draft || saving || loadingQuestions) return;
 
-    const validation = validateDraft();
+    const validation = {
+      ...validatePackage(),
+      ...validateQuestions(),
+    };
+
+    if (parsingExcel) {
+      validation.excelFile =
+        "Tunggu sampai proses membaca Excel selesai.";
+    }
+
+    if (publishAfterSave) {
+      if (!draft.id) {
+        validation.publish =
+          "Simpan paket terlebih dahulu sebelum menerbitkannya.";
+      }
+
+      if (questionPreview.length !== draft.questionCount) {
+        validation.publish =
+          `Jumlah soal harus tepat ${draft.questionCount}. Saat ini terdapat ${questionPreview.length} soal.`;
+      }
+
+      if (questionPreview.length === 0) {
+        validation.publish = "Tambahkan soal sebelum menerbitkan paket.";
+      }
+    }
 
     setErrs(validation);
 
     if (Object.keys(validation).length > 0) {
-      toast.error("Periksa kembali data paket dan soal.");
+      toast.error(
+        publishAfterSave
+          ? "Paket belum memenuhi syarat publikasi."
+          : "Periksa kembali data paket dan soal."
+      );
       return;
     }
 
     setSaving(true);
 
-    const payload = {
-      title: draft.title.trim(),
-      description:
-        draft.description.trim() || "Belum ada deskripsi.",
-
-      category: draft.category,
-      subject: draft.subject,
-      type: draft.examType,
-      level: draft.level,
-      grade: Number(draft.grade),
-
-      difficulty: draft.difficulty,
-      duration: Number(draft.duration),
-      question_count: Number(draft.questionCount),
-
-      premium: draft.premium,
-      is_published: draft.published,
-      status: draft.published ? "Published" : "Draft",
-
-      start_time: new Date(draft.startTime).toISOString(),
-
-      end_time: draft.noEndDate
-        ? null
-        : new Date(draft.endTime).toISOString(),
-    };
-
     try {
+      const payload = {
+        title: draft.title.trim(),
+        description: draft.description.trim() || null,
+        category: draft.category || draft.subject,
+        subject: draft.subject,
+        type: draft.examType,
+        level: draft.level,
+        grade: Number(draft.grade),
+        difficulty: draft.difficulty,
+        duration: Number(draft.duration),
+        duration_minutes: Number(draft.duration),
+        question_count: Number(draft.questionCount),
+        total_questions: Number(draft.questionCount),
+        premium: draft.premium,
+        start_time: draft.startTime
+          ? new Date(draft.startTime).toISOString()
+          : null,
+        end_time: draft.noEndDate
+          ? null
+          : new Date(draft.endTime).toISOString(),
+      };
+
       let packageId = draft.id;
 
-      // 1. SIMPAN DATA PAKET
+      // Simpan metadata paket
       if (packageId) {
         const { error: updateError } = await supabase
           .from("exam_packages")
@@ -761,7 +1108,12 @@ export default function AdminExamsPage() {
         const { data: newPackage, error: insertError } =
           await supabase
             .from("exam_packages")
-            .insert([payload])
+            .insert({
+              ...payload,
+              is_published: false,
+              is_active: false,
+              status: "Draft",
+            })
             .select("id")
             .single();
 
@@ -771,10 +1123,10 @@ export default function AdminExamsPage() {
       }
 
       if (!packageId) {
-        throw new Error("ID paket ujian tidak ditemukan.");
+        throw new Error("ID paket tidak ditemukan.");
       }
 
-      // 2. PISAHKAN SOAL LAMA DAN SOAL BARU
+      // Update soal yang sudah ada
       const existingQuestions = questionPreview.filter(
         (question) => Boolean(question.id)
       );
@@ -783,21 +1135,17 @@ export default function AdminExamsPage() {
         (question) => !question.id
       );
 
-      // 3. PERBARUI SOAL LAMA BERDASARKAN UUID
       for (const question of existingQuestions) {
-        const imageUrl = normalizeImageUrl(
-          question.image_url
-        );
+        const imageUrl = normalizeImageUrl(question.image_url);
 
-        const { error: questionUpdateError } = await supabase
+        const { error: updateQuestionError } = await supabase
           .from("questions")
           .update({
             category: question.category || draft.category,
             question_text: question.question_text.trim(),
             options: question.options,
             correct_answer: question.correct_answer,
-            explanation:
-              question.explanation?.trim() || null,
+            explanation: question.explanation?.trim() || null,
             image_url:
               question.image_enabled && imageUrl
                 ? imageUrl
@@ -806,47 +1154,54 @@ export default function AdminExamsPage() {
           .eq("id", question.id!)
           .eq("exam_package_id", packageId);
 
-        if (questionUpdateError) {
-          throw questionUpdateError;
-        }
+        if (updateQuestionError) throw updateQuestionError;
       }
 
-      // 4. MASUKKAN SOAL BARU TANPA MENGGANGGU SOAL LAMA
+      // Masukkan soal baru
       if (newQuestions.length > 0) {
-        const questionsToInsert = newQuestions.map(
-          (question) => {
-            const imageUrl = normalizeImageUrl(
-              question.image_url
-            );
+        const questionsToInsert = newQuestions.map((question) => {
+          const imageUrl = normalizeImageUrl(question.image_url);
 
-            return {
-              exam_package_id: packageId,
-              category: question.category || draft.category,
-              question_text: question.question_text.trim(),
-              options: question.options,
-              correct_answer: question.correct_answer,
-              explanation:
-                question.explanation?.trim() || null,
-              image_url:
-                question.image_enabled && imageUrl
-                  ? imageUrl
-                  : null,
-            };
-          }
-        );
+          return {
+            exam_package_id: packageId,
+            category: question.category || draft.category,
+            question_text: question.question_text.trim(),
+            options: question.options,
+            correct_answer: question.correct_answer,
+            explanation: question.explanation?.trim() || null,
+            image_url:
+              question.image_enabled && imageUrl
+                ? imageUrl
+                : null,
+          };
+        });
 
-        const { error: questionInsertError } = await supabase
+        const { error: insertQuestionError } = await supabase
           .from("questions")
           .insert(questionsToInsert);
 
-        if (questionInsertError) {
-          throw questionInsertError;
-        }
+        if (insertQuestionError) throw insertQuestionError;
       }
 
-      toast.success(
-        `Paket berhasil disimpan. ${existingQuestions.length} soal diperbarui dan ${newQuestions.length} soal baru ditambahkan.`
-      );
+      // Publikasi hanya melalui tombol Terbitkan
+      if (publishAfterSave) {
+        const { error: publishError } = await supabase
+          .from("exam_packages")
+          .update({
+            is_published: true,
+            is_active: true,
+            status: "Published",
+          })
+          .eq("id", packageId);
+
+        if (publishError) throw publishError;
+
+        toast.success("Paket berhasil diterbitkan!");
+      } else {
+        toast.success(
+          `Paket tersimpan sebagai Draft. ${existingQuestions.length} soal diperbarui dan ${newQuestions.length} soal baru ditambahkan.`
+        );
+      }
 
       resetForm();
       await fetchData();
@@ -859,6 +1214,134 @@ export default function AdminExamsPage() {
       );
     } finally {
       setSaving(false);
+    }
+  };
+
+  // =====================================================
+  // IMPOR MASSAL PAKET
+  // =====================================================
+
+  const handleBulkFile = async (file: File | null) => {
+    if (!file) return;
+
+    const extension = file.name.split(".").pop()?.toLowerCase();
+
+    if (!["xlsx", "xls"].includes(extension || "")) {
+      toast.error("Gunakan file Excel .xlsx atau .xls.");
+      return;
+    }
+
+    if (file.size > MAX_EXCEL_SIZE) {
+      toast.error("Ukuran file maksimal 10 MB.");
+      return;
+    }
+
+    setBulkParsing(true);
+    setBulkRows([]);
+    setBulkFile(file);
+
+    try {
+      const rows = await parsePackageExcel(file);
+      setBulkRows(rows);
+
+      const invalidCount = rows.filter(
+        (row) => row.errors.length > 0
+      ).length;
+
+      if (invalidCount > 0) {
+        toast.warning(
+          `${rows.length} paket dibaca. ${invalidCount} baris perlu diperbaiki.`
+        );
+      } else {
+        toast.success(`${rows.length} paket siap diimpor.`);
+      }
+    } catch (err: unknown) {
+      setBulkFile(null);
+      toast.error(
+        err instanceof Error
+          ? err.message
+          : "Gagal membaca file Excel."
+      );
+    } finally {
+      setBulkParsing(false);
+    }
+  };
+
+  const validBulkRows = bulkRows.filter(
+    (row) => row.errors.length === 0
+  );
+
+  const invalidBulkRows = bulkRows.filter(
+    (row) => row.errors.length > 0
+  );
+
+  const saveBulkPackages = async () => {
+    if (bulkSaving || bulkParsing) return;
+
+    if (bulkRows.length === 0) {
+      toast.error("Pilih file Excel terlebih dahulu.");
+      return;
+    }
+
+    if (invalidBulkRows.length > 0) {
+      toast.error(
+        `Masih ada ${invalidBulkRows.length} baris yang belum valid. Perbaiki file Excel terlebih dahulu.`
+      );
+      return;
+    }
+
+    if (bulkRows.length > MAX_BULK_PACKAGES) {
+      toast.error(`Maksimal ${MAX_BULK_PACKAGES} paket.`);
+      return;
+    }
+
+    setBulkSaving(true);
+
+    try {
+      const payload = validBulkRows.map((row) => ({
+        title: row.title,
+        description: row.description || null,
+        level: row.level,
+        grade: row.grade,
+        subject: row.subject,
+        type: row.examType,
+        category: row.category || row.subject,
+        difficulty: row.difficulty,
+        duration: row.duration,
+        duration_minutes: row.duration,
+        question_count: row.questionCount,
+        total_questions: row.questionCount,
+        premium: row.premium,
+        start_time: row.startTime,
+        end_time: row.endTime,
+        is_published: false,
+        is_active: false,
+        status: "Draft",
+      }));
+
+      // Satu operasi insert: jika gagal, seluruh batch ditolak.
+      const { error: insertError } = await supabase
+        .from("exam_packages")
+        .insert(payload);
+
+      if (insertError) throw insertError;
+
+      toast.success(
+        `${payload.length} paket berhasil diimpor sebagai Draft.`
+      );
+
+      resetBulk();
+      setActiveTab("Draft");
+      await fetchData();
+    } catch (err: unknown) {
+      toast.error(
+        "Impor gagal: " +
+          (err instanceof Error
+            ? err.message
+            : "Terjadi kesalahan.")
+      );
+    } finally {
+      setBulkSaving(false);
     }
   };
 
@@ -878,8 +1361,8 @@ export default function AdminExamsPage() {
       if (deleteError) throw deleteError;
 
       toast.success("Paket ujian berhasil dihapus.");
-
       setRemoving(null);
+
       await fetchData();
     } catch (err: unknown) {
       toast.error(
@@ -889,6 +1372,103 @@ export default function AdminExamsPage() {
             : "Terjadi kesalahan.")
       );
     }
+  };
+
+  // =====================================================
+  // BUKA EDIT
+  // =====================================================
+
+  const openEdit = async (exam: ExamPackage) => {
+    const item = exam as any;
+    const examLevel = item.level || "SD";
+
+    setErrs({});
+    setQuestionPreview([]);
+    setLoadingQuestions(true);
+
+    setDraft({
+      id: exam.id,
+      title: exam.title || "",
+      description: exam.description || "",
+      category: exam.category || "Matematika",
+      subject: item.subject || getDefaultSubject(examLevel),
+      examType: item.type || "Latihan",
+      level: examLevel as Level,
+      grade: item.grade
+        ? Number(item.grade)
+        : getLegacyGrade(exam.category, examLevel),
+      difficulty: exam.difficulty || "Sedang",
+      duration:
+        Number(item.duration || item.duration_minutes) || 30,
+      questionCount:
+        Number(item.question_count || item.total_questions) || 10,
+      premium: Boolean(exam.premium),
+      published:
+        item.is_published === true ||
+        item.status === "Published",
+      startTime: item.start_time
+        ? toLocalDateTime(new Date(item.start_time))
+        : nowIso,
+      endTime: item.end_time
+        ? toLocalDateTime(new Date(item.end_time))
+        : "",
+      noEndDate: !item.end_time,
+    });
+
+    try {
+      const { data, error: questionError } = await supabase
+        .from("questions")
+        .select(
+          "id, category, question_text, options, correct_answer, explanation, image_url"
+        )
+        .eq("exam_package_id", exam.id)
+        .order("created_at", { ascending: true });
+
+      if (questionError) throw questionError;
+
+      const existingQuestions: EditableQuestion[] = (
+        data ?? []
+      ).map((question: any) => {
+        const imageUrl = normalizeImageUrl(question.image_url);
+
+        return {
+          id: question.id,
+          isExisting: true,
+          category: question.category || exam.category || "Umum",
+          question_text: question.question_text || "",
+          options: normalizeOptions(question.options),
+          correct_answer: question.correct_answer || "A",
+          explanation: question.explanation || "",
+          image_url: imageUrl || null,
+          image_enabled: Boolean(imageUrl),
+        };
+      });
+
+      setQuestionPreview(existingQuestions);
+
+      toast.success(
+        existingQuestions.length > 0
+          ? `${existingQuestions.length} soal berhasil dimuat.`
+          : "Paket ini belum memiliki soal."
+      );
+    } catch (err: unknown) {
+      toast.error(
+        "Gagal memuat soal: " +
+          (err instanceof Error
+            ? err.message
+            : "Terjadi kesalahan.")
+      );
+
+      setDraft(null);
+    } finally {
+      setLoadingQuestions(false);
+    }
+  };
+
+  const openCreate = () => {
+    setErrs({});
+    setQuestionPreview([]);
+    setDraft({ ...emptyDraft });
   };
 
   // =====================================================
@@ -930,138 +1510,7 @@ export default function AdminExamsPage() {
   };
 
   // =====================================================
-  // BUKA FORM EDIT DAN MUAT SOAL DARI DATABASE
-  // =====================================================
-
-  const openEdit = async (exam: ExamPackage) => {
-    const item = exam as any;
-    const examLevel = item.level || "SMA";
-
-    setErrs({});
-    setQuestionPreview([]);
-    setLoadingQuestions(true);
-
-    setDraft({
-      id: exam.id,
-      title: exam.title || "",
-      description: exam.description || "",
-      category: exam.category || "Matematika",
-
-      subject:
-        item.subject || getDefaultSubject(examLevel),
-
-      examType: item.type || "Latihan",
-
-      level: examLevel as Level,
-
-      grade: item.grade
-        ? Number(item.grade)
-        : getLegacyGrade(exam.category, examLevel),
-
-      difficulty: exam.difficulty || "Sedang",
-
-      duration:
-        Number(item.duration || item.duration_minutes) || 30,
-
-      questionCount:
-        Number(item.question_count || item.total_questions) ||
-        10,
-
-      premium: Boolean(exam.premium),
-
-      published:
-        exam.status === "Published" ||
-        item.is_published === true,
-
-      startTime: item.start_time
-        ? new Date(item.start_time)
-            .toISOString()
-            .slice(0, 16)
-        : nowIso,
-
-      endTime: item.end_time
-        ? new Date(item.end_time)
-            .toISOString()
-            .slice(0, 16)
-        : "",
-
-      noEndDate: !item.end_time,
-
-      excelFile: null,
-    });
-
-    try {
-      const { data, error } = await supabase
-        .from("questions")
-        .select(
-          "id, category, question_text, options, correct_answer, explanation, image_url"
-        )
-        .eq("exam_package_id", exam.id)
-        .order("created_at", { ascending: true });
-
-      if (error) throw error;
-
-      const existingQuestions: EditableQuestion[] = (
-        data ?? []
-      ).map((question: any) => {
-        const imageUrl = normalizeImageUrl(
-          question.image_url
-        );
-
-        return {
-          id: question.id,
-          isExisting: true,
-
-          category:
-            question.category || exam.category || "Umum",
-
-          question_text: question.question_text || "",
-
-          options: normalizeOptions(question.options),
-
-          correct_answer: question.correct_answer || "A",
-
-          explanation: question.explanation || null,
-
-          image_url: imageUrl || null,
-
-          image_enabled: Boolean(imageUrl),
-        };
-      });
-
-      setQuestionPreview(existingQuestions);
-
-      toast.success(
-        existingQuestions.length > 0
-          ? `${existingQuestions.length} soal lama berhasil dimuat.`
-          : "Paket ini belum memiliki soal."
-      );
-    } catch (err: unknown) {
-      toast.error(
-        "Gagal memuat soal: " +
-          (err instanceof Error
-            ? err.message
-            : "Terjadi kesalahan.")
-      );
-
-      setDraft(null);
-    } finally {
-      setLoadingQuestions(false);
-    }
-  };
-
-  // =====================================================
-  // FORM BARU
-  // =====================================================
-
-  const openCreate = () => {
-    setErrs({});
-    setQuestionPreview([]);
-    setDraft({ ...emptyDraft });
-  };
-
-  // =====================================================
-  // TAMPILAN
+  // RENDER
   // =====================================================
 
   return (
@@ -1074,19 +1523,36 @@ export default function AdminExamsPage() {
             Manajemen Paket Ujian
           </h1>
           <p className="mt-1 text-xs text-muted-foreground">
-            Kelola paket ujian, jenjang, mata pelajaran, jadwal,
-            dan pelaksanaan ujian.
+            Kelola paket ujian, impor massal, soal, dan publikasi.
           </p>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex flex-wrap gap-2">
           <Button
             variant="outline"
             onClick={downloadQuestionTemplate}
             className="h-10 gap-2 rounded-xl text-xs font-bold"
           >
             <Download className="h-4 w-4" />
-            Template Excel
+            Template Soal
+          </Button>
+
+          <Button
+            variant="outline"
+            onClick={downloadPackageTemplate}
+            className="h-10 gap-2 rounded-xl text-xs font-bold"
+          >
+            <FileSpreadsheet className="h-4 w-4" />
+            Template Paket
+          </Button>
+
+          <Button
+            variant="outline"
+            onClick={() => setBulkOpen(true)}
+            className="h-10 gap-2 rounded-xl border-emerald-500/40 text-xs font-bold text-emerald-600 hover:bg-emerald-500/10"
+          >
+            <Upload className="h-4 w-4" />
+            Impor Massal
           </Button>
 
           <Button
@@ -1094,134 +1560,121 @@ export default function AdminExamsPage() {
             className="h-10 gap-1.5 rounded-xl bg-emerald-600 px-5 text-xs font-extrabold text-white shadow-md hover:bg-emerald-700"
           >
             <Plus className="h-4 w-4" />
-            Buat Paket Baru
+            Buat Paket
           </Button>
         </div>
       </div>
 
       {/* STATISTIK */}
 
-      <div className="grid gap-4 sm:grid-cols-3">
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <Card className="rounded-2xl border border-emerald-500/20 bg-emerald-500/5 shadow-sm">
           <CardContent className="flex items-center justify-between p-4">
-            <div className="space-y-1">
-              <p className="text-xs font-bold text-emerald-600 dark:text-emerald-400">
+            <div>
+              <p className="text-xs font-bold text-emerald-600">
                 Paket Aktif
               </p>
-              <h3 className="text-3xl font-black text-foreground">
+              <h3 className="mt-1 text-3xl font-black">
                 {counts.aktif}
               </h3>
               <p className="text-[11px] text-muted-foreground">
-                Paket sedang berjalan
+                Sedang berjalan
               </p>
             </div>
-
-            <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-emerald-500/30 bg-emerald-500/15 text-emerald-500">
-              <CheckCircle2 className="h-6 w-6" />
-            </div>
+            <CheckCircle2 className="h-8 w-8 text-emerald-500" />
           </CardContent>
         </Card>
 
         <Card className="rounded-2xl border border-sky-500/20 bg-sky-500/5 shadow-sm">
           <CardContent className="flex items-center justify-between p-4">
-            <div className="space-y-1">
-              <p className="text-xs font-bold text-sky-600 dark:text-sky-400">
+            <div>
+              <p className="text-xs font-bold text-sky-600">
                 Akan Datang
               </p>
-              <h3 className="text-3xl font-black text-foreground">
+              <h3 className="mt-1 text-3xl font-black">
                 {counts.akanDatang}
               </h3>
               <p className="text-[11px] text-muted-foreground">
-                Jadwal mendatang
+                Menunggu jadwal
               </p>
             </div>
+            <CalendarIcon className="h-8 w-8 text-sky-500" />
+          </CardContent>
+        </Card>
 
-            <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-sky-500/30 bg-sky-500/15 text-sky-500">
-              <CalendarIcon className="h-6 w-6" />
+        <Card className="rounded-2xl border border-amber-500/20 bg-amber-500/5 shadow-sm">
+          <CardContent className="flex items-center justify-between p-4">
+            <div>
+              <p className="text-xs font-bold text-amber-600">
+                Draft
+              </p>
+              <h3 className="mt-1 text-3xl font-black">
+                {counts.draft}
+              </h3>
+              <p className="text-[11px] text-muted-foreground">
+                Belum diterbitkan
+              </p>
             </div>
+            <FileText className="h-8 w-8 text-amber-500" />
           </CardContent>
         </Card>
 
         <Card className="rounded-2xl border border-slate-500/20 bg-slate-500/5 shadow-sm">
           <CardContent className="flex items-center justify-between p-4">
-            <div className="space-y-1">
+            <div>
               <p className="text-xs font-bold text-slate-500">
-                Diarsipkan
+                Arsip
               </p>
-              <h3 className="text-3xl font-black text-foreground">
+              <h3 className="mt-1 text-3xl font-black">
                 {counts.arsip}
               </h3>
               <p className="text-[11px] text-muted-foreground">
-                Draft / Selesai
+                Paket yang berakhir
               </p>
             </div>
-
-            <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-slate-500/30 bg-slate-500/15 text-slate-500">
-              <Archive className="h-6 w-6" />
-            </div>
+            <Archive className="h-8 w-8 text-slate-500" />
           </CardContent>
         </Card>
       </div>
 
-      {/* TAB STATUS */}
+      {/* TABS */}
 
       <Tabs
         value={activeTab}
         onValueChange={setActiveTab}
         className="w-full"
       >
-        <TabsList className="h-auto w-full justify-start space-x-6 rounded-none border-b border-border bg-transparent p-0">
-          <TabsTrigger
-            value="Aktif"
-            className="gap-2 rounded-none border-b-2 border-transparent px-1 pb-3 text-sm font-extrabold data-[state=active]:border-emerald-500 data-[state=active]:bg-transparent data-[state=active]:text-emerald-600"
-          >
-            Paket Aktif
-            <Badge className="rounded-full bg-emerald-500 px-2 text-[10px] text-white">
-              {counts.aktif}
-            </Badge>
-          </TabsTrigger>
-
-          <TabsTrigger
-            value="Akan Datang"
-            className="gap-2 rounded-none border-b-2 border-transparent px-1 pb-3 text-sm font-extrabold data-[state=active]:border-sky-500 data-[state=active]:bg-transparent data-[state=active]:text-sky-600"
-          >
-            Akan Datang
-            <Badge
-              variant="outline"
-              className="rounded-full px-2 text-[10px]"
+        <TabsList className="h-auto w-full flex-wrap justify-start gap-4 rounded-none border-b border-border bg-transparent p-0">
+          {[
+            { value: "Aktif", label: "Aktif", count: counts.aktif },
+            {
+              value: "Akan Datang",
+              label: "Akan Datang",
+              count: counts.akanDatang,
+            },
+            { value: "Draft", label: "Draft", count: counts.draft },
+            { value: "Arsip", label: "Arsip", count: counts.arsip },
+            { value: "all", label: "Semua", count: items.length },
+          ].map((tab) => (
+            <TabsTrigger
+              key={tab.value}
+              value={tab.value}
+              className="gap-2 rounded-none border-b-2 border-transparent px-1 pb-3 text-xs font-extrabold data-[state=active]:border-emerald-500 data-[state=active]:bg-transparent data-[state=active]:text-emerald-600"
             >
-              {counts.akanDatang}
-            </Badge>
-          </TabsTrigger>
-
-          <TabsTrigger
-            value="Arsip"
-            className="gap-2 rounded-none border-b-2 border-transparent px-1 pb-3 text-sm font-extrabold data-[state=active]:border-slate-500 data-[state=active]:bg-transparent data-[state=active]:text-slate-600"
-          >
-            Arsip
-            <Badge
-              variant="outline"
-              className="rounded-full px-2 text-[10px]"
-            >
-              {counts.arsip}
-            </Badge>
-          </TabsTrigger>
-
-          <TabsTrigger
-            value="all"
-            className="rounded-none border-b-2 border-transparent px-1 pb-3 text-sm font-bold data-[state=active]:border-primary data-[state=active]:bg-transparent"
-          >
-            Semua
-          </TabsTrigger>
+              {tab.label}
+              <Badge variant="outline" className="rounded-full px-2 text-[10px]">
+                {tab.count}
+              </Badge>
+            </TabsTrigger>
+          ))}
         </TabsList>
       </Tabs>
 
-      {/* SEARCH DAN FILTER JENJANG */}
+      {/* SEARCH DAN FILTER */}
 
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="relative w-full max-w-sm">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-
           <Input
             value={q}
             onChange={(e) => setQ(e.target.value)}
@@ -1230,26 +1683,22 @@ export default function AdminExamsPage() {
           />
         </div>
 
-        <div className="flex items-center gap-2">
-          <Select value={level} onValueChange={setLevel}>
-            <SelectTrigger className="h-10 w-full rounded-xl sm:w-44">
-              <SelectValue placeholder="Semua Jenjang" />
-            </SelectTrigger>
-
-            <SelectContent>
-              <SelectItem value="all">Semua Jenjang</SelectItem>
-
-              {LEVELS.map((item) => (
-                <SelectItem key={item} value={item}>
-                  {item}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
+        <Select value={level} onValueChange={setLevel}>
+          <SelectTrigger className="h-10 w-full rounded-xl sm:w-44">
+            <SelectValue placeholder="Semua Jenjang" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Semua Jenjang</SelectItem>
+            {LEVELS.map((item) => (
+              <SelectItem key={item} value={item}>
+                {item}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </div>
 
-      {/* TABEL PAKET UJIAN */}
+      {/* TABEL */}
 
       <Card className="overflow-hidden rounded-2xl border border-border/80 bg-card shadow-sm">
         {loading ? (
@@ -1269,10 +1718,10 @@ export default function AdminExamsPage() {
                 <tr>
                   <th className="p-4">Nama Paket</th>
                   <th className="p-4">Jenjang</th>
-                  <th className="p-4">Kelas & Mata Pelajaran</th>
-                  <th className="p-4">Jenis Ujian</th>
+                  <th className="p-4">Kelas & Mapel</th>
+                  <th className="p-4">Jenis</th>
                   <th className="p-4">Kesulitan</th>
-                  <th className="p-4">Periode Aktif</th>
+                  <th className="p-4">Periode</th>
                   <th className="p-4">Status</th>
                   <th className="p-4 text-right">Aksi</th>
                 </tr>
@@ -1283,7 +1732,7 @@ export default function AdminExamsPage() {
                   const item = exam as any;
                   const status = getExamStatus(exam);
 
-                  const startDateStr = item.start_time
+                  const startDate = item.start_time
                     ? new Date(item.start_time).toLocaleDateString(
                         "id-ID",
                         {
@@ -1294,7 +1743,7 @@ export default function AdminExamsPage() {
                       )
                     : "-";
 
-                  const endDateStr = item.end_time
+                  const endDate = item.end_time
                     ? new Date(item.end_time).toLocaleDateString(
                         "id-ID",
                         {
@@ -1313,19 +1762,15 @@ export default function AdminExamsPage() {
                       <td className="p-4">
                         <div className="flex items-center gap-3">
                           {getCategoryIcon(item.type || exam.category)}
-
                           <div className="min-w-[170px]">
-                            <p className="text-sm font-extrabold text-foreground">
+                            <p className="text-sm font-extrabold">
                               {exam.title}
                             </p>
-
                             <p className="mt-1 text-[11px] text-muted-foreground">
                               {item.question_count ||
                                 item.total_questions ||
-                                exam.questionCount ||
                                 0}{" "}
-                              Soal
-
+                              soal
                               {exam.premium && (
                                 <Badge
                                   variant="warning"
@@ -1340,13 +1785,13 @@ export default function AdminExamsPage() {
                       </td>
 
                       <td className="p-4">
-                        <Badge variant="outline" className="font-bold">
+                        <Badge variant="outline">
                           {exam.level || "-"}
                         </Badge>
                       </td>
 
                       <td className="p-4">
-                        <p className="font-bold text-foreground">
+                        <p className="font-bold">
                           Kelas {item.grade ?? "-"}
                         </p>
                         <p className="mt-1 text-[11px] text-muted-foreground">
@@ -1361,16 +1806,14 @@ export default function AdminExamsPage() {
                       </td>
 
                       <td className="p-4">
-                        <Badge variant="muted" className="font-bold">
+                        <Badge variant="muted">
                           {exam.difficulty || "-"}
                         </Badge>
                       </td>
 
                       <td className="p-4 font-mono text-[11px] text-muted-foreground">
-                        <div>{startDateStr}</div>
-                        <div className="mt-1">
-                          s.d. {endDateStr}
-                        </div>
+                        <div>{startDate}</div>
+                        <div className="mt-1">s.d. {endDate}</div>
                       </td>
 
                       <td className="p-4">
@@ -1384,10 +1827,15 @@ export default function AdminExamsPage() {
                             <span className="h-2 w-2 rounded-full bg-sky-500" />
                             Akan Datang
                           </span>
+                        ) : status === "Draft" ? (
+                          <span className="inline-flex items-center gap-1.5 font-bold text-amber-500">
+                            <span className="h-2 w-2 rounded-full bg-amber-500" />
+                            Draft
+                          </span>
                         ) : (
                           <span className="inline-flex items-center gap-1.5 font-bold text-slate-400">
                             <span className="h-2 w-2 rounded-full bg-slate-400" />
-                            Draft / Arsip
+                            Arsip
                           </span>
                         )}
                       </td>
@@ -1404,15 +1852,12 @@ export default function AdminExamsPage() {
                             </Button>
                           </DropdownMenuTrigger>
 
-                          <DropdownMenuContent
-                            align="end"
-                            className="w-36"
-                          >
+                          <DropdownMenuContent align="end" className="w-36">
                             <DropdownMenuItem
                               onSelect={() => void openEdit(exam)}
                             >
                               <Pencil className="mr-2 h-3.5 w-3.5 text-emerald-500" />
-                              Edit
+                              Edit & Soal
                             </DropdownMenuItem>
 
                             <DropdownMenuItem
@@ -1434,7 +1879,269 @@ export default function AdminExamsPage() {
         )}
       </Card>
 
-      {/* MODAL TAMBAH / EDIT PAKET */}
+      {/* =================================================
+          DIALOG IMPOR MASSAL
+      ================================================= */}
+
+      <Dialog
+        open={bulkOpen}
+        onOpenChange={(open) => {
+          if (!open && !bulkSaving && !bulkParsing) resetBulk();
+        }}
+      >
+        <DialogContent className="max-h-[90vh] max-w-5xl overflow-y-auto rounded-2xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-base font-extrabold">
+              <FileSpreadsheet className="h-5 w-5 text-emerald-600" />
+              Impor Massal Paket Ujian
+            </DialogTitle>
+            <DialogDescription className="text-xs">
+              Tambahkan maksimal 500 paket sekaligus. Semua paket
+              otomatis disimpan sebagai Draft.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-4">
+              <div className="flex items-start gap-3">
+                <ClipboardList className="mt-0.5 h-5 w-5 shrink-0 text-emerald-600" />
+                <div>
+                  <p className="text-xs font-extrabold">
+                    Alur impor paket
+                  </p>
+                  <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">
+                    Excel hanya berisi identitas paket. Soal tidak
+                    dimasukkan pada tahap ini. Setelah paket tersimpan,
+                    buka menu Edit untuk menambahkan soal secara manual
+                    atau melalui Excel.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <p className="text-xs font-bold">
+                  1. Siapkan template Excel
+                </p>
+                <p className="mt-1 text-[11px] text-muted-foreground">
+                  Gunakan template resmi agar kolom terbaca dengan benar.
+                </p>
+              </div>
+
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={downloadPackageTemplate}
+                className="rounded-lg"
+              >
+                <Download className="mr-2 h-4 w-4" />
+                Unduh Template Paket
+              </Button>
+            </div>
+
+            <div className="space-y-2">
+              <Label className="text-xs font-bold">
+                2. Upload file Excel
+              </Label>
+
+              <Input
+                type="file"
+                accept=".xlsx,.xls"
+                disabled={bulkParsing || bulkSaving}
+                onChange={(e) => {
+                  const file = e.target.files?.[0] || null;
+                  void handleBulkFile(file);
+                  e.currentTarget.value = "";
+                }}
+                className="h-11 rounded-xl"
+              />
+
+              <p className="text-[10px] text-muted-foreground">
+                Format .xlsx atau .xls, maksimal 10 MB dan 500 baris paket.
+              </p>
+
+              {bulkFile && (
+                <div className="flex items-center gap-2 rounded-lg border bg-muted/30 p-3">
+                  <FileSpreadsheet className="h-4 w-4 text-emerald-600" />
+                  <span className="min-w-0 flex-1 truncate text-xs font-semibold">
+                    {bulkFile.name}
+                  </span>
+                  <Button
+                    type="button"
+                    size="icon"
+                    variant="ghost"
+                    disabled={bulkSaving || bulkParsing}
+                    onClick={() => {
+                      setBulkFile(null);
+                      setBulkRows([]);
+                    }}
+                  >
+                    <X className="h-4 w-4" />
+                  </Button>
+                </div>
+              )}
+            </div>
+
+            {bulkParsing && (
+              <div className="flex items-center gap-2 rounded-xl border border-sky-500/20 bg-sky-500/5 p-4 text-xs font-semibold text-sky-600">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Membaca dan memvalidasi file Excel...
+              </div>
+            )}
+
+            {bulkRows.length > 0 && !bulkParsing && (
+              <div className="space-y-3">
+                <div className="grid gap-3 sm:grid-cols-3">
+                  <div className="rounded-xl border p-3">
+                    <p className="text-[11px] text-muted-foreground">
+                      Total paket
+                    </p>
+                    <p className="mt-1 text-2xl font-black">
+                      {bulkRows.length}
+                    </p>
+                  </div>
+
+                  <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-3">
+                    <p className="text-[11px] text-emerald-600">
+                      Siap diimpor
+                    </p>
+                    <p className="mt-1 text-2xl font-black text-emerald-600">
+                      {validBulkRows.length}
+                    </p>
+                  </div>
+
+                  <div className="rounded-xl border border-red-500/20 bg-red-500/5 p-3">
+                    <p className="text-[11px] text-red-600">
+                      Perlu diperbaiki
+                    </p>
+                    <p className="mt-1 text-2xl font-black text-red-600">
+                      {invalidBulkRows.length}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="overflow-hidden rounded-xl border">
+                  <div className="flex items-center justify-between gap-2 border-b bg-muted/40 p-3">
+                    <div>
+                      <p className="text-xs font-extrabold">
+                        Preview paket
+                      </p>
+                      <p className="text-[10px] text-muted-foreground">
+                        Periksa data sebelum menyimpan.
+                      </p>
+                    </div>
+                    <Badge variant="outline">
+                      Maks. {MAX_BULK_PACKAGES}
+                    </Badge>
+                  </div>
+
+                  <div className="max-h-[320px] overflow-auto">
+                    <table className="w-full text-left text-[11px]">
+                      <thead className="sticky top-0 bg-muted text-muted-foreground">
+                        <tr>
+                          <th className="p-3">Baris</th>
+                          <th className="p-3">Judul</th>
+                          <th className="p-3">Jenjang</th>
+                          <th className="p-3">Mapel</th>
+                          <th className="p-3">Soal</th>
+                          <th className="p-3">Validasi</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y">
+                        {bulkRows.map((row, index) => (
+                          <tr key={`${row.title}-${index}`}>
+                            <td className="p-3">{index + 1}</td>
+                            <td className="min-w-[180px] p-3 font-semibold">
+                              {row.title || "-"}
+                            </td>
+                            <td className="p-3">
+                              {row.level} / {row.grade}
+                            </td>
+                            <td className="p-3">{row.subject || "-"}</td>
+                            <td className="p-3">{row.questionCount || "-"}</td>
+                            <td className="min-w-[180px] p-3">
+                              {row.errors.length === 0 ? (
+                                <Badge className="bg-emerald-600 text-white">
+                                  Valid
+                                </Badge>
+                              ) : (
+                                <div className="space-y-1">
+                                  <Badge variant="destructive">
+                                    {row.errors.length} kesalahan
+                                  </Badge>
+                                  {row.errors.map((message) => (
+                                    <p
+                                      key={message}
+                                      className="text-[10px] text-red-500"
+                                    >
+                                      {message}
+                                    </p>
+                                  ))}
+                                </div>
+                              )}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+
+                <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-3 text-[11px] leading-relaxed text-muted-foreground">
+                  <p className="font-bold text-amber-600">
+                    Semua paket akan berstatus Draft
+                  </p>
+                  Paket belum bisa dilihat atau dikerjakan siswa. Kamu
+                  perlu membuka menu Edit, menambahkan soal, menyimpan,
+                  lalu menerbitkan paket setelah lengkap.
+                </div>
+              </div>
+            )}
+          </div>
+
+          <DialogFooter className="gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={resetBulk}
+              disabled={bulkSaving || bulkParsing}
+              className="rounded-xl"
+            >
+              Batal
+            </Button>
+
+            <Button
+              type="button"
+              onClick={saveBulkPackages}
+              disabled={
+                bulkSaving ||
+                bulkParsing ||
+                bulkRows.length === 0 ||
+                invalidBulkRows.length > 0
+              }
+              className="rounded-xl bg-emerald-600 font-bold text-white hover:bg-emerald-700"
+            >
+              {bulkSaving ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Mengimpor...
+                </>
+              ) : (
+                <>
+                  <Upload className="mr-2 h-4 w-4" />
+                  Impor {validBulkRows.length} Paket sebagai Draft
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* =================================================
+          DIALOG TAMBAH / EDIT PAKET
+      ================================================= */}
 
       <Dialog
         open={!!draft}
@@ -1444,26 +2151,24 @@ export default function AdminExamsPage() {
           }
         }}
       >
-        <DialogContent className="max-h-[90vh] max-w-3xl overflow-y-auto rounded-2xl">
+        <DialogContent className="max-h-[90vh] max-w-4xl overflow-y-auto rounded-2xl">
           {draft && (
             <>
               <DialogHeader>
                 <DialogTitle className="text-base font-extrabold">
-                  {draft.id
-                    ? "Edit Paket Ujian"
-                    : "Tambah Paket Ujian Baru"}
+                  {draft.id ? "Edit Paket & Kelola Soal" : "Buat Paket Ujian"}
                 </DialogTitle>
-
                 <DialogDescription className="text-xs">
-                  Atur identitas akademik, jadwal, informasi paket,
-                  dan soal Excel beserta gambar per nomor.
+                  {draft.id
+                    ? "Perbarui informasi paket dan kelola soal sebelum diterbitkan."
+                    : "Paket baru akan disimpan sebagai Draft. Soal dapat ditambahkan setelah paket dibuat."}
                 </DialogDescription>
               </DialogHeader>
 
               {loadingQuestions && (
                 <div className="flex items-center gap-2 rounded-lg border border-sky-500/20 bg-sky-500/5 p-3 text-xs font-semibold text-sky-600">
                   <Loader2 className="h-4 w-4 animate-spin" />
-                  Sedang memuat soal dan gambar dari database...
+                  Memuat soal dari database...
                 </div>
               )}
 
@@ -1475,20 +2180,15 @@ export default function AdminExamsPage() {
                     <Label htmlFor="x-title" className="font-bold">
                       Judul Ujian *
                     </Label>
-
                     <Input
                       id="x-title"
                       value={draft.title}
                       onChange={(e) =>
-                        setDraft({
-                          ...draft,
-                          title: e.target.value,
-                        })
+                        setDraft({ ...draft, title: e.target.value })
                       }
-                      placeholder="Contoh: Latihan Matematika Kelas 4"
+                      placeholder="Contoh: Simulasi TKA Matematika Kelas 6"
                       className="h-10 rounded-xl"
                     />
-
                     <FieldError message={errs.title} />
                   </div>
 
@@ -1496,7 +2196,6 @@ export default function AdminExamsPage() {
                     <Label htmlFor="x-desc" className="font-bold">
                       Deskripsi
                     </Label>
-
                     <Textarea
                       id="x-desc"
                       value={draft.description}
@@ -1506,7 +2205,7 @@ export default function AdminExamsPage() {
                           description: e.target.value,
                         })
                       }
-                      placeholder="Tuliskan deskripsi singkat paket ujian..."
+                      placeholder="Deskripsi singkat paket ujian..."
                       className="rounded-xl text-xs"
                     />
                   </div>
@@ -1516,21 +2215,17 @@ export default function AdminExamsPage() {
 
                 <div className="space-y-3 rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-4">
                   <div>
-                    <h3 className="font-extrabold text-foreground">
+                    <h3 className="font-extrabold">
                       Identitas Akademik
                     </h3>
                     <p className="mt-1 text-[11px] text-muted-foreground">
-                      Tentukan sasaran jenjang, kelas, mata pelajaran,
-                      dan jenis ujian.
+                      Tentukan jenjang, kelas, mapel, dan jenis ujian.
                     </p>
                   </div>
 
                   <div className="grid gap-3 sm:grid-cols-2">
                     <div className="space-y-1">
-                      <Label className="font-bold">
-                        Jenjang Pendidikan *
-                      </Label>
-
+                      <Label className="font-bold">Jenjang *</Label>
                       <Select
                         value={draft.level}
                         onValueChange={(value) => {
@@ -1545,9 +2240,8 @@ export default function AdminExamsPage() {
                         }}
                       >
                         <SelectTrigger className="h-10 rounded-xl bg-background">
-                          <SelectValue placeholder="Pilih jenjang" />
+                          <SelectValue />
                         </SelectTrigger>
-
                         <SelectContent>
                           {LEVELS.map((item) => (
                             <SelectItem key={item} value={item}>
@@ -1560,7 +2254,6 @@ export default function AdminExamsPage() {
 
                     <div className="space-y-1">
                       <Label className="font-bold">Kelas *</Label>
-
                       <Select
                         value={String(draft.grade)}
                         onValueChange={(value) =>
@@ -1571,9 +2264,8 @@ export default function AdminExamsPage() {
                         }
                       >
                         <SelectTrigger className="h-10 rounded-xl bg-background">
-                          <SelectValue placeholder="Pilih kelas" />
+                          <SelectValue />
                         </SelectTrigger>
-
                         <SelectContent>
                           {(GRADES_BY_LEVEL[draft.level] ?? []).map(
                             (grade) => (
@@ -1587,7 +2279,6 @@ export default function AdminExamsPage() {
                           )}
                         </SelectContent>
                       </Select>
-
                       <FieldError message={errs.grade} />
                     </div>
 
@@ -1595,55 +2286,39 @@ export default function AdminExamsPage() {
                       <Label className="font-bold">
                         Mata Pelajaran *
                       </Label>
-
                       <Select
                         value={draft.subject}
                         onValueChange={(value) =>
-                          setDraft({
-                            ...draft,
-                            subject: value,
-                          })
+                          setDraft({ ...draft, subject: value })
                         }
                       >
                         <SelectTrigger className="h-10 rounded-xl bg-background">
-                          <SelectValue placeholder="Pilih mata pelajaran" />
+                          <SelectValue />
                         </SelectTrigger>
-
                         <SelectContent>
                           {(SUBJECTS_BY_LEVEL[draft.level] ?? []).map(
                             (subject) => (
-                              <SelectItem
-                                key={subject}
-                                value={subject}
-                              >
+                              <SelectItem key={subject} value={subject}>
                                 {subject}
                               </SelectItem>
                             )
                           )}
                         </SelectContent>
                       </Select>
-
                       <FieldError message={errs.subject} />
                     </div>
 
                     <div className="space-y-1">
-                      <Label className="font-bold">
-                        Jenis Ujian *
-                      </Label>
-
+                      <Label className="font-bold">Jenis Ujian *</Label>
                       <Select
                         value={draft.examType}
                         onValueChange={(value) =>
-                          setDraft({
-                            ...draft,
-                            examType: value,
-                          })
+                          setDraft({ ...draft, examType: value })
                         }
                       >
                         <SelectTrigger className="h-10 rounded-xl bg-background">
-                          <SelectValue placeholder="Pilih jenis ujian" />
+                          <SelectValue />
                         </SelectTrigger>
-
                         <SelectContent>
                           {EXAM_TYPES.map((type) => (
                             <SelectItem key={type} value={type}>
@@ -1652,7 +2327,6 @@ export default function AdminExamsPage() {
                           ))}
                         </SelectContent>
                       </Select>
-
                       <FieldError message={errs.examType} />
                     </div>
 
@@ -1660,20 +2334,15 @@ export default function AdminExamsPage() {
                       <Label className="font-bold">
                         Kategori Tambahan
                       </Label>
-
                       <Select
                         value={draft.category}
                         onValueChange={(value) =>
-                          setDraft({
-                            ...draft,
-                            category: value,
-                          })
+                          setDraft({ ...draft, category: value })
                         }
                       >
                         <SelectTrigger className="h-10 rounded-xl bg-background">
-                          <SelectValue placeholder="Pilih kategori tambahan" />
+                          <SelectValue />
                         </SelectTrigger>
-
                         <SelectContent>
                           {categories.map((category) => (
                             <SelectItem
@@ -1683,10 +2352,8 @@ export default function AdminExamsPage() {
                               {category.name}
                             </SelectItem>
                           ))}
-
                           {!categories.some(
-                            (category) =>
-                              category.name === draft.category
+                            (category) => category.name === draft.category
                           ) &&
                             draft.category && (
                               <SelectItem value={draft.category}>
@@ -1695,18 +2362,12 @@ export default function AdminExamsPage() {
                             )}
                         </SelectContent>
                       </Select>
-
-                      <p className="text-[10px] text-muted-foreground">
-                        Dipertahankan untuk kompatibilitas kategori
-                        dan proses impor soal Excel lama.
-                      </p>
                     </div>
 
                     <div className="space-y-1 sm:col-span-2">
                       <Label className="font-bold">
                         Tingkat Kesulitan
                       </Label>
-
                       <Select
                         value={draft.difficulty}
                         onValueChange={(value) =>
@@ -1719,7 +2380,6 @@ export default function AdminExamsPage() {
                         <SelectTrigger className="h-10 rounded-xl bg-background">
                           <SelectValue />
                         </SelectTrigger>
-
                         <SelectContent>
                           {DIFFICULTIES.map((difficulty) => (
                             <SelectItem
@@ -1742,11 +2402,10 @@ export default function AdminExamsPage() {
                     <div className="space-y-1">
                       <Label
                         htmlFor="x-start"
-                        className="font-bold text-emerald-600 dark:text-emerald-400"
+                        className="font-bold text-emerald-600"
                       >
-                        📅 Tanggal & Jam Mulai *
+                        Tanggal & Jam Mulai
                       </Label>
-
                       <Input
                         id="x-start"
                         type="datetime-local"
@@ -1759,23 +2418,15 @@ export default function AdminExamsPage() {
                         }
                         className="h-10 rounded-xl bg-background"
                       />
-
-                      <p className="text-[10px] text-muted-foreground">
-                        Jika diatur ke masa depan, paket menjadi
-                        Akan Datang.
-                      </p>
-
-                      <FieldError message={errs.startTime} />
                     </div>
 
                     <div className="space-y-1">
                       <Label
                         htmlFor="x-end"
-                        className="font-bold text-amber-600 dark:text-amber-400"
+                        className="font-bold text-amber-600"
                       >
-                        🏁 Tanggal & Jam Selesai
+                        Tanggal & Jam Selesai
                       </Label>
-
                       <Input
                         id="x-end"
                         type="datetime-local"
@@ -1787,18 +2438,11 @@ export default function AdminExamsPage() {
                             endTime: e.target.value,
                           })
                         }
-                        className="h-10 rounded-xl bg-background disabled:cursor-not-allowed disabled:opacity-50"
+                        className="h-10 rounded-xl bg-background"
                       />
-
                       {!draft.noEndDate && (
                         <FieldError message={errs.endTime} />
                       )}
-
-                      <p className="text-[10px] text-muted-foreground">
-                        {draft.noEndDate
-                          ? "Paket tidak memiliki batas tanggal akhir."
-                          : "Tentukan kapan paket ujian berakhir."}
-                      </p>
                     </div>
                   </div>
 
@@ -1816,18 +2460,15 @@ export default function AdminExamsPage() {
                         })
                       }
                     />
-
-                    <div className="space-y-1">
+                    <div>
                       <Label
                         htmlFor="x-no-end"
-                        className="cursor-pointer font-extrabold text-emerald-600 dark:text-emerald-400"
+                        className="cursor-pointer font-extrabold text-emerald-600"
                       >
                         Terbit Selamanya
                       </Label>
-
-                      <p className="text-[11px] leading-relaxed text-muted-foreground">
-                        Aktifkan agar paket ujian tidak memiliki
-                        tanggal kedaluwarsa.
+                      <p className="mt-1 text-[11px] text-muted-foreground">
+                        Paket tidak memiliki batas tanggal akhir.
                       </p>
                     </div>
                   </div>
@@ -1840,7 +2481,6 @@ export default function AdminExamsPage() {
                     <Label htmlFor="x-dur" className="font-bold">
                       Durasi (Menit) *
                     </Label>
-
                     <Input
                       id="x-dur"
                       type="number"
@@ -1855,15 +2495,13 @@ export default function AdminExamsPage() {
                       }
                       className="h-10 rounded-xl"
                     />
-
                     <FieldError message={errs.duration} />
                   </div>
 
                   <div className="space-y-1">
                     <Label htmlFor="x-cnt" className="font-bold">
-                      Jumlah Soal *
+                      Jumlah Soal yang Direncanakan *
                     </Label>
-
                     <Input
                       id="x-cnt"
                       type="number"
@@ -1878,109 +2516,140 @@ export default function AdminExamsPage() {
                       }
                       className="h-10 rounded-xl"
                     />
-
                     <FieldError message={errs.questionCount} />
                   </div>
                 </div>
 
-                {/* UPLOAD EXCEL */}
+                {/* PENGATURAN PREMIUM */}
 
-                <div className="space-y-3 rounded-xl border border-dashed border-emerald-500/40 bg-emerald-500/5 p-4">
+                <div className="flex items-center gap-3 rounded-xl border p-3">
+                  <Switch
+                    id="x-prem"
+                    checked={draft.premium}
+                    onCheckedChange={(value) =>
+                      setDraft({ ...draft, premium: value })
+                    }
+                  />
                   <div>
-                    <Label className="flex items-center gap-2 font-bold text-emerald-600 dark:text-emerald-400">
-                      <FileSpreadsheet className="h-4 w-4" />
-                      Upload File Excel Soal (Opsional)
+                    <Label
+                      htmlFor="x-prem"
+                      className="cursor-pointer font-bold"
+                    >
+                      Paket Premium
                     </Label>
-
-                    <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">
-                      Soal dari Excel akan ditambahkan setelah soal
-                      yang sudah tersimpan. Soal lama tidak diganti.
+                    <p className="text-[10px] text-muted-foreground">
+                      Hanya siswa dengan akses Premium yang dapat
+                      mengerjakan paket ini sesuai aturan akses GradeUp.
                     </p>
                   </div>
-
-                  <Input
-                    type="file"
-                    accept=".xlsx,.xls"
-                    disabled={
-                      parsingExcel || saving || loadingQuestions
-                    }
-                    onChange={(e) => {
-                      const file = e.target.files?.[0] || null;
-                      void handleExcelChange(file);
-                      e.currentTarget.value = "";
-                    }}
-                    className="h-10 rounded-xl bg-background"
-                  />
-
-                  {errs.excelFile && (
-                    <p className="text-xs font-medium text-destructive">
-                      {errs.excelFile}
-                    </p>
-                  )}
-
-                  {parsingExcel && (
-                    <div className="flex items-center gap-2 rounded-lg bg-background p-3 text-xs font-semibold text-emerald-600">
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                      Sedang membaca dan memvalidasi soal Excel...
-                    </div>
-                  )}
-
-                  {draft.excelFile && !parsingExcel && (
-                    <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-emerald-500/20 bg-background p-3">
-                      <div className="min-w-0">
-                        <p className="truncate text-xs font-bold text-emerald-600">
-                          {draft.excelFile.name}
-                        </p>
-                        <p className="mt-1 text-[10px] text-muted-foreground">
-                          {questionPreview.filter(
-                            (question) => !question.isExisting
-                          ).length}{" "}
-                          soal baru berhasil dibaca
-                        </p>
-                      </div>
-
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="outline"
-                        disabled={saving}
-                        onClick={clearImportedQuestions}
-                        className="rounded-lg text-xs"
-                      >
-                        <X className="mr-1 h-3.5 w-3.5" />
-                        Hapus Impor
-                      </Button>
-                    </div>
-                  )}
                 </div>
 
-                {/* DAFTAR DAN EDITOR SOAL */}
+                {/* STATUS DRAFT */}
 
-                {(questionPreview.length > 0 || loadingQuestions) && (
-                  <div className="space-y-4">
-                    <div className="flex flex-wrap items-center justify-between gap-2">
+                <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-3">
+                  <div className="flex items-center gap-2 text-xs font-extrabold text-amber-600">
+                    <FileText className="h-4 w-4" />
+                    Status Draft
+                  </div>
+                  <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">
+                    {draft.published
+                      ? "Paket ini sudah diterbitkan. Menyimpan perubahan tidak akan mengubah status publikasinya."
+                      : "Paket belum terlihat oleh siswa. Lengkapi soal terlebih dahulu, kemudian gunakan tombol Terbitkan."}
+                  </p>
+                </div>
+
+                {/* EDITOR SOAL: HANYA UNTUK PAKET YANG SUDAH TERSIMPAN */}
+
+                {draft.id && (
+                  <div className="space-y-4 border-t pt-5">
+                    <div className="flex flex-wrap items-center justify-between gap-3">
                       <div>
-                        <h3 className="flex items-center gap-2 font-extrabold text-foreground">
+                        <h3 className="flex items-center gap-2 font-extrabold">
                           <Eye className="h-4 w-4 text-emerald-600" />
-                          Daftar dan Editor Soal
+                          Kelola Soal
                         </h3>
-
                         <p className="mt-1 text-[11px] text-muted-foreground">
-                          Periksa dan edit isi soal, pilihan jawaban,
-                          kunci, pembahasan, serta gambar.
+                          Tambahkan soal satu per satu atau impor dari Excel.
                         </p>
                       </div>
 
                       <Badge className="bg-emerald-600 text-white">
-                        {questionPreview.length} Soal
+                        {questionPreview.length}/{draft.questionCount} Soal
                       </Badge>
+                    </div>
+
+                    <div className="flex flex-wrap gap-2">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        disabled={saving || parsingExcel || loadingQuestions}
+                        onClick={() =>
+                          setQuestionPreview((current) => [
+                            ...current,
+                            createBlankQuestion(draft.category),
+                          ])
+                        }
+                        className="rounded-lg"
+                      >
+                        <Plus className="mr-2 h-4 w-4" />
+                        Tambah Soal Manual
+                      </Button>
+
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        disabled={saving || parsingExcel || loadingQuestions}
+                        onClick={downloadQuestionTemplate}
+                        className="rounded-lg"
+                      >
+                        <Download className="mr-2 h-4 w-4" />
+                        Template Soal
+                      </Button>
+                    </div>
+
+                    <div className="space-y-2 rounded-xl border border-dashed border-emerald-500/40 bg-emerald-500/5 p-4">
+                      <Label className="flex items-center gap-2 font-bold text-emerald-600">
+                        <FileSpreadsheet className="h-4 w-4" />
+                        Impor Soal dari Excel
+                      </Label>
+                      <p className="text-[11px] text-muted-foreground">
+                        Soal Excel akan ditambahkan ke daftar. Soal yang
+                        sudah tersimpan tidak akan dihapus.
+                      </p>
+                      <Input
+                        type="file"
+                        accept=".xlsx,.xls"
+                        disabled={
+                          parsingExcel || saving || loadingQuestions
+                        }
+                        onChange={(e) => {
+                          const file = e.target.files?.[0] || null;
+                          void handleQuestionExcel(file);
+                          e.currentTarget.value = "";
+                        }}
+                        className="h-10 rounded-xl bg-background"
+                      />
+
+                      {parsingExcel && (
+                        <div className="flex items-center gap-2 text-xs font-semibold text-emerald-600">
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                          Membaca Excel soal...
+                        </div>
+                      )}
                     </div>
 
                     {questionPreview.length === 0 &&
                       !loadingQuestions && (
-                        <div className="rounded-xl border border-dashed p-5 text-center text-xs text-muted-foreground">
-                          Belum ada soal. Impor file Excel untuk
-                          menambahkan soal.
+                        <div className="rounded-xl border border-dashed p-6 text-center">
+                          <BookOpen className="mx-auto h-8 w-8 text-muted-foreground" />
+                          <p className="mt-2 text-xs font-bold">
+                            Belum ada soal
+                          </p>
+                          <p className="mt-1 text-[11px] text-muted-foreground">
+                            Tambahkan soal manual atau impor melalui Excel.
+                          </p>
                         </div>
                       )}
 
@@ -1993,18 +2662,14 @@ export default function AdminExamsPage() {
                         return (
                           <Card
                             key={question.id || `new-${index}`}
-                            className="overflow-hidden rounded-xl border border-border bg-card shadow-sm"
+                            className="overflow-hidden rounded-xl border"
                           >
                             <CardContent className="space-y-4 p-4">
                               <div className="flex flex-wrap items-center justify-between gap-2">
                                 <div className="flex items-center gap-2">
-                                  <Badge
-                                    variant="outline"
-                                    className="font-bold"
-                                  >
-                                    Soal Nomor {index + 1}
+                                  <Badge variant="outline">
+                                    Soal {index + 1}
                                   </Badge>
-
                                   <Badge
                                     variant="outline"
                                     className={
@@ -2014,26 +2679,30 @@ export default function AdminExamsPage() {
                                     }
                                   >
                                     {question.isExisting
-                                      ? "Soal tersimpan"
-                                      : "Soal baru"}
+                                      ? "Tersimpan"
+                                      : "Belum disimpan"}
                                   </Badge>
                                 </div>
 
-                                <Badge
-                                  variant="outline"
-                                  className="border-emerald-500/30 text-emerald-600"
-                                >
-                                  Kunci: {question.correct_answer}
-                                </Badge>
+                                {!question.isExisting && (
+                                  <Button
+                                    type="button"
+                                    size="sm"
+                                    variant="ghost"
+                                    disabled={saving}
+                                    onClick={() => removeQuestion(index)}
+                                    className="text-red-500 hover:text-red-600"
+                                  >
+                                    <Trash2 className="mr-1 h-3.5 w-3.5" />
+                                    Hapus
+                                  </Button>
+                                )}
                               </div>
 
-                              {/* PERTANYAAN */}
-
                               <div className="space-y-2">
-                                <Label className="text-xs font-bold">
+                                <Label className="font-bold">
                                   Pertanyaan
                                 </Label>
-
                                 <Textarea
                                   value={question.question_text}
                                   onChange={(e) =>
@@ -2043,26 +2712,21 @@ export default function AdminExamsPage() {
                                   }
                                   className="min-h-20 rounded-lg bg-background text-sm"
                                 />
-
                                 <FieldError
                                   message={errs[`question_${index}`]}
                                 />
                               </div>
 
-                              {/* PILIHAN JAWABAN */}
-
                               <div className="space-y-2">
-                                <Label className="text-xs font-bold">
+                                <Label className="font-bold">
                                   Pilihan Jawaban
                                 </Label>
-
                                 <div className="grid gap-2 sm:grid-cols-2">
                                   {question.options.map((option) => (
                                     <div
                                       key={option.id}
                                       className={`rounded-lg border p-2 ${
-                                        option.id ===
-                                        question.correct_answer
+                                        option.id === question.correct_answer
                                           ? "border-emerald-500/40 bg-emerald-500/5"
                                           : "border-border bg-muted/20"
                                       }`}
@@ -2070,7 +2734,6 @@ export default function AdminExamsPage() {
                                       <Label className="mb-1 block text-[10px] font-bold">
                                         Pilihan {option.id}
                                       </Label>
-
                                       <Textarea
                                         value={option.text}
                                         onChange={(e) =>
@@ -2085,20 +2748,16 @@ export default function AdminExamsPage() {
                                     </div>
                                   ))}
                                 </div>
-
                                 <FieldError
                                   message={errs[`options_${index}`]}
                                 />
                               </div>
 
-                              {/* KUNCI DAN STATUS */}
-
                               <div className="grid gap-3 sm:grid-cols-2">
                                 <div className="space-y-1">
-                                  <Label className="text-xs font-bold">
+                                  <Label className="font-bold">
                                     Kunci Jawaban
                                   </Label>
-
                                   <Select
                                     value={question.correct_answer}
                                     onValueChange={(value) =>
@@ -2110,61 +2769,45 @@ export default function AdminExamsPage() {
                                     <SelectTrigger className="h-10 rounded-lg bg-background">
                                       <SelectValue />
                                     </SelectTrigger>
-
                                     <SelectContent>
-                                      {question.options.map(
-                                        (option) => (
-                                          <SelectItem
-                                            key={option.id}
-                                            value={option.id}
-                                          >
-                                            {option.id}
-                                          </SelectItem>
-                                        )
-                                      )}
+                                      {question.options.map((option) => (
+                                        <SelectItem
+                                          key={option.id}
+                                          value={option.id}
+                                        >
+                                          {option.id}
+                                        </SelectItem>
+                                      ))}
                                     </SelectContent>
                                   </Select>
-
                                   <FieldError
                                     message={errs[`answer_${index}`]}
                                   />
                                 </div>
 
                                 <div className="space-y-1">
-                                  <Label className="text-xs font-bold">
+                                  <Label className="font-bold">
                                     Status Soal
                                   </Label>
-
                                   <div className="flex h-10 items-center">
-                                    <Badge
-                                      variant="outline"
-                                      className={
-                                        question.isExisting
-                                          ? "border-sky-500/30 text-sky-600"
-                                          : "border-emerald-500/30 text-emerald-600"
-                                      }
-                                    >
+                                    <Badge variant="outline">
                                       {question.isExisting
                                         ? "Sudah tersimpan"
-                                        : "Akan ditambahkan"}
+                                        : "Akan disimpan"}
                                     </Badge>
                                   </div>
                                 </div>
                               </div>
 
-                              {/* PEMBAHASAN */}
-
                               <div className="space-y-2">
-                                <Label className="text-xs font-bold">
+                                <Label className="font-bold">
                                   Pembahasan
                                 </Label>
-
                                 <Textarea
                                   value={question.explanation || ""}
                                   onChange={(e) =>
                                     updateQuestion(index, {
-                                      explanation:
-                                        e.target.value || null,
+                                      explanation: e.target.value || null,
                                     })
                                   }
                                   placeholder="Tuliskan pembahasan soal..."
@@ -2172,101 +2815,60 @@ export default function AdminExamsPage() {
                                 />
                               </div>
 
-                              {/* PENGATURAN GAMBAR */}
-
-                              <div className="border-t border-border pt-3">
+                              <div className="border-t pt-3">
                                 <div className="flex items-center gap-3">
                                   <Switch
                                     id={`question-image-${index}`}
                                     checked={question.image_enabled}
-                                    onCheckedChange={(checked) => {
-                                      updateQuestionImage(index, {
+                                    onCheckedChange={(checked) =>
+                                      updateQuestion(index, {
                                         image_enabled: checked,
-                                      });
-
-                                      setErrs((current) => {
-                                        const next = { ...current };
-                                        delete next[`image_${index}`];
-                                        return next;
-                                      });
-                                    }}
+                                      })
+                                    }
                                   />
-
                                   <Label
                                     htmlFor={`question-image-${index}`}
-                                    className="flex cursor-pointer items-center gap-2 text-xs font-bold"
+                                    className="flex cursor-pointer items-center gap-2 font-bold"
                                   >
                                     <ImageIcon className="h-4 w-4 text-emerald-600" />
-                                    Tambahkan gambar pada soal ini
+                                    Tambahkan gambar
                                   </Label>
                                 </div>
 
                                 {question.image_enabled && (
                                   <div className="mt-3 space-y-2">
-                                    <Label
-                                      htmlFor={`question-image-url-${index}`}
-                                      className="text-xs font-semibold"
-                                    >
+                                    <Label className="font-semibold">
                                       URL Gambar
                                     </Label>
-
                                     <Input
-                                      id={`question-image-url-${index}`}
                                       type="url"
                                       value={imageUrl}
-                                      onChange={(e) => {
-                                        updateQuestionImage(index, {
+                                      onChange={(e) =>
+                                        updateQuestion(index, {
                                           image_url: e.target.value,
-                                        });
-
-                                        setErrs((current) => {
-                                          const next = { ...current };
-                                          delete next[`image_${index}`];
-                                          return next;
-                                        });
-                                      }}
-                                      placeholder="https://contoh.com/gambar-soal.jpg"
-                                      className="h-10 rounded-lg bg-background text-xs"
+                                        })
+                                      }
+                                      placeholder="https://contoh.com/gambar.jpg"
+                                      className="h-10 rounded-lg bg-background"
                                     />
 
                                     {errs[`image_${index}`] && (
-                                      <p className="text-xs font-medium text-destructive">
+                                      <p className="text-xs text-destructive">
                                         {errs[`image_${index}`]}
                                       </p>
                                     )}
 
-                                    <p className="text-[10px] text-muted-foreground">
-                                      Masukkan URL gambar langsung
-                                      yang dapat diakses melalui browser.
-                                    </p>
-
-                                    {imageUrl && (
-                                      <div className="overflow-hidden rounded-xl border border-border bg-muted/20 p-2">
+                                    {imageUrl && isValidImageUrl(imageUrl) && (
+                                      <div className="rounded-xl border bg-muted/20 p-2">
                                         <p className="mb-2 text-[10px] font-bold text-muted-foreground">
                                           PREVIEW GAMBAR
                                         </p>
-
-                                        {isValidImageUrl(imageUrl) ? (
-                                          <img
-                                            src={imageUrl}
-                                            alt={`Gambar soal nomor ${index + 1}`}
-                                            loading="lazy"
-                                            className="max-h-64 max-w-full rounded-lg object-contain"
-                                            onError={(e) => {
-                                              e.currentTarget.style.display =
-                                                "none";
-                                            }}
-                                            onLoad={(e) => {
-                                              e.currentTarget.style.display =
-                                                "block";
-                                            }}
-                                          />
-                                        ) : (
-                                          <p className="text-xs text-amber-600">
-                                            URL belum valid. Periksa
-                                            kembali alamat gambar.
-                                          </p>
-                                        )}
+                                        <img
+                                          src={imageUrl}
+                                          alt={`Gambar soal ${index + 1}`}
+                                          loading="lazy"
+                                          className="max-h-64 max-w-full rounded-lg object-contain"
+                                        />
                                       </div>
                                     )}
                                   </div>
@@ -2278,64 +2880,54 @@ export default function AdminExamsPage() {
                       })}
                     </div>
 
-                    {/* RINGKASAN */}
-
                     <div className="rounded-xl border border-sky-500/20 bg-sky-500/5 p-3">
-                      <div className="flex items-center gap-2 text-xs font-bold text-sky-600 dark:text-sky-400">
+                      <div className="flex items-center gap-2 font-bold text-sky-600">
                         <ImageIcon className="h-4 w-4" />
-                        Ringkasan Soal dan Gambar
+                        Ringkasan Soal
                       </div>
-
-                      <div className="mt-2 grid grid-cols-2 gap-3">
+                      <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4">
                         <div>
-                          <p className="text-lg font-black text-foreground">
+                          <p className="text-lg font-black">
+                            {questionPreview.length}
+                          </p>
+                          <p className="text-[10px] text-muted-foreground">
+                            Total soal
+                          </p>
+                        </div>
+                        <div>
+                          <p className="text-lg font-black">
                             {
-                              questionPreview.filter(
-                                (question) => question.isExisting
-                              ).length
+                              questionPreview.filter((item) => item.isExisting)
+                                .length
                             }
                           </p>
                           <p className="text-[10px] text-muted-foreground">
-                            Soal tersimpan
+                            Tersimpan
                           </p>
                         </div>
-
                         <div>
-                          <p className="text-lg font-black text-foreground">
+                          <p className="text-lg font-black">
                             {
-                              questionPreview.filter(
-                                (question) => !question.isExisting
-                              ).length
+                              questionPreview.filter((item) => !item.isExisting)
+                                .length
                             }
                           </p>
                           <p className="text-[10px] text-muted-foreground">
                             Soal baru
                           </p>
                         </div>
-
                         <div>
-                          <p className="text-lg font-black text-foreground">
+                          <p className="text-lg font-black">
                             {
                               questionPreview.filter(
-                                (question) =>
-                                  question.image_enabled &&
-                                  normalizeImageUrl(
-                                    question.image_url
-                                  ).length > 0
+                                (item) =>
+                                  item.image_enabled &&
+                                  normalizeImageUrl(item.image_url)
                               ).length
                             }
                           </p>
                           <p className="text-[10px] text-muted-foreground">
-                            Soal dengan gambar
-                          </p>
-                        </div>
-
-                        <div>
-                          <p className="text-lg font-black text-foreground">
-                            {questionPreview.length}
-                          </p>
-                          <p className="text-[10px] text-muted-foreground">
-                            Total soal dalam form
+                            Dengan gambar
                           </p>
                         </div>
                       </div>
@@ -2343,109 +2935,75 @@ export default function AdminExamsPage() {
 
                     <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-3 text-[11px] leading-relaxed text-muted-foreground">
                       <p className="font-bold text-amber-600">
-                        Informasi penyimpanan
+                        Syarat publikasi
                       </p>
-
-                      Perubahan soal lama akan disimpan berdasarkan
-                      ID soal. Soal dari Excel akan ditambahkan
-                      sebagai soal baru. Soal lama tidak dihapus
-                      otomatis.
+                      Jumlah soal harus tepat {draft.questionCount}. Semua
+                      pertanyaan, pilihan jawaban, dan kunci jawaban harus
+                      valid. Simpan perubahan sebelum menerbitkan paket.
                     </div>
                   </div>
                 )}
 
-                {/* PENGATURAN PUBLIKASI */}
-
-                <div className="flex flex-wrap gap-6 border-t pt-4">
-                  <div className="flex items-center gap-3">
-                    <Switch
-                      id="x-prem"
-                      checked={draft.premium}
-                      onCheckedChange={(value) =>
-                        setDraft({
-                          ...draft,
-                          premium: value,
-                        })
-                      }
-                    />
-
-                    <Label
-                      htmlFor="x-prem"
-                      className="cursor-pointer font-bold"
-                    >
-                      Fitur Premium
-                    </Label>
+                {!draft.id && (
+                  <div className="rounded-xl border border-sky-500/20 bg-sky-500/5 p-3 text-[11px] leading-relaxed text-muted-foreground">
+                    <p className="font-bold text-sky-600">
+                      Tahap pertama: simpan paket
+                    </p>
+                    Setelah paket dibuat, buka menu Edit untuk menambahkan
+                    soal. Paket baru tidak akan langsung tampil kepada siswa.
                   </div>
-
-                  <div className="flex items-center gap-3">
-                    <Switch
-                      id="x-pub"
-                      checked={draft.published}
-                      onCheckedChange={(value) =>
-                        setDraft({
-                          ...draft,
-                          published: value,
-                        })
-                      }
-                    />
-
-                    <Label
-                      htmlFor="x-pub"
-                      className="cursor-pointer font-bold text-emerald-600"
-                    >
-                      Terbitkan Langsung
-                    </Label>
-                  </div>
-                </div>
+                )}
               </div>
 
-              {/* FOOTER FORM */}
-
-              <DialogFooter className="gap-2 pt-3">
+              <DialogFooter className="flex-col gap-2 pt-3 sm:flex-row">
                 <Button
+                  type="button"
                   variant="outline"
                   onClick={resetForm}
-                  disabled={
-                    saving || parsingExcel || loadingQuestions
-                  }
+                  disabled={saving || parsingExcel || loadingQuestions}
                   className="rounded-xl"
                 >
-                  Batal
+                  Tutup
                 </Button>
 
                 <Button
-                  onClick={save}
-                  disabled={
-                    saving || parsingExcel || loadingQuestions
-                  }
-                  className="rounded-xl bg-emerald-600 font-bold text-white hover:bg-emerald-700"
+                  type="button"
+                  onClick={() => void save(false)}
+                  disabled={saving || parsingExcel || loadingQuestions}
+                  className="rounded-xl bg-slate-700 font-bold text-white hover:bg-slate-800"
                 >
                   {saving ? (
                     <>
                       <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                       Menyimpan...
                     </>
-                  ) : loadingQuestions ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Memuat soal...
-                    </>
-                  ) : parsingExcel ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Membaca Excel...
-                    </>
                   ) : (
-                    "Simpan Paket Ujian"
+                    "Simpan Draft"
                   )}
                 </Button>
+
+                {draft.id && !draft.published && (
+                  <Button
+                    type="button"
+                    onClick={() => void save(true)}
+                    disabled={saving || parsingExcel || loadingQuestions}
+                    className="rounded-xl bg-emerald-600 font-bold text-white hover:bg-emerald-700"
+                  >
+                    {saving ? (
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    ) : (
+                      <Send className="mr-2 h-4 w-4" />
+                    )}
+                    Terbitkan Paket
+                  </Button>
+                )}
               </DialogFooter>
             </>
           )}
         </DialogContent>
       </Dialog>
 
-      {/* DIALOG KONFIRMASI HAPUS */}
+      {/* DIALOG HAPUS */}
 
       <ConfirmDialog
         open={!!removing}
