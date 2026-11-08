@@ -546,7 +546,7 @@ export default function AdminQuestionsPage() {
 
           {selectedIds.length > 0 && (
             <div className="flex flex-wrap items-center gap-2">
-              <Badge variant="secondary">
+              <Badge variant="muted">
                 {selectedIds.length} soal dipilih
               </Badge>
               <Button
