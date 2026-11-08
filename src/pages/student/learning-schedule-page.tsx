@@ -532,7 +532,7 @@ export default function StudentLearningSchedulePage() {
                     </p>
                   </div>
 
-                  <Badge variant="secondary">
+                  <Badge variant="muted">
                     {selectedSubjects.length} dipilih
                   </Badge>
                 </div>
