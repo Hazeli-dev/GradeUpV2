@@ -16,6 +16,9 @@ import {
   Download,
   FileSpreadsheet,
   Loader2,
+  Image as ImageIcon,
+  X,
+  Eye,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -60,7 +63,8 @@ import { DIFFICULTIES, LEVELS } from "@/constants";
 import { supabase } from "@/lib/supabase";
 import {
   downloadQuestionTemplate,
-  parseQuestionsExcelForExam,
+  parseQuestionsExcelPreview,
+  type ExamQuestionPreview,
 } from "@/utils/excel-helpers";
 
 import type { Difficulty, ExamPackage, Level } from "@/types";
@@ -204,6 +208,20 @@ const emptyDraft: Draft = {
 };
 
 // =====================================================
+// VALIDASI URL GAMBAR
+// =====================================================
+
+const isValidImageUrl = (value: string): boolean => {
+  try {
+    const url = new URL(value);
+
+    return url.protocol === "http:" || url.protocol === "https:";
+  } catch {
+    return false;
+  }
+};
+
+// =====================================================
 // KOMPONEN UTAMA
 // =====================================================
 
@@ -224,6 +242,13 @@ export default function AdminExamsPage() {
   const [draft, setDraft] = useState<Draft | null>(null);
   const [errs, setErrs] = useState<Record<string, string>>({});
   const [removing, setRemoving] = useState<ExamPackage | null>(null);
+
+  // Preview soal hasil impor Excel.
+  const [questionPreview, setQuestionPreview] = useState<
+    ExamQuestionPreview[]
+  >([]);
+
+  const [parsingExcel, setParsingExcel] = useState(false);
 
   // =====================================================
   // FETCH DATA
@@ -261,6 +286,120 @@ export default function AdminExamsPage() {
   useEffect(() => {
     fetchData();
   }, []);
+
+  // =====================================================
+  // RESET FORM
+  // =====================================================
+
+  const resetForm = () => {
+    setDraft(null);
+    setQuestionPreview([]);
+    setErrs({});
+    setParsingExcel(false);
+  };
+
+  // =====================================================
+  // IMPORT EXCEL DAN PREVIEW
+  // =====================================================
+
+  const handleExcelChange = async (file: File | null) => {
+    if (!file || !draft) return;
+
+    const extension = file.name.split(".").pop()?.toLowerCase();
+
+    if (!["xlsx", "xls"].includes(extension || "")) {
+      toast.error("Format file harus .xlsx atau .xls.");
+      return;
+    }
+
+    if (file.size > 10 * 1024 * 1024) {
+      toast.error("Ukuran file maksimal 10 MB.");
+      return;
+    }
+
+    setParsingExcel(true);
+    setQuestionPreview([]);
+    setErrs({});
+
+    setDraft((current) =>
+      current
+        ? {
+            ...current,
+            excelFile: null,
+          }
+        : current
+    );
+
+    try {
+      const parsed = await parseQuestionsExcelPreview(
+        file,
+        draft.category
+      );
+
+      setQuestionPreview(parsed);
+
+      setDraft((current) =>
+        current
+          ? {
+              ...current,
+              excelFile: file,
+            }
+          : current
+      );
+
+      toast.success(
+        `${parsed.length} soal berhasil dibaca. Silakan periksa preview.`
+      );
+    } catch (error: any) {
+      setQuestionPreview([]);
+
+      toast.error(
+        error.message || "Gagal membaca file Excel."
+      );
+    } finally {
+      setParsingExcel(false);
+    }
+  };
+
+  // =====================================================
+  // UPDATE GAMBAR PER SOAL
+  // =====================================================
+
+  const updateQuestionImage = (
+    index: number,
+    updates: Partial<ExamQuestionPreview>
+  ) => {
+    setQuestionPreview((current) =>
+      current.map((question, questionIndex) =>
+        questionIndex === index
+          ? {
+              ...question,
+              ...updates,
+            }
+          : question
+      )
+    );
+  };
+
+  // =====================================================
+  // HAPUS HASIL IMPOR
+  // =====================================================
+
+  const clearImportedQuestions = () => {
+    setQuestionPreview([]);
+
+    setDraft((current) =>
+      current
+        ? {
+            ...current,
+            excelFile: null,
+          }
+        : current
+    );
+
+    setErrs({});
+    toast.success("Data impor berhasil dibersihkan.");
+  };
 
   // =====================================================
   // STATUS PAKET
@@ -354,11 +493,11 @@ export default function AdminExamsPage() {
   }, [items, q, level, activeTab]);
 
   // =====================================================
-  // SIMPAN / UPDATE PAKET
+  // VALIDASI FORM
   // =====================================================
 
-  const save = async () => {
-    if (!draft) return;
+  const validateDraft = (): Record<string, string> => {
+    if (!draft) return {};
 
     const validation: Record<string, string> = {};
 
@@ -416,9 +555,60 @@ export default function AdminExamsPage() {
         "Tanggal selesai tidak boleh sebelum tanggal mulai.";
     }
 
+    // Validasi impor Excel.
+    if (draft.excelFile) {
+      if (parsingExcel) {
+        validation.excelFile =
+          "Tunggu sampai proses membaca Excel selesai.";
+      }
+
+      if (questionPreview.length === 0) {
+        validation.excelFile =
+          "Belum ada soal yang berhasil dibaca.";
+      }
+
+      if (
+        questionPreview.length > 0 &&
+        questionPreview.length < draft.questionCount
+      ) {
+        validation.questionCount =
+          `Excel berisi ${questionPreview.length} soal, sedangkan paket membutuhkan ${draft.questionCount} soal.`;
+      }
+
+      questionPreview.forEach((question, index) => {
+        if (!question.image_enabled) return;
+
+        const imageUrl = (question.image_url || "").trim();
+
+        if (!imageUrl) {
+          validation[`image_${index}`] =
+            `URL gambar soal nomor ${index + 1} belum diisi.`;
+          return;
+        }
+
+        if (!isValidImageUrl(imageUrl)) {
+          validation[`image_${index}`] =
+            `URL gambar soal nomor ${index + 1} tidak valid.`;
+        }
+      });
+    }
+
+    return validation;
+  };
+
+  // =====================================================
+  // SIMPAN / UPDATE PAKET
+  // =====================================================
+
+  const save = async () => {
+    if (!draft || saving) return;
+
+    const validation = validateDraft();
+
     setErrs(validation);
 
     if (Object.keys(validation).length > 0) {
+      toast.error("Periksa kembali data yang belum valid.");
       return;
     }
 
@@ -453,6 +643,10 @@ export default function AdminExamsPage() {
     try {
       let packageId = draft.id;
 
+      // -----------------------------------------------
+      // UPDATE ATAU BUAT PAKET
+      // -----------------------------------------------
+
       if (packageId) {
         const { error: updateError } = await supabase
           .from("exam_packages")
@@ -473,33 +667,36 @@ export default function AdminExamsPage() {
         packageId = newPackage.id;
       }
 
-      // =================================================
-      // IMPORT SOAL EXCEL
-      // =================================================
+      // -----------------------------------------------
+      // SIMPAN SOAL HASIL IMPOR
+      // -----------------------------------------------
 
-      if (draft.excelFile && packageId) {
-        const parsedQuestions =
-          await parseQuestionsExcelForExam(
-            draft.excelFile,
-            packageId,
-            draft.category
-          );
+      if (
+        draft.excelFile &&
+        packageId &&
+        questionPreview.length > 0
+      ) {
+        const questionsToInsert = questionPreview.map(
+          (question) => ({
+            exam_package_id: packageId,
+            category: draft.category,
+            question_text: question.question_text,
+            options: question.options,
+            correct_answer: question.correct_answer,
+            explanation: question.explanation,
+            image_url:
+              question.image_enabled &&
+              question.image_url.trim()
+                ? question.image_url.trim()
+                : null,
+          })
+        );
 
-        if (parsedQuestions.length > 0) {
-          if (
-            parsedQuestions.length < draft.questionCount
-          ) {
-            throw new Error(
-              `Jumlah soal dalam Excel hanya ${parsedQuestions.length}, sedangkan paket membutuhkan ${draft.questionCount} soal.`
-            );
-          }
+        const { error: questionError } = await supabase
+          .from("questions")
+          .insert(questionsToInsert);
 
-          const { error: questionError } = await supabase
-            .from("questions")
-            .insert(parsedQuestions);
-
-          if (questionError) throw questionError;
-        }
+        if (questionError) throw questionError;
       }
 
       toast.success(
@@ -508,12 +705,14 @@ export default function AdminExamsPage() {
           : "Paket ujian berhasil dibuat!"
       );
 
-      setDraft(null);
-      setErrs({});
+      resetForm();
 
       await fetchData();
     } catch (err: any) {
-      toast.error("Gagal menyimpan: " + err.message);
+      toast.error(
+        "Gagal menyimpan: " +
+          (err.message || "Terjadi kesalahan.")
+      );
     } finally {
       setSaving(false);
     }
@@ -591,6 +790,7 @@ export default function AdminExamsPage() {
     const examLevel = item.level || "SMA";
 
     setErrs({});
+    setQuestionPreview([]);
 
     setDraft({
       id: exam.id,
@@ -649,6 +849,7 @@ export default function AdminExamsPage() {
 
   const openCreate = () => {
     setErrs({});
+    setQuestionPreview([]);
     setDraft({ ...emptyDraft });
   };
 
@@ -1040,13 +1241,12 @@ export default function AdminExamsPage() {
       <Dialog
         open={!!draft}
         onOpenChange={(open) => {
-          if (!open && !saving) {
-            setDraft(null);
-            setErrs({});
+          if (!open && !saving && !parsingExcel) {
+            resetForm();
           }
         }}
       >
-        <DialogContent className="max-h-[90vh] max-w-2xl overflow-y-auto rounded-2xl">
+        <DialogContent className="max-h-[90vh] max-w-3xl overflow-y-auto rounded-2xl">
           {draft && (
             <>
               <DialogHeader>
@@ -1058,7 +1258,7 @@ export default function AdminExamsPage() {
 
                 <DialogDescription className="text-xs">
                   Atur identitas akademik, jadwal, informasi paket,
-                  dan upload soal Excel.
+                  dan impor soal Excel beserta gambar per nomor.
                 </DialogDescription>
               </DialogHeader>
 
@@ -1519,35 +1719,297 @@ export default function AdminExamsPage() {
 
                 {/* UPLOAD EXCEL */}
 
-                <div className="space-y-2 rounded-xl border border-dashed border-emerald-500/40 bg-emerald-500/5 p-4">
-                  <Label className="flex items-center gap-2 font-bold text-emerald-600 dark:text-emerald-400">
-                    <FileSpreadsheet className="h-4 w-4" />
-                    Upload File Excel Soal (Opsional)
-                  </Label>
+                <div className="space-y-3 rounded-xl border border-dashed border-emerald-500/40 bg-emerald-500/5 p-4">
+                  <div>
+                    <Label className="flex items-center gap-2 font-bold text-emerald-600 dark:text-emerald-400">
+                      <FileSpreadsheet className="h-4 w-4" />
+                      Upload File Excel Soal (Opsional)
+                    </Label>
 
-                  <p className="text-[11px] text-muted-foreground">
-                    Pilih file .xlsx berisi daftar pertanyaan
-                    dan pilihan jawaban.
-                  </p>
+                    <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">
+                      Impor soal terlebih dahulu. Setelah berhasil
+                      dibaca, kamu dapat memeriksa setiap soal dan
+                      menambahkan gambar secara terpisah.
+                    </p>
+                  </div>
 
                   <Input
                     type="file"
                     accept=".xlsx,.xls"
-                    onChange={(e) =>
-                      setDraft({
-                        ...draft,
-                        excelFile: e.target.files?.[0] || null,
-                      })
-                    }
+                    disabled={parsingExcel || saving}
+                    onChange={(e) => {
+                      const file = e.target.files?.[0] || null;
+
+                      void handleExcelChange(file);
+
+                      e.currentTarget.value = "";
+                    }}
                     className="h-10 rounded-xl bg-background"
                   />
 
-                  {draft.excelFile && (
-                    <p className="text-xs font-semibold text-emerald-600">
-                      ✓ File dipilih: {draft.excelFile.name}
+                  {errs.excelFile && (
+                    <p className="text-xs font-medium text-destructive">
+                      {errs.excelFile}
                     </p>
                   )}
+
+                  {parsingExcel && (
+                    <div className="flex items-center gap-2 rounded-lg bg-background p-3 text-xs font-semibold text-emerald-600">
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      Sedang membaca dan memvalidasi soal Excel...
+                    </div>
+                  )}
+
+                  {draft.excelFile && !parsingExcel && (
+                    <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-emerald-500/20 bg-background p-3">
+                      <div className="min-w-0">
+                        <p className="truncate text-xs font-bold text-emerald-600">
+                          {draft.excelFile.name}
+                        </p>
+                        <p className="mt-1 text-[10px] text-muted-foreground">
+                          {questionPreview.length} soal berhasil dibaca
+                        </p>
+                      </div>
+
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        disabled={saving}
+                        onClick={clearImportedQuestions}
+                        className="rounded-lg text-xs"
+                      >
+                        <X className="mr-1 h-3.5 w-3.5" />
+                        Hapus Impor
+                      </Button>
+                    </div>
+                  )}
                 </div>
+
+                {/* PREVIEW SOAL */}
+
+                {questionPreview.length > 0 && (
+                  <div className="space-y-4">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <div>
+                        <h3 className="flex items-center gap-2 font-extrabold text-foreground">
+                          <Eye className="h-4 w-4 text-emerald-600" />
+                          Preview Soal
+                        </h3>
+
+                        <p className="mt-1 text-[11px] text-muted-foreground">
+                          Periksa isi soal dan aktifkan gambar
+                          secara individual pada nomor yang membutuhkannya.
+                        </p>
+                      </div>
+
+                      <Badge className="bg-emerald-600 text-white">
+                        {questionPreview.length} Soal
+                      </Badge>
+                    </div>
+
+                    <div className="max-h-[600px] space-y-3 overflow-y-auto pr-1">
+                      {questionPreview.map((question, index) => (
+                        <Card
+                          key={`preview-${index}`}
+                          className="overflow-hidden rounded-xl border border-border bg-card shadow-sm"
+                        >
+                          <CardContent className="space-y-3 p-4">
+                            <div className="flex items-center justify-between gap-3">
+                              <Badge
+                                variant="outline"
+                                className="font-bold"
+                              >
+                                Soal Nomor {index + 1}
+                              </Badge>
+
+                              <Badge
+                                variant="outline"
+                                className="border-emerald-500/30 text-emerald-600"
+                              >
+                                Kunci: {question.correct_answer}
+                              </Badge>
+                            </div>
+
+                            <div className="whitespace-pre-wrap text-sm font-semibold leading-relaxed text-foreground">
+                              {question.question_text}
+                            </div>
+
+                            {/* PILIHAN JAWABAN */}
+
+                            <div className="grid gap-2 sm:grid-cols-2">
+                              {question.options.map((option) => (
+                                <div
+                                  key={option.id}
+                                  className={`rounded-lg border p-2 text-xs ${
+                                    option.id === question.correct_answer
+                                      ? "border-emerald-500/40 bg-emerald-500/5"
+                                      : "border-border bg-muted/20"
+                                  }`}
+                                >
+                                  <span className="mr-2 font-extrabold">
+                                    {option.id}.
+                                  </span>
+                                  {option.text}
+                                </div>
+                              ))}
+                            </div>
+
+                            {/* PEMBAHASAN */}
+
+                            {question.explanation && (
+                              <div className="rounded-lg bg-muted/40 p-3">
+                                <p className="mb-1 text-[10px] font-bold uppercase text-muted-foreground">
+                                  Pembahasan
+                                </p>
+
+                                <p className="whitespace-pre-wrap text-xs leading-relaxed text-foreground">
+                                  {question.explanation}
+                                </p>
+                              </div>
+                            )}
+
+                            {/* PENGATURAN GAMBAR */}
+
+                            <div className="border-t border-border pt-3">
+                              <div className="flex items-center gap-3">
+                                <Switch
+                                  id={`question-image-${index}`}
+                                  checked={question.image_enabled}
+                                  onCheckedChange={(checked) => {
+                                    updateQuestionImage(index, {
+                                      image_enabled: checked,
+                                      image_url: checked
+                                        ? question.image_url
+                                        : "",
+                                    });
+
+                                    setErrs((current) => {
+                                      const next = { ...current };
+                                      delete next[`image_${index}`];
+                                      return next;
+                                    });
+                                  }}
+                                />
+
+                                <Label
+                                  htmlFor={`question-image-${index}`}
+                                  className="flex cursor-pointer items-center gap-2 text-xs font-bold"
+                                >
+                                  <ImageIcon className="h-4 w-4 text-emerald-600" />
+                                  Tambahkan gambar pada soal ini
+                                </Label>
+                              </div>
+
+                              {question.image_enabled && (
+                                <div className="mt-3 space-y-2">
+                                  <Label
+                                    htmlFor={`question-image-url-${index}`}
+                                    className="text-xs font-semibold"
+                                  >
+                                    URL Gambar
+                                  </Label>
+
+                                  <Input
+                                    id={`question-image-url-${index}`}
+                                    type="url"
+                                    value={question.image_url || ""}
+                                    onChange={(e) => {
+                                      updateQuestionImage(index, {
+                                        image_url: e.target.value,
+                                      });
+
+                                      setErrs((current) => {
+                                        const next = { ...current };
+                                        delete next[`image_${index}`];
+                                        return next;
+                                      });
+                                    }}
+                                    placeholder="https://contoh.com/gambar-soal.jpg"
+                                    className="h-10 rounded-lg bg-background text-xs"
+                                  />
+
+                                  {errs[`image_${index}`] && (
+                                    <p className="text-xs font-medium text-destructive">
+                                      {errs[`image_${index}`]}
+                                    </p>
+                                  )}
+
+                                  <p className="text-[10px] text-muted-foreground">
+                                    Masukkan URL gambar langsung yang
+                                    dapat diakses melalui browser.
+                                  </p>
+
+                                  {question.image_url.trim() && (
+                                    <div className="overflow-hidden rounded-xl border border-border bg-muted/20 p-2">
+                                      <p className="mb-2 text-[10px] font-bold text-muted-foreground">
+                                        PREVIEW GAMBAR
+                                      </p>
+
+                                      {isValidImageUrl(
+                                        question.image_url.trim()
+                                      ) ? (
+                                        <img
+                                          src={question.image_url.trim()}
+                                          alt={`Gambar soal nomor ${index + 1}`}
+                                          className="max-h-64 max-w-full rounded-lg object-contain"
+                                          onError={(e) => {
+                                            e.currentTarget.style.display =
+                                              "none";
+                                          }}
+                                          onLoad={(e) => {
+                                            e.currentTarget.style.display =
+                                              "block";
+                                          }}
+                                        />
+                                      ) : (
+                                        <p className="text-xs text-amber-600">
+                                          URL belum valid. Periksa kembali
+                                          alamat gambar.
+                                        </p>
+                                      )}
+                                    </div>
+                                  )}
+                                </div>
+                              )}
+                            </div>
+                          </CardContent>
+                        </Card>
+                      ))}
+                    </div>
+
+                    {/* RINGKASAN GAMBAR */}
+
+                    <div className="rounded-xl border border-sky-500/20 bg-sky-500/5 p-3">
+                      <div className="flex items-center gap-2 text-xs font-bold text-sky-600 dark:text-sky-400">
+                        <ImageIcon className="h-4 w-4" />
+                        Ringkasan Gambar
+                      </div>
+
+                      <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">
+                        {questionPreview.filter(
+                          (question) =>
+                            question.image_enabled &&
+                            question.image_url.trim()
+                        ).length}{" "}
+                        dari {questionPreview.length} soal memiliki
+                        URL gambar yang diisi.
+                      </p>
+                    </div>
+
+                    <div className="rounded-xl border border-sky-500/20 bg-sky-500/5 p-3 text-[11px] leading-relaxed text-muted-foreground">
+                      <p className="font-bold text-sky-600 dark:text-sky-400">
+                        Informasi impor
+                      </p>
+
+                      Soal akan disimpan setelah kamu menekan tombol
+                      Simpan Paket Ujian. Jika mengimpor Excel pada
+                      paket yang sudah memiliki soal, soal hasil impor
+                      akan ditambahkan ke paket, bukan menggantikan
+                      soal lama.
+                    </div>
+                  </div>
+                )}
 
                 {/* PENGATURAN PUBLIKASI */}
 
@@ -1599,8 +2061,8 @@ export default function AdminExamsPage() {
               <DialogFooter className="gap-2 pt-3">
                 <Button
                   variant="outline"
-                  onClick={() => setDraft(null)}
-                  disabled={saving}
+                  onClick={resetForm}
+                  disabled={saving || parsingExcel}
                   className="rounded-xl"
                 >
                   Batal
@@ -1608,13 +2070,18 @@ export default function AdminExamsPage() {
 
                 <Button
                   onClick={save}
-                  disabled={saving}
+                  disabled={saving || parsingExcel}
                   className="rounded-xl bg-emerald-600 font-bold text-white hover:bg-emerald-700"
                 >
                   {saving ? (
                     <>
                       <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                       Menyimpan...
+                    </>
+                  ) : parsingExcel ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Membaca Excel...
                     </>
                   ) : (
                     "Simpan Paket Ujian"
