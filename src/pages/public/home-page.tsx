@@ -23,7 +23,7 @@ import { FaqAccordion } from "@/components/marketing/faq-accordion";
 
 import { faqs, features } from "@/data/marketing";
 import { useGuestGate } from "@/hooks/use-guest-gate";
-import { supabase } from "@/integrations/supabase/client";
+import { supabase } from "@/lib/supabase";
 
 interface FeaturedCourse {
   id: string;
@@ -58,6 +58,12 @@ const formatPrice = (price: number) =>
     currency: "IDR",
     maximumFractionDigits: 0,
   }).format(price);
+
+const hasDescription = (description: string | null) =>
+  Boolean(
+    description?.trim() &&
+    description.trim().toLowerCase() !== "belum ada deskripsi."
+  );
 
 export default function HomePage() {
   const { requireLogin } = useGuestGate();
@@ -94,15 +100,25 @@ export default function HomePage() {
       if (!active) return;
 
       if (courseResult.error) {
-        console.error("Gagal mengambil kursus homepage:", courseResult.error);
+        console.error(
+          "Gagal mengambil kursus homepage:",
+          courseResult.error
+        );
       } else {
-        setFeaturedCourses((courseResult.data ?? []) as FeaturedCourse[]);
+        setFeaturedCourses(
+          (courseResult.data ?? []) as FeaturedCourse[]
+        );
       }
 
       if (examResult.error) {
-        console.error("Gagal mengambil paket ujian homepage:", examResult.error);
+        console.error(
+          "Gagal mengambil paket ujian homepage:",
+          examResult.error
+        );
       } else {
-        setFeaturedExams((examResult.data ?? []) as FeaturedExam[]);
+        setFeaturedExams(
+          (examResult.data ?? []) as FeaturedExam[]
+        );
       }
 
       setLoadingCourses(false);
@@ -131,12 +147,14 @@ export default function HomePage() {
 
             <h1 className="mt-7 text-4xl font-extrabold leading-[1.12] tracking-tight sm:text-5xl lg:text-6xl">
               Belajar Lebih Terarah,
-              <span className="text-gradient"> Raih Hasil Terbaik.</span>
+              <span className="text-gradient">
+                {" "}Raih Hasil Terbaik.
+              </span>
             </h1>
 
             <p className="mx-auto mt-6 max-w-xl text-base leading-relaxed text-muted-foreground sm:text-lg lg:mx-0">
-              Temukan materi pembelajaran, kerjakan latihan soal, dan
-              evaluasi perkembangan belajar melalui satu platform.
+              Temukan materi pembelajaran, kerjakan latihan soal,
+              dan evaluasi perkembangan belajar melalui satu platform.
             </p>
 
             <div className="mt-9 flex flex-col justify-center gap-3 sm:flex-row lg:justify-start">
@@ -165,10 +183,12 @@ export default function HomePage() {
                 <ShieldCheck className="h-4 w-4 text-primary" />
                 Pembelajaran terarah
               </span>
+
               <span className="flex items-center gap-2">
                 <BookOpen className="h-4 w-4 text-primary" />
                 Materi pembelajaran
               </span>
+
               <span className="flex items-center gap-2">
                 <ChartNoAxesCombined className="h-4 w-4 text-primary" />
                 Evaluasi belajar
@@ -292,6 +312,7 @@ export default function HomePage() {
                         <span className="rounded-full bg-primary/10 px-3 py-1 font-semibold text-primary">
                           {course.category}
                         </span>
+
                         {course.level && (
                           <span>{course.level}</span>
                         )}
@@ -302,8 +323,7 @@ export default function HomePage() {
                       </h3>
 
                       <p className="mt-2 line-clamp-2 min-h-10 text-sm text-muted-foreground">
-                        {course.description &&
-                        course.description !== "Belum ada deskripsi."
+                        {hasDescription(course.description)
                           ? course.description
                           : "Pelajari materi ini dan tingkatkan pemahamanmu bersama GradeUp."}
                       </p>
@@ -405,19 +425,19 @@ export default function HomePage() {
                 </h3>
 
                 <p className="mt-2 line-clamp-2 min-h-10 text-sm text-muted-foreground">
-                  {exam.description &&
-                  exam.description !== "Belum ada deskripsi."
+                  {hasDescription(exam.description)
                     ? exam.description
                     : "Latih kemampuan dan uji pemahamanmu melalui paket ujian GradeUp."}
                 </p>
 
                 <div className="mt-5 flex flex-wrap gap-x-5 gap-y-2 border-t pt-4 text-xs text-muted-foreground">
-                  {exam.duration_minutes && (
-                    <span className="flex items-center gap-1.5">
-                      <Clock3 className="h-4 w-4" />
-                      {exam.duration_minutes} menit
-                    </span>
-                  )}
+                  {exam.duration_minutes &&
+                    exam.duration_minutes > 0 && (
+                      <span className="flex items-center gap-1.5">
+                        <Clock3 className="h-4 w-4" />
+                        {exam.duration_minutes} menit
+                      </span>
+                    )}
 
                   {Number(exam.total_questions ?? 0) > 0 && (
                     <span className="flex items-center gap-1.5">
@@ -479,8 +499,8 @@ export default function HomePage() {
         </div>
 
         <p className="mt-5 text-center text-xs text-muted-foreground">
-          Catatan: pastikan konten testimoni sudah menggunakan ulasan
-          pengguna asli sebelum website diluncurkan.
+          Pastikan konten testimoni menggunakan ulasan pengguna asli
+          sebelum website diluncurkan.
         </p>
       </section>
 
