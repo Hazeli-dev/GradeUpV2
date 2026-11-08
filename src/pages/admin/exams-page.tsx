@@ -2068,7 +2068,7 @@ export default function AdminExamsPage() {
                                 </Badge>
                               ) : (
                                 <div className="space-y-1">
-                                  <Badge variant="destructive">
+                                  <Badge variant="muted">
                                     {row.errors.length} kesalahan
                                   </Badge>
                                   {row.errors.map((message) => (
