@@ -33,6 +33,7 @@ import LessonLearningPage from "@/pages/student/lesson-learning-page";
 import StudentExamsPage from "@/pages/student/exams-page";
 import ExamDetailPage from "@/pages/student/exam-detail-page";
 import ExamAttemptPage from "@/pages/student/exam-attempt-page";
+import StudentLearningSchedulePage from "@/pages/student/learning-schedule-page";
 import ResultsPage from "@/pages/student/results-page";
 import ResultDetailPage from "@/pages/student/result-detail-page";
 import AchievementsPage from "@/pages/student/achievements-page";
@@ -126,7 +127,7 @@ export function AppRoutes() {
         <Route path="/verify-email" element={<VerifyEmailPage />} />
       </Route>
 
-      {/* Ujian */}
+      {/* Route Ujian */}
       <Route
         path="/dashboard/exams/:examId/attempt"
         element={<ExamAttemptPage />}
@@ -137,9 +138,9 @@ export function AppRoutes() {
         <Route path="/dashboard" element={<StudentLayout />}>
           <Route index element={<StudentOverviewPage />} />
 
+          {/* Materi Belajar */}
           <Route path="courses" element={<StudentCoursesPage />} />
           <Route path="collections" element={<StudentCollectionsPage />} />
-
           <Route path="courses/:courseId" element={<CourseDetailPage />} />
 
           <Route
@@ -147,13 +148,26 @@ export function AppRoutes() {
             element={<LessonLearningPage />}
           />
 
+          {/* Paket Ujian */}
           <Route path="exams" element={<StudentExamsPage />} />
           <Route path="exams/:examId" element={<ExamDetailPage />} />
+
+          {/* Jadwal Belajar */}
+          <Route
+            path="learning-schedule"
+            element={<StudentLearningSchedulePage />}
+          />
+
+          {/* Hasil Belajar */}
           <Route path="results" element={<ResultsPage />} />
           <Route path="results/:resultId" element={<ResultDetailPage />} />
+
+          {/* Pengembangan Siswa */}
           <Route path="achievements" element={<AchievementsPage />} />
           <Route path="statistics" element={<StatisticsPage />} />
           <Route path="activity" element={<ActivityPage />} />
+
+          {/* Pengaturan */}
           <Route path="settings" element={<StudentSettingsPage />} />
         </Route>
       </Route>
@@ -168,10 +182,12 @@ export function AppRoutes() {
           <Route path="exams" element={<AdminExamsPage />} />
           <Route path="questions" element={<AdminQuestionsPage />} />
           <Route path="transactions" element={<AdminTransactionsPage />} />
+
           <Route
             path="premium-plans"
             element={<AdminPremiumPlansPage />}
           />
+
           <Route path="reports" element={<AdminReportsPage />} />
 
           {/* Manajemen Pengumuman */}
