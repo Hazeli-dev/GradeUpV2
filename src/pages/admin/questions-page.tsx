@@ -1,5 +1,6 @@
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type ChangeEvent } from "react";
+import * as XLSX from "xlsx";
 import {
   Download,
   MoreHorizontal,
@@ -8,7 +9,6 @@ import {
   Trash2,
   Upload,
   Loader2,
-  Search,
   X,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -50,7 +50,11 @@ import { PageHeader } from "@/components/shared/page-header";
 import { SearchInput } from "@/components/shared/search-input";
 import { FilterSelect } from "@/components/shared/filter-select";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
-import { EmptyState, ErrorState, TableSkeleton } from "@/components/shared/states";
+import {
+  EmptyState,
+  ErrorState,
+  TableSkeleton,
+} from "@/components/shared/states";
 import { FieldError } from "@/components/auth/auth-bits";
 import { supabase } from "@/lib/supabase";
 import {
@@ -96,17 +100,6 @@ const emptyDraft: Draft = {
   explanation: "",
 };
 
-// Mengamankan nilai CSV agar tidak dianggap formula oleh Excel.
-const csvCell = (value: unknown) => {
-  let text = String(value ?? "");
-
-  if (/^[=+\-@\t\r]/.test(text)) {
-    text = `'${text}`;
-  }
-
-  return `"${text.replace(/"/g, '""')}"`;
-};
-
 export default function AdminQuestionsPage() {
   const [questions, setQuestions] = useState<QuestionItem[]>([]);
   const [categories, setCategories] = useState<
@@ -129,6 +122,7 @@ export default function AdminQuestionsPage() {
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
 
+  // Memuat kategori dan seluruh bank soal dari Supabase.
   const fetchData = async () => {
     setLoading(true);
     setError(null);
@@ -152,8 +146,12 @@ export default function AdminQuestionsPage() {
       if (qErr) throw qErr;
 
       if (qData) setQuestions(qData as QuestionItem[]);
-    } catch (err: any) {
-      setError(err.message || "Gagal memuat data bank soal.");
+    } catch (err: unknown) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Gagal memuat data bank soal."
+      );
     } finally {
       setLoading(false);
     }
@@ -163,6 +161,7 @@ export default function AdminQuestionsPage() {
     fetchData();
   }, []);
 
+  // Filter pencarian, kategori, dan kunci jawaban.
   const filtered = useMemo(
     () =>
       questions
@@ -184,6 +183,7 @@ export default function AdminQuestionsPage() {
     filtered.length > 0 &&
     filtered.every((item) => selectedIds.includes(item.id));
 
+  // Memilih atau membatalkan pilihan satu soal.
   const toggleQuestion = (id: string) => {
     setSelectedIds((current) =>
       current.includes(id)
@@ -192,9 +192,11 @@ export default function AdminQuestionsPage() {
     );
   };
 
+  // Memilih atau membatalkan semua soal yang sedang tampil.
   const toggleAllFiltered = () => {
     if (allFilteredSelected) {
       const filteredIds = new Set(filtered.map((item) => item.id));
+
       setSelectedIds((current) =>
         current.filter((id) => !filteredIds.has(id))
       );
@@ -205,6 +207,7 @@ export default function AdminQuestionsPage() {
     }
   };
 
+  // Mengembalikan semua filter ke kondisi awal.
   const clearFilters = () => {
     setQ("");
     setCategory("all");
@@ -212,66 +215,97 @@ export default function AdminQuestionsPage() {
     setSelectedIds([]);
   };
 
+  // Download bank soal sebagai file Excel XLSX asli.
   const downloadBankSoal = () => {
     if (filtered.length === 0) {
       toast.error("Tidak ada soal yang bisa diunduh.");
       return;
     }
 
-    const headers = [
-      "Pertanyaan",
-      "Kategori",
-      "Pilihan A",
-      "Pilihan B",
-      "Pilihan C",
-      "Pilihan D",
-      "Kunci Jawaban",
-      "Pembahasan",
-      "Tanggal Dibuat",
-    ];
+    try {
+      const data = filtered.map((item, index) => ({
+        No: index + 1,
+        Pertanyaan: item.question_text,
+        Kategori: item.category,
+        "Pilihan A": item.options?.[0]?.text ?? "",
+        "Pilihan B": item.options?.[1]?.text ?? "",
+        "Pilihan C": item.options?.[2]?.text ?? "",
+        "Pilihan D": item.options?.[3]?.text ?? "",
+        "Kunci Jawaban": item.correct_answer,
+        Pembahasan: item.explanation ?? "",
+        "Tanggal Dibuat": item.created_at
+          ? new Date(item.created_at).toLocaleString("id-ID")
+          : "",
+      }));
 
-    const rows = filtered.map((item) => [
-      item.question_text,
-      item.category,
-      item.options?.[0]?.text || "",
-      item.options?.[1]?.text || "",
-      item.options?.[2]?.text || "",
-      item.options?.[3]?.text || "",
-      item.correct_answer,
-      item.explanation || "",
-      item.created_at || "",
-    ]);
+      const worksheet = XLSX.utils.json_to_sheet(data);
 
-    const csvContent = [
-      headers.map(csvCell).join(","),
-      ...rows.map((row) => row.map(csvCell).join(",")),
-    ].join("\r\n");
+      // Mengatur lebar kolom agar isi Excel lebih mudah dibaca.
+      worksheet["!cols"] = [
+        { wch: 7 },
+        { wch: 55 },
+        { wch: 22 },
+        { wch: 35 },
+        { wch: 35 },
+        { wch: 35 },
+        { wch: 35 },
+        { wch: 16 },
+        { wch: 50 },
+        { wch: 22 },
+      ];
 
-    const blob = new Blob(
-      ["\uFEFF" + csvContent],
-      { type: "text/csv;charset=utf-8;" }
-    );
+      // Membekukan baris judul dan mengaktifkan filter kolom.
+      worksheet["!freeze"] = {
+        xSplit: 0,
+        ySplit: 1,
+        topLeftCell: "A2",
+        activePane: "bottomLeft",
+        state: "frozen",
+      };
 
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
+      worksheet["!autofilter"] = {
+        ref: XLSX.utils.encode_range({
+          s: { r: 0, c: 0 },
+          e: { r: data.length, c: 9 },
+        }),
+      };
 
-    link.href = url;
-    link.download = `gradeup-bank-soal-${new Date()
-      .toISOString()
-      .slice(0, 10)}.csv`;
+      const workbook = XLSX.utils.book_new();
 
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
+      XLSX.utils.book_append_sheet(
+        workbook,
+        worksheet,
+        "Bank Soal"
+      );
 
-    toast.success(
-      `Berhasil mengunduh ${filtered.length} soal.`
-    );
+      workbook.Props = {
+        Title: "Bank Soal GradeUp",
+        Subject: "Data Bank Soal",
+        Author: "GradeUp",
+        CreatedDate: new Date(),
+      };
+
+      const date = new Date().toISOString().slice(0, 10);
+
+      XLSX.writeFile(
+        workbook,
+        `gradeup-bank-soal-${date}.xlsx`
+      );
+
+      toast.success(
+        `Berhasil mengunduh ${filtered.length} soal dalam format Excel.`
+      );
+    } catch (err: unknown) {
+      toast.error(
+        "Gagal membuat file Excel: " +
+          (err instanceof Error ? err.message : "Terjadi kesalahan.")
+      );
+    }
   };
 
+  // Import soal dari file Excel.
   const handleFileUpload = async (
-    event: React.ChangeEvent<HTMLInputElement>
+    event: ChangeEvent<HTMLInputElement>
   ) => {
     const file = event.target.files?.[0];
     if (!file) return;
@@ -298,14 +332,18 @@ export default function AdminQuestionsPage() {
 
       setSelectedIds([]);
       await fetchData();
-    } catch (err: any) {
-      toast.error("Gagal mengimpor Excel: " + err.message);
+    } catch (err: unknown) {
+      toast.error(
+        "Gagal mengimpor Excel: " +
+          (err instanceof Error ? err.message : "Terjadi kesalahan.")
+      );
     } finally {
       setLoading(false);
       event.target.value = "";
     }
   };
 
+  // Menambah atau memperbarui soal.
   const save = async () => {
     if (!draft) return;
 
@@ -314,13 +352,15 @@ export default function AdminQuestionsPage() {
     if (!draft.question_text.trim()) {
       e.question_text = "Pertanyaan wajib diisi.";
     }
+
     if (!draft.optionA.trim()) e.optionA = "Opsi A wajib diisi.";
     if (!draft.optionB.trim()) e.optionB = "Opsi B wajib diisi.";
     if (!draft.optionC.trim()) e.optionC = "Opsi C wajib diisi.";
     if (!draft.optionD.trim()) e.optionD = "Opsi D wajib diisi.";
 
     setErrs(e);
-    if (Object.keys(e).length) return;
+
+    if (Object.keys(e).length > 0) return;
 
     setSaving(true);
 
@@ -348,7 +388,7 @@ export default function AdminQuestionsPage() {
 
         if (err) throw err;
 
-        toast.success("Soal berhasil diperbarui");
+        toast.success("Soal berhasil diperbarui.");
       } else {
         const { error: err } = await supabase
           .from("questions")
@@ -356,18 +396,22 @@ export default function AdminQuestionsPage() {
 
         if (err) throw err;
 
-        toast.success("Soal berhasil ditambahkan");
+        toast.success("Soal berhasil ditambahkan.");
       }
 
       setDraft(null);
       await fetchData();
-    } catch (err: any) {
-      toast.error("Gagal menyimpan: " + err.message);
+    } catch (err: unknown) {
+      toast.error(
+        "Gagal menyimpan: " +
+          (err instanceof Error ? err.message : "Terjadi kesalahan.")
+      );
     } finally {
       setSaving(false);
     }
   };
 
+  // Menghapus satu soal.
   const handleDelete = async () => {
     if (!removing) return;
 
@@ -379,18 +423,23 @@ export default function AdminQuestionsPage() {
 
       if (err) throw err;
 
-      toast.success("Soal berhasil dihapus");
-      setRemoving(null);
+      toast.success("Soal berhasil dihapus.");
+
       setSelectedIds((current) =>
         current.filter((id) => id !== removing.id)
       );
 
+      setRemoving(null);
       await fetchData();
-    } catch (err: any) {
-      toast.error("Gagal menghapus: " + err.message);
+    } catch (err: unknown) {
+      toast.error(
+        "Gagal menghapus: " +
+          (err instanceof Error ? err.message : "Terjadi kesalahan.")
+      );
     }
   };
 
+  // Menghapus beberapa soal sekaligus.
   const handleBulkDelete = async () => {
     if (selectedIds.length === 0) return;
 
@@ -410,9 +459,13 @@ export default function AdminQuestionsPage() {
 
       setSelectedIds([]);
       setBulkDeleteOpen(false);
+
       await fetchData();
-    } catch (err: any) {
-      toast.error("Gagal menghapus soal: " + err.message);
+    } catch (err: unknown) {
+      toast.error(
+        "Gagal menghapus soal: " +
+          (err instanceof Error ? err.message : "Terjadi kesalahan.")
+      );
     } finally {
       setBulkDeleting(false);
     }
@@ -449,10 +502,11 @@ export default function AdminQuestionsPage() {
                 <Upload className="h-4 w-4" />
                 Import Excel
               </div>
+
               <Input
                 id="excel-upload"
                 type="file"
-                accept=".xlsx, .xls"
+                accept=".xlsx,.xls"
                 className="hidden"
                 onChange={handleFileUpload}
                 disabled={loading}
@@ -525,6 +579,7 @@ export default function AdminQuestionsPage() {
             <SelectTrigger>
               <SelectValue placeholder="Semua Kunci Jawaban" />
             </SelectTrigger>
+
             <SelectContent>
               <SelectItem value="all">Semua Kunci Jawaban</SelectItem>
               <SelectItem value="A">Kunci A</SelectItem>
@@ -549,6 +604,7 @@ export default function AdminQuestionsPage() {
               <Badge variant="muted">
                 {selectedIds.length} soal dipilih
               </Badge>
+
               <Button
                 variant="destructive"
                 size="sm"
@@ -558,6 +614,7 @@ export default function AdminQuestionsPage() {
                 <Trash2 className="h-4 w-4" />
                 Hapus Terpilih
               </Button>
+
               <Button
                 variant="ghost"
                 size="sm"
@@ -597,6 +654,7 @@ export default function AdminQuestionsPage() {
                     className="h-4 w-4 cursor-pointer accent-emerald-600"
                   />
                 </TableHead>
+
                 <TableHead>Pertanyaan</TableHead>
                 <TableHead>Kategori</TableHead>
                 <TableHead>Kunci</TableHead>
@@ -621,6 +679,7 @@ export default function AdminQuestionsPage() {
                     <p className="line-clamp-2 font-medium">
                       {item.question_text}
                     </p>
+
                     <p className="mt-1 text-xs text-muted-foreground">
                       Opsi: A. {item.options?.[0]?.text} · B.{" "}
                       {item.options?.[1]?.text}
@@ -692,6 +751,7 @@ export default function AdminQuestionsPage() {
                 <DialogTitle>
                   {draft.id ? "Edit Soal" : "Tambah Soal Baru"}
                 </DialogTitle>
+
                 <DialogDescription>
                   Isi rincian pertanyaan, pilihan jawaban, dan pembahasan.
                 </DialogDescription>
@@ -700,6 +760,7 @@ export default function AdminQuestionsPage() {
               <div className="space-y-4 py-2">
                 <div className="space-y-2">
                   <Label>Kategori Mata Pelajaran</Label>
+
                   <Select
                     value={draft.category}
                     onValueChange={(v) =>
@@ -709,6 +770,7 @@ export default function AdminQuestionsPage() {
                     <SelectTrigger>
                       <SelectValue />
                     </SelectTrigger>
+
                     <SelectContent>
                       {categories.length > 0 ? (
                         categories.map((c) => (
@@ -727,15 +789,20 @@ export default function AdminQuestionsPage() {
 
                 <div className="space-y-2">
                   <Label htmlFor="q-text">Teks Pertanyaan</Label>
+
                   <textarea
                     id="q-text"
                     className="flex min-h-[100px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                     placeholder="Tuliskan pertanyaan soal di sini..."
                     value={draft.question_text}
                     onChange={(e) =>
-                      setDraft({ ...draft, question_text: e.target.value })
+                      setDraft({
+                        ...draft,
+                        question_text: e.target.value,
+                      })
                     }
                   />
+
                   <FieldError message={errs.question_text} />
                 </div>
 
@@ -791,6 +858,7 @@ export default function AdminQuestionsPage() {
 
                 <div className="space-y-2">
                   <Label>Kunci Jawaban Benar</Label>
+
                   <Select
                     value={draft.correct_answer}
                     onValueChange={(v) =>
@@ -800,6 +868,7 @@ export default function AdminQuestionsPage() {
                     <SelectTrigger>
                       <SelectValue />
                     </SelectTrigger>
+
                     <SelectContent>
                       <SelectItem value="A">Opsi A</SelectItem>
                       <SelectItem value="B">Opsi B</SelectItem>
@@ -811,13 +880,17 @@ export default function AdminQuestionsPage() {
 
                 <div className="space-y-2">
                   <Label htmlFor="q-exp">Pembahasan (Opsional)</Label>
+
                   <textarea
                     id="q-exp"
                     className="flex min-h-[70px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                     placeholder="Penjelasan ringkas kunci jawaban..."
                     value={draft.explanation}
                     onChange={(e) =>
-                      setDraft({ ...draft, explanation: e.target.value })
+                      setDraft({
+                        ...draft,
+                        explanation: e.target.value,
+                      })
                     }
                   />
                 </div>
@@ -831,6 +904,7 @@ export default function AdminQuestionsPage() {
                 >
                   Batal
                 </Button>
+
                 <Button onClick={save} disabled={saving}>
                   {saving ? (
                     <Loader2 className="h-4 w-4 animate-spin" />
@@ -862,7 +936,9 @@ export default function AdminQuestionsPage() {
         title="Hapus Soal Terpilih?"
         description={`Kamu akan menghapus ${selectedIds.length} soal secara permanen dari Bank Soal. Tindakan ini tidak dapat dibatalkan.`}
         destructive
-        confirmLabel={bulkDeleting ? "Menghapus..." : "Hapus Semua Terpilih"}
+        confirmLabel={
+          bulkDeleting ? "Menghapus..." : "Hapus Semua Terpilih"
+        }
         onConfirm={handleBulkDelete}
       />
     </div>
