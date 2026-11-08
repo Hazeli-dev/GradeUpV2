@@ -1,12 +1,32 @@
 
 import { useEffect, useState } from "react";
 import { Link, NavLink, Outlet, useLocation } from "react-router-dom";
-import { Mail, MapPin, Menu, Phone, X, ArrowRight } from "lucide-react";
+import {
+  Mail,
+  MapPin,
+  Menu,
+  Phone,
+  X,
+  ArrowRight,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Logo } from "@/components/shared/logo";
 import { ThemeToggle } from "@/components/shared/theme-toggle";
 import { APP_NAME, CONTACT, PUBLIC_NAV } from "@/constants";
 import { cn } from "@/lib/utils";
+import { supabase } from "@/lib/supabase";
+
+interface PlatformContact {
+  email: string;
+  phone: string;
+  address: string;
+}
+
+const DEFAULT_CONTACT: PlatformContact = {
+  email: CONTACT.email,
+  phone: CONTACT.phone,
+  address: CONTACT.address,
+};
 
 function Navbar() {
   const [open, setOpen] = useState(false);
@@ -24,7 +44,9 @@ function Navbar() {
 
     handleScroll();
 
-    window.addEventListener("scroll", handleScroll, { passive: true });
+    window.addEventListener("scroll", handleScroll, {
+      passive: true,
+    });
 
     return () => {
       window.removeEventListener("scroll", handleScroll);
@@ -95,7 +117,7 @@ function Navbar() {
             variant="ghost"
             size="icon"
             className="rounded-xl lg:hidden"
-            onClick={() => setOpen((prev) => !prev)}
+            onClick={() => setOpen((previous) => !previous)}
             aria-label={open ? "Tutup menu" : "Buka menu"}
             aria-expanded={open}
             aria-controls="mobile-navigation"
@@ -160,6 +182,47 @@ function Navbar() {
 }
 
 function Footer() {
+  const [contact, setContact] =
+    useState<PlatformContact>(DEFAULT_CONTACT);
+
+  useEffect(() => {
+    let active = true;
+
+    async function fetchContact() {
+      try {
+        const { data, error } = await supabase
+          .from("system_settings")
+          .select("value")
+          .eq("key", "platform_contact")
+          .maybeSingle();
+
+        if (error) throw error;
+
+        if (!active || !data?.value) return;
+
+        const value = data.value as Partial<PlatformContact>;
+
+        setContact({
+          email: value.email ?? CONTACT.email,
+          phone: value.phone ?? CONTACT.phone,
+          address: value.address ?? CONTACT.address,
+        });
+      } catch (error) {
+        console.error(
+          "Gagal mengambil informasi kontak footer:",
+          error
+        );
+        // Tetap gunakan CONTACT sebagai nilai cadangan.
+      }
+    }
+
+    fetchContact();
+
+    return () => {
+      active = false;
+    };
+  }, []);
+
   const groups = [
     {
       title: "Platform",
@@ -188,6 +251,8 @@ function Footer() {
     },
   ];
 
+  const phoneHref = `tel:${contact.phone.replace(/[^\d+]/g, "")}`;
+
   return (
     <footer className="relative border-t border-cyan-100/80 bg-white dark:border-cyan-950 dark:bg-card">
       <div className="pointer-events-none absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-cyan-200 via-cyan-500 to-teal-300 opacity-70" />
@@ -206,21 +271,36 @@ function Footer() {
               <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-cyan-50 text-cyan-700 dark:bg-cyan-950 dark:text-cyan-300">
                 <Mail className="h-4 w-4" />
               </span>
-              <span>{CONTACT.email}</span>
+
+              <a
+                href={`mailto:${contact.email}`}
+                className="break-all transition-colors hover:text-cyan-700 dark:hover:text-cyan-300"
+              >
+                {contact.email}
+              </a>
             </li>
 
             <li className="flex items-center gap-3">
               <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-cyan-50 text-cyan-700 dark:bg-cyan-950 dark:text-cyan-300">
                 <Phone className="h-4 w-4" />
               </span>
-              <span>{CONTACT.phone}</span>
+
+              <a
+                href={phoneHref}
+                className="transition-colors hover:text-cyan-700 dark:hover:text-cyan-300"
+              >
+                {contact.phone}
+              </a>
             </li>
 
             <li className="flex items-start gap-3">
               <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-cyan-50 text-cyan-700 dark:bg-cyan-950 dark:text-cyan-300">
                 <MapPin className="h-4 w-4" />
               </span>
-              <span className="pt-1">{CONTACT.address}</span>
+
+              <span className="pt-1 leading-relaxed">
+                {contact.address}
+              </span>
             </li>
           </ul>
         </div>
@@ -254,7 +334,9 @@ function Footer() {
             dilindungi.
           </p>
 
-          <p>Versi kerangka aplikasi · data pada situs ini adalah contoh (demo)</p>
+          <p>
+            Versi kerangka aplikasi · data pada situs ini adalah contoh (demo)
+          </p>
         </div>
       </div>
     </footer>
