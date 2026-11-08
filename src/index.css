@@ -5,54 +5,74 @@
 
 /* =========================================
    GRADEUP GLOBAL THEME
+   FRESH CYAN EDUCATION
 ========================================= */
 
 @layer base {
   :root {
-    --background: 210 40% 98%;
-    --foreground: 222 47% 11%;
+    --background: 0 0% 100%;
+    --foreground: 199 55% 18%;
+
     --card: 0 0% 100%;
-    --card-foreground: 222 47% 11%;
+    --card-foreground: 199 55% 18%;
+
     --popover: 0 0% 100%;
-    --popover-foreground: 222 47% 11%;
-    --primary: 174 77% 26%;
+    --popover-foreground: 199 55% 18%;
+
+    --primary: 188 94% 43%;
     --primary-foreground: 0 0% 100%;
-    --secondary: 160 84% 39%;
-    --secondary-foreground: 0 0% 100%;
-    --accent: 158 64% 52%;
-    --accent-foreground: 174 77% 14%;
-    --soft: 171 77% 90%;
-    --muted: 210 40% 96%;
-    --muted-foreground: 215 16% 47%;
+
+    --secondary: 187 92% 69%;
+    --secondary-foreground: 199 55% 18%;
+
+    --accent: 186 100% 94%;
+    --accent-foreground: 199 55% 18%;
+
+    --soft: 186 100% 94%;
+
+    --muted: 190 40% 96%;
+    --muted-foreground: 199 15% 43%;
+
     --destructive: 0 72% 51%;
     --destructive-foreground: 0 0% 100%;
-    --border: 214 32% 91%;
-    --input: 214 32% 91%;
-    --ring: 174 77% 26%;
-    --radius: 0.75rem;
+
+    --border: 190 25% 90%;
+    --input: 190 25% 90%;
+    --ring: 188 94% 43%;
+
+    --radius: 0.85rem;
   }
 
   .dark {
-    --background: 170 25% 7%;
-    --foreground: 150 20% 96%;
-    --card: 170 22% 10%;
-    --card-foreground: 150 20% 96%;
-    --popover: 170 22% 10%;
-    --popover-foreground: 150 20% 96%;
-    --primary: 160 84% 39%;
-    --primary-foreground: 170 40% 6%;
-    --secondary: 174 77% 30%;
+    --background: 199 35% 9%;
+    --foreground: 190 30% 96%;
+
+    --card: 199 30% 12%;
+    --card-foreground: 190 30% 96%;
+
+    --popover: 199 30% 12%;
+    --popover-foreground: 190 30% 96%;
+
+    --primary: 188 94% 48%;
+    --primary-foreground: 199 55% 10%;
+
+    --secondary: 187 75% 35%;
     --secondary-foreground: 0 0% 100%;
-    --accent: 158 64% 52%;
-    --accent-foreground: 170 40% 6%;
-    --soft: 172 40% 16%;
-    --muted: 170 18% 14%;
-    --muted-foreground: 160 10% 66%;
+
+    --accent: 188 60% 20%;
+    --accent-foreground: 190 30% 96%;
+
+    --soft: 188 45% 17%;
+
+    --muted: 199 25% 16%;
+    --muted-foreground: 190 15% 68%;
+
     --destructive: 0 62% 55%;
     --destructive-foreground: 0 0% 100%;
-    --border: 170 16% 18%;
-    --input: 170 16% 18%;
-    --ring: 160 84% 39%;
+
+    --border: 199 20% 22%;
+    --input: 199 20% 22%;
+    --ring: 188 94% 48%;
   }
 
   * {
@@ -89,6 +109,35 @@
   .page-enter {
     @apply animate-fade-up;
   }
+
+  /* Fresh Cyan Utilities */
+
+  .gu-fresh-surface {
+    @apply border border-cyan-100 bg-white shadow-sm;
+  }
+
+  .gu-fresh-section {
+    background:
+      radial-gradient(
+        circle at 10% 15%,
+        rgba(6, 182, 212, 0.07),
+        transparent 35%
+      ),
+      linear-gradient(180deg, #ffffff 0%, #f0fdff 100%);
+  }
+
+  .gu-fresh-accent {
+    background: linear-gradient(
+      135deg,
+      #06b6d4 0%,
+      #0891b2 55%,
+      #0e7490 100%
+    );
+  }
+
+  .gu-fresh-glow {
+    box-shadow: 0 12px 35px rgba(6, 182, 212, 0.12);
+  }
 }
 
 /* =========================================
@@ -97,7 +146,7 @@
 
 .gu-studio {
   width: 100%;
-  color: #172b2b;
+  color: #164e63;
   font-family: inherit;
 }
 
@@ -110,7 +159,7 @@
 }
 
 .gu-studio-eyebrow {
-  color: #0f766e;
+  color: #0891b2;
   font-size: 10px;
   font-weight: 800;
   letter-spacing: 1.5px;
@@ -119,7 +168,7 @@
 
 .gu-studio-header h1 {
   margin: 0;
-  color: #142e2c;
+  color: #164e63;
   font-size: 25px;
   font-weight: 800;
   letter-spacing: -0.7px;
@@ -127,7 +176,7 @@
 
 .gu-studio-header p {
   margin: 5px 0 0;
-  color: #71817f;
+  color: #718895;
   font-size: 13px;
 }
 
@@ -138,13 +187,13 @@
   align-items: center;
   justify-content: center;
   border-radius: 14px;
-  background: #e5f5f1;
-  color: #0f766e;
+  background: #ecfeff;
+  color: #0891b2;
 }
 
 .gu-ribbon {
   overflow: hidden;
-  border: 1px solid #e2eae8;
+  border: 1px solid #dceff2;
   border-radius: 13px 13px 0 0;
   background: #ffffff;
 }
@@ -154,8 +203,8 @@
   align-items: center;
   gap: 5px;
   padding: 0 14px;
-  border-bottom: 1px solid #edf1f0;
-  background: #fbfdfc;
+  border-bottom: 1px solid #e8f4f6;
+  background: #f8feff;
 }
 
 .gu-ribbon-tab {
@@ -163,18 +212,18 @@
   padding: 13px 15px;
   border: 0;
   background: transparent;
-  color: #687875;
+  color: #687f88;
   font-size: 13px;
   font-weight: 600;
   cursor: pointer;
 }
 
 .gu-ribbon-tab:hover {
-  color: #0f766e;
+  color: #0891b2;
 }
 
 .gu-ribbon-tab.is-active {
-  color: #0f766e;
+  color: #0891b2;
 }
 
 .gu-ribbon-tab.is-active::after {
@@ -184,7 +233,7 @@
   left: 12px;
   height: 3px;
   border-radius: 5px 5px 0 0;
-  background: #0f766e;
+  background: #06b6d4;
   content: "";
 }
 
@@ -215,7 +264,7 @@
   border: 1px solid transparent;
   border-radius: 7px;
   background: transparent;
-  color: #405450;
+  color: #405b65;
   font-size: 12px;
   font-weight: 600;
   cursor: pointer;
@@ -223,15 +272,15 @@
 }
 
 .gu-tool-button:hover:not(:disabled) {
-  border-color: #d9ebe6;
-  background: #eff8f5;
-  color: #0f766e;
+  border-color: #c8edf2;
+  background: #ecfeff;
+  color: #0891b2;
 }
 
 .gu-tool-button.is-active {
-  border-color: #b9e4d8;
-  background: #e5f5ef;
-  color: #0f766e;
+  border-color: #a5f3fc;
+  background: #cffafe;
+  color: #0e7490;
 }
 
 .gu-tool-button:disabled {
@@ -242,7 +291,7 @@
 .gu-tool-divider {
   width: 1px;
   height: 29px;
-  background: #e6edeb;
+  background: #e2eef0;
 }
 
 .gu-highlight-icon {
@@ -253,14 +302,16 @@
   font-weight: 800;
 }
 
-/* DOCUMENT WORKSPACE */
+/* =========================================
+   DOCUMENT WORKSPACE
+========================================= */
 
 .gu-document-workspace {
   min-height: 650px;
   padding: 34px 20px;
-  border-right: 1px solid #e2eae8;
-  border-left: 1px solid #e2eae8;
-  background: #eef2f1;
+  border-right: 1px solid #dceff2;
+  border-left: 1px solid #dceff2;
+  background: #f0f9fb;
 }
 
 .gu-document-page {
@@ -269,10 +320,10 @@
   min-height: 800px;
   margin: 0 auto;
   padding: 65px 82px;
-  border: 1px solid #e9eeec;
+  border: 1px solid #e6eff1;
   border-radius: 3px;
   background: #ffffff;
-  box-shadow: 0 3px 15px rgba(20, 55, 47, 0.06);
+  box-shadow: 0 3px 15px rgba(22, 78, 99, 0.06);
   transition: max-width 0.25s ease;
 }
 
@@ -290,7 +341,7 @@
   align-items: center;
   gap: 8px;
   margin-bottom: 35px;
-  color: #9aa9a5;
+  color: #9aabb2;
   font-size: 9px;
   font-weight: 800;
   letter-spacing: 1.4px;
@@ -300,15 +351,17 @@
   width: 7px;
   height: 7px;
   border-radius: 50%;
-  background: #10b981;
+  background: #06b6d4;
 }
 
-/* TIPTAP CONTENT */
+/* =========================================
+   TIPTAP CONTENT
+========================================= */
 
 .gu-prose {
   min-height: 650px;
   outline: none;
-  color: #263936;
+  color: #263f49;
   font-family: Arial, Helvetica, sans-serif;
   font-size: 16px;
   line-height: 1.85;
@@ -325,7 +378,7 @@
 
 .gu-prose h1 {
   margin: 30px 0 17px;
-  color: #163e38;
+  color: #164e63;
   font-size: 30px;
   font-weight: 800;
   line-height: 1.3;
@@ -334,7 +387,7 @@
 
 .gu-prose h2 {
   margin: 28px 0 14px;
-  color: #176b5d;
+  color: #0e7490;
   font-size: 23px;
   font-weight: 750;
   line-height: 1.4;
@@ -342,7 +395,7 @@
 
 .gu-prose h3 {
   margin: 23px 0 12px;
-  color: #24594f;
+  color: #155e75;
   font-size: 19px;
   font-weight: 700;
 }
@@ -361,10 +414,10 @@
 .gu-prose blockquote {
   margin: 23px 0;
   padding: 17px 21px;
-  border-left: 4px solid #10b981;
+  border-left: 4px solid #06b6d4;
   border-radius: 0 9px 9px 0;
-  background: #effaf5;
-  color: #28564a;
+  background: #ecfeff;
+  color: #155e75;
 }
 
 .gu-prose blockquote p {
@@ -372,7 +425,7 @@
 }
 
 .gu-prose a {
-  color: #0f766e;
+  color: #0891b2;
   text-decoration: underline;
   text-underline-offset: 3px;
 }
@@ -404,14 +457,14 @@
   position: relative;
   min-width: 70px;
   padding: 10px 12px;
-  border: 1px solid #dce8e3;
+  border: 1px solid #dcebf0;
   text-align: left;
   vertical-align: top;
 }
 
 .gu-prose th {
-  background: #eaf7f1;
-  color: #145d4d;
+  background: #ecfeff;
+  color: #155e75;
   font-weight: 700;
 }
 
@@ -421,7 +474,7 @@
 }
 
 .gu-prose .selectedCell {
-  background: #e5f5ef;
+  background: #cffafe;
 }
 
 .gu-prose .column-resize-handle {
@@ -430,7 +483,7 @@
   right: -2px;
   bottom: -2px;
   width: 4px;
-  background: #10b981;
+  background: #06b6d4;
   pointer-events: none;
 }
 
@@ -441,14 +494,16 @@
 .gu-prose hr {
   margin: 28px 0;
   border: 0;
-  border-top: 1px solid #dce8e3;
+  border-top: 1px solid #dcebf0;
 }
 
 .gu-prose:focus {
   outline: none;
 }
 
-/* STATUS BAR */
+/* =========================================
+   STATUS BAR
+========================================= */
 
 .gu-editor-statusbar {
   min-height: 42px;
@@ -457,11 +512,11 @@
   justify-content: space-between;
   gap: 12px;
   padding: 8px 15px;
-  border: 1px solid #e2eae8;
+  border: 1px solid #dceff2;
   border-top: 0;
   border-radius: 0 0 11px 11px;
   background: #ffffff;
-  color: #84918e;
+  color: #8499a1;
   font-size: 11px;
 }
 
@@ -473,7 +528,9 @@
   gap: 7px;
 }
 
-/* PREVIEW */
+/* =========================================
+   PREVIEW
+========================================= */
 
 .gu-preview-header {
   display: flex;
@@ -481,10 +538,10 @@
   justify-content: space-between;
   gap: 12px;
   padding: 13px 17px;
-  border: 1px solid #cde9dd;
+  border: 1px solid #a5f3fc;
   border-radius: 11px 11px 0 0;
-  background: #effaf5;
-  color: #176b53;
+  background: #ecfeff;
+  color: #0e7490;
   font-size: 13px;
   font-weight: 700;
 }
@@ -498,26 +555,28 @@
 
 .gu-preview-close {
   padding: 8px 11px;
-  border: 1px solid #cde9dd;
+  border: 1px solid #a5f3fc;
   border-radius: 7px;
   background: #ffffff;
-  color: #176b53;
+  color: #0e7490;
   font-size: 12px;
   font-weight: 600;
   cursor: pointer;
 }
 
 .gu-preview-close:hover {
-  background: #e5f5ef;
+  background: #cffafe;
 }
 
 .gu-editor-loading {
   padding: 50px;
-  color: #647875;
+  color: #647f89;
   text-align: center;
 }
 
-/* RESPONSIVE */
+/* =========================================
+   RESPONSIVE STUDIO
+========================================= */
 
 @media (max-width: 768px) {
   .gu-studio-header h1 {
@@ -595,20 +654,20 @@
   }
 }
 
-
 /* =========================================
    GRADEUP STUDIO - TOOLBAR & RULER FIX
 ========================================= */
 
 /* Pastikan area toolbar selalu terang */
+
 .gu-ribbon {
   background: #ffffff !important;
-  color: #263936;
+  color: #263f49;
 }
 
 .gu-ribbon-tools {
   background: #ffffff !important;
-  color: #263936;
+  color: #263f49;
   min-height: 65px;
   box-sizing: border-box;
 }
@@ -619,12 +678,12 @@
 
 .gu-tool-button {
   background-color: transparent;
-  color: #405450;
+  color: #405b65;
 }
 
 .gu-tool-button:hover:not(:disabled) {
-  background-color: #eff8f5;
-  color: #0f766e;
+  background-color: #ecfeff;
+  color: #0891b2;
 }
 
 /* =========================================
@@ -634,11 +693,11 @@
 .gu-ruler-wrapper {
   width: 100%;
   padding: 14px 20px;
-  background: #f8fafc;
+  background: #f8fdfe;
   color: #334155;
-  border-right: 1px solid #e2eae8;
-  border-left: 1px solid #e2eae8;
-  border-bottom: 1px solid #e2eae8;
+  border-right: 1px solid #dceff2;
+  border-left: 1px solid #dceff2;
+  border-bottom: 1px solid #dceff2;
   box-sizing: border-box;
   overflow: hidden;
 }
@@ -661,7 +720,7 @@
   height: 36px;
   padding: 0 5px;
   background: #ffffff;
-  border: 1px solid #cbd5e1;
+  border: 1px solid #cbdde2;
   border-radius: 5px;
   box-sizing: border-box;
 }
@@ -715,12 +774,12 @@
 
 .gu-ruler-controls input[type="range"] {
   width: 100%;
-  accent-color: #0f766e;
+  accent-color: #06b6d4;
   cursor: pointer;
 }
 
 .gu-ruler-controls strong {
-  color: #0f766e;
+  color: #0891b2;
   font-size: 11px;
   font-weight: 700;
 }
@@ -750,7 +809,7 @@
   min-width: 105px;
   height: 34px;
   padding: 0 9px;
-  border: 1px solid #dce8e3;
+  border: 1px solid #dcebf0;
   border-radius: 6px;
   background: #ffffff;
   color: #334155;
@@ -759,8 +818,8 @@
 }
 
 .gu-layout-setting select:focus {
-  border-color: #0f766e;
-  box-shadow: 0 0 0 2px rgba(15, 118, 110, 0.12);
+  border-color: #06b6d4;
+  box-shadow: 0 0 0 2px rgba(6, 182, 212, 0.12);
 }
 
 /* =========================================
@@ -781,7 +840,6 @@
     align-items: flex-start;
   }
 }
-
 
 /* =========================================
    GRADEUP - STUDENT LEARNING CONTENT
@@ -848,8 +906,8 @@
 }
 
 .gu-student-content blockquote {
-  border-left: 4px solid #10b981;
-  background: rgba(16, 185, 129, 0.08);
+  border-left: 4px solid #06b6d4;
+  background: rgba(6, 182, 212, 0.08);
   border-radius: 0 0.75rem 0.75rem 0;
   padding: 1rem 1.25rem;
   margin: 1.25rem 0;
@@ -857,13 +915,13 @@
 }
 
 .gu-student-content a {
-  color: #059669;
+  color: #0891b2;
   text-decoration: underline;
   text-underline-offset: 3px;
 }
 
 .dark .gu-student-content a {
-  color: #6ee7b7;
+  color: #67e8f9;
 }
 
 .gu-student-content img {
@@ -922,7 +980,7 @@
 }
 
 .dark .gu-student-content blockquote {
-  background: rgba(16, 185, 129, 0.12);
+  background: rgba(6, 182, 212, 0.12);
 }
 
 @media (max-width: 640px) {
