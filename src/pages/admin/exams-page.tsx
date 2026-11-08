@@ -1,3 +1,4 @@
+
 import { useEffect, useMemo, useState } from "react";
 import {
   Plus,
@@ -152,7 +153,7 @@ const getDefaultSubject = (level: string): string => {
 };
 
 // =====================================================
-// TIPE DATA FORM
+// TIPE DATA
 // =====================================================
 
 type Draft = {
@@ -173,6 +174,11 @@ type Draft = {
   endTime: string;
   noEndDate: boolean;
   excelFile: File | null;
+};
+
+type EditableQuestion = ExamQuestionPreview & {
+  id?: string;
+  isExisting: boolean;
 };
 
 // =====================================================
@@ -227,17 +233,35 @@ const isValidImageUrl = (value: string): boolean => {
 };
 
 // =====================================================
+// NORMALISASI PILIHAN JAWABAN
+// =====================================================
+
+const normalizeOptions = (value: unknown): {
+  id: string;
+  text: string;
+}[] => {
+  if (!Array.isArray(value)) return [];
+
+  return value.map((option: any, index: number) => ({
+    id: String(option?.id || String.fromCharCode(65 + index)),
+    text: String(option?.text ?? ""),
+  }));
+};
+
+// =====================================================
 // KOMPONEN UTAMA
 // =====================================================
 
 export default function AdminExamsPage() {
   const [items, setItems] = useState<ExamPackage[]>([]);
+
   const [categories, setCategories] = useState<
     { id: string; name: string }[]
   >([]);
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [loadingQuestions, setLoadingQuestions] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const [q, setQ] = useState("");
@@ -249,7 +273,7 @@ export default function AdminExamsPage() {
   const [removing, setRemoving] = useState<ExamPackage | null>(null);
 
   const [questionPreview, setQuestionPreview] = useState<
-    ExamQuestionPreview[]
+    EditableQuestion[]
   >([]);
 
   const [parsingExcel, setParsingExcel] = useState(false);
@@ -304,6 +328,66 @@ export default function AdminExamsPage() {
     setQuestionPreview([]);
     setErrs({});
     setParsingExcel(false);
+    setLoadingQuestions(false);
+  };
+
+  // =====================================================
+  // UPDATE ISI SOAL
+  // =====================================================
+
+  const updateQuestion = (
+    index: number,
+    updates: Partial<EditableQuestion>
+  ) => {
+    setQuestionPreview((current) =>
+      current.map((question, questionIndex) =>
+        questionIndex === index
+          ? {
+              ...question,
+              ...updates,
+            }
+          : question
+      )
+    );
+  };
+
+  // =====================================================
+  // UPDATE PILIHAN JAWABAN
+  // =====================================================
+
+  const updateQuestionOption = (
+    questionIndex: number,
+    optionId: string,
+    text: string
+  ) => {
+    setQuestionPreview((current) =>
+      current.map((question, index) =>
+        index === questionIndex
+          ? {
+              ...question,
+              options: question.options.map((option) =>
+                option.id === optionId
+                  ? {
+                      ...option,
+                      text,
+                    }
+                  : option
+              ),
+            }
+          : question
+      )
+    );
+  };
+
+  // =====================================================
+  // UPDATE GAMBAR PER SOAL
+  // =====================================================
+
+  const updateQuestionImage = (
+    index: number,
+    updates: Partial<EditableQuestion>
+  ) => {
+    updateQuestion(index, updates);
   };
 
   // =====================================================
@@ -326,7 +410,6 @@ export default function AdminExamsPage() {
     }
 
     setParsingExcel(true);
-    setQuestionPreview([]);
     setErrs({});
 
     setDraft((current) =>
@@ -348,7 +431,19 @@ export default function AdminExamsPage() {
         throw new Error("File Excel tidak menghasilkan soal.");
       }
 
-      setQuestionPreview(parsed);
+      const newQuestions: EditableQuestion[] = parsed.map(
+        (question) => ({
+          ...question,
+          image_url: null,
+          image_enabled: false,
+          isExisting: false,
+        })
+      );
+
+      setQuestionPreview((current) => [
+        ...current,
+        ...newQuestions,
+      ]);
 
       setDraft((current) =>
         current
@@ -360,11 +455,9 @@ export default function AdminExamsPage() {
       );
 
       toast.success(
-        `${parsed.length} soal berhasil dibaca. Silakan periksa preview.`
+        `${parsed.length} soal baru berhasil ditambahkan ke preview.`
       );
     } catch (err: unknown) {
-      setQuestionPreview([]);
-
       toast.error(
         err instanceof Error
           ? err.message
@@ -376,31 +469,17 @@ export default function AdminExamsPage() {
   };
 
   // =====================================================
-  // UPDATE GAMBAR PER SOAL
-  // =====================================================
-
-  const updateQuestionImage = (
-    index: number,
-    updates: Partial<ExamQuestionPreview>
-  ) => {
-    setQuestionPreview((current) =>
-      current.map((question, questionIndex) =>
-        questionIndex === index
-          ? {
-              ...question,
-              ...updates,
-            }
-          : question
-      )
-    );
-  };
-
-  // =====================================================
-  // HAPUS HASIL IMPOR
+  // HAPUS SOAL HASIL IMPOR SAJA
   // =====================================================
 
   const clearImportedQuestions = () => {
-    setQuestionPreview([]);
+    const existingCount = questionPreview.filter(
+      (question) => question.isExisting
+    ).length;
+
+    setQuestionPreview((current) =>
+      current.filter((question) => question.isExisting)
+    );
 
     setDraft((current) =>
       current
@@ -412,7 +491,12 @@ export default function AdminExamsPage() {
     );
 
     setErrs({});
-    toast.success("Data impor berhasil dibersihkan.");
+
+    toast.success(
+      existingCount > 0
+        ? "Soal impor dibersihkan. Soal lama tetap dipertahankan."
+        : "Soal impor berhasil dibersihkan."
+    );
   };
 
   // =====================================================
@@ -519,9 +603,7 @@ export default function AdminExamsPage() {
       validation.title = "Judul minimal 5 karakter.";
     }
 
-    if (
-      !(draft.duration >= 5 && draft.duration <= 240)
-    ) {
+    if (!(draft.duration >= 5 && draft.duration <= 240)) {
       validation.duration = "Durasi 5–240 menit.";
     }
 
@@ -569,30 +651,40 @@ export default function AdminExamsPage() {
         "Tanggal selesai tidak boleh sebelum tanggal mulai.";
     }
 
-    // Validasi file Excel.
-    if (draft.excelFile) {
-      if (parsingExcel) {
-        validation.excelFile =
-          "Tunggu sampai proses membaca Excel selesai.";
+    if (parsingExcel) {
+      validation.excelFile =
+        "Tunggu sampai proses membaca Excel selesai.";
+    }
+
+    questionPreview.forEach((question, index) => {
+      if (!question.question_text.trim()) {
+        validation[`question_${index}`] =
+          `Pertanyaan nomor ${index + 1} belum diisi.`;
       }
 
-      if (questionPreview.length === 0) {
-        validation.excelFile =
-          "Belum ada soal yang berhasil dibaca.";
-      }
-
-      if (
-        questionPreview.length > 0 &&
-        questionPreview.length < draft.questionCount
+      if (!Array.isArray(question.options) ||
+        question.options.length < 2) {
+        validation[`options_${index}`] =
+          `Soal nomor ${index + 1} harus memiliki pilihan jawaban.`;
+      } else if (
+        question.options.some(
+          (option) => !option.text.trim()
+        )
       ) {
-        validation.questionCount =
-          `Excel berisi ${questionPreview.length} soal, sedangkan paket membutuhkan ${draft.questionCount} soal.`;
+        validation[`options_${index}`] =
+          `Lengkapi seluruh pilihan jawaban soal nomor ${index + 1}.`;
       }
 
-      // Validasi gambar per nomor.
-      questionPreview.forEach((question, index) => {
-        if (!question.image_enabled) return;
+      const optionIds = question.options.map(
+        (option) => option.id
+      );
 
+      if (!optionIds.includes(question.correct_answer)) {
+        validation[`answer_${index}`] =
+          `Kunci jawaban soal nomor ${index + 1} tidak valid.`;
+      }
+
+      if (question.image_enabled) {
         const imageUrl = normalizeImageUrl(
           question.image_url
         );
@@ -600,32 +692,29 @@ export default function AdminExamsPage() {
         if (!imageUrl) {
           validation[`image_${index}`] =
             `URL gambar soal nomor ${index + 1} belum diisi.`;
-          return;
-        }
-
-        if (!isValidImageUrl(imageUrl)) {
+        } else if (!isValidImageUrl(imageUrl)) {
           validation[`image_${index}`] =
             `URL gambar soal nomor ${index + 1} tidak valid.`;
         }
-      });
-    }
+      }
+    });
 
     return validation;
   };
 
   // =====================================================
-  // SIMPAN / UPDATE PAKET
+  // SIMPAN / UPDATE PAKET DAN SOAL
   // =====================================================
 
   const save = async () => {
-    if (!draft || saving) return;
+    if (!draft || saving || loadingQuestions) return;
 
     const validation = validateDraft();
 
     setErrs(validation);
 
     if (Object.keys(validation).length > 0) {
-      toast.error("Periksa kembali data yang belum valid.");
+      toast.error("Periksa kembali data paket dan soal.");
       return;
     }
 
@@ -637,7 +726,6 @@ export default function AdminExamsPage() {
         draft.description.trim() || "Belum ada deskripsi.",
 
       category: draft.category,
-
       subject: draft.subject,
       type: draft.examType,
       level: draft.level,
@@ -652,6 +740,7 @@ export default function AdminExamsPage() {
       status: draft.published ? "Published" : "Draft",
 
       start_time: new Date(draft.startTime).toISOString(),
+
       end_time: draft.noEndDate
         ? null
         : new Date(draft.endTime).toISOString(),
@@ -660,7 +749,7 @@ export default function AdminExamsPage() {
     try {
       let packageId = draft.id;
 
-      // UPDATE ATAU BUAT PAKET.
+      // 1. SIMPAN DATA PAKET
       if (packageId) {
         const { error: updateError } = await supabase
           .from("exam_packages")
@@ -673,7 +762,7 @@ export default function AdminExamsPage() {
           await supabase
             .from("exam_packages")
             .insert([payload])
-            .select()
+            .select("id")
             .single();
 
         if (insertError) throw insertError;
@@ -681,13 +770,50 @@ export default function AdminExamsPage() {
         packageId = newPackage.id;
       }
 
-      // SIMPAN SOAL HASIL IMPOR.
-      if (
-        draft.excelFile &&
-        packageId &&
-        questionPreview.length > 0
-      ) {
-        const questionsToInsert = questionPreview.map(
+      if (!packageId) {
+        throw new Error("ID paket ujian tidak ditemukan.");
+      }
+
+      // 2. PISAHKAN SOAL LAMA DAN SOAL BARU
+      const existingQuestions = questionPreview.filter(
+        (question) => Boolean(question.id)
+      );
+
+      const newQuestions = questionPreview.filter(
+        (question) => !question.id
+      );
+
+      // 3. PERBARUI SOAL LAMA BERDASARKAN UUID
+      for (const question of existingQuestions) {
+        const imageUrl = normalizeImageUrl(
+          question.image_url
+        );
+
+        const { error: questionUpdateError } = await supabase
+          .from("questions")
+          .update({
+            category: question.category || draft.category,
+            question_text: question.question_text.trim(),
+            options: question.options,
+            correct_answer: question.correct_answer,
+            explanation:
+              question.explanation?.trim() || null,
+            image_url:
+              question.image_enabled && imageUrl
+                ? imageUrl
+                : null,
+          })
+          .eq("id", question.id!)
+          .eq("exam_package_id", packageId);
+
+        if (questionUpdateError) {
+          throw questionUpdateError;
+        }
+      }
+
+      // 4. MASUKKAN SOAL BARU TANPA MENGGANGGU SOAL LAMA
+      if (newQuestions.length > 0) {
+        const questionsToInsert = newQuestions.map(
           (question) => {
             const imageUrl = normalizeImageUrl(
               question.image_url
@@ -695,11 +821,12 @@ export default function AdminExamsPage() {
 
             return {
               exam_package_id: packageId,
-              category: draft.category,
-              question_text: question.question_text,
+              category: question.category || draft.category,
+              question_text: question.question_text.trim(),
               options: question.options,
               correct_answer: question.correct_answer,
-              explanation: question.explanation,
+              explanation:
+                question.explanation?.trim() || null,
               image_url:
                 question.image_enabled && imageUrl
                   ? imageUrl
@@ -708,21 +835,20 @@ export default function AdminExamsPage() {
           }
         );
 
-        const { error: questionError } = await supabase
+        const { error: questionInsertError } = await supabase
           .from("questions")
           .insert(questionsToInsert);
 
-        if (questionError) throw questionError;
+        if (questionInsertError) {
+          throw questionInsertError;
+        }
       }
 
       toast.success(
-        draft.id
-          ? "Paket ujian berhasil diperbarui!"
-          : "Paket ujian berhasil dibuat!"
+        `Paket berhasil disimpan. ${existingQuestions.length} soal diperbarui dan ${newQuestions.length} soal baru ditambahkan.`
       );
 
       resetForm();
-
       await fetchData();
     } catch (err: unknown) {
       toast.error(
@@ -804,22 +930,21 @@ export default function AdminExamsPage() {
   };
 
   // =====================================================
-  // BUKA FORM EDIT
+  // BUKA FORM EDIT DAN MUAT SOAL DARI DATABASE
   // =====================================================
 
-  const openEdit = (exam: ExamPackage) => {
+  const openEdit = async (exam: ExamPackage) => {
     const item = exam as any;
-
     const examLevel = item.level || "SMA";
 
     setErrs({});
     setQuestionPreview([]);
+    setLoadingQuestions(true);
 
     setDraft({
       id: exam.id,
       title: exam.title || "",
       description: exam.description || "",
-
       category: exam.category || "Matematika",
 
       subject:
@@ -864,6 +989,65 @@ export default function AdminExamsPage() {
 
       excelFile: null,
     });
+
+    try {
+      const { data, error } = await supabase
+        .from("questions")
+        .select(
+          "id, category, question_text, options, correct_answer, explanation, image_url"
+        )
+        .eq("exam_package_id", exam.id)
+        .order("created_at", { ascending: true });
+
+      if (error) throw error;
+
+      const existingQuestions: EditableQuestion[] = (
+        data ?? []
+      ).map((question: any) => {
+        const imageUrl = normalizeImageUrl(
+          question.image_url
+        );
+
+        return {
+          id: question.id,
+          isExisting: true,
+
+          category:
+            question.category || exam.category || "Umum",
+
+          question_text: question.question_text || "",
+
+          options: normalizeOptions(question.options),
+
+          correct_answer: question.correct_answer || "A",
+
+          explanation: question.explanation || null,
+
+          image_url: imageUrl || null,
+
+          image_enabled: Boolean(imageUrl),
+        };
+      });
+
+      setQuestionPreview(existingQuestions);
+
+      toast.success(
+        existingQuestions.length > 0
+          ? `${existingQuestions.length} soal lama berhasil dimuat.`
+          : "Paket ini belum memiliki soal."
+      );
+    } catch (err: unknown) {
+      toast.error(
+        "Gagal memuat soal: " +
+          (err instanceof Error
+            ? err.message
+            : "Terjadi kesalahan.")
+      );
+
+      setDraft(null);
+    } finally {
+      setLoadingQuestions(false);
+    }
   };
 
   // =====================================================
@@ -1097,7 +1281,6 @@ export default function AdminExamsPage() {
               <tbody className="divide-y divide-border">
                 {filtered.map((exam) => {
                   const item = exam as any;
-
                   const status = getExamStatus(exam);
 
                   const startDateStr = item.start_time
@@ -1157,10 +1340,7 @@ export default function AdminExamsPage() {
                       </td>
 
                       <td className="p-4">
-                        <Badge
-                          variant="outline"
-                          className="font-bold"
-                        >
+                        <Badge variant="outline" className="font-bold">
                           {exam.level || "-"}
                         </Badge>
                       </td>
@@ -1181,10 +1361,7 @@ export default function AdminExamsPage() {
                       </td>
 
                       <td className="p-4">
-                        <Badge
-                          variant="muted"
-                          className="font-bold"
-                        >
+                        <Badge variant="muted" className="font-bold">
                           {exam.difficulty || "-"}
                         </Badge>
                       </td>
@@ -1232,7 +1409,7 @@ export default function AdminExamsPage() {
                             className="w-36"
                           >
                             <DropdownMenuItem
-                              onSelect={() => openEdit(exam)}
+                              onSelect={() => void openEdit(exam)}
                             >
                               <Pencil className="mr-2 h-3.5 w-3.5 text-emerald-500" />
                               Edit
@@ -1262,7 +1439,7 @@ export default function AdminExamsPage() {
       <Dialog
         open={!!draft}
         onOpenChange={(open) => {
-          if (!open && !saving && !parsingExcel) {
+          if (!open && !saving && !parsingExcel && !loadingQuestions) {
             resetForm();
           }
         }}
@@ -1279,9 +1456,16 @@ export default function AdminExamsPage() {
 
                 <DialogDescription className="text-xs">
                   Atur identitas akademik, jadwal, informasi paket,
-                  dan impor soal Excel beserta gambar per nomor.
+                  dan soal Excel beserta gambar per nomor.
                 </DialogDescription>
               </DialogHeader>
+
+              {loadingQuestions && (
+                <div className="flex items-center gap-2 rounded-lg border border-sky-500/20 bg-sky-500/5 p-3 text-xs font-semibold text-sky-600">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Sedang memuat soal dan gambar dari database...
+                </div>
+              )}
 
               <div className="space-y-5 py-2 text-xs">
                 {/* INFORMASI DASAR */}
@@ -1342,8 +1526,6 @@ export default function AdminExamsPage() {
                   </div>
 
                   <div className="grid gap-3 sm:grid-cols-2">
-                    {/* JENJANG */}
-
                     <div className="space-y-1">
                       <Label className="font-bold">
                         Jenjang Pendidikan *
@@ -1375,8 +1557,6 @@ export default function AdminExamsPage() {
                         </SelectContent>
                       </Select>
                     </div>
-
-                    {/* KELAS */}
 
                     <div className="space-y-1">
                       <Label className="font-bold">Kelas *</Label>
@@ -1410,8 +1590,6 @@ export default function AdminExamsPage() {
 
                       <FieldError message={errs.grade} />
                     </div>
-
-                    {/* MATA PELAJARAN */}
 
                     <div className="space-y-1">
                       <Label className="font-bold">
@@ -1448,8 +1626,6 @@ export default function AdminExamsPage() {
                       <FieldError message={errs.subject} />
                     </div>
 
-                    {/* JENIS UJIAN */}
-
                     <div className="space-y-1">
                       <Label className="font-bold">
                         Jenis Ujian *
@@ -1479,8 +1655,6 @@ export default function AdminExamsPage() {
 
                       <FieldError message={errs.examType} />
                     </div>
-
-                    {/* KATEGORI LAMA */}
 
                     <div className="space-y-1 sm:col-span-2">
                       <Label className="font-bold">
@@ -1528,8 +1702,6 @@ export default function AdminExamsPage() {
                       </p>
                     </div>
 
-                    {/* KESULITAN */}
-
                     <div className="space-y-1 sm:col-span-2">
                       <Label className="font-bold">
                         Tingkat Kesulitan
@@ -1567,8 +1739,6 @@ export default function AdminExamsPage() {
 
                 <div className="space-y-4 rounded-xl border bg-muted/20 p-4">
                   <div className="grid gap-3 sm:grid-cols-2">
-                    {/* TANGGAL MULAI */}
-
                     <div className="space-y-1">
                       <Label
                         htmlFor="x-start"
@@ -1597,8 +1767,6 @@ export default function AdminExamsPage() {
 
                       <FieldError message={errs.startTime} />
                     </div>
-
-                    {/* TANGGAL SELESAI */}
 
                     <div className="space-y-1">
                       <Label
@@ -1634,8 +1802,6 @@ export default function AdminExamsPage() {
                     </div>
                   </div>
 
-                  {/* TERBIT SELAMANYA */}
-
                   <div className="flex items-start gap-3 rounded-xl border border-emerald-500/30 bg-emerald-500/5 p-3">
                     <Switch
                       id="x-no-end"
@@ -1661,9 +1827,7 @@ export default function AdminExamsPage() {
 
                       <p className="text-[11px] leading-relaxed text-muted-foreground">
                         Aktifkan agar paket ujian tidak memiliki
-                        tanggal kedaluwarsa. Paket tetap tersedia
-                        setelah tanggal mulai dan tidak otomatis
-                        masuk arsip karena tanggal selesai.
+                        tanggal kedaluwarsa.
                       </p>
                     </div>
                   </div>
@@ -1729,21 +1893,20 @@ export default function AdminExamsPage() {
                     </Label>
 
                     <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">
-                      Impor soal terlebih dahulu. Setelah berhasil
-                      dibaca, kamu dapat memeriksa setiap soal dan
-                      menambahkan gambar secara terpisah.
+                      Soal dari Excel akan ditambahkan setelah soal
+                      yang sudah tersimpan. Soal lama tidak diganti.
                     </p>
                   </div>
 
                   <Input
                     type="file"
                     accept=".xlsx,.xls"
-                    disabled={parsingExcel || saving}
+                    disabled={
+                      parsingExcel || saving || loadingQuestions
+                    }
                     onChange={(e) => {
                       const file = e.target.files?.[0] || null;
-
                       void handleExcelChange(file);
-
                       e.currentTarget.value = "";
                     }}
                     className="h-10 rounded-xl bg-background"
@@ -1769,7 +1932,10 @@ export default function AdminExamsPage() {
                           {draft.excelFile.name}
                         </p>
                         <p className="mt-1 text-[10px] text-muted-foreground">
-                          {questionPreview.length} soal berhasil dibaca
+                          {questionPreview.filter(
+                            (question) => !question.isExisting
+                          ).length}{" "}
+                          soal baru berhasil dibaca
                         </p>
                       </div>
 
@@ -1788,20 +1954,20 @@ export default function AdminExamsPage() {
                   )}
                 </div>
 
-                {/* PREVIEW SOAL */}
+                {/* DAFTAR DAN EDITOR SOAL */}
 
-                {questionPreview.length > 0 && (
+                {(questionPreview.length > 0 || loadingQuestions) && (
                   <div className="space-y-4">
                     <div className="flex flex-wrap items-center justify-between gap-2">
                       <div>
                         <h3 className="flex items-center gap-2 font-extrabold text-foreground">
                           <Eye className="h-4 w-4 text-emerald-600" />
-                          Preview Soal
+                          Daftar dan Editor Soal
                         </h3>
 
                         <p className="mt-1 text-[11px] text-muted-foreground">
-                          Periksa isi soal dan aktifkan gambar
-                          secara individual pada nomor yang membutuhkannya.
+                          Periksa dan edit isi soal, pilihan jawaban,
+                          kunci, pembahasan, serta gambar.
                         </p>
                       </div>
 
@@ -1810,26 +1976,48 @@ export default function AdminExamsPage() {
                       </Badge>
                     </div>
 
-                    <div className="max-h-[600px] space-y-3 overflow-y-auto pr-1">
+                    {questionPreview.length === 0 &&
+                      !loadingQuestions && (
+                        <div className="rounded-xl border border-dashed p-5 text-center text-xs text-muted-foreground">
+                          Belum ada soal. Impor file Excel untuk
+                          menambahkan soal.
+                        </div>
+                      )}
+
+                    <div className="max-h-[650px] space-y-3 overflow-y-auto pr-1">
                       {questionPreview.map((question, index) => {
-                        // Selalu normalisasi image_url sebelum digunakan.
                         const imageUrl = normalizeImageUrl(
                           question.image_url
                         );
 
                         return (
                           <Card
-                            key={`preview-${index}`}
+                            key={question.id || `new-${index}`}
                             className="overflow-hidden rounded-xl border border-border bg-card shadow-sm"
                           >
-                            <CardContent className="space-y-3 p-4">
-                              <div className="flex items-center justify-between gap-3">
-                                <Badge
-                                  variant="outline"
-                                  className="font-bold"
-                                >
-                                  Soal Nomor {index + 1}
-                                </Badge>
+                            <CardContent className="space-y-4 p-4">
+                              <div className="flex flex-wrap items-center justify-between gap-2">
+                                <div className="flex items-center gap-2">
+                                  <Badge
+                                    variant="outline"
+                                    className="font-bold"
+                                  >
+                                    Soal Nomor {index + 1}
+                                  </Badge>
+
+                                  <Badge
+                                    variant="outline"
+                                    className={
+                                      question.isExisting
+                                        ? "border-sky-500/30 text-sky-600"
+                                        : "border-emerald-500/30 text-emerald-600"
+                                    }
+                                  >
+                                    {question.isExisting
+                                      ? "Soal tersimpan"
+                                      : "Soal baru"}
+                                  </Badge>
+                                </div>
 
                                 <Badge
                                   variant="outline"
@@ -1839,43 +2027,150 @@ export default function AdminExamsPage() {
                                 </Badge>
                               </div>
 
-                              <div className="whitespace-pre-wrap text-sm font-semibold leading-relaxed text-foreground">
-                                {question.question_text}
+                              {/* PERTANYAAN */}
+
+                              <div className="space-y-2">
+                                <Label className="text-xs font-bold">
+                                  Pertanyaan
+                                </Label>
+
+                                <Textarea
+                                  value={question.question_text}
+                                  onChange={(e) =>
+                                    updateQuestion(index, {
+                                      question_text: e.target.value,
+                                    })
+                                  }
+                                  className="min-h-20 rounded-lg bg-background text-sm"
+                                />
+
+                                <FieldError
+                                  message={errs[`question_${index}`]}
+                                />
                               </div>
 
                               {/* PILIHAN JAWABAN */}
 
-                              <div className="grid gap-2 sm:grid-cols-2">
-                                {question.options.map((option) => (
-                                  <div
-                                    key={option.id}
-                                    className={`rounded-lg border p-2 text-xs ${
-                                      option.id === question.correct_answer
-                                        ? "border-emerald-500/40 bg-emerald-500/5"
-                                        : "border-border bg-muted/20"
-                                    }`}
+                              <div className="space-y-2">
+                                <Label className="text-xs font-bold">
+                                  Pilihan Jawaban
+                                </Label>
+
+                                <div className="grid gap-2 sm:grid-cols-2">
+                                  {question.options.map((option) => (
+                                    <div
+                                      key={option.id}
+                                      className={`rounded-lg border p-2 ${
+                                        option.id ===
+                                        question.correct_answer
+                                          ? "border-emerald-500/40 bg-emerald-500/5"
+                                          : "border-border bg-muted/20"
+                                      }`}
+                                    >
+                                      <Label className="mb-1 block text-[10px] font-bold">
+                                        Pilihan {option.id}
+                                      </Label>
+
+                                      <Textarea
+                                        value={option.text}
+                                        onChange={(e) =>
+                                          updateQuestionOption(
+                                            index,
+                                            option.id,
+                                            e.target.value
+                                          )
+                                        }
+                                        className="min-h-16 bg-background text-xs"
+                                      />
+                                    </div>
+                                  ))}
+                                </div>
+
+                                <FieldError
+                                  message={errs[`options_${index}`]}
+                                />
+                              </div>
+
+                              {/* KUNCI DAN STATUS */}
+
+                              <div className="grid gap-3 sm:grid-cols-2">
+                                <div className="space-y-1">
+                                  <Label className="text-xs font-bold">
+                                    Kunci Jawaban
+                                  </Label>
+
+                                  <Select
+                                    value={question.correct_answer}
+                                    onValueChange={(value) =>
+                                      updateQuestion(index, {
+                                        correct_answer: value,
+                                      })
+                                    }
                                   >
-                                    <span className="mr-2 font-extrabold">
-                                      {option.id}.
-                                    </span>
-                                    {option.text}
+                                    <SelectTrigger className="h-10 rounded-lg bg-background">
+                                      <SelectValue />
+                                    </SelectTrigger>
+
+                                    <SelectContent>
+                                      {question.options.map(
+                                        (option) => (
+                                          <SelectItem
+                                            key={option.id}
+                                            value={option.id}
+                                          >
+                                            {option.id}
+                                          </SelectItem>
+                                        )
+                                      )}
+                                    </SelectContent>
+                                  </Select>
+
+                                  <FieldError
+                                    message={errs[`answer_${index}`]}
+                                  />
+                                </div>
+
+                                <div className="space-y-1">
+                                  <Label className="text-xs font-bold">
+                                    Status Soal
+                                  </Label>
+
+                                  <div className="flex h-10 items-center">
+                                    <Badge
+                                      variant="outline"
+                                      className={
+                                        question.isExisting
+                                          ? "border-sky-500/30 text-sky-600"
+                                          : "border-emerald-500/30 text-emerald-600"
+                                      }
+                                    >
+                                      {question.isExisting
+                                        ? "Sudah tersimpan"
+                                        : "Akan ditambahkan"}
+                                    </Badge>
                                   </div>
-                                ))}
+                                </div>
                               </div>
 
                               {/* PEMBAHASAN */}
 
-                              {question.explanation && (
-                                <div className="rounded-lg bg-muted/40 p-3">
-                                  <p className="mb-1 text-[10px] font-bold uppercase text-muted-foreground">
-                                    Pembahasan
-                                  </p>
+                              <div className="space-y-2">
+                                <Label className="text-xs font-bold">
+                                  Pembahasan
+                                </Label>
 
-                                  <p className="whitespace-pre-wrap text-xs leading-relaxed text-foreground">
-                                    {question.explanation}
-                                  </p>
-                                </div>
-                              )}
+                                <Textarea
+                                  value={question.explanation || ""}
+                                  onChange={(e) =>
+                                    updateQuestion(index, {
+                                      explanation:
+                                        e.target.value || null,
+                                    })
+                                  }
+                                  placeholder="Tuliskan pembahasan soal..."
+                                  className="min-h-16 rounded-lg bg-background text-xs"
+                                />
+                              </div>
 
                               {/* PENGATURAN GAMBAR */}
 
@@ -1941,8 +2236,8 @@ export default function AdminExamsPage() {
                                     )}
 
                                     <p className="text-[10px] text-muted-foreground">
-                                      Masukkan URL gambar langsung yang
-                                      dapat diakses melalui browser.
+                                      Masukkan URL gambar langsung
+                                      yang dapat diakses melalui browser.
                                     </p>
 
                                     {imageUrl && (
@@ -1968,8 +2263,8 @@ export default function AdminExamsPage() {
                                           />
                                         ) : (
                                           <p className="text-xs text-amber-600">
-                                            URL belum valid. Periksa kembali
-                                            alamat gambar.
+                                            URL belum valid. Periksa
+                                            kembali alamat gambar.
                                           </p>
                                         )}
                                       </div>
@@ -1983,42 +2278,78 @@ export default function AdminExamsPage() {
                       })}
                     </div>
 
-                    {/* RINGKASAN GAMBAR */}
+                    {/* RINGKASAN */}
 
                     <div className="rounded-xl border border-sky-500/20 bg-sky-500/5 p-3">
                       <div className="flex items-center gap-2 text-xs font-bold text-sky-600 dark:text-sky-400">
                         <ImageIcon className="h-4 w-4" />
-                        Ringkasan Gambar
+                        Ringkasan Soal dan Gambar
                       </div>
 
-                      <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">
-                        {
-                          questionPreview.filter((question) => {
-                            const imageUrl = normalizeImageUrl(
-                              question.image_url
-                            );
+                      <div className="mt-2 grid grid-cols-2 gap-3">
+                        <div>
+                          <p className="text-lg font-black text-foreground">
+                            {
+                              questionPreview.filter(
+                                (question) => question.isExisting
+                              ).length
+                            }
+                          </p>
+                          <p className="text-[10px] text-muted-foreground">
+                            Soal tersimpan
+                          </p>
+                        </div>
 
-                            return (
-                              question.image_enabled &&
-                              imageUrl.length > 0
-                            );
-                          }).length
-                        }{" "}
-                        dari {questionPreview.length} soal memiliki
-                        URL gambar yang diisi.
-                      </p>
+                        <div>
+                          <p className="text-lg font-black text-foreground">
+                            {
+                              questionPreview.filter(
+                                (question) => !question.isExisting
+                              ).length
+                            }
+                          </p>
+                          <p className="text-[10px] text-muted-foreground">
+                            Soal baru
+                          </p>
+                        </div>
+
+                        <div>
+                          <p className="text-lg font-black text-foreground">
+                            {
+                              questionPreview.filter(
+                                (question) =>
+                                  question.image_enabled &&
+                                  normalizeImageUrl(
+                                    question.image_url
+                                  ).length > 0
+                              ).length
+                            }
+                          </p>
+                          <p className="text-[10px] text-muted-foreground">
+                            Soal dengan gambar
+                          </p>
+                        </div>
+
+                        <div>
+                          <p className="text-lg font-black text-foreground">
+                            {questionPreview.length}
+                          </p>
+                          <p className="text-[10px] text-muted-foreground">
+                            Total soal dalam form
+                          </p>
+                        </div>
+                      </div>
                     </div>
 
-                    <div className="rounded-xl border border-sky-500/20 bg-sky-500/5 p-3 text-[11px] leading-relaxed text-muted-foreground">
-                      <p className="font-bold text-sky-600 dark:text-sky-400">
-                        Informasi impor
+                    <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-3 text-[11px] leading-relaxed text-muted-foreground">
+                      <p className="font-bold text-amber-600">
+                        Informasi penyimpanan
                       </p>
 
-                      Soal akan disimpan setelah kamu menekan tombol
-                      Simpan Paket Ujian. Jika mengimpor Excel pada
-                      paket yang sudah memiliki soal, soal hasil impor
-                      akan ditambahkan ke paket, bukan menggantikan
-                      soal lama.
+                      Perubahan soal lama akan disimpan berdasarkan
+                      ID soal. Soal dari Excel akan ditambahkan
+                      sebagai soal baru. Soal lama tidak dihapus
+                      otomatis.
                     </div>
                   </div>
                 )}
@@ -2074,7 +2405,9 @@ export default function AdminExamsPage() {
                 <Button
                   variant="outline"
                   onClick={resetForm}
-                  disabled={saving || parsingExcel}
+                  disabled={
+                    saving || parsingExcel || loadingQuestions
+                  }
                   className="rounded-xl"
                 >
                   Batal
@@ -2082,13 +2415,20 @@ export default function AdminExamsPage() {
 
                 <Button
                   onClick={save}
-                  disabled={saving || parsingExcel}
+                  disabled={
+                    saving || parsingExcel || loadingQuestions
+                  }
                   className="rounded-xl bg-emerald-600 font-bold text-white hover:bg-emerald-700"
                 >
                   {saving ? (
                     <>
                       <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                       Menyimpan...
+                    </>
+                  ) : loadingQuestions ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Memuat soal...
                     </>
                   ) : parsingExcel ? (
                     <>
