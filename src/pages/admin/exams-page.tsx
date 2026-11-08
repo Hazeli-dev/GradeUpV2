@@ -1,4 +1,3 @@
-
 import { useEffect, useMemo, useState } from "react";
 import {
   Plus,
@@ -208,8 +207,14 @@ const emptyDraft: Draft = {
 };
 
 // =====================================================
-// VALIDASI URL GAMBAR
+// HELPER URL GAMBAR
 // =====================================================
+
+const normalizeImageUrl = (
+  value: string | null | undefined
+): string => {
+  return (value ?? "").trim();
+};
 
 const isValidImageUrl = (value: string): boolean => {
   try {
@@ -243,7 +248,6 @@ export default function AdminExamsPage() {
   const [errs, setErrs] = useState<Record<string, string>>({});
   const [removing, setRemoving] = useState<ExamPackage | null>(null);
 
-  // Preview soal hasil impor Excel.
   const [questionPreview, setQuestionPreview] = useState<
     ExamQuestionPreview[]
   >([]);
@@ -276,15 +280,19 @@ export default function AdminExamsPage() {
       if (examErr) throw examErr;
 
       setItems((examData ?? []) as ExamPackage[]);
-    } catch (err: any) {
-      setError(err.message || "Gagal memuat paket ujian.");
+    } catch (err: unknown) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Gagal memuat paket ujian."
+      );
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    fetchData();
+    void fetchData();
   }, []);
 
   // =====================================================
@@ -336,6 +344,10 @@ export default function AdminExamsPage() {
         draft.category
       );
 
+      if (!parsed || parsed.length === 0) {
+        throw new Error("File Excel tidak menghasilkan soal.");
+      }
+
       setQuestionPreview(parsed);
 
       setDraft((current) =>
@@ -350,11 +362,13 @@ export default function AdminExamsPage() {
       toast.success(
         `${parsed.length} soal berhasil dibaca. Silakan periksa preview.`
       );
-    } catch (error: any) {
+    } catch (err: unknown) {
       setQuestionPreview([]);
 
       toast.error(
-        error.message || "Gagal membaca file Excel."
+        err instanceof Error
+          ? err.message
+          : "Gagal membaca file Excel."
       );
     } finally {
       setParsingExcel(false);
@@ -555,7 +569,7 @@ export default function AdminExamsPage() {
         "Tanggal selesai tidak boleh sebelum tanggal mulai.";
     }
 
-    // Validasi impor Excel.
+    // Validasi file Excel.
     if (draft.excelFile) {
       if (parsingExcel) {
         validation.excelFile =
@@ -575,10 +589,13 @@ export default function AdminExamsPage() {
           `Excel berisi ${questionPreview.length} soal, sedangkan paket membutuhkan ${draft.questionCount} soal.`;
       }
 
+      // Validasi gambar per nomor.
       questionPreview.forEach((question, index) => {
         if (!question.image_enabled) return;
 
-        const imageUrl = (question.image_url || "").trim();
+        const imageUrl = normalizeImageUrl(
+          question.image_url
+        );
 
         if (!imageUrl) {
           validation[`image_${index}`] =
@@ -643,10 +660,7 @@ export default function AdminExamsPage() {
     try {
       let packageId = draft.id;
 
-      // -----------------------------------------------
-      // UPDATE ATAU BUAT PAKET
-      // -----------------------------------------------
-
+      // UPDATE ATAU BUAT PAKET.
       if (packageId) {
         const { error: updateError } = await supabase
           .from("exam_packages")
@@ -667,29 +681,31 @@ export default function AdminExamsPage() {
         packageId = newPackage.id;
       }
 
-      // -----------------------------------------------
-      // SIMPAN SOAL HASIL IMPOR
-      // -----------------------------------------------
-
+      // SIMPAN SOAL HASIL IMPOR.
       if (
         draft.excelFile &&
         packageId &&
         questionPreview.length > 0
       ) {
         const questionsToInsert = questionPreview.map(
-          (question) => ({
-            exam_package_id: packageId,
-            category: draft.category,
-            question_text: question.question_text,
-            options: question.options,
-            correct_answer: question.correct_answer,
-            explanation: question.explanation,
-            image_url:
-              question.image_enabled &&
-              question.image_url.trim()
-                ? question.image_url.trim()
-                : null,
-          })
+          (question) => {
+            const imageUrl = normalizeImageUrl(
+              question.image_url
+            );
+
+            return {
+              exam_package_id: packageId,
+              category: draft.category,
+              question_text: question.question_text,
+              options: question.options,
+              correct_answer: question.correct_answer,
+              explanation: question.explanation,
+              image_url:
+                question.image_enabled && imageUrl
+                  ? imageUrl
+                  : null,
+            };
+          }
         );
 
         const { error: questionError } = await supabase
@@ -708,10 +724,12 @@ export default function AdminExamsPage() {
       resetForm();
 
       await fetchData();
-    } catch (err: any) {
+    } catch (err: unknown) {
       toast.error(
         "Gagal menyimpan: " +
-          (err.message || "Terjadi kesalahan.")
+          (err instanceof Error
+            ? err.message
+            : "Terjadi kesalahan.")
       );
     } finally {
       setSaving(false);
@@ -737,8 +755,13 @@ export default function AdminExamsPage() {
 
       setRemoving(null);
       await fetchData();
-    } catch (err: any) {
-      toast.error("Gagal menghapus: " + err.message);
+    } catch (err: unknown) {
+      toast.error(
+        "Gagal menghapus: " +
+          (err instanceof Error
+            ? err.message
+            : "Terjadi kesalahan.")
+      );
     }
   };
 
@@ -859,7 +882,6 @@ export default function AdminExamsPage() {
 
   return (
     <div className="w-full space-y-6 pb-12">
-
       {/* HEADER */}
 
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
@@ -980,7 +1002,10 @@ export default function AdminExamsPage() {
             className="gap-2 rounded-none border-b-2 border-transparent px-1 pb-3 text-sm font-extrabold data-[state=active]:border-sky-500 data-[state=active]:bg-transparent data-[state=active]:text-sky-600"
           >
             Akan Datang
-            <Badge variant="outline" className="rounded-full px-2 text-[10px]">
+            <Badge
+              variant="outline"
+              className="rounded-full px-2 text-[10px]"
+            >
               {counts.akanDatang}
             </Badge>
           </TabsTrigger>
@@ -990,7 +1015,10 @@ export default function AdminExamsPage() {
             className="gap-2 rounded-none border-b-2 border-transparent px-1 pb-3 text-sm font-extrabold data-[state=active]:border-slate-500 data-[state=active]:bg-transparent data-[state=active]:text-slate-600"
           >
             Arsip
-            <Badge variant="outline" className="rounded-full px-2 text-[10px]">
+            <Badge
+              variant="outline"
+              className="rounded-full px-2 text-[10px]"
+            >
               {counts.arsip}
             </Badge>
           </TabsTrigger>
@@ -1044,16 +1072,11 @@ export default function AdminExamsPage() {
           <TableSkeleton />
         ) : error ? (
           <div className="p-4">
-            <ErrorState
-              message={error}
-              onRetry={fetchData}
-            />
+            <ErrorState message={error} onRetry={fetchData} />
           </div>
         ) : filtered.length === 0 ? (
           <div className="p-4">
-            <EmptyState
-              title="Paket ujian tidak ditemukan"
-            />
+            <EmptyState title="Paket ujian tidak ditemukan" />
           </div>
         ) : (
           <div className="overflow-x-auto">
@@ -1234,9 +1257,7 @@ export default function AdminExamsPage() {
         )}
       </Card>
 
-      {/* =================================================
-          MODAL TAMBAH / EDIT PAKET
-      ================================================= */}
+      {/* MODAL TAMBAH / EDIT PAKET */}
 
       <Dialog
         open={!!draft}
@@ -1263,15 +1284,11 @@ export default function AdminExamsPage() {
               </DialogHeader>
 
               <div className="space-y-5 py-2 text-xs">
-
                 {/* INFORMASI DASAR */}
 
                 <div className="space-y-3">
                   <div className="space-y-1">
-                    <Label
-                      htmlFor="x-title"
-                      className="font-bold"
-                    >
+                    <Label htmlFor="x-title" className="font-bold">
                       Judul Ujian *
                     </Label>
 
@@ -1292,10 +1309,7 @@ export default function AdminExamsPage() {
                   </div>
 
                   <div className="space-y-1">
-                    <Label
-                      htmlFor="x-desc"
-                      className="font-bold"
-                    >
+                    <Label htmlFor="x-desc" className="font-bold">
                       Deskripsi
                     </Label>
 
@@ -1328,7 +1342,6 @@ export default function AdminExamsPage() {
                   </div>
 
                   <div className="grid gap-3 sm:grid-cols-2">
-
                     {/* JENJANG */}
 
                     <div className="space-y-1">
@@ -1355,10 +1368,7 @@ export default function AdminExamsPage() {
 
                         <SelectContent>
                           {LEVELS.map((item) => (
-                            <SelectItem
-                              key={item}
-                              value={item}
-                            >
+                            <SelectItem key={item} value={item}>
                               {item}
                             </SelectItem>
                           ))}
@@ -1369,9 +1379,7 @@ export default function AdminExamsPage() {
                     {/* KELAS */}
 
                     <div className="space-y-1">
-                      <Label className="font-bold">
-                        Kelas *
-                      </Label>
+                      <Label className="font-bold">Kelas *</Label>
 
                       <Select
                         value={String(draft.grade)}
@@ -1399,6 +1407,7 @@ export default function AdminExamsPage() {
                           )}
                         </SelectContent>
                       </Select>
+
                       <FieldError message={errs.grade} />
                     </div>
 
@@ -1435,6 +1444,7 @@ export default function AdminExamsPage() {
                           )}
                         </SelectContent>
                       </Select>
+
                       <FieldError message={errs.subject} />
                     </div>
 
@@ -1460,15 +1470,13 @@ export default function AdminExamsPage() {
 
                         <SelectContent>
                           {EXAM_TYPES.map((type) => (
-                            <SelectItem
-                              key={type}
-                              value={type}
-                            >
+                            <SelectItem key={type} value={type}>
                               {type}
                             </SelectItem>
                           ))}
                         </SelectContent>
                       </Select>
+
                       <FieldError message={errs.examType} />
                     </div>
 
@@ -1505,11 +1513,12 @@ export default function AdminExamsPage() {
                           {!categories.some(
                             (category) =>
                               category.name === draft.category
-                          ) && draft.category && (
-                            <SelectItem value={draft.category}>
-                              {draft.category}
-                            </SelectItem>
-                          )}
+                          ) &&
+                            draft.category && (
+                              <SelectItem value={draft.category}>
+                                {draft.category}
+                              </SelectItem>
+                            )}
                         </SelectContent>
                       </Select>
 
@@ -1558,7 +1567,6 @@ export default function AdminExamsPage() {
 
                 <div className="space-y-4 rounded-xl border bg-muted/20 p-4">
                   <div className="grid gap-3 sm:grid-cols-2">
-
                     {/* TANGGAL MULAI */}
 
                     <div className="space-y-1">
@@ -1665,10 +1673,7 @@ export default function AdminExamsPage() {
 
                 <div className="grid gap-3 sm:grid-cols-2">
                   <div className="space-y-1">
-                    <Label
-                      htmlFor="x-dur"
-                      className="font-bold"
-                    >
+                    <Label htmlFor="x-dur" className="font-bold">
                       Durasi (Menit) *
                     </Label>
 
@@ -1691,10 +1696,7 @@ export default function AdminExamsPage() {
                   </div>
 
                   <div className="space-y-1">
-                    <Label
-                      htmlFor="x-cnt"
-                      className="font-bold"
-                    >
+                    <Label htmlFor="x-cnt" className="font-bold">
                       Jumlah Soal *
                     </Label>
 
@@ -1809,114 +1811,82 @@ export default function AdminExamsPage() {
                     </div>
 
                     <div className="max-h-[600px] space-y-3 overflow-y-auto pr-1">
-                      {questionPreview.map((question, index) => (
-                        <Card
-                          key={`preview-${index}`}
-                          className="overflow-hidden rounded-xl border border-border bg-card shadow-sm"
-                        >
-                          <CardContent className="space-y-3 p-4">
-                            <div className="flex items-center justify-between gap-3">
-                              <Badge
-                                variant="outline"
-                                className="font-bold"
-                              >
-                                Soal Nomor {index + 1}
-                              </Badge>
+                      {questionPreview.map((question, index) => {
+                        // Selalu normalisasi image_url sebelum digunakan.
+                        const imageUrl = normalizeImageUrl(
+                          question.image_url
+                        );
 
-                              <Badge
-                                variant="outline"
-                                className="border-emerald-500/30 text-emerald-600"
-                              >
-                                Kunci: {question.correct_answer}
-                              </Badge>
-                            </div>
-
-                            <div className="whitespace-pre-wrap text-sm font-semibold leading-relaxed text-foreground">
-                              {question.question_text}
-                            </div>
-
-                            {/* PILIHAN JAWABAN */}
-
-                            <div className="grid gap-2 sm:grid-cols-2">
-                              {question.options.map((option) => (
-                                <div
-                                  key={option.id}
-                                  className={`rounded-lg border p-2 text-xs ${
-                                    option.id === question.correct_answer
-                                      ? "border-emerald-500/40 bg-emerald-500/5"
-                                      : "border-border bg-muted/20"
-                                  }`}
+                        return (
+                          <Card
+                            key={`preview-${index}`}
+                            className="overflow-hidden rounded-xl border border-border bg-card shadow-sm"
+                          >
+                            <CardContent className="space-y-3 p-4">
+                              <div className="flex items-center justify-between gap-3">
+                                <Badge
+                                  variant="outline"
+                                  className="font-bold"
                                 >
-                                  <span className="mr-2 font-extrabold">
-                                    {option.id}.
-                                  </span>
-                                  {option.text}
-                                </div>
-                              ))}
-                            </div>
+                                  Soal Nomor {index + 1}
+                                </Badge>
 
-                            {/* PEMBAHASAN */}
-
-                            {question.explanation && (
-                              <div className="rounded-lg bg-muted/40 p-3">
-                                <p className="mb-1 text-[10px] font-bold uppercase text-muted-foreground">
-                                  Pembahasan
-                                </p>
-
-                                <p className="whitespace-pre-wrap text-xs leading-relaxed text-foreground">
-                                  {question.explanation}
-                                </p>
-                              </div>
-                            )}
-
-                            {/* PENGATURAN GAMBAR */}
-
-                            <div className="border-t border-border pt-3">
-                              <div className="flex items-center gap-3">
-                                <Switch
-                                  id={`question-image-${index}`}
-                                  checked={question.image_enabled}
-                                  onCheckedChange={(checked) => {
-                                    updateQuestionImage(index, {
-                                      image_enabled: checked,
-                                      image_url: checked
-                                        ? question.image_url
-                                        : "",
-                                    });
-
-                                    setErrs((current) => {
-                                      const next = { ...current };
-                                      delete next[`image_${index}`];
-                                      return next;
-                                    });
-                                  }}
-                                />
-
-                                <Label
-                                  htmlFor={`question-image-${index}`}
-                                  className="flex cursor-pointer items-center gap-2 text-xs font-bold"
+                                <Badge
+                                  variant="outline"
+                                  className="border-emerald-500/30 text-emerald-600"
                                 >
-                                  <ImageIcon className="h-4 w-4 text-emerald-600" />
-                                  Tambahkan gambar pada soal ini
-                                </Label>
+                                  Kunci: {question.correct_answer}
+                                </Badge>
                               </div>
 
-                              {question.image_enabled && (
-                                <div className="mt-3 space-y-2">
-                                  <Label
-                                    htmlFor={`question-image-url-${index}`}
-                                    className="text-xs font-semibold"
+                              <div className="whitespace-pre-wrap text-sm font-semibold leading-relaxed text-foreground">
+                                {question.question_text}
+                              </div>
+
+                              {/* PILIHAN JAWABAN */}
+
+                              <div className="grid gap-2 sm:grid-cols-2">
+                                {question.options.map((option) => (
+                                  <div
+                                    key={option.id}
+                                    className={`rounded-lg border p-2 text-xs ${
+                                      option.id === question.correct_answer
+                                        ? "border-emerald-500/40 bg-emerald-500/5"
+                                        : "border-border bg-muted/20"
+                                    }`}
                                   >
-                                    URL Gambar
-                                  </Label>
+                                    <span className="mr-2 font-extrabold">
+                                      {option.id}.
+                                    </span>
+                                    {option.text}
+                                  </div>
+                                ))}
+                              </div>
 
-                                  <Input
-                                    id={`question-image-url-${index}`}
-                                    type="url"
-                                    value={question.image_url || ""}
-                                    onChange={(e) => {
+                              {/* PEMBAHASAN */}
+
+                              {question.explanation && (
+                                <div className="rounded-lg bg-muted/40 p-3">
+                                  <p className="mb-1 text-[10px] font-bold uppercase text-muted-foreground">
+                                    Pembahasan
+                                  </p>
+
+                                  <p className="whitespace-pre-wrap text-xs leading-relaxed text-foreground">
+                                    {question.explanation}
+                                  </p>
+                                </div>
+                              )}
+
+                              {/* PENGATURAN GAMBAR */}
+
+                              <div className="border-t border-border pt-3">
+                                <div className="flex items-center gap-3">
+                                  <Switch
+                                    id={`question-image-${index}`}
+                                    checked={question.image_enabled}
+                                    onCheckedChange={(checked) => {
                                       updateQuestionImage(index, {
-                                        image_url: e.target.value,
+                                        image_enabled: checked,
                                       });
 
                                       setErrs((current) => {
@@ -1925,57 +1895,92 @@ export default function AdminExamsPage() {
                                         return next;
                                       });
                                     }}
-                                    placeholder="https://contoh.com/gambar-soal.jpg"
-                                    className="h-10 rounded-lg bg-background text-xs"
                                   />
 
-                                  {errs[`image_${index}`] && (
-                                    <p className="text-xs font-medium text-destructive">
-                                      {errs[`image_${index}`]}
-                                    </p>
-                                  )}
-
-                                  <p className="text-[10px] text-muted-foreground">
-                                    Masukkan URL gambar langsung yang
-                                    dapat diakses melalui browser.
-                                  </p>
-
-                                  {question.image_url.trim() && (
-                                    <div className="overflow-hidden rounded-xl border border-border bg-muted/20 p-2">
-                                      <p className="mb-2 text-[10px] font-bold text-muted-foreground">
-                                        PREVIEW GAMBAR
-                                      </p>
-
-                                      {isValidImageUrl(
-                                        question.image_url.trim()
-                                      ) ? (
-                                        <img
-                                          src={question.image_url.trim()}
-                                          alt={`Gambar soal nomor ${index + 1}`}
-                                          className="max-h-64 max-w-full rounded-lg object-contain"
-                                          onError={(e) => {
-                                            e.currentTarget.style.display =
-                                              "none";
-                                          }}
-                                          onLoad={(e) => {
-                                            e.currentTarget.style.display =
-                                              "block";
-                                          }}
-                                        />
-                                      ) : (
-                                        <p className="text-xs text-amber-600">
-                                          URL belum valid. Periksa kembali
-                                          alamat gambar.
-                                        </p>
-                                      )}
-                                    </div>
-                                  )}
+                                  <Label
+                                    htmlFor={`question-image-${index}`}
+                                    className="flex cursor-pointer items-center gap-2 text-xs font-bold"
+                                  >
+                                    <ImageIcon className="h-4 w-4 text-emerald-600" />
+                                    Tambahkan gambar pada soal ini
+                                  </Label>
                                 </div>
-                              )}
-                            </div>
-                          </CardContent>
-                        </Card>
-                      ))}
+
+                                {question.image_enabled && (
+                                  <div className="mt-3 space-y-2">
+                                    <Label
+                                      htmlFor={`question-image-url-${index}`}
+                                      className="text-xs font-semibold"
+                                    >
+                                      URL Gambar
+                                    </Label>
+
+                                    <Input
+                                      id={`question-image-url-${index}`}
+                                      type="url"
+                                      value={imageUrl}
+                                      onChange={(e) => {
+                                        updateQuestionImage(index, {
+                                          image_url: e.target.value,
+                                        });
+
+                                        setErrs((current) => {
+                                          const next = { ...current };
+                                          delete next[`image_${index}`];
+                                          return next;
+                                        });
+                                      }}
+                                      placeholder="https://contoh.com/gambar-soal.jpg"
+                                      className="h-10 rounded-lg bg-background text-xs"
+                                    />
+
+                                    {errs[`image_${index}`] && (
+                                      <p className="text-xs font-medium text-destructive">
+                                        {errs[`image_${index}`]}
+                                      </p>
+                                    )}
+
+                                    <p className="text-[10px] text-muted-foreground">
+                                      Masukkan URL gambar langsung yang
+                                      dapat diakses melalui browser.
+                                    </p>
+
+                                    {imageUrl && (
+                                      <div className="overflow-hidden rounded-xl border border-border bg-muted/20 p-2">
+                                        <p className="mb-2 text-[10px] font-bold text-muted-foreground">
+                                          PREVIEW GAMBAR
+                                        </p>
+
+                                        {isValidImageUrl(imageUrl) ? (
+                                          <img
+                                            src={imageUrl}
+                                            alt={`Gambar soal nomor ${index + 1}`}
+                                            loading="lazy"
+                                            className="max-h-64 max-w-full rounded-lg object-contain"
+                                            onError={(e) => {
+                                              e.currentTarget.style.display =
+                                                "none";
+                                            }}
+                                            onLoad={(e) => {
+                                              e.currentTarget.style.display =
+                                                "block";
+                                            }}
+                                          />
+                                        ) : (
+                                          <p className="text-xs text-amber-600">
+                                            URL belum valid. Periksa kembali
+                                            alamat gambar.
+                                          </p>
+                                        )}
+                                      </div>
+                                    )}
+                                  </div>
+                                )}
+                              </div>
+                            </CardContent>
+                          </Card>
+                        );
+                      })}
                     </div>
 
                     {/* RINGKASAN GAMBAR */}
@@ -1987,11 +1992,18 @@ export default function AdminExamsPage() {
                       </div>
 
                       <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">
-                        {questionPreview.filter(
-                          (question) =>
-                            question.image_enabled &&
-                            question.image_url.trim()
-                        ).length}{" "}
+                        {
+                          questionPreview.filter((question) => {
+                            const imageUrl = normalizeImageUrl(
+                              question.image_url
+                            );
+
+                            return (
+                              question.image_enabled &&
+                              imageUrl.length > 0
+                            );
+                          }).length
+                        }{" "}
                         dari {questionPreview.length} soal memiliki
                         URL gambar yang diisi.
                       </p>
