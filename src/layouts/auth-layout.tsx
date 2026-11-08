@@ -26,7 +26,7 @@ export function AuthLayout() {
         </div>
 
         <p className="text-center text-xs text-muted-foreground">
-          Keamanan dan kerahasiaan Data Anda dijamin!
+          Akun Anda dilindungi dengan sistem autentikasi GradeUp.
         </p>
       </div>
 
