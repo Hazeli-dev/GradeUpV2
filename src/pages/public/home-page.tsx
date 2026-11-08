@@ -3,7 +3,6 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import {
   ArrowRight,
-  PlayCircle,
   Sparkles,
   BookOpen,
   Clock3,
@@ -12,13 +11,15 @@ import {
   Loader2,
   ShieldCheck,
   ChartNoAxesCombined,
+  CheckCircle2,
+  BookMarked,
+  Target,
+  Award,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { SectionHeading } from "@/components/shared/page-header";
-import { DashboardPreview } from "@/components/marketing/dashboard-preview";
 import { PricingCards } from "@/components/marketing/pricing-cards";
-import { TestimonialCarousel } from "@/components/marketing/testimonial-carousel";
 import { FaqAccordion } from "@/components/marketing/faq-accordion";
 
 import { faqs, features } from "@/data/marketing";
@@ -62,7 +63,7 @@ const formatPrice = (price: number) =>
 const hasDescription = (description: string | null) =>
   Boolean(
     description?.trim() &&
-    description.trim().toLowerCase() !== "belum ada deskripsi."
+      description.trim().toLowerCase() !== "belum ada deskripsi."
   );
 
 export default function HomePage() {
@@ -77,52 +78,48 @@ export default function HomePage() {
     let active = true;
 
     const loadHomepageData = async () => {
-      const [courseResult, examResult] = await Promise.all([
-        supabase
-          .from("courses")
-          .select(
-            "id, title, description, category, level, instructor, premium, thumbnail"
-          )
-          .eq("status", "Published")
-          .order("created_at", { ascending: false })
-          .limit(3),
+      try {
+        const [courseResult, examResult] = await Promise.all([
+          supabase
+            .from("courses")
+            .select(
+              "id, title, description, category, level, instructor, premium, thumbnail"
+            )
+            .eq("status", "Published")
+            .order("created_at", { ascending: false })
+            .limit(3),
 
-        supabase
-          .from("exam_packages")
-          .select(
-            "id, title, description, category, subject, type, level, grade, difficulty, price, duration_minutes, total_questions, premium"
-          )
-          .eq("status", "Published")
-          .order("created_at", { ascending: false })
-          .limit(3),
-      ]);
+          supabase
+            .from("exam_packages")
+            .select(
+              "id, title, description, category, subject, type, level, grade, difficulty, price, duration_minutes, total_questions, premium"
+            )
+            .eq("status", "Published")
+            .order("created_at", { ascending: false })
+            .limit(3),
+        ]);
 
-      if (!active) return;
+        if (!active) return;
 
-      if (courseResult.error) {
-        console.error(
-          "Gagal mengambil kursus homepage:",
-          courseResult.error
-        );
-      } else {
-        setFeaturedCourses(
-          (courseResult.data ?? []) as FeaturedCourse[]
-        );
+        if (courseResult.error) {
+          console.error("Gagal mengambil kursus:", courseResult.error);
+        } else {
+          setFeaturedCourses((courseResult.data ?? []) as FeaturedCourse[]);
+        }
+
+        if (examResult.error) {
+          console.error("Gagal mengambil paket ujian:", examResult.error);
+        } else {
+          setFeaturedExams((examResult.data ?? []) as FeaturedExam[]);
+        }
+      } catch (error) {
+        console.error("Gagal memuat data homepage:", error);
+      } finally {
+        if (active) {
+          setLoadingCourses(false);
+          setLoadingExams(false);
+        }
       }
-
-      if (examResult.error) {
-        console.error(
-          "Gagal mengambil paket ujian homepage:",
-          examResult.error
-        );
-      } else {
-        setFeaturedExams(
-          (examResult.data ?? []) as FeaturedExam[]
-        );
-      }
-
-      setLoadingCourses(false);
-      setLoadingExams(false);
     };
 
     loadHomepageData();
@@ -136,29 +133,28 @@ export default function HomePage() {
     <>
       {/* HERO */}
       <section className="relative isolate overflow-hidden">
-        <div className="absolute inset-0 -z-10 bg-[radial-gradient(ellipse_at_75%_10%,hsl(var(--soft))_0%,transparent_65%)]" />
+        <div className="absolute inset-0 -z-10 bg-[radial-gradient(ellipse_at_15%_15%,hsl(var(--soft))_0%,transparent_55%)]" />
+        <div className="absolute -right-40 top-10 -z-10 h-96 w-96 rounded-full bg-primary/5 blur-3xl" />
 
-        <div className="container grid items-center gap-12 py-16 sm:py-20 lg:grid-cols-2 lg:gap-16 lg:py-28">
+        <div className="container grid items-center gap-14 py-20 sm:py-24 lg:grid-cols-[1.05fr_0.95fr] lg:gap-16 lg:py-32">
           <div className="animate-fade-up text-center lg:text-left">
-            <span className="inline-flex items-center gap-2 rounded-full border bg-card px-4 py-2 text-xs font-bold text-primary shadow-soft dark:text-accent">
+            <span className="inline-flex items-center gap-2 rounded-full border border-primary/15 bg-primary/5 px-4 py-2 text-xs font-bold text-primary">
               <Sparkles className="h-4 w-4" />
-              Platform belajar dan latihan ujian
+              Selamat datang di GradeUp
             </span>
 
             <h1 className="mt-7 text-4xl font-extrabold leading-[1.12] tracking-tight sm:text-5xl lg:text-6xl">
               Belajar Lebih Terarah,
-              <span className="text-gradient">
-                {" "}Raih Hasil Terbaik.
-              </span>
+              <span className="text-gradient"> Raih Hasil Terbaik.</span>
             </h1>
 
             <p className="mx-auto mt-6 max-w-xl text-base leading-relaxed text-muted-foreground sm:text-lg lg:mx-0">
-              Temukan materi pembelajaran, kerjakan latihan soal,
-              dan evaluasi perkembangan belajar melalui satu platform.
+              Satu platform untuk mempelajari materi, berlatih mengerjakan
+              soal, dan mengevaluasi perkembangan belajarmu.
             </p>
 
             <div className="mt-9 flex flex-col justify-center gap-3 sm:flex-row lg:justify-start">
-              <Button asChild size="lg" className="h-12 px-6">
+              <Button asChild size="lg" className="h-12 px-7 shadow-glow">
                 <Link to="/register">
                   Mulai Belajar Gratis
                   <ArrowRight className="ml-2 h-4 w-4" />
@@ -168,27 +164,23 @@ export default function HomePage() {
               <Button
                 size="lg"
                 variant="outline"
-                className="h-12 px-6"
-                onClick={() =>
-                  requireLogin("mencoba simulasi ujian")
-                }
+                className="h-12 px-7"
+                onClick={() => requireLogin("mencoba simulasi ujian")}
               >
-                <PlayCircle className="mr-2 h-5 w-5" />
+                <ClipboardList className="mr-2 h-5 w-5" />
                 Coba Simulasi Ujian
               </Button>
             </div>
 
-            <div className="mt-10 flex flex-wrap items-center justify-center gap-x-6 gap-y-3 text-sm text-muted-foreground lg:justify-start">
+            <div className="mt-10 flex flex-wrap items-center justify-center gap-x-6 gap-y-4 text-sm text-muted-foreground lg:justify-start">
               <span className="flex items-center gap-2">
                 <ShieldCheck className="h-4 w-4 text-primary" />
                 Pembelajaran terarah
               </span>
-
               <span className="flex items-center gap-2">
                 <BookOpen className="h-4 w-4 text-primary" />
                 Materi pembelajaran
               </span>
-
               <span className="flex items-center gap-2">
                 <ChartNoAxesCombined className="h-4 w-4 text-primary" />
                 Evaluasi belajar
@@ -196,37 +188,99 @@ export default function HomePage() {
             </div>
           </div>
 
-          <div className="animate-fade-up [animation-delay:150ms]">
-            <DashboardPreview />
-            <p className="mt-3 text-center text-xs text-muted-foreground">
-              Ilustrasi tampilan dashboard GradeUp.
-            </p>
+          {/* HERO VISUAL - TANPA STATISTIK PALSU */}
+          <div className="relative mx-auto w-full max-w-lg animate-fade-up [animation-delay:150ms]">
+            <div className="absolute -inset-5 rounded-[2.5rem] bg-primary/5 blur-2xl" />
+
+            <div className="relative overflow-hidden rounded-[2rem] border bg-card p-5 shadow-2xl sm:p-7">
+              <div className="flex items-center justify-between border-b pb-5">
+                <div className="flex items-center gap-3">
+                  <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-brand-gradient text-white">
+                    <GraduationCap className="h-6 w-6" />
+                  </div>
+                  <div>
+                    <p className="font-extrabold tracking-tight">GradeUp</p>
+                    <p className="text-xs text-muted-foreground">
+                      Ruang belajar digital
+                    </p>
+                  </div>
+                </div>
+                <span className="rounded-full bg-primary/10 px-3 py-1.5 text-xs font-bold text-primary">
+                  Learning Platform
+                </span>
+              </div>
+
+              <div className="py-7">
+                <p className="text-sm font-semibold text-primary">
+                  Belajar dengan lebih terarah
+                </p>
+                <h2 className="mt-2 text-2xl font-extrabold leading-tight sm:text-3xl">
+                  Satu langkah kecil untuk kemajuan yang lebih besar.
+                </h2>
+                <p className="mt-3 text-sm leading-relaxed text-muted-foreground">
+                  Temukan materi, latih pemahaman, dan persiapkan dirimu
+                  menghadapi berbagai evaluasi pembelajaran.
+                </p>
+              </div>
+
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div className="rounded-2xl border bg-muted/40 p-4">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-500/10 text-blue-600 dark:text-blue-400">
+                    <BookMarked className="h-5 w-5" />
+                  </div>
+                  <h3 className="mt-4 font-bold">Materi Belajar</h3>
+                  <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+                    Pelajari berbagai materi sesuai kebutuhanmu.
+                  </p>
+                </div>
+
+                <div className="rounded-2xl border bg-muted/40 p-4">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
+                    <Target className="h-5 w-5" />
+                  </div>
+                  <h3 className="mt-4 font-bold">Latihan Ujian</h3>
+                  <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+                    Asah pemahaman melalui latihan dan evaluasi.
+                  </p>
+                </div>
+              </div>
+
+              <div className="mt-4 flex items-center gap-3 rounded-2xl bg-primary/5 p-4">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
+                  <Award className="h-5 w-5" />
+                </div>
+                <div>
+                  <p className="text-sm font-bold">Terus berkembang</p>
+                  <p className="text-xs text-muted-foreground">
+                    Bangun kebiasaan belajar yang lebih baik bersama GradeUp.
+                  </p>
+                </div>
+                <ArrowRight className="ml-auto h-4 w-4 shrink-0 text-primary" />
+              </div>
+            </div>
           </div>
         </div>
       </section>
 
       {/* FITUR */}
-      <section className="container py-16 sm:py-24">
+      <section className="container py-20 sm:py-24">
         <SectionHeading
           eyebrow="Keunggulan GradeUp"
           title="Semua kebutuhan belajar dalam satu platform"
-          description="Fitur pembelajaran yang dirancang untuk membantu proses belajar menjadi lebih terarah."
+          description="Fitur pembelajaran yang dirancang untuk mendukung proses belajar menjadi lebih terarah."
         />
 
         <div className="mt-12 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
           {features.map((feature) => (
             <div
               key={feature.title}
-              className="card-hover rounded-2xl border bg-card p-6 shadow-soft"
+              className="group rounded-2xl border bg-card p-6 shadow-soft transition-all duration-300 hover:-translate-y-1 hover:shadow-lg"
             >
-              <span className="flex h-12 w-12 items-center justify-center rounded-xl bg-brand-gradient text-white shadow-glow">
+              <span className="flex h-12 w-12 items-center justify-center rounded-xl bg-brand-gradient text-white shadow-glow transition-transform duration-300 group-hover:scale-105">
                 <feature.icon className="h-6 w-6" />
               </span>
 
-              <h3 className="mt-5 text-lg font-bold">
-                {feature.title}
-              </h3>
-
+              <h3 className="mt-5 text-lg font-bold">{feature.title}</h3>
               <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
                 {feature.description}
               </p>
@@ -236,9 +290,9 @@ export default function HomePage() {
       </section>
 
       {/* KURSUS */}
-      <section className="bg-muted/50 py-16 sm:py-24">
+      <section className="border-y bg-muted/30 py-20 sm:py-24">
         <div className="container">
-          <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
+          <div className="flex flex-col justify-between gap-5 sm:flex-row sm:items-end">
             <SectionHeading
               center={false}
               eyebrow="Materi Pembelajaran"
@@ -246,7 +300,7 @@ export default function HomePage() {
               description="Jelajahi materi pembelajaran yang tersedia di GradeUp."
             />
 
-            <Button asChild variant="outline">
+            <Button asChild variant="outline" className="shrink-0">
               <Link to="/courses">
                 Lihat Semua Materi
                 <ArrowRight className="ml-2 h-4 w-4" />
@@ -254,17 +308,15 @@ export default function HomePage() {
             </Button>
           </div>
 
-          <div className="mt-10 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="mt-10 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
             {loadingCourses ? (
-              <div className="col-span-full flex justify-center py-12">
+              <div className="col-span-full flex justify-center py-14">
                 <Loader2 className="h-7 w-7 animate-spin text-primary" />
               </div>
             ) : featuredCourses.length === 0 ? (
-              <div className="col-span-full rounded-2xl border border-dashed bg-card px-6 py-12 text-center">
-                <BookOpen className="mx-auto h-9 w-9 text-muted-foreground" />
-                <h3 className="mt-4 font-bold">
-                  Materi segera tersedia
-                </h3>
+              <div className="col-span-full rounded-2xl border border-dashed bg-card px-6 py-14 text-center">
+                <BookOpen className="mx-auto h-10 w-10 text-muted-foreground" />
+                <h3 className="mt-4 font-bold">Materi segera tersedia</h3>
                 <p className="mt-2 text-sm text-muted-foreground">
                   Materi pembelajaran baru akan ditampilkan di sini.
                 </p>
@@ -273,12 +325,11 @@ export default function HomePage() {
               featuredCourses.map((course) => {
                 const thumbnail = course.thumbnail?.trim() ?? "";
                 const isImage = /^https?:\/\//i.test(thumbnail);
-                const isGradient = thumbnail.includes("from-");
 
                 return (
                   <article
                     key={course.id}
-                    className="group overflow-hidden rounded-2xl border bg-card shadow-soft transition-all duration-300 hover:-translate-y-1 hover:shadow-lg"
+                    className="group overflow-hidden rounded-2xl border bg-card shadow-soft transition-all duration-300 hover:-translate-y-1 hover:shadow-xl"
                   >
                     <div className="relative aspect-[16/9] overflow-hidden bg-muted">
                       {isImage ? (
@@ -289,13 +340,7 @@ export default function HomePage() {
                           className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
                         />
                       ) : (
-                        <div
-                          className={`flex h-full w-full items-center justify-center ${
-                            isGradient
-                              ? "bg-gradient-to-br from-cyan-600 to-emerald-400"
-                              : "bg-gradient-to-br from-primary/80 to-primary"
-                          }`}
-                        >
+                        <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-primary/80 to-primary">
                           <BookOpen className="h-14 w-14 text-white/90" />
                         </div>
                       )}
@@ -308,21 +353,22 @@ export default function HomePage() {
                     </div>
 
                     <div className="p-5">
-                      <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                      <div className="flex flex-wrap items-center gap-2 text-xs">
                         <span className="rounded-full bg-primary/10 px-3 py-1 font-semibold text-primary">
                           {course.category}
                         </span>
-
                         {course.level && (
-                          <span>{course.level}</span>
+                          <span className="text-muted-foreground">
+                            {course.level}
+                          </span>
                         )}
                       </div>
 
-                      <h3 className="mt-4 line-clamp-2 text-lg font-bold">
+                      <h3 className="mt-4 line-clamp-2 min-h-14 text-lg font-bold">
                         {course.title}
                       </h3>
 
-                      <p className="mt-2 line-clamp-2 min-h-10 text-sm text-muted-foreground">
+                      <p className="mt-2 line-clamp-2 min-h-10 text-sm leading-relaxed text-muted-foreground">
                         {hasDescription(course.description)
                           ? course.description
                           : "Pelajari materi ini dan tingkatkan pemahamanmu bersama GradeUp."}
@@ -355,8 +401,8 @@ export default function HomePage() {
       </section>
 
       {/* PAKET UJIAN */}
-      <section className="container py-16 sm:py-24">
-        <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
+      <section className="container py-20 sm:py-24">
+        <div className="flex flex-col justify-between gap-5 sm:flex-row sm:items-end">
           <SectionHeading
             center={false}
             eyebrow="Latihan dan Evaluasi"
@@ -364,7 +410,7 @@ export default function HomePage() {
             description="Pilih paket ujian dan latih kemampuanmu secara bertahap."
           />
 
-          <Button asChild variant="outline">
+          <Button asChild variant="outline" className="shrink-0">
             <Link to="/exams">
               Lihat Semua Paket
               <ArrowRight className="ml-2 h-4 w-4" />
@@ -372,17 +418,15 @@ export default function HomePage() {
           </Button>
         </div>
 
-        <div className="mt-10 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="mt-10 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
           {loadingExams ? (
-            <div className="col-span-full flex justify-center py-12">
+            <div className="col-span-full flex justify-center py-14">
               <Loader2 className="h-7 w-7 animate-spin text-primary" />
             </div>
           ) : featuredExams.length === 0 ? (
-            <div className="col-span-full rounded-2xl border border-dashed bg-card px-6 py-12 text-center">
-              <ClipboardList className="mx-auto h-9 w-9 text-muted-foreground" />
-              <h3 className="mt-4 font-bold">
-                Paket ujian segera tersedia
-              </h3>
+            <div className="col-span-full rounded-2xl border border-dashed bg-card px-6 py-14 text-center">
+              <ClipboardList className="mx-auto h-10 w-10 text-muted-foreground" />
+              <h3 className="mt-4 font-bold">Paket ujian segera tersedia</h3>
               <p className="mt-2 text-sm text-muted-foreground">
                 Paket ujian terbaru akan ditampilkan di sini.
               </p>
@@ -391,7 +435,7 @@ export default function HomePage() {
             featuredExams.map((exam) => (
               <article
                 key={exam.id}
-                className="group rounded-2xl border bg-card p-6 shadow-soft transition-all duration-300 hover:-translate-y-1 hover:shadow-lg"
+                className="flex flex-col rounded-2xl border bg-card p-6 shadow-soft transition-all duration-300 hover:-translate-y-1 hover:shadow-xl"
               >
                 <div className="flex items-start justify-between gap-3">
                   <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10 text-primary">
@@ -418,26 +462,31 @@ export default function HomePage() {
                       {exam.grade ? ` Kelas ${exam.grade}` : ""}
                     </span>
                   )}
+
+                  {exam.difficulty && (
+                    <span className="rounded-full bg-muted px-3 py-1 text-muted-foreground">
+                      {exam.difficulty}
+                    </span>
+                  )}
                 </div>
 
-                <h3 className="mt-4 line-clamp-2 text-lg font-bold">
+                <h3 className="mt-4 line-clamp-2 min-h-14 text-lg font-bold">
                   {exam.title}
                 </h3>
 
-                <p className="mt-2 line-clamp-2 min-h-10 text-sm text-muted-foreground">
+                <p className="mt-2 line-clamp-2 min-h-10 text-sm leading-relaxed text-muted-foreground">
                   {hasDescription(exam.description)
                     ? exam.description
                     : "Latih kemampuan dan uji pemahamanmu melalui paket ujian GradeUp."}
                 </p>
 
                 <div className="mt-5 flex flex-wrap gap-x-5 gap-y-2 border-t pt-4 text-xs text-muted-foreground">
-                  {exam.duration_minutes &&
-                    exam.duration_minutes > 0 && (
-                      <span className="flex items-center gap-1.5">
-                        <Clock3 className="h-4 w-4" />
-                        {exam.duration_minutes} menit
-                      </span>
-                    )}
+                  {exam.duration_minutes && exam.duration_minutes > 0 && (
+                    <span className="flex items-center gap-1.5">
+                      <Clock3 className="h-4 w-4" />
+                      {exam.duration_minutes} menit
+                    </span>
+                  )}
 
                   {Number(exam.total_questions ?? 0) > 0 && (
                     <span className="flex items-center gap-1.5">
@@ -455,15 +504,13 @@ export default function HomePage() {
                 </div>
 
                 <Button
-                  className="mt-5 w-full"
+                  className="mt-auto w-full"
                   onClick={() =>
-                    requireLogin(
-                      `mengerjakan paket "${exam.title}"`
-                    )
+                    requireLogin(`mengerjakan paket "${exam.title}"`)
                   }
                 >
-                  Mulai Ujian
-                  <ArrowRight className="ml-2 h-4 w-4" />
+                  <span className="pt-5">Mulai Ujian</span>
+                  <ArrowRight className="ml-2 mt-5 h-4 w-4" />
                 </Button>
               </article>
             ))
@@ -471,13 +518,13 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* HARGA */}
-      <section className="bg-muted/50 py-16 sm:py-24">
+      {/* PREMIUM */}
+      <section className="border-y bg-muted/30 py-20 sm:py-24">
         <div className="container">
           <SectionHeading
             eyebrow="Paket Premium"
-            title="Tingkatkan pengalaman belajarmu"
-            description="Mulai dari akses gratis dan pilih paket Premium sesuai kebutuhanmu."
+            title="Maksimalkan pengalaman belajarmu"
+            description="Pilih paket Premium sesuai kebutuhan dan nikmati pengalaman belajar yang lebih lengkap."
           />
 
           <div className="mt-14">
@@ -486,31 +533,13 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* TESTIMONI */}
-      <section className="container py-16 sm:py-24">
-        <SectionHeading
-          eyebrow="Testimoni"
-          title="Pengalaman belajar bersama GradeUp"
-          description="Kenali pengalaman pengguna melalui cerita dan ulasan mereka."
-        />
-
-        <div className="mt-12">
-          <TestimonialCarousel />
-        </div>
-
-        <p className="mt-5 text-center text-xs text-muted-foreground">
-          Pastikan konten testimoni menggunakan ulasan pengguna asli
-          sebelum website diluncurkan.
-        </p>
-      </section>
-
       {/* FAQ */}
-      <section className="bg-muted/50 py-16 sm:py-24">
-        <div className="container max-w-3xl">
+      <section className="container py-20 sm:py-24">
+        <div className="mx-auto max-w-3xl">
           <SectionHeading
             eyebrow="Pusat Bantuan"
-            title="Pertanyaan yang sering diajukan"
-            description="Temukan informasi seputar penggunaan GradeUp."
+            title="Ada yang ingin kamu ketahui?"
+            description="Temukan jawaban atas pertanyaan seputar penggunaan GradeUp."
           />
 
           <div className="mt-10">
@@ -529,30 +558,30 @@ export default function HomePage() {
       </section>
 
       {/* CTA */}
-      <section className="container py-16 sm:py-20">
-        <div className="relative isolate overflow-hidden rounded-3xl bg-brand-gradient px-6 py-16 text-center text-white shadow-glow sm:px-12">
-          <div className="absolute -right-16 -top-16 -z-10 h-56 w-56 rounded-full bg-white/10" />
-          <div className="absolute -bottom-20 -left-10 -z-10 h-64 w-64 rounded-full bg-white/10" />
+      <section className="container pb-20 sm:pb-24">
+        <div className="relative isolate overflow-hidden rounded-[2rem] bg-brand-gradient px-6 py-16 text-center text-white shadow-glow sm:px-12 sm:py-20">
+          <div className="absolute -right-16 -top-16 -z-10 h-56 w-56 rounded-full bg-white/10 blur-sm" />
+          <div className="absolute -bottom-20 -left-10 -z-10 h-64 w-64 rounded-full bg-white/10 blur-sm" />
 
           <span className="inline-flex items-center gap-2 rounded-full border border-white/30 bg-white/10 px-4 py-2 text-xs font-semibold">
             <Sparkles className="h-4 w-4" />
-            Mulai perjalanan belajarmu
+            Mulai bersama GradeUp
           </span>
 
-          <h2 className="relative mt-6 text-3xl font-extrabold tracking-tight sm:text-4xl">
-            Saatnya berkembang bersama GradeUp.
+          <h2 className="mt-6 text-3xl font-extrabold tracking-tight sm:text-4xl">
+            Masa depan belajar dimulai dari sini.
           </h2>
 
-          <p className="relative mx-auto mt-4 max-w-xl text-sm leading-relaxed text-white/85 sm:text-base">
-            Buat akun gratis, akses materi pembelajaran, dan mulai
-            persiapkan dirimu menghadapi ujian.
+          <p className="mx-auto mt-4 max-w-xl text-sm leading-relaxed text-white/85 sm:text-base">
+            Buat akun gratis, temukan materi pembelajaran, dan mulai
+            persiapkan dirimu menghadapi berbagai ujian.
           </p>
 
           <Button
             asChild
             size="lg"
             variant="outline"
-            className="relative mt-8 border-white/40 bg-white px-7 text-primary hover:bg-white/90"
+            className="mt-8 h-12 border-white/40 bg-white px-7 font-bold text-primary hover:bg-white/90"
           >
             <Link to="/register">
               Daftar Gratis
