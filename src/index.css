@@ -5,74 +5,74 @@
 
 /* =========================================
    GRADEUP GLOBAL THEME
-   FRESH CYAN EDUCATION
+   ORIGINAL GREEN EDUCATION
 ========================================= */
 
 @layer base {
   :root {
     --background: 0 0% 100%;
-    --foreground: 199 55% 18%;
+    --foreground: 150 35% 16%;
 
     --card: 0 0% 100%;
-    --card-foreground: 199 55% 18%;
+    --card-foreground: 150 35% 16%;
 
     --popover: 0 0% 100%;
-    --popover-foreground: 199 55% 18%;
+    --popover-foreground: 150 35% 16%;
 
-    --primary: 188 94% 43%;
+    --primary: 142 71% 35%;
     --primary-foreground: 0 0% 100%;
 
-    --secondary: 187 92% 69%;
-    --secondary-foreground: 199 55% 18%;
+    --secondary: 142 45% 91%;
+    --secondary-foreground: 150 35% 16%;
 
-    --accent: 186 100% 94%;
-    --accent-foreground: 199 55% 18%;
+    --accent: 142 55% 94%;
+    --accent-foreground: 150 35% 16%;
 
-    --soft: 186 100% 94%;
+    --soft: 142 55% 94%;
 
-    --muted: 190 40% 96%;
-    --muted-foreground: 199 15% 43%;
+    --muted: 140 20% 96%;
+    --muted-foreground: 150 12% 43%;
 
     --destructive: 0 72% 51%;
     --destructive-foreground: 0 0% 100%;
 
-    --border: 190 25% 90%;
-    --input: 190 25% 90%;
-    --ring: 188 94% 43%;
+    --border: 140 18% 89%;
+    --input: 140 18% 89%;
+    --ring: 142 71% 35%;
 
     --radius: 0.85rem;
   }
 
   .dark {
-    --background: 199 35% 9%;
-    --foreground: 190 30% 96%;
+    --background: 150 25% 8%;
+    --foreground: 140 20% 96%;
 
-    --card: 199 30% 12%;
-    --card-foreground: 190 30% 96%;
+    --card: 150 22% 11%;
+    --card-foreground: 140 20% 96%;
 
-    --popover: 199 30% 12%;
-    --popover-foreground: 190 30% 96%;
+    --popover: 150 22% 11%;
+    --popover-foreground: 140 20% 96%;
 
-    --primary: 188 94% 48%;
-    --primary-foreground: 199 55% 10%;
+    --primary: 142 65% 45%;
+    --primary-foreground: 0 0% 100%;
 
-    --secondary: 187 75% 35%;
-    --secondary-foreground: 0 0% 100%;
+    --secondary: 150 35% 22%;
+    --secondary-foreground: 140 20% 96%;
 
-    --accent: 188 60% 20%;
-    --accent-foreground: 190 30% 96%;
+    --accent: 150 35% 18%;
+    --accent-foreground: 140 20% 96%;
 
-    --soft: 188 45% 17%;
+    --soft: 150 35% 16%;
 
-    --muted: 199 25% 16%;
-    --muted-foreground: 190 15% 68%;
+    --muted: 150 20% 15%;
+    --muted-foreground: 140 12% 68%;
 
     --destructive: 0 62% 55%;
     --destructive-foreground: 0 0% 100%;
 
-    --border: 199 20% 22%;
-    --input: 199 20% 22%;
-    --ring: 188 94% 48%;
+    --border: 150 15% 22%;
+    --input: 150 15% 22%;
+    --ring: 142 65% 45%;
   }
 
   * {
@@ -110,33 +110,43 @@
     @apply animate-fade-up;
   }
 
-  /* Fresh Cyan Utilities */
+  /* Original Green Utilities */
 
   .gu-fresh-surface {
-    @apply border border-cyan-100 bg-white shadow-sm;
+    @apply border border-green-100 bg-white shadow-sm dark:border-green-900/40 dark:bg-card;
   }
 
   .gu-fresh-section {
     background:
       radial-gradient(
         circle at 10% 15%,
-        rgba(6, 182, 212, 0.07),
+        rgba(34, 197, 94, 0.07),
         transparent 35%
       ),
-      linear-gradient(180deg, #ffffff 0%, #f0fdff 100%);
+      linear-gradient(180deg, #ffffff 0%, #f0fdf4 100%);
+  }
+
+  .dark .gu-fresh-section {
+    background:
+      radial-gradient(
+        circle at 10% 15%,
+        rgba(34, 197, 94, 0.10),
+        transparent 35%
+      ),
+      linear-gradient(180deg, #102019 0%, #0b1711 100%);
   }
 
   .gu-fresh-accent {
     background: linear-gradient(
       135deg,
-      #06b6d4 0%,
-      #0891b2 55%,
-      #0e7490 100%
+      #22c55e 0%,
+      #16a34a 55%,
+      #15803d 100%
     );
   }
 
   .gu-fresh-glow {
-    box-shadow: 0 12px 35px rgba(6, 182, 212, 0.12);
+    box-shadow: 0 12px 35px rgba(22, 163, 74, 0.12);
   }
 }
 
@@ -146,7 +156,7 @@
 
 .gu-studio {
   width: 100%;
-  color: #164e63;
+  color: #14532d;
   font-family: inherit;
 }
 
@@ -159,7 +169,7 @@
 }
 
 .gu-studio-eyebrow {
-  color: #0891b2;
+  color: #16a34a;
   font-size: 10px;
   font-weight: 800;
   letter-spacing: 1.5px;
@@ -168,7 +178,7 @@
 
 .gu-studio-header h1 {
   margin: 0;
-  color: #164e63;
+  color: #14532d;
   font-size: 25px;
   font-weight: 800;
   letter-spacing: -0.7px;
@@ -187,13 +197,13 @@
   align-items: center;
   justify-content: center;
   border-radius: 14px;
-  background: #ecfeff;
-  color: #0891b2;
+  background: #f0fdf4;
+  color: #16a34a;
 }
 
 .gu-ribbon {
   overflow: hidden;
-  border: 1px solid #dceff2;
+  border: 1px solid #dcfce7;
   border-radius: 13px 13px 0 0;
   background: #ffffff;
 }
@@ -203,8 +213,8 @@
   align-items: center;
   gap: 5px;
   padding: 0 14px;
-  border-bottom: 1px solid #e8f4f6;
-  background: #f8feff;
+  border-bottom: 1px solid #e8f5ec;
+  background: #f8fdf9;
 }
 
 .gu-ribbon-tab {
@@ -212,18 +222,18 @@
   padding: 13px 15px;
   border: 0;
   background: transparent;
-  color: #687f88;
+  color: #687f70;
   font-size: 13px;
   font-weight: 600;
   cursor: pointer;
 }
 
 .gu-ribbon-tab:hover {
-  color: #0891b2;
+  color: #16a34a;
 }
 
 .gu-ribbon-tab.is-active {
-  color: #0891b2;
+  color: #16a34a;
 }
 
 .gu-ribbon-tab.is-active::after {
@@ -233,7 +243,7 @@
   left: 12px;
   height: 3px;
   border-radius: 5px 5px 0 0;
-  background: #06b6d4;
+  background: #22c55e;
   content: "";
 }
 
@@ -264,7 +274,7 @@
   border: 1px solid transparent;
   border-radius: 7px;
   background: transparent;
-  color: #405b65;
+  color: #405b49;
   font-size: 12px;
   font-weight: 600;
   cursor: pointer;
@@ -272,15 +282,15 @@
 }
 
 .gu-tool-button:hover:not(:disabled) {
-  border-color: #c8edf2;
-  background: #ecfeff;
-  color: #0891b2;
+  border-color: #bbf7d0;
+  background: #f0fdf4;
+  color: #16a34a;
 }
 
 .gu-tool-button.is-active {
-  border-color: #a5f3fc;
-  background: #cffafe;
-  color: #0e7490;
+  border-color: #86efac;
+  background: #dcfce7;
+  color: #166534;
 }
 
 .gu-tool-button:disabled {
@@ -291,7 +301,7 @@
 .gu-tool-divider {
   width: 1px;
   height: 29px;
-  background: #e2eef0;
+  background: #e2eee5;
 }
 
 .gu-highlight-icon {
@@ -309,9 +319,9 @@
 .gu-document-workspace {
   min-height: 650px;
   padding: 34px 20px;
-  border-right: 1px solid #dceff2;
-  border-left: 1px solid #dceff2;
-  background: #f0f9fb;
+  border-right: 1px solid #dcfce7;
+  border-left: 1px solid #dcfce7;
+  background: #f0fdf4;
 }
 
 .gu-document-page {
@@ -320,10 +330,10 @@
   min-height: 800px;
   margin: 0 auto;
   padding: 65px 82px;
-  border: 1px solid #e6eff1;
+  border: 1px solid #e6efe8;
   border-radius: 3px;
   background: #ffffff;
-  box-shadow: 0 3px 15px rgba(22, 78, 99, 0.06);
+  box-shadow: 0 3px 15px rgba(20, 83, 45, 0.06);
   transition: max-width 0.25s ease;
 }
 
@@ -341,7 +351,7 @@
   align-items: center;
   gap: 8px;
   margin-bottom: 35px;
-  color: #9aabb2;
+  color: #9aaba0;
   font-size: 9px;
   font-weight: 800;
   letter-spacing: 1.4px;
@@ -351,7 +361,7 @@
   width: 7px;
   height: 7px;
   border-radius: 50%;
-  background: #06b6d4;
+  background: #22c55e;
 }
 
 /* =========================================
@@ -361,7 +371,7 @@
 .gu-prose {
   min-height: 650px;
   outline: none;
-  color: #263f49;
+  color: #263f30;
   font-family: Arial, Helvetica, sans-serif;
   font-size: 16px;
   line-height: 1.85;
@@ -378,7 +388,7 @@
 
 .gu-prose h1 {
   margin: 30px 0 17px;
-  color: #164e63;
+  color: #14532d;
   font-size: 30px;
   font-weight: 800;
   line-height: 1.3;
@@ -387,7 +397,7 @@
 
 .gu-prose h2 {
   margin: 28px 0 14px;
-  color: #0e7490;
+  color: #15803d;
   font-size: 23px;
   font-weight: 750;
   line-height: 1.4;
@@ -395,7 +405,7 @@
 
 .gu-prose h3 {
   margin: 23px 0 12px;
-  color: #155e75;
+  color: #166534;
   font-size: 19px;
   font-weight: 700;
 }
@@ -414,10 +424,10 @@
 .gu-prose blockquote {
   margin: 23px 0;
   padding: 17px 21px;
-  border-left: 4px solid #06b6d4;
+  border-left: 4px solid #22c55e;
   border-radius: 0 9px 9px 0;
-  background: #ecfeff;
-  color: #155e75;
+  background: #f0fdf4;
+  color: #166534;
 }
 
 .gu-prose blockquote p {
@@ -425,7 +435,7 @@
 }
 
 .gu-prose a {
-  color: #0891b2;
+  color: #15803d;
   text-decoration: underline;
   text-underline-offset: 3px;
 }
@@ -457,14 +467,14 @@
   position: relative;
   min-width: 70px;
   padding: 10px 12px;
-  border: 1px solid #dcebf0;
+  border: 1px solid #dcebe0;
   text-align: left;
   vertical-align: top;
 }
 
 .gu-prose th {
-  background: #ecfeff;
-  color: #155e75;
+  background: #f0fdf4;
+  color: #166534;
   font-weight: 700;
 }
 
@@ -474,7 +484,7 @@
 }
 
 .gu-prose .selectedCell {
-  background: #cffafe;
+  background: #dcfce7;
 }
 
 .gu-prose .column-resize-handle {
@@ -483,7 +493,7 @@
   right: -2px;
   bottom: -2px;
   width: 4px;
-  background: #06b6d4;
+  background: #22c55e;
   pointer-events: none;
 }
 
@@ -494,7 +504,7 @@
 .gu-prose hr {
   margin: 28px 0;
   border: 0;
-  border-top: 1px solid #dcebf0;
+  border-top: 1px solid #dcebe0;
 }
 
 .gu-prose:focus {
@@ -512,11 +522,11 @@
   justify-content: space-between;
   gap: 12px;
   padding: 8px 15px;
-  border: 1px solid #dceff2;
+  border: 1px solid #dcfce7;
   border-top: 0;
   border-radius: 0 0 11px 11px;
   background: #ffffff;
-  color: #8499a1;
+  color: #84998a;
   font-size: 11px;
 }
 
@@ -538,10 +548,10 @@
   justify-content: space-between;
   gap: 12px;
   padding: 13px 17px;
-  border: 1px solid #a5f3fc;
+  border: 1px solid #86efac;
   border-radius: 11px 11px 0 0;
-  background: #ecfeff;
-  color: #0e7490;
+  background: #f0fdf4;
+  color: #166534;
   font-size: 13px;
   font-weight: 700;
 }
@@ -555,22 +565,22 @@
 
 .gu-preview-close {
   padding: 8px 11px;
-  border: 1px solid #a5f3fc;
+  border: 1px solid #86efac;
   border-radius: 7px;
   background: #ffffff;
-  color: #0e7490;
+  color: #166534;
   font-size: 12px;
   font-weight: 600;
   cursor: pointer;
 }
 
 .gu-preview-close:hover {
-  background: #cffafe;
+  background: #dcfce7;
 }
 
 .gu-editor-loading {
   padding: 50px;
-  color: #647f89;
+  color: #647f6c;
   text-align: center;
 }
 
@@ -658,16 +668,14 @@
    GRADEUP STUDIO - TOOLBAR & RULER FIX
 ========================================= */
 
-/* Pastikan area toolbar selalu terang */
-
 .gu-ribbon {
   background: #ffffff !important;
-  color: #263f49;
+  color: #263f30;
 }
 
 .gu-ribbon-tools {
   background: #ffffff !important;
-  color: #263f49;
+  color: #263f30;
   min-height: 65px;
   box-sizing: border-box;
 }
@@ -678,12 +686,12 @@
 
 .gu-tool-button {
   background-color: transparent;
-  color: #405b65;
+  color: #405b49;
 }
 
 .gu-tool-button:hover:not(:disabled) {
-  background-color: #ecfeff;
-  color: #0891b2;
+  background-color: #f0fdf4;
+  color: #16a34a;
 }
 
 /* =========================================
@@ -693,11 +701,11 @@
 .gu-ruler-wrapper {
   width: 100%;
   padding: 14px 20px;
-  background: #f8fdfe;
+  background: #f8fdf9;
   color: #334155;
-  border-right: 1px solid #dceff2;
-  border-left: 1px solid #dceff2;
-  border-bottom: 1px solid #dceff2;
+  border-right: 1px solid #dcfce7;
+  border-left: 1px solid #dcfce7;
+  border-bottom: 1px solid #dcfce7;
   box-sizing: border-box;
   overflow: hidden;
 }
@@ -774,12 +782,12 @@
 
 .gu-ruler-controls input[type="range"] {
   width: 100%;
-  accent-color: #06b6d4;
+  accent-color: #16a34a;
   cursor: pointer;
 }
 
 .gu-ruler-controls strong {
-  color: #0891b2;
+  color: #15803d;
   font-size: 11px;
   font-weight: 700;
 }
@@ -809,7 +817,7 @@
   min-width: 105px;
   height: 34px;
   padding: 0 9px;
-  border: 1px solid #dcebf0;
+  border: 1px solid #dcebe0;
   border-radius: 6px;
   background: #ffffff;
   color: #334155;
@@ -818,8 +826,8 @@
 }
 
 .gu-layout-setting select:focus {
-  border-color: #06b6d4;
-  box-shadow: 0 0 0 2px rgba(6, 182, 212, 0.12);
+  border-color: #22c55e;
+  box-shadow: 0 0 0 2px rgba(34, 197, 94, 0.12);
 }
 
 /* =========================================
@@ -906,8 +914,8 @@
 }
 
 .gu-student-content blockquote {
-  border-left: 4px solid #06b6d4;
-  background: rgba(6, 182, 212, 0.08);
+  border-left: 4px solid #22c55e;
+  background: rgba(34, 197, 94, 0.08);
   border-radius: 0 0.75rem 0.75rem 0;
   padding: 1rem 1.25rem;
   margin: 1.25rem 0;
@@ -915,13 +923,13 @@
 }
 
 .gu-student-content a {
-  color: #0891b2;
+  color: #15803d;
   text-decoration: underline;
   text-underline-offset: 3px;
 }
 
 .dark .gu-student-content a {
-  color: #67e8f9;
+  color: #86efac;
 }
 
 .gu-student-content img {
@@ -980,7 +988,7 @@
 }
 
 .dark .gu-student-content blockquote {
-  background: rgba(6, 182, 212, 0.12);
+  background: rgba(34, 197, 94, 0.12);
 }
 
 @media (max-width: 640px) {
