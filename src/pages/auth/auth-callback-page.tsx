@@ -1,3 +1,4 @@
+
 import { useEffect, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { supabase } from "@/lib/supabase";
@@ -7,7 +8,6 @@ import { Button } from "@/components/ui/button";
 export default function AuthCallbackPage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-
   const [errorMessage, setErrorMessage] = useState("");
 
   useEffect(() => {
@@ -15,6 +15,7 @@ export default function AuthCallbackPage() {
 
     async function handleCallback() {
       try {
+        // Periksa apakah Google mengembalikan pesan error.
         const oauthError =
           searchParams.get("error_description") ||
           searchParams.get("error");
@@ -23,7 +24,7 @@ export default function AuthCallbackPage() {
           throw new Error(oauthError);
         }
 
-        // Tunggu Supabase memulihkan sesi OAuth.
+        // Ambil sesi login Google dari Supabase.
         const { data, error } = await supabase.auth.getSession();
 
         if (error) throw error;
@@ -34,15 +35,56 @@ export default function AuthCallbackPage() {
           );
         }
 
+        const user = data.session.user;
+
+        // Ambil kode referral dari URL callback.
+        const referralCode = searchParams.get("ref")?.trim().toUpperCase();
+
+        // Terapkan referral jika pengguna datang melalui tautan referral.
+        if (referralCode) {
+          const { data: referralResult, error: referralError } =
+            await supabase.rpc("apply_referral_code", {
+              p_code: referralCode,
+            });
+
+          if (referralError) {
+            console.error(
+              "Gagal menerapkan kode referral:",
+              referralError.message
+            );
+          } else if (
+            referralResult &&
+            referralResult.ok === false
+          ) {
+            console.warn(
+              "Kode referral tidak diterapkan:",
+              referralResult.message
+            );
+          }
+        }
+
         if (!active) return;
 
-        // Kode referral akan kita proses pada tahap berikutnya.
-        navigate("/dashboard", { replace: true });
-      } catch (error: any) {
+        // Pastikan tujuan navigasi tetap berada di dalam website.
+        const requestedPath = searchParams.get("next") || "/dashboard";
+
+        const safePath =
+          requestedPath.startsWith("/") &&
+          !requestedPath.startsWith("//")
+            ? requestedPath
+            : "/dashboard";
+
+        // Login tetap dilanjutkan meskipun referral tidak valid.
+        console.info("Google OAuth berhasil:", user.id);
+
+        navigate(safePath, { replace: true });
+      } catch (error: unknown) {
         if (!active) return;
 
         setErrorMessage(
-          error?.message || "Terjadi kesalahan saat menghubungkan akun Google."
+          error instanceof Error
+            ? error.message
+            : "Terjadi kesalahan saat menghubungkan akun Google."
         );
       }
     }
@@ -84,7 +126,10 @@ export default function AuthCallbackPage() {
       <Loader2 className="h-10 w-10 animate-spin text-primary" />
 
       <div className="text-center">
-        <h1 className="font-bold">Menghubungkan Akun Google</h1>
+        <h1 className="font-bold">
+          Menghubungkan Akun Google
+        </h1>
+
         <p className="mt-1 text-sm text-muted-foreground">
           Mohon tunggu, GradeUp sedang mempersiapkan akun Anda.
         </p>
