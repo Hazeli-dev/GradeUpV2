@@ -62,97 +62,7 @@ export async function signIn(
 }
 
 // ======================================================
-// 2. MASUK DAN DAFTAR DENGAN GOOGLE
-// ======================================================
-
-export async function signInWithGoogle(
-  referralCode?: string
-): Promise<AuthResult> {
-  if (!isConfigured) {
-    return {
-      ok: false,
-      message: "Supabase belum dikonfigurasi.",
-    };
-  }
-
-  try {
-    // Buat URL callback khusus GradeUp.
-    const callbackUrl = new URL(
-      "/auth/callback",
-      window.location.origin
-    );
-
-    // Setelah OAuth berhasil, arahkan ke dashboard.
-    callbackUrl.searchParams.set("next", "/dashboard");
-
-    // Sertakan kode referral jika tersedia.
-    const normalizedReferralCode = referralCode
-      ?.trim()
-      .toUpperCase();
-
-    if (normalizedReferralCode) {
-      callbackUrl.searchParams.set(
-        "ref",
-        normalizedReferralCode
-      );
-    }
-
-    // LOG DIAGNOSTIK OAUTH
-    console.info(
-      "[GradeUp OAuth] Origin:",
-      window.location.origin
-    );
-
-    console.info(
-      "[GradeUp OAuth] Redirect URL:",
-      callbackUrl.toString()
-    );
-
-    // Jalankan Google OAuth dengan callback khusus.
-    const { data, error } = await supabase.auth.signInWithOAuth({
-      provider: "google",
-      options: {
-        redirectTo: callbackUrl.toString(),
-      },
-    });
-
-    if (error) {
-      console.error(
-        "[GradeUp OAuth] Error:",
-        error.message
-      );
-
-      return {
-        ok: false,
-        message: error.message,
-      };
-    }
-
-    console.info(
-      "[GradeUp OAuth] Permintaan berhasil dikirim."
-    );
-
-    return {
-      ok: true,
-      message: "Menghubungkan ke Google...",
-      data,
-    };
-  } catch (err: any) {
-    console.error(
-      "[GradeUp OAuth] Exception:",
-      err
-    );
-
-    return {
-      ok: false,
-      message:
-        err?.message || "Gagal menghubungkan akun Google.",
-    };
-  }
-}
-
-// ======================================================
-// 3. DAFTAR DENGAN EMAIL, PASSWORD, DAN REFERRAL
+// 2. DAFTAR DENGAN EMAIL, PASSWORD, DAN REFERRAL
 // ======================================================
 
 export async function signUp(
@@ -210,7 +120,7 @@ export async function signUp(
 }
 
 // ======================================================
-// 4. PERMINTAAN RESET KATA SANDI
+// 3. PERMINTAAN RESET KATA SANDI
 // ======================================================
 
 export async function requestPasswordReset(
@@ -253,7 +163,7 @@ export async function requestPasswordReset(
 }
 
 // ======================================================
-// 5. PERBARUI KATA SANDI
+// 4. PERBARUI KATA SANDI
 // ======================================================
 
 export async function resetPassword(
@@ -292,7 +202,7 @@ export async function resetPassword(
 }
 
 // ======================================================
-// 6. KIRIM ULANG EMAIL VERIFIKASI
+// 5. KIRIM ULANG EMAIL VERIFIKASI
 // ======================================================
 
 export async function resendVerification(
@@ -355,7 +265,6 @@ export async function resendVerification(
 
 const authService = {
   signIn,
-  signInWithGoogle,
   signUp,
   requestPasswordReset,
   resetPassword,
