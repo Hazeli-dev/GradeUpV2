@@ -14,28 +14,10 @@ import {
   AuthHeading,
   FieldError,
   FormAlert,
-  GoogleButton,
-  OrDivider,
 } from "@/components/auth/auth-bits";
 
-import * as AuthService from "@/services/auth.service";
+import { signUp } from "@/services/auth.service";
 import { isValidEmail } from "@/utils/format";
-
-// ======================================================
-// RESOLUSI FUNGSI AUTENTIKASI
-// ======================================================
-
-const safeSignUp =
-  AuthService.signUp ||
-  AuthService.default?.signUp;
-
-const safeGoogleSignIn =
-  AuthService.signInWithGoogle ||
-  AuthService.default?.signInWithGoogle;
-
-// ======================================================
-// TIPE DATA
-// ======================================================
 
 type Errors = Partial<
   Record<"name" | "email" | "password" | "confirm" | "terms", string>
@@ -45,18 +27,12 @@ export function RegisterPage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
 
-  // ====================================================
-  // REFERRAL CODE
-  // ====================================================
-
+  // Kode referral dari URL
   const referralCode = (
     searchParams.get("ref") || ""
   ).trim().toUpperCase();
 
-  // ====================================================
-  // STATE FORM
-  // ====================================================
-
+  // State form
   const [form, setForm] = useState({
     name: "",
     email: "",
@@ -67,14 +43,9 @@ export function RegisterPage() {
   const [terms, setTerms] = useState(false);
   const [errors, setErrors] = useState<Errors>({});
   const [serverError, setServerError] = useState("");
-
   const [loading, setLoading] = useState(false);
-  const [googleLoading, setGoogleLoading] = useState(false);
 
-  // ====================================================
-  // HANDLE INPUT
-  // ====================================================
-
+  // Handle input
   const set =
     (key: keyof typeof form) =>
     (event: ChangeEvent<HTMLInputElement>) => {
@@ -89,10 +60,7 @@ export function RegisterPage() {
       }));
     };
 
-  // ====================================================
-  // VALIDASI FORM
-  // ====================================================
-
+  // Validasi form
   const validateForm = (): Errors => {
     const next: Errors = {};
 
@@ -124,34 +92,25 @@ export function RegisterPage() {
     return next;
   };
 
-  // ====================================================
-  // DAFTAR DENGAN EMAIL
-  // ====================================================
-
+  // Daftar dengan email
   const submit = async (event: FormEvent) => {
     event.preventDefault();
 
-    if (loading || googleLoading) return;
+    if (loading) return;
 
     setServerError("");
 
     const validationErrors = validateForm();
-
     setErrors(validationErrors);
 
     if (Object.keys(validationErrors).length > 0) {
       return;
     }
 
-    if (!safeSignUp) {
-      setServerError("Layanan pendaftaran belum tersedia.");
-      return;
-    }
-
     setLoading(true);
 
     try {
-      const result = await safeSignUp(
+      const result = await signUp(
         form.name.trim(),
         form.email.trim(),
         form.password,
@@ -170,62 +129,16 @@ export function RegisterPage() {
       );
 
       navigate("/verify-email");
-    } catch (error: any) {
+    } catch (error: unknown) {
       setServerError(
-        error?.message || "Terjadi kesalahan saat pendaftaran."
+        error instanceof Error
+          ? error.message
+          : "Terjadi kesalahan saat pendaftaran."
       );
     } finally {
       setLoading(false);
     }
   };
-
-  // ====================================================
-  // DAFTAR DENGAN GOOGLE
-  // ====================================================
-
-  const handleGoogleSignUp = async () => {
-    if (loading || googleLoading) return;
-
-    setServerError("");
-
-    if (!safeGoogleSignIn) {
-      setServerError(
-        "Layanan Google belum tersedia. Silakan coba lagi."
-      );
-      return;
-    }
-
-    setGoogleLoading(true);
-
-    try {
-      // Kirim referral code agar terbawa ke OAuth callback.
-      const result = await safeGoogleSignIn(
-        referralCode || undefined
-      );
-
-      if (!result?.ok) {
-        setServerError(
-          result?.message || "Gagal mendaftar dengan Google."
-        );
-
-        setGoogleLoading(false);
-      }
-
-      // Jika berhasil, Supabase akan mengarahkan browser ke Google.
-      // Loading tidak perlu dimatikan karena browser akan berpindah.
-    } catch (error: any) {
-      setServerError(
-        error?.message ||
-          "Terjadi kesalahan saat menghubungkan Google."
-      );
-
-      setGoogleLoading(false);
-    }
-  };
-
-  // ====================================================
-  // TAMPILAN
-  // ====================================================
 
   return (
     <>
@@ -378,7 +291,7 @@ export function RegisterPage() {
           type="submit"
           size="lg"
           className="w-full"
-          disabled={loading || googleLoading}
+          disabled={loading}
         >
           {loading ? (
             <>
@@ -390,20 +303,6 @@ export function RegisterPage() {
           )}
         </Button>
       </form>
-
-      <OrDivider />
-
-      {/* GOOGLE REGISTER */}
-      <GoogleButton
-        onClick={handleGoogleSignUp}
-      />
-
-      {googleLoading && (
-        <p className="flex items-center justify-center gap-2 text-xs text-muted-foreground">
-          <Loader2 className="h-3.5 w-3.5 animate-spin" />
-          Menghubungkan ke Google...
-        </p>
-      )}
 
       {/* LINK LOGIN */}
       <p className="mt-8 text-center text-sm text-muted-foreground">
