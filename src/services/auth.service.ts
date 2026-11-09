@@ -76,15 +76,16 @@ export async function signInWithGoogle(
   }
 
   try {
-    // Alamat callback OAuth khusus GradeUp.
+    // Buat URL callback khusus GradeUp.
     const callbackUrl = new URL(
       "/auth/callback",
       window.location.origin
     );
 
+    // Setelah OAuth berhasil, arahkan ke dashboard.
     callbackUrl.searchParams.set("next", "/dashboard");
 
-    // Membawa kode referral jika tersedia.
+    // Sertakan kode referral jika tersedia.
     const normalizedReferralCode = referralCode
       ?.trim()
       .toUpperCase();
@@ -96,6 +97,18 @@ export async function signInWithGoogle(
       );
     }
 
+    // LOG DIAGNOSTIK OAUTH
+    console.info(
+      "[GradeUp OAuth] Origin:",
+      window.location.origin
+    );
+
+    console.info(
+      "[GradeUp OAuth] Redirect URL:",
+      callbackUrl.toString()
+    );
+
+    // Jalankan Google OAuth dengan callback khusus.
     const { data, error } = await supabase.auth.signInWithOAuth({
       provider: "google",
       options: {
@@ -104,11 +117,20 @@ export async function signInWithGoogle(
     });
 
     if (error) {
+      console.error(
+        "[GradeUp OAuth] Error:",
+        error.message
+      );
+
       return {
         ok: false,
         message: error.message,
       };
     }
+
+    console.info(
+      "[GradeUp OAuth] Permintaan berhasil dikirim."
+    );
 
     return {
       ok: true,
@@ -116,6 +138,11 @@ export async function signInWithGoogle(
       data,
     };
   } catch (err: any) {
+    console.error(
+      "[GradeUp OAuth] Exception:",
+      err
+    );
+
     return {
       ok: false,
       message:
