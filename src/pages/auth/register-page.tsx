@@ -1,3 +1,4 @@
+
 import { useState, type FormEvent, type ChangeEvent } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { Loader2 } from "lucide-react";
@@ -26,20 +27,12 @@ export function RegisterPage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
 
-  // ======================================================
   // KODE REFERRAL
-  // ======================================================
-
-  const referralCode = (
-    searchParams.get("ref") || ""
-  )
+  const referralCode = (searchParams.get("ref") || "")
     .trim()
     .toUpperCase();
 
-  // ======================================================
   // STATE FORM
-  // ======================================================
-
   const [form, setForm] = useState({
     name: "",
     email: "",
@@ -52,10 +45,7 @@ export function RegisterPage() {
   const [serverError, setServerError] = useState("");
   const [loading, setLoading] = useState(false);
 
-  // ======================================================
   // HANDLE INPUT
-  // ======================================================
-
   const set =
     (key: keyof typeof form) =>
     (event: ChangeEvent<HTMLInputElement>) => {
@@ -74,18 +64,16 @@ export function RegisterPage() {
       setServerError("");
     };
 
-  // ======================================================
   // VALIDASI FORM
-  // ======================================================
-
   const validateForm = (): Errors => {
     const next: Errors = {};
+    const normalizedEmail = form.email.trim().toLowerCase();
 
     if (form.name.trim().length < 3) {
       next.name = "Nama minimal 3 karakter.";
     }
 
-    if (!isValidEmail(form.email.trim())) {
+    if (!isValidEmail(normalizedEmail)) {
       next.email = "Masukkan alamat email yang valid.";
     }
 
@@ -109,10 +97,7 @@ export function RegisterPage() {
     return next;
   };
 
-  // ======================================================
   // DAFTAR DENGAN EMAIL DAN PASSWORD
-  // ======================================================
-
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
@@ -127,12 +112,14 @@ export function RegisterPage() {
       return;
     }
 
+    const normalizedEmail = form.email.trim().toLowerCase();
+
     setLoading(true);
 
     try {
       const result = await signUp(
         form.name.trim(),
-        form.email.trim(),
+        normalizedEmail,
         form.password,
         referralCode || undefined
       );
@@ -150,6 +137,9 @@ export function RegisterPage() {
 
       navigate("/verify-email", {
         replace: true,
+        state: {
+          email: normalizedEmail,
+        },
       });
     } catch (error: unknown) {
       setServerError(
@@ -161,10 +151,6 @@ export function RegisterPage() {
       setLoading(false);
     }
   };
-
-  // ======================================================
-  // TAMPILAN REGISTER
-  // ======================================================
 
   return (
     <>
@@ -180,7 +166,6 @@ export function RegisterPage() {
       )}
 
       {/* INFORMASI REFERRAL */}
-
       {referralCode && (
         <div className="rounded-lg border border-primary/20 bg-primary/5 p-3 text-sm">
           <p className="font-semibold text-primary">
@@ -203,18 +188,13 @@ export function RegisterPage() {
       )}
 
       {/* FORM PENDAFTARAN */}
-
       <form
         onSubmit={submit}
         noValidate
         className="space-y-4"
       >
-        {/* NAMA LENGKAP */}
-
         <div className="space-y-2">
-          <Label htmlFor="name">
-            Nama lengkap
-          </Label>
+          <Label htmlFor="name">Nama lengkap</Label>
 
           <Input
             id="name"
@@ -229,12 +209,8 @@ export function RegisterPage() {
           <FieldError message={errors.name} />
         </div>
 
-        {/* EMAIL */}
-
         <div className="space-y-2">
-          <Label htmlFor="email">
-            Email
-          </Label>
+          <Label htmlFor="email">Email</Label>
 
           <Input
             id="email"
@@ -250,12 +226,8 @@ export function RegisterPage() {
           <FieldError message={errors.email} />
         </div>
 
-        {/* PASSWORD */}
-
         <div className="space-y-2">
-          <Label htmlFor="password">
-            Kata sandi
-          </Label>
+          <Label htmlFor="password">Kata sandi</Label>
 
           <PasswordInput
             id="password"
@@ -268,8 +240,6 @@ export function RegisterPage() {
 
           <FieldError message={errors.password} />
         </div>
-
-        {/* KONFIRMASI PASSWORD */}
 
         <div className="space-y-2">
           <Label htmlFor="confirm">
@@ -289,7 +259,6 @@ export function RegisterPage() {
         </div>
 
         {/* PERSETUJUAN */}
-
         <div className="space-y-2">
           <div className="flex items-start gap-3">
             <Checkbox
@@ -326,8 +295,6 @@ export function RegisterPage() {
           <FieldError message={errors.terms} />
         </div>
 
-        {/* TOMBOL DAFTAR */}
-
         <Button
           type="submit"
           size="lg"
@@ -346,7 +313,6 @@ export function RegisterPage() {
       </form>
 
       {/* LINK LOGIN */}
-
       <p className="mt-8 text-center text-sm text-muted-foreground">
         Sudah punya akun?{" "}
         <Link
