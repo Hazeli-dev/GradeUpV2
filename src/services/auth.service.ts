@@ -1,11 +1,18 @@
 
 import { supabase } from "@/lib/supabase";
 
-// Cek konfigurasi Supabase
+// ======================================================
+// KONFIGURASI SUPABASE
+// ======================================================
+
 const isConfigured = Boolean(
   import.meta.env.VITE_SUPABASE_URL &&
   import.meta.env.VITE_SUPABASE_ANON_KEY
 );
+
+// ======================================================
+// TIPE AUTHENTICATION
+// ======================================================
 
 export interface AuthResult {
   ok: boolean;
@@ -13,32 +20,51 @@ export interface AuthResult {
   data?: any;
 }
 
-// 1. Fungsi Masuk dengan Email dan Password
+// ======================================================
+// 1. MASUK DENGAN EMAIL DAN PASSWORD
+// ======================================================
+
 export async function signIn(
   email: string,
   password: string
 ): Promise<AuthResult> {
   if (!isConfigured) {
-    return { ok: true, message: "Berhasil masuk (mode demo)!" };
+    return {
+      ok: true,
+      message: "Berhasil masuk (mode demo)!",
+    };
   }
 
   try {
     const { data, error } = await supabase.auth.signInWithPassword({
-      email,
+      email: email.trim(),
       password,
     });
 
     if (error) {
-      return { ok: false, message: error.message };
+      return {
+        ok: false,
+        message: error.message,
+      };
     }
 
-    return { ok: true, message: "Berhasil masuk!", data };
+    return {
+      ok: true,
+      message: "Berhasil masuk!",
+      data,
+    };
   } catch (err: any) {
-    return { ok: false, message: err?.message || "Gagal masuk." };
+    return {
+      ok: false,
+      message: err?.message || "Gagal masuk.",
+    };
   }
 }
 
-// 2. Fungsi Masuk dan Daftar dengan Google
+// ======================================================
+// 2. MASUK DAN DAFTAR DENGAN GOOGLE
+// ======================================================
+
 export async function signInWithGoogle(): Promise<AuthResult> {
   if (!isConfigured) {
     return {
@@ -56,7 +82,10 @@ export async function signInWithGoogle(): Promise<AuthResult> {
     });
 
     if (error) {
-      return { ok: false, message: error.message };
+      return {
+        ok: false,
+        message: error.message,
+      };
     }
 
     return {
@@ -67,76 +96,125 @@ export async function signInWithGoogle(): Promise<AuthResult> {
   } catch (err: any) {
     return {
       ok: false,
-      message: err?.message || "Gagal menghubungkan akun Google.",
+      message:
+        err?.message || "Gagal menghubungkan akun Google.",
     };
   }
 }
 
-// 3. Fungsi Daftar dengan Email dan Password
+// ======================================================
+// 3. DAFTAR DENGAN EMAIL, PASSWORD, DAN REFERRAL
+// ======================================================
+
 export async function signUp(
   name: string,
   email: string,
-  password: string
+  password: string,
+  referralCode?: string
 ): Promise<AuthResult> {
   if (!isConfigured) {
-    return { ok: true, message: "Pendaftaran berhasil (mode demo)!" };
+    return {
+      ok: true,
+      message: "Pendaftaran berhasil (mode demo)!",
+    };
   }
 
   try {
+    const normalizedReferralCode = referralCode
+      ?.trim()
+      .toUpperCase();
+
     const { data, error } = await supabase.auth.signUp({
-      email,
+      email: email.trim(),
       password,
       options: {
         data: {
-          full_name: name,
+          full_name: name.trim(),
+          ...(normalizedReferralCode
+            ? {
+                referral_code: normalizedReferralCode,
+              }
+            : {}),
         },
       },
     });
 
     if (error) {
-      return { ok: false, message: error.message };
+      return {
+        ok: false,
+        message: error.message,
+      };
     }
 
     return {
       ok: true,
-      message: "Pendaftaran berhasil! Silakan cek email untuk verifikasi.",
+      message:
+        "Pendaftaran berhasil! Silakan cek email untuk verifikasi.",
       data,
     };
   } catch (err: any) {
-    return { ok: false, message: err?.message || "Gagal mendaftar." };
+    return {
+      ok: false,
+      message: err?.message || "Gagal mendaftar.",
+    };
   }
 }
 
-// 4. Permintaan Reset Kata Sandi
+// ======================================================
+// 4. PERMINTAAN RESET KATA SANDI
+// ======================================================
+
 export async function requestPasswordReset(
   email: string
 ): Promise<AuthResult> {
   if (!isConfigured) {
-    return { ok: true, message: "Tautan reset dikirim (mode demo)." };
+    return {
+      ok: true,
+      message: "Tautan reset dikirim (mode demo).",
+    };
   }
 
   try {
-    const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: `${window.location.origin}/reset-password`,
-    });
+    const { error } = await supabase.auth.resetPasswordForEmail(
+      email.trim(),
+      {
+        redirectTo: `${window.location.origin}/reset-password`,
+      }
+    );
 
     if (error) {
-      return { ok: false, message: error.message };
+      return {
+        ok: false,
+        message: error.message,
+      };
     }
 
     return {
       ok: true,
-      message: "Tautan pengaturan ulang kata sandi telah dikirim ke email Anda.",
+      message:
+        "Tautan pengaturan ulang kata sandi telah dikirim ke email Anda.",
     };
   } catch (err: any) {
-    return { ok: false, message: err?.message || "Gagal mengirim permintaan reset." };
+    return {
+      ok: false,
+      message:
+        err?.message || "Gagal mengirim permintaan reset.",
+    };
   }
 }
 
-// 5. Perbarui Kata Sandi Baru
-export async function resetPassword(password: string): Promise<AuthResult> {
+// ======================================================
+// 5. PERBARUI KATA SANDI
+// ======================================================
+
+export async function resetPassword(
+  password: string
+): Promise<AuthResult> {
   if (!isConfigured) {
-    return { ok: true, message: "Kata sandi diperbarui (mode demo)." };
+    return {
+      ok: true,
+      message: "Kata sandi diperbarui (mode demo).",
+    };
   }
 
   try {
@@ -145,25 +223,41 @@ export async function resetPassword(password: string): Promise<AuthResult> {
     });
 
     if (error) {
-      return { ok: false, message: error.message };
+      return {
+        ok: false,
+        message: error.message,
+      };
     }
 
-    return { ok: true, message: "Kata sandi berhasil diperbarui." };
+    return {
+      ok: true,
+      message: "Kata sandi berhasil diperbarui.",
+    };
   } catch (err: any) {
-    return { ok: false, message: err?.message || "Gagal memperbarui kata sandi." };
+    return {
+      ok: false,
+      message:
+        err?.message || "Gagal memperbarui kata sandi.",
+    };
   }
 }
 
-// 6. Kirim Ulang Email Verifikasi
+// ======================================================
+// 6. KIRIM ULANG EMAIL VERIFIKASI
+// ======================================================
+
 export async function resendVerification(
   email?: string
 ): Promise<AuthResult> {
   if (!isConfigured) {
-    return { ok: true, message: "Email verifikasi terkirim (mode demo)." };
+    return {
+      ok: true,
+      message: "Email verifikasi terkirim (mode demo).",
+    };
   }
 
   try {
-    let targetEmail = email;
+    let targetEmail = email?.trim();
 
     if (!targetEmail) {
       const {
@@ -176,7 +270,8 @@ export async function resendVerification(
     if (!targetEmail) {
       return {
         ok: false,
-        message: "Email tidak ditemukan. Silakan masukkan email Anda.",
+        message:
+          "Email tidak ditemukan. Silakan masukkan email Anda.",
       };
     }
 
@@ -186,7 +281,10 @@ export async function resendVerification(
     });
 
     if (error) {
-      return { ok: false, message: error.message };
+      return {
+        ok: false,
+        message: error.message,
+      };
     }
 
     return {
@@ -196,12 +294,16 @@ export async function resendVerification(
   } catch (err: any) {
     return {
       ok: false,
-      message: err?.message || "Gagal mengirim ulang email verifikasi.",
+      message:
+        err?.message || "Gagal mengirim ulang email verifikasi.",
     };
   }
 }
 
-// Default export
+// ======================================================
+// DEFAULT EXPORT
+// ======================================================
+
 const authService = {
   signIn,
   signInWithGoogle,
