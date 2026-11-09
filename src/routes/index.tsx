@@ -33,7 +33,6 @@ import RegisterPage from "@/pages/auth/register-page";
 import ForgotPasswordPage from "@/pages/auth/forgot-password-page";
 import ResetPasswordPage from "@/pages/auth/reset-password-page";
 import VerifyEmailPage from "@/pages/auth/verify-email-page";
-import AuthCallbackPage from "@/pages/auth/auth-callback-page";
 
 // Halaman Student
 import StudentOverviewPage from "@/pages/student/overview-page";
@@ -91,7 +90,9 @@ function ProtectedRoute({
     let active = true;
     let requestId = 0;
 
-    async function checkAccess(session: any) {
+    async function checkAccess(session: {
+      user: { id: string };
+    } | null) {
       const currentRequest = ++requestId;
 
       if (!session?.user) {
@@ -122,13 +123,14 @@ function ProtectedRoute({
             role,
           });
         }
-      } catch (error: any) {
+      } catch (error: unknown) {
         if (active && currentRequest === requestId) {
           setAccess({
             status: "error",
             message:
-              error?.message ||
-              "Gagal memeriksa hak akses akun.",
+              error instanceof Error
+                ? error.message
+                : "Gagal memeriksa hak akses akun.",
           });
         }
       }
@@ -158,9 +160,10 @@ function ProtectedRoute({
 
     return () => {
       active = false;
+      requestId++;
       subscription.unsubscribe();
     };
-  }, [allowedRole]);
+  }, []);
 
   // Tunggu sampai pemeriksaan sesi selesai.
   if (access.status === "loading") {
@@ -225,12 +228,6 @@ function ProtectedRoute({
 export function AppRoutes() {
   return (
     <Routes>
-      {/* Callback OAuth Google */}
-      <Route
-        path="/auth/callback"
-        element={<AuthCallbackPage />}
-      />
-
       {/* Route Publik */}
       <Route element={<PublicLayout />}>
         <Route path="/" element={<HomePage />} />
@@ -254,7 +251,6 @@ export function AppRoutes() {
 
       {/* Route Student */}
       <Route element={<ProtectedRoute allowedRole="student" />}>
-        {/* Halaman ujian */}
         <Route
           path="/dashboard/exams/:examId/attempt"
           element={<ExamAttemptPage />}
