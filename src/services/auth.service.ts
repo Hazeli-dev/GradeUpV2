@@ -65,7 +65,9 @@ export async function signIn(
 // 2. MASUK DAN DAFTAR DENGAN GOOGLE
 // ======================================================
 
-export async function signInWithGoogle(): Promise<AuthResult> {
+export async function signInWithGoogle(
+  referralCode?: string
+): Promise<AuthResult> {
   if (!isConfigured) {
     return {
       ok: false,
@@ -74,10 +76,30 @@ export async function signInWithGoogle(): Promise<AuthResult> {
   }
 
   try {
+    // Alamat callback OAuth khusus GradeUp.
+    const callbackUrl = new URL(
+      "/auth/callback",
+      window.location.origin
+    );
+
+    callbackUrl.searchParams.set("next", "/dashboard");
+
+    // Membawa kode referral jika tersedia.
+    const normalizedReferralCode = referralCode
+      ?.trim()
+      .toUpperCase();
+
+    if (normalizedReferralCode) {
+      callbackUrl.searchParams.set(
+        "ref",
+        normalizedReferralCode
+      );
+    }
+
     const { data, error } = await supabase.auth.signInWithOAuth({
       provider: "google",
       options: {
-        redirectTo: window.location.origin,
+        redirectTo: callbackUrl.toString(),
       },
     });
 
