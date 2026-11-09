@@ -1,6 +1,6 @@
 
 import { useState, type FormEvent } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -33,6 +33,12 @@ type Errors = Partial<
 
 export function RegisterPage() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+
+  // Membaca kode referral dari URL.
+  const referralCode = (
+    searchParams.get("ref") || ""
+  ).trim().toUpperCase();
 
   const [form, setForm] = useState({
     name: "",
@@ -101,7 +107,8 @@ export function RegisterPage() {
       const res = await safeSignUp(
         form.name.trim(),
         form.email,
-        form.password
+        form.password,
+        referralCode || undefined
       );
 
       if (!res?.ok) {
@@ -149,7 +156,7 @@ export function RegisterPage() {
         setGoogleLoading(false);
       }
 
-      // Jika berhasil, Supabase akan mengarahkan pengguna ke Google.
+      // Jika berhasil, Supabase mengarahkan pengguna ke Google.
     } catch (err: any) {
       setServerError(
         err?.message || "Terjadi kesalahan saat menghubungkan Google."
@@ -167,6 +174,25 @@ export function RegisterPage() {
 
       {serverError && (
         <FormAlert type="error">{serverError}</FormAlert>
+      )}
+
+      {referralCode && (
+        <div className="rounded-lg border border-primary/20 bg-primary/5 p-3 text-sm">
+          <p className="font-semibold text-primary">
+            Undangan Referral GradeUp
+          </p>
+          <p className="mt-1 text-muted-foreground">
+            Kode undangan:{" "}
+            <span className="font-bold text-foreground">
+              {referralCode}
+            </span>
+          </p>
+          <p className="mt-1 text-xs text-muted-foreground">
+            Selesaikan pendaftaran dan pembelian Premium pertama
+            sesuai ketentuan referral untuk membantu pengundang
+            memperoleh hadiah.
+          </p>
+        </div>
       )}
 
       <form onSubmit={submit} noValidate className="space-y-4">
