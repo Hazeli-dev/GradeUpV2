@@ -1,13 +1,23 @@
 
-import { Navigate, Outlet, Route, Routes } from "react-router-dom";
+import { useEffect, useState } from "react";
+import {
+  Link,
+  Navigate,
+  Outlet,
+  Route,
+  Routes,
+  useLocation,
+} from "react-router-dom";
 
-// 1. Import Layouts
+import { supabase } from "@/lib/supabase";
+
+// Layouts
 import { PublicLayout } from "@/layouts/public-layout";
 import { AuthLayout } from "@/layouts/auth-layout";
 import { StudentLayout } from "@/layouts/student-layout";
 import { AdminLayout } from "@/layouts/admin-layout";
 
-// 2. Import Halaman Publik
+// Halaman Publik
 import HomePage from "@/pages/public/home-page";
 import AboutPage from "@/pages/public/about-page";
 import FeaturesPage from "@/pages/public/features-page";
@@ -17,14 +27,15 @@ import PricingPage from "@/pages/public/pricing-page";
 import FaqPage from "@/pages/public/faq-page";
 import ContactPage from "@/pages/public/contact-page";
 
-// 3. Import Halaman Auth
+// Halaman Auth
 import LoginPage from "@/pages/auth/login-page";
 import RegisterPage from "@/pages/auth/register-page";
 import ForgotPasswordPage from "@/pages/auth/forgot-password-page";
 import ResetPasswordPage from "@/pages/auth/reset-password-page";
 import VerifyEmailPage from "@/pages/auth/verify-email-page";
+import AuthCallbackPage from "@/pages/auth/auth-callback-page";
 
-// 4. Import Halaman Student Dashboard
+// Halaman Student
 import StudentOverviewPage from "@/pages/student/overview-page";
 import StudentCoursesPage from "@/pages/student/courses-page";
 import StudentCollectionsPage from "@/pages/student/collections-page";
@@ -41,7 +52,7 @@ import StatisticsPage from "@/pages/student/statistics-page";
 import ActivityPage from "@/pages/student/activity-page";
 import StudentSettingsPage from "@/pages/student/settings-page";
 
-// 5. Import Halaman Admin Dashboard
+// Halaman Admin
 import AdminOverviewPage from "@/pages/admin/overview-page";
 import AdminUsersPage from "@/pages/admin/users-page";
 import AdminCoursesPage from "@/pages/admin/courses-page";
@@ -53,50 +64,158 @@ import AdminPremiumPlansPage from "@/pages/admin/premium-plans-page";
 import AdminReportsPage from "@/pages/admin/reports-page";
 import AdminAnnouncementsPage from "@/pages/admin/announcements-page";
 import AdminSettingsPage from "@/pages/admin/settings-page";
-
-// Halaman Chat Admin
 import ChatManagementPage from "@/pages/admin/chat-management-page";
 
-// 6. Import 404
+// 404
 import NotFoundPage from "@/pages/not-found-page";
 
-// Helper Guard Rute yang Aman & Fleksibel
+type AccessState =
+  | { status: "loading" }
+  | { status: "allowed"; role: string }
+  | { status: "unauthenticated" }
+  | { status: "error"; message: string };
+
+// Proteksi halaman berdasarkan sesi Supabase dan role profil.
 function ProtectedRoute({
   allowedRole,
 }: {
   allowedRole: "admin" | "student";
 }) {
-  let role = "student";
+  const location = useLocation();
 
-  try {
-    const sbKey = Object.keys(localStorage).find(
-      (key) => key.startsWith("sb-") && key.endsWith("-auth-token")
-    );
+  const [access, setAccess] = useState<AccessState>({
+    status: "loading",
+  });
 
-    const sessionData = sbKey
-      ? localStorage.getItem(sbKey)
-      : localStorage.getItem("supabase.auth.token");
+  useEffect(() => {
+    let active = true;
+    let requestId = 0;
 
-    if (sessionData) {
-      const parsed = JSON.parse(sessionData);
-      const user = parsed?.user || parsed;
+    async function checkAccess(session: any) {
+      const currentRequest = ++requestId;
 
-      role = (
-        user?.user_metadata?.role ||
-        user?.app_metadata?.role ||
-        user?.role ||
-        "student"
-      ).toLowerCase();
+      if (!session?.user) {
+        if (active && currentRequest === requestId) {
+          setAccess({ status: "unauthenticated" });
+        }
+        return;
+      }
+
+      try {
+        const { data: profile, error } = await supabase
+          .from("profiles")
+          .select("role")
+          .eq("id", session.user.id)
+          .maybeSingle();
+
+        if (error) throw error;
+
+        if (!profile) {
+          throw new Error("Profil pengguna tidak ditemukan.");
+        }
+
+        const role = String(profile.role || "student").toLowerCase();
+
+        if (active && currentRequest === requestId) {
+          setAccess({
+            status: "allowed",
+            role,
+          });
+        }
+      } catch (error: any) {
+        if (active && currentRequest === requestId) {
+          setAccess({
+            status: "error",
+            message:
+              error?.message ||
+              "Gagal memeriksa hak akses akun.",
+          });
+        }
+      }
     }
-  } catch {
-    role = "student";
+
+    // Dengarkan perubahan sesi login dan logout.
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      void checkAccess(session);
+    });
+
+    // Periksa sesi yang sudah tersimpan.
+    supabase.auth.getSession().then(({ data, error }) => {
+      if (!active) return;
+
+      if (error) {
+        setAccess({
+          status: "error",
+          message: error.message,
+        });
+        return;
+      }
+
+      void checkAccess(data.session);
+    });
+
+    return () => {
+      active = false;
+      subscription.unsubscribe();
+    };
+  }, [allowedRole]);
+
+  // Tunggu sampai pemeriksaan sesi selesai.
+  if (access.status === "loading") {
+    return (
+      <div className="flex min-h-screen flex-col items-center justify-center gap-3">
+        <div className="h-9 w-9 animate-spin rounded-full border-4 border-primary border-t-transparent" />
+        <p className="text-sm text-muted-foreground">
+          Memeriksa sesi akun GradeUp...
+        </p>
+      </div>
+    );
   }
 
-  if (allowedRole === "student" && role === "admin") {
+  // Pengguna belum login.
+  if (access.status === "unauthenticated") {
+    const redirectPath =
+      location.pathname + location.search;
+
+    return (
+      <Navigate
+        to={`/login?redirect=${encodeURIComponent(redirectPath)}`}
+        replace
+      />
+    );
+  }
+
+  // Terjadi kesalahan saat memeriksa profil.
+  if (access.status === "error") {
+    return (
+      <div className="flex min-h-screen flex-col items-center justify-center gap-3 p-6 text-center">
+        <h2 className="text-xl font-bold">
+          Gagal Memeriksa Akun
+        </h2>
+
+        <p className="max-w-md text-sm text-muted-foreground">
+          {access.message}
+        </p>
+
+        <Link
+          to="/login"
+          className="font-semibold text-primary hover:underline"
+        >
+          Kembali ke Login
+        </Link>
+      </div>
+    );
+  }
+
+  // Admin tidak boleh masuk ke dashboard siswa.
+  if (allowedRole === "student" && access.role === "admin") {
     return <Navigate to="/admin" replace />;
   }
 
-  if (allowedRole === "admin" && role !== "admin") {
+  // Siswa tidak boleh masuk ke dashboard admin.
+  if (allowedRole === "admin" && access.role !== "admin") {
     return <Navigate to="/dashboard" replace />;
   }
 
@@ -106,6 +225,12 @@ function ProtectedRoute({
 export function AppRoutes() {
   return (
     <Routes>
+      {/* Callback OAuth Google */}
+      <Route
+        path="/auth/callback"
+        element={<AuthCallbackPage />}
+      />
+
       {/* Route Publik */}
       <Route element={<PublicLayout />}>
         <Route path="/" element={<HomePage />} />
@@ -127,14 +252,14 @@ export function AppRoutes() {
         <Route path="/verify-email" element={<VerifyEmailPage />} />
       </Route>
 
-      {/* Route Ujian */}
-      <Route
-        path="/dashboard/exams/:examId/attempt"
-        element={<ExamAttemptPage />}
-      />
-
-      {/* Route Student Dashboard */}
+      {/* Route Student */}
       <Route element={<ProtectedRoute allowedRole="student" />}>
+        {/* Halaman ujian */}
+        <Route
+          path="/dashboard/exams/:examId/attempt"
+          element={<ExamAttemptPage />}
+        />
+
         <Route path="/dashboard" element={<StudentLayout />}>
           <Route index element={<StudentOverviewPage />} />
 
@@ -142,7 +267,6 @@ export function AppRoutes() {
           <Route path="courses" element={<StudentCoursesPage />} />
           <Route path="collections" element={<StudentCollectionsPage />} />
           <Route path="courses/:courseId" element={<CourseDetailPage />} />
-
           <Route
             path="courses/:courseId/learn/:lessonId"
             element={<LessonLearningPage />}
@@ -172,7 +296,7 @@ export function AppRoutes() {
         </Route>
       </Route>
 
-      {/* Route Admin Dashboard */}
+      {/* Route Admin */}
       <Route element={<ProtectedRoute allowedRole="admin" />}>
         <Route path="/admin" element={<AdminLayout />}>
           <Route index element={<AdminOverviewPage />} />
@@ -182,31 +306,21 @@ export function AppRoutes() {
           <Route path="exams" element={<AdminExamsPage />} />
           <Route path="questions" element={<AdminQuestionsPage />} />
           <Route path="transactions" element={<AdminTransactionsPage />} />
-
           <Route
             path="premium-plans"
             element={<AdminPremiumPlansPage />}
           />
-
           <Route path="reports" element={<AdminReportsPage />} />
-
-          {/* Manajemen Pengumuman */}
           <Route
             path="announcements"
             element={<AdminAnnouncementsPage />}
           />
-
-          {/* Chat Siswa */}
-          <Route
-            path="chats"
-            element={<ChatManagementPage />}
-          />
-
+          <Route path="chats" element={<ChatManagementPage />} />
           <Route path="settings" element={<AdminSettingsPage />} />
         </Route>
       </Route>
 
-      {/* 404 Route */}
+      {/* 404 */}
       <Route path="*" element={<NotFoundPage />} />
     </Routes>
   );
