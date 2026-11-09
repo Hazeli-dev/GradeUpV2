@@ -1,13 +1,15 @@
 
-import { useState, type FormEvent } from "react";
+import { useState, type FormEvent, type ChangeEvent } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
+
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { PasswordInput } from "@/components/auth/password-input";
+
 import {
   AuthHeading,
   FieldError,
@@ -15,10 +17,14 @@ import {
   GoogleButton,
   OrDivider,
 } from "@/components/auth/auth-bits";
+
 import * as AuthService from "@/services/auth.service";
 import { isValidEmail } from "@/utils/format";
 
-// Resolusi fungsi autentikasi
+// ======================================================
+// RESOLUSI FUNGSI AUTENTIKASI
+// ======================================================
+
 const safeSignUp =
   AuthService.signUp ||
   AuthService.default?.signUp;
@@ -26,6 +32,10 @@ const safeSignUp =
 const safeGoogleSignIn =
   AuthService.signInWithGoogle ||
   AuthService.default?.signInWithGoogle;
+
+// ======================================================
+// TIPE DATA
+// ======================================================
 
 type Errors = Partial<
   Record<"name" | "email" | "password" | "confirm" | "terms", string>
@@ -35,10 +45,17 @@ export function RegisterPage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
 
-  // Membaca kode referral dari URL.
+  // ====================================================
+  // REFERRAL CODE
+  // ====================================================
+
   const referralCode = (
     searchParams.get("ref") || ""
   ).trim().toUpperCase();
+
+  // ====================================================
+  // STATE FORM
+  // ====================================================
 
   const [form, setForm] = useState({
     name: "",
@@ -50,21 +67,33 @@ export function RegisterPage() {
   const [terms, setTerms] = useState(false);
   const [errors, setErrors] = useState<Errors>({});
   const [serverError, setServerError] = useState("");
+
   const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
 
-  const set = (k: keyof typeof form) =>
-    (e: React.ChangeEvent<HTMLInputElement>) => {
-      setForm((f) => ({ ...f, [k]: e.target.value }));
+  // ====================================================
+  // HANDLE INPUT
+  // ====================================================
+
+  const set =
+    (key: keyof typeof form) =>
+    (event: ChangeEvent<HTMLInputElement>) => {
+      setForm((current) => ({
+        ...current,
+        [key]: event.target.value,
+      }));
+
+      setErrors((current) => ({
+        ...current,
+        [key]: undefined,
+      }));
     };
 
-  const submit = async (e: FormEvent) => {
-    e.preventDefault();
+  // ====================================================
+  // VALIDASI FORM
+  // ====================================================
 
-    if (loading || googleLoading) return;
-
-    setServerError("");
-
+  const validateForm = (): Errors => {
     const next: Errors = {};
 
     if (form.name.trim().length < 3) {
@@ -92,28 +121,46 @@ export function RegisterPage() {
       next.terms = "Anda perlu menyetujui syarat dan ketentuan.";
     }
 
-    setErrors(next);
+    return next;
+  };
 
-    if (Object.keys(next).length) return;
+  // ====================================================
+  // DAFTAR DENGAN EMAIL
+  // ====================================================
+
+  const submit = async (event: FormEvent) => {
+    event.preventDefault();
+
+    if (loading || googleLoading) return;
+
+    setServerError("");
+
+    const validationErrors = validateForm();
+
+    setErrors(validationErrors);
+
+    if (Object.keys(validationErrors).length > 0) {
+      return;
+    }
+
+    if (!safeSignUp) {
+      setServerError("Layanan pendaftaran belum tersedia.");
+      return;
+    }
 
     setLoading(true);
 
     try {
-      if (!safeSignUp) {
-        setServerError("Layanan pendaftaran belum tersedia.");
-        return;
-      }
-
-      const res = await safeSignUp(
+      const result = await safeSignUp(
         form.name.trim(),
-        form.email,
+        form.email.trim(),
         form.password,
         referralCode || undefined
       );
 
-      if (!res?.ok) {
+      if (!result?.ok) {
         setServerError(
-          res?.message || "Gagal mendaftar. Silakan coba lagi."
+          result?.message || "Gagal mendaftar. Silakan coba lagi."
         );
         return;
       }
@@ -123,47 +170,62 @@ export function RegisterPage() {
       );
 
       navigate("/verify-email");
-    } catch (err: any) {
+    } catch (error: any) {
       setServerError(
-        err?.message || "Terjadi kesalahan saat pendaftaran."
+        error?.message || "Terjadi kesalahan saat pendaftaran."
       );
     } finally {
       setLoading(false);
     }
   };
 
+  // ====================================================
+  // DAFTAR DENGAN GOOGLE
+  // ====================================================
+
   const handleGoogleSignUp = async () => {
     if (loading || googleLoading) return;
 
     setServerError("");
+
+    if (!safeGoogleSignIn) {
+      setServerError(
+        "Layanan Google belum tersedia. Silakan coba lagi."
+      );
+      return;
+    }
+
     setGoogleLoading(true);
 
     try {
-      if (!safeGoogleSignIn) {
-        setServerError(
-          "Layanan Google belum tersedia. Silakan coba lagi."
-        );
-        setGoogleLoading(false);
-        return;
-      }
-
-      const res = await safeGoogleSignIn();
-
-      if (!res?.ok) {
-        setServerError(
-          res?.message || "Gagal mendaftar dengan Google."
-        );
-        setGoogleLoading(false);
-      }
-
-      // Jika berhasil, Supabase mengarahkan pengguna ke Google.
-    } catch (err: any) {
-      setServerError(
-        err?.message || "Terjadi kesalahan saat menghubungkan Google."
+      // Kirim referral code agar terbawa ke OAuth callback.
+      const result = await safeGoogleSignIn(
+        referralCode || undefined
       );
+
+      if (!result?.ok) {
+        setServerError(
+          result?.message || "Gagal mendaftar dengan Google."
+        );
+
+        setGoogleLoading(false);
+      }
+
+      // Jika berhasil, Supabase akan mengarahkan browser ke Google.
+      // Loading tidak perlu dimatikan karena browser akan berpindah.
+    } catch (error: any) {
+      setServerError(
+        error?.message ||
+          "Terjadi kesalahan saat menghubungkan Google."
+      );
+
       setGoogleLoading(false);
     }
   };
+
+  // ====================================================
+  // TAMPILAN
+  // ====================================================
 
   return (
     <>
@@ -173,20 +235,25 @@ export function RegisterPage() {
       />
 
       {serverError && (
-        <FormAlert type="error">{serverError}</FormAlert>
+        <FormAlert type="error">
+          {serverError}
+        </FormAlert>
       )}
 
+      {/* INFORMASI REFERRAL */}
       {referralCode && (
         <div className="rounded-lg border border-primary/20 bg-primary/5 p-3 text-sm">
           <p className="font-semibold text-primary">
             Undangan Referral GradeUp
           </p>
+
           <p className="mt-1 text-muted-foreground">
             Kode undangan:{" "}
             <span className="font-bold text-foreground">
               {referralCode}
             </span>
           </p>
+
           <p className="mt-1 text-xs text-muted-foreground">
             Selesaikan pendaftaran dan pembelian Premium pertama
             sesuai ketentuan referral untuk membantu pengundang
@@ -195,9 +262,17 @@ export function RegisterPage() {
         </div>
       )}
 
-      <form onSubmit={submit} noValidate className="space-y-4">
+      {/* FORM PENDAFTARAN */}
+      <form
+        onSubmit={submit}
+        noValidate
+        className="space-y-4"
+      >
         <div className="space-y-2">
-          <Label htmlFor="name">Nama lengkap</Label>
+          <Label htmlFor="name">
+            Nama lengkap
+          </Label>
+
           <Input
             id="name"
             autoComplete="name"
@@ -206,11 +281,15 @@ export function RegisterPage() {
             onChange={set("name")}
             aria-invalid={!!errors.name}
           />
+
           <FieldError message={errors.name} />
         </div>
 
         <div className="space-y-2">
-          <Label htmlFor="email">Email</Label>
+          <Label htmlFor="email">
+            Email
+          </Label>
+
           <Input
             id="email"
             type="email"
@@ -220,11 +299,15 @@ export function RegisterPage() {
             onChange={set("email")}
             aria-invalid={!!errors.email}
           />
+
           <FieldError message={errors.email} />
         </div>
 
         <div className="space-y-2">
-          <Label htmlFor="password">Kata sandi</Label>
+          <Label htmlFor="password">
+            Kata sandi
+          </Label>
+
           <PasswordInput
             id="password"
             autoComplete="new-password"
@@ -233,11 +316,15 @@ export function RegisterPage() {
             onChange={set("password")}
             aria-invalid={!!errors.password}
           />
+
           <FieldError message={errors.password} />
         </div>
 
         <div className="space-y-2">
-          <Label htmlFor="confirm">Konfirmasi kata sandi</Label>
+          <Label htmlFor="confirm">
+            Konfirmasi kata sandi
+          </Label>
+
           <PasswordInput
             id="confirm"
             autoComplete="new-password"
@@ -246,15 +333,24 @@ export function RegisterPage() {
             onChange={set("confirm")}
             aria-invalid={!!errors.confirm}
           />
+
           <FieldError message={errors.confirm} />
         </div>
 
+        {/* PERSETUJUAN */}
         <div className="space-y-2">
           <div className="flex items-start gap-3">
             <Checkbox
               id="terms"
               checked={terms}
-              onCheckedChange={(v) => setTerms(v === true)}
+              onCheckedChange={(value) => {
+                setTerms(value === true);
+
+                setErrors((current) => ({
+                  ...current,
+                  terms: undefined,
+                }));
+              }}
               className="mt-0.5"
             />
 
@@ -277,6 +373,7 @@ export function RegisterPage() {
           <FieldError message={errors.terms} />
         </div>
 
+        {/* TOMBOL DAFTAR */}
         <Button
           type="submit"
           size="lg"
@@ -296,7 +393,10 @@ export function RegisterPage() {
 
       <OrDivider />
 
-      <GoogleButton onClick={handleGoogleSignUp} />
+      {/* GOOGLE REGISTER */}
+      <GoogleButton
+        onClick={handleGoogleSignUp}
+      />
 
       {googleLoading && (
         <p className="flex items-center justify-center gap-2 text-xs text-muted-foreground">
@@ -305,6 +405,7 @@ export function RegisterPage() {
         </p>
       )}
 
+      {/* LINK LOGIN */}
       <p className="mt-8 text-center text-sm text-muted-foreground">
         Sudah punya akun?{" "}
         <Link
