@@ -1,5 +1,6 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import type { PointerEvent as ReactPointerEvent } from "react";
 import {
   CheckCircle2,
   Clock3,
@@ -148,13 +149,13 @@ function shuffleArray<T>(items: T[]): T[] {
 }
 
 function createPuzzle(theme: string): Puzzle {
-  const pool = THEMES[theme] ?? THEMES.Negara;
+  const pool = [...new Set(THEMES[theme] ?? THEMES.Negara)];
 
   const selectedWords = shuffleArray(
     pool.filter((word) => word.length <= GRID_SIZE),
   ).slice(0, WORD_COUNT);
 
-  for (let attempt = 0; attempt < 100; attempt++) {
+  for (let attempt = 0; attempt < 150; attempt++) {
     const grid = Array.from(
       { length: GRID_SIZE },
       () => Array(GRID_SIZE).fill(""),
@@ -168,15 +169,11 @@ function createPuzzle(theme: string): Puzzle {
     let success = true;
 
     for (const word of sortedWords) {
-      const candidates: {
-        positions: Position[];
-        direction: number[];
-      }[] = [];
+      const candidates: Position[][] = [];
 
       for (let row = 0; row < GRID_SIZE; row++) {
         for (let col = 0; col < GRID_SIZE; col++) {
-          for (const direction of DIRECTIONS) {
-            const [dr, dc] = direction;
+          for (const [dr, dc] of DIRECTIONS) {
             const endRow = row + dr * (word.length - 1);
             const endCol = col + dc * (word.length - 1);
 
@@ -202,9 +199,7 @@ function createPuzzle(theme: string): Puzzle {
               return !existing || existing === word[index];
             });
 
-            if (canPlace) {
-              candidates.push({ positions, direction });
-            }
+            if (canPlace) candidates.push(positions);
           }
         }
       }
@@ -216,29 +211,31 @@ function createPuzzle(theme: string): Puzzle {
         break;
       }
 
-      candidate.positions.forEach((position, index) => {
+      candidate.forEach((position, index) => {
         grid[position.row][position.col] = word[index];
       });
 
-      placements[word] = candidate.positions;
+      placements[word] = candidate;
     }
 
     if (success) {
-      const filledGrid = grid.map((row) =>
-        row.map((letter) =>
-          letter || String.fromCharCode(65 + Math.floor(Math.random() * 26)),
-        ),
-      );
-
       return {
-        grid: filledGrid,
+        grid: grid.map((row) =>
+          row.map(
+            (letter) =>
+              letter ||
+              String.fromCharCode(
+                65 + Math.floor(Math.random() * 26),
+              ),
+          ),
+        ),
         words: selectedWords,
         placements,
       };
     }
   }
 
-  // Pengaman jika pengacakan gagal: ulangi dengan kata lebih pendek.
+  // Pengaman jika pengacakan utama gagal.
   const fallbackWords = shuffleArray(
     pool.filter((word) => word.length <= 8),
   ).slice(0, WORD_COUNT);
@@ -251,32 +248,31 @@ function createPuzzle(theme: string): Puzzle {
   const placements: Record<string, Position[]> = {};
 
   for (const word of fallbackWords) {
-    let placed = false;
-
-    for (let attempt = 0; attempt < 1000 && !placed; attempt++) {
-      const direction =
+    for (let attempt = 0; attempt < 1000; attempt++) {
+      const [dr, dc] =
         DIRECTIONS[Math.floor(Math.random() * DIRECTIONS.length)];
+
       const row = Math.floor(Math.random() * GRID_SIZE);
       const col = Math.floor(Math.random() * GRID_SIZE);
 
       const positions = Array.from(
         { length: word.length },
         (_, index) => ({
-          row: row + direction[0] * index,
-          col: col + direction[1] * index,
+          row: row + dr * index,
+          col: col + dc * index,
         }),
       );
 
-      const valid = positions.every(
-        (position) =>
+      const valid = positions.every((position, index) => {
+        return (
           position.row >= 0 &&
           position.row < GRID_SIZE &&
           position.col >= 0 &&
           position.col < GRID_SIZE &&
           (!grid[position.row][position.col] ||
-            grid[position.row][position.col] ===
-              word[positions.indexOf(position)]),
-      );
+            grid[position.row][position.col] === word[index])
+        );
+      });
 
       if (valid) {
         positions.forEach((position, index) => {
@@ -284,22 +280,22 @@ function createPuzzle(theme: string): Puzzle {
         });
 
         placements[word] = positions;
-        placed = true;
+        break;
       }
     }
   }
-
-  const actualWords = Object.keys(placements);
 
   return {
     grid: grid.map((row) =>
       row.map(
         (letter) =>
           letter ||
-          String.fromCharCode(65 + Math.floor(Math.random() * 26)),
+          String.fromCharCode(
+            65 + Math.floor(Math.random() * 26),
+          ),
       ),
     ),
-    words: actualWords,
+    words: fallbackWords.filter((word) => placements[word]),
     placements,
   };
 }
@@ -320,24 +316,18 @@ function getSelectionPath(
   const rowDiff = end.row - start.row;
   const colDiff = end.col - start.col;
 
-  if (rowDiff === 0 && colDiff === 0) {
-    return [start];
-  }
+  if (rowDiff === 0 && colDiff === 0) return [start];
 
   const isHorizontal = rowDiff === 0;
   const isVertical = colDiff === 0;
   const isDiagonal = Math.abs(rowDiff) === Math.abs(colDiff);
 
-  if (!isHorizontal && !isVertical && !isDiagonal) {
-    return [];
-  }
+  if (!isHorizontal && !isVertical && !isDiagonal) return [];
 
   const rowStep = Math.sign(rowDiff);
   const colStep = Math.sign(colDiff);
-  const length = Math.max(
-    Math.abs(rowDiff),
-    Math.abs(colDiff),
-  ) + 1;
+  const length =
+    Math.max(Math.abs(rowDiff), Math.abs(colDiff)) + 1;
 
   return Array.from({ length }, (_, index) => ({
     row: start.row + rowStep * index,
@@ -360,6 +350,7 @@ export default function WordSearchGame() {
   );
 
   const gridRef = useRef<HTMLDivElement>(null);
+  const isSelectingRef = useRef(false);
 
   const isComplete =
     puzzle.words.length > 0 &&
@@ -409,6 +400,11 @@ export default function WordSearchGame() {
     return keys;
   }, [foundWords, puzzle.placements]);
 
+  const progress =
+    puzzle.words.length > 0
+      ? (foundWords.length / puzzle.words.length) * 100
+      : 0;
+
   function startGame(nextTheme = theme) {
     setTheme(nextTheme);
     setPuzzle(createPuzzle(nextTheme));
@@ -417,36 +413,79 @@ export default function WordSearchGame() {
     setEnd(null);
     setSeconds(0);
     setIsPlaying(true);
+    isSelectingRef.current = false;
     setMessage(
       "Pilih huruf pertama, lalu geser ke huruf terakhir.",
     );
   }
 
+  function getCellFromPoint(
+    clientX: number,
+    clientY: number,
+  ): Position | null {
+    const element = document.elementFromPoint(clientX, clientY);
+    const cell = element?.closest("[data-game-cell]");
+
+    if (!cell) return null;
+
+    const row = Number(cell.getAttribute("data-row"));
+    const col = Number(cell.getAttribute("data-col"));
+
+    if (!Number.isInteger(row) || !Number.isInteger(col)) {
+      return null;
+    }
+
+    return { row, col };
+  }
+
   function handlePointerDown(
-    event: React.PointerEvent<HTMLButtonElement>,
-    row: number,
-    col: number,
+    event: ReactPointerEvent<HTMLDivElement>,
   ) {
     if (isComplete) return;
 
+    const position = getCellFromPoint(
+      event.clientX,
+      event.clientY,
+    );
+
+    if (!position) return;
+
     event.preventDefault();
+
+    isSelectingRef.current = true;
+
+    try {
+      event.currentTarget.setPointerCapture(event.pointerId);
+    } catch {
+      // Beberapa browser mungkin tidak mendukung pointer capture.
+    }
 
     if (!isPlaying) setIsPlaying(true);
 
-    const position = { row, col };
     setStart(position);
     setEnd(position);
   }
 
-  function handlePointerEnter(
-    row: number,
-    col: number,
+  function handlePointerMove(
+    event: ReactPointerEvent<HTMLDivElement>,
   ) {
-    if (!start || isComplete) return;
-    setEnd({ row, col });
+    if (!isSelectingRef.current || !start) return;
+
+    const position = getCellFromPoint(
+      event.clientX,
+      event.clientY,
+    );
+
+    if (position) {
+      setEnd(position);
+    }
   }
 
   function finishSelection() {
+    if (!isSelectingRef.current) return;
+
+    isSelectingRef.current = false;
+
     if (!start || !end) {
       setStart(null);
       setEnd(null);
@@ -474,7 +513,11 @@ export default function WordSearchGame() {
     );
 
     if (matchedWord) {
-      setFoundWords((current) => [...current, matchedWord]);
+      setFoundWords((current) =>
+        current.includes(matchedWord)
+          ? current
+          : [...current, matchedWord],
+      );
       setMessage(`Benar! Kamu menemukan ${matchedWord}.`);
     } else {
       setMessage("Belum tepat. Coba cari kata lainnya!");
@@ -484,34 +527,26 @@ export default function WordSearchGame() {
     setEnd(null);
   }
 
-  useEffect(() => {
-    const handlePointerUp = () => {
-      if (start) finishSelection();
-    };
-
-    window.addEventListener("pointerup", handlePointerUp);
-
-    return () => {
-      window.removeEventListener("pointerup", handlePointerUp);
-    };
-  }, [start, end, foundWords, puzzle]);
-
-  const progress =
-    puzzle.words.length > 0
-      ? (foundWords.length / puzzle.words.length) * 100
-      : 0;
+  function cancelSelection() {
+    isSelectingRef.current = false;
+    setStart(null);
+    setEnd(null);
+  }
 
   return (
-    <div className="space-y-5">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
+    <div className="mx-auto w-full max-w-7xl space-y-5 overflow-hidden">
+      {/* Header */}
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="min-w-0">
           <div className="flex items-center gap-2 text-sm font-semibold text-primary">
             <Gamepad2 size={18} />
             GRADEUP GAMES
           </div>
-          <h2 className="mt-1 text-2xl font-bold">
+
+          <h2 className="mt-1 text-xl font-bold sm:text-2xl">
             Cari Kata HOTS
           </h2>
+
           <p className="mt-1 text-sm text-muted-foreground">
             Temukan semua kata tersembunyi dalam kotak huruf.
           </p>
@@ -520,20 +555,22 @@ export default function WordSearchGame() {
         <button
           type="button"
           onClick={() => startGame()}
-          className="inline-flex items-center gap-2 rounded-xl border px-4 py-2 text-sm font-semibold transition hover:bg-muted"
+          className="inline-flex min-h-10 w-full items-center justify-center gap-2 rounded-xl border px-4 py-2 text-sm font-semibold transition hover:bg-muted sm:w-auto"
         >
           <RotateCcw size={16} />
           Main Ulang
         </button>
       </div>
 
+      {/* Statistik */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-        <div className="rounded-xl border bg-card p-4">
+        <div className="min-w-0 rounded-xl border bg-card p-3 sm:p-4">
           <div className="flex items-center gap-2 text-xs text-muted-foreground">
             <Target size={15} />
             Kata ditemukan
           </div>
-          <p className="mt-2 text-2xl font-bold tabular-nums">
+
+          <p className="mt-2 text-xl font-bold tabular-nums sm:text-2xl">
             {foundWords.length}
             <span className="text-sm font-medium text-muted-foreground">
               {" "}/ {puzzle.words.length}
@@ -541,29 +578,32 @@ export default function WordSearchGame() {
           </p>
         </div>
 
-        <div className="rounded-xl border bg-card p-4">
+        <div className="min-w-0 rounded-xl border bg-card p-3 sm:p-4">
           <div className="flex items-center gap-2 text-xs text-muted-foreground">
             <Clock3 size={15} />
             Waktu bermain
           </div>
-          <p className="mt-2 text-2xl font-bold tabular-nums">
+
+          <p className="mt-2 text-xl font-bold tabular-nums sm:text-2xl">
             {formatTime(seconds)}
           </p>
         </div>
 
-        <div className="col-span-2 rounded-xl border bg-card p-4 sm:col-span-1">
+        <div className="col-span-2 min-w-0 rounded-xl border bg-card p-3 sm:col-span-1 sm:p-4">
           <div className="flex items-center gap-2 text-xs text-muted-foreground">
             <Sparkles size={15} />
             Progres permainan
           </div>
-          <p className="mt-2 text-2xl font-bold">
+
+          <p className="mt-2 text-xl font-bold sm:text-2xl">
             {Math.round(progress)}%
           </p>
         </div>
       </div>
 
+      {/* Progress */}
       <div className="rounded-xl border bg-card p-4">
-        <div className="mb-2 flex items-center justify-between text-sm">
+        <div className="mb-2 flex flex-wrap items-center justify-between gap-2 text-sm">
           <span className="font-semibold">Progres pencarian</span>
           <span className="text-muted-foreground">
             {foundWords.length} dari {puzzle.words.length} kata
@@ -578,9 +618,11 @@ export default function WordSearchGame() {
         </div>
       </div>
 
-      <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_280px]">
-        <div className="min-w-0 rounded-2xl border bg-card p-3 sm:p-5">
-          <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+      {/* Area permainan */}
+      <div className="grid min-w-0 grid-cols-1 gap-5 lg:grid-cols-[minmax(0,1fr)_280px]">
+        {/* Grid huruf */}
+        <div className="min-w-0 rounded-2xl border bg-card p-2.5 sm:p-5">
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-2 sm:mb-4">
             <div>
               <h3 className="font-bold">Kotak Huruf</h3>
               <p className="text-xs text-muted-foreground">
@@ -595,10 +637,17 @@ export default function WordSearchGame() {
 
           <div
             ref={gridRef}
-            className="mx-auto grid w-full max-w-[560px] select-none gap-1"
+            onPointerDown={handlePointerDown}
+            onPointerMove={handlePointerMove}
+            onPointerUp={finishSelection}
+            onPointerCancel={cancelSelection}
+            onContextMenu={(event) => event.preventDefault()}
+            className="mx-auto grid w-full max-w-[560px] select-none gap-[3px] sm:gap-1"
             style={{
               gridTemplateColumns: `repeat(${GRID_SIZE}, minmax(0, 1fr))`,
               touchAction: "none",
+              WebkitUserSelect: "none",
+              userSelect: "none",
             }}
           >
             {puzzle.grid.map((row, rowIndex) =>
@@ -611,26 +660,21 @@ export default function WordSearchGame() {
                   <button
                     key={key}
                     type="button"
+                    tabIndex={-1}
+                    data-game-cell="true"
+                    data-row={rowIndex}
+                    data-col={colIndex}
                     aria-label={`Baris ${rowIndex + 1}, kolom ${
                       colIndex + 1
                     }, huruf ${letter}`}
-                    onPointerDown={(event) =>
-                      handlePointerDown(
-                        event,
-                        rowIndex,
-                        colIndex,
-                      )
-                    }
-                    onPointerEnter={() =>
-                      handlePointerEnter(rowIndex, colIndex)
-                    }
                     className={[
-                      "aspect-square min-w-0 rounded-md text-[10px] font-bold transition-colors sm:rounded-lg sm:text-sm md:text-base",
+                      "flex aspect-square min-w-0 items-center justify-center rounded-[4px] font-bold leading-none transition-colors",
+                      "text-[clamp(9px,2.8vw,15px)] sm:rounded-lg sm:text-sm md:text-base",
                       isFound
                         ? "bg-emerald-500 text-white"
                         : isSelected
                           ? "bg-primary text-primary-foreground"
-                          : "bg-muted/70 text-foreground hover:bg-primary/15",
+                          : "bg-muted/70 text-foreground",
                     ].join(" ")}
                   >
                     {letter}
@@ -640,21 +684,23 @@ export default function WordSearchGame() {
             )}
           </div>
 
-          <p
+          <div
             aria-live="polite"
             className="mt-4 rounded-lg bg-muted px-3 py-3 text-center text-xs text-muted-foreground sm:text-sm"
           >
             {message}
-          </p>
+          </div>
 
-          <p className="mt-3 text-center text-xs text-muted-foreground">
-            Geser dari huruf pertama ke huruf terakhir. Kata dapat
-            ditemukan secara horizontal, vertikal, atau diagonal.
+          <p className="mt-3 text-center text-[11px] leading-relaxed text-muted-foreground sm:text-xs">
+            Sentuh atau klik huruf pertama, kemudian geser ke huruf
+            terakhir. Kata dapat ditemukan secara horizontal,
+            vertikal, atau diagonal.
           </p>
         </div>
 
-        <aside className="space-y-4">
-          <div className="rounded-2xl border bg-card p-4">
+        {/* Panel samping */}
+        <aside className="grid min-w-0 grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-1">
+          <div className="min-w-0 rounded-2xl border bg-card p-4">
             <div className="mb-3 flex items-center justify-between">
               <h3 className="font-bold">Daftar Kata</h3>
               <span className="text-xs text-muted-foreground">
@@ -669,7 +715,7 @@ export default function WordSearchGame() {
                 return (
                   <div
                     key={word}
-                    className={`flex items-center gap-2 rounded-lg px-3 py-2 text-xs font-semibold sm:text-sm ${
+                    className={`flex min-w-0 items-center gap-2 rounded-lg px-2.5 py-2 text-xs font-semibold sm:px-3 sm:text-sm ${
                       found
                         ? "bg-emerald-500/10 text-emerald-700 line-through dark:text-emerald-300"
                         : "bg-muted text-foreground"
@@ -683,6 +729,7 @@ export default function WordSearchGame() {
                     ) : (
                       <span className="h-3.5 w-3.5 shrink-0 rounded-full border border-muted-foreground/40" />
                     )}
+
                     <span className="break-all">{word}</span>
                   </div>
                 );
@@ -690,13 +737,13 @@ export default function WordSearchGame() {
             </div>
           </div>
 
-          <div className="rounded-2xl border bg-card p-4">
+          <div className="min-w-0 rounded-2xl border bg-card p-4">
             <h3 className="mb-3 font-bold">Pilihan Tema</h3>
 
             <select
               value={theme}
               onChange={(event) => startGame(event.target.value)}
-              className="w-full rounded-lg border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-primary"
+              className="min-h-11 w-full rounded-lg border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-primary"
             >
               {Object.keys(THEMES).map((item) => (
                 <option key={item} value={item}>
@@ -708,7 +755,7 @@ export default function WordSearchGame() {
             <button
               type="button"
               onClick={() => startGame()}
-              className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-lg bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground transition hover:opacity-90"
+              className="mt-3 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-lg bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground transition hover:opacity-90"
             >
               <Shuffle size={16} />
               Acak Permainan
@@ -717,16 +764,17 @@ export default function WordSearchGame() {
         </aside>
       </div>
 
+      {/* Selesai */}
       {isComplete && (
         <div
           role="status"
-          className="rounded-2xl border border-emerald-500/30 bg-emerald-500/10 p-6 text-center"
+          className="rounded-2xl border border-emerald-500/30 bg-emerald-500/10 p-5 text-center sm:p-6"
         >
           <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-emerald-500 text-white">
             <Sparkles size={28} />
           </div>
 
-          <h3 className="mt-4 text-xl font-bold text-emerald-700 dark:text-emerald-300">
+          <h3 className="mt-4 text-lg font-bold text-emerald-700 dark:text-emerald-300 sm:text-xl">
             Selamat! Tantangan Selesai!
           </h3>
 
@@ -738,7 +786,7 @@ export default function WordSearchGame() {
           <button
             type="button"
             onClick={() => startGame()}
-            className="mt-5 inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-emerald-700"
+            className="mt-5 inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-emerald-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-emerald-700"
           >
             <RotateCcw size={16} />
             Main Lagi
