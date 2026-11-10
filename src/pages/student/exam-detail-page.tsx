@@ -1,3 +1,4 @@
+
 import { useCallback, useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import {
@@ -81,11 +82,14 @@ export default function StudentExamDetailPage() {
   const [error, setError] = useState<string | null>(null);
   const [historyError, setHistoryError] = useState<string | null>(null);
 
+  // Status Premium akun siswa
+  const [isPremium, setIsPremium] = useState(false);
+
   const [open, setOpen] = useState(false);
   const [agreed, setAgreed] = useState(false);
 
   // =========================================================
-  // FETCH DETAIL PAKET
+  // FETCH DETAIL PAKET DAN STATUS PREMIUM
   // =========================================================
 
   const fetchExamDetail = useCallback(async () => {
@@ -98,6 +102,7 @@ export default function StudentExamDetailPage() {
     setLoading(true);
     setError(null);
     setExam(null);
+    setIsPremium(false);
 
     try {
       const {
@@ -112,6 +117,33 @@ export default function StudentExamDetailPage() {
           "Sesi login tidak ditemukan. Silakan login kembali."
         );
       }
+
+      // -------------------------------------------------------
+      // CEK STATUS PREMIUM SISWA
+      // -------------------------------------------------------
+
+      const { data: profile, error: profileError } = await supabase
+        .from("profiles")
+        .select("is_premium, premium_until")
+        .eq("id", user.id)
+        .maybeSingle();
+
+      if (profileError) throw profileError;
+
+      const premiumUntil = profile?.premium_until
+        ? new Date(profile.premium_until).getTime()
+        : 0;
+
+      const premiumActive =
+        profile?.is_premium === true &&
+        Number.isFinite(premiumUntil) &&
+        premiumUntil > Date.now();
+
+      setIsPremium(premiumActive);
+
+      // -------------------------------------------------------
+      // AMBIL DETAIL PAKET UJIAN
+      // -------------------------------------------------------
 
       const { data, error: examError } = await supabase
         .from("exam_packages")
@@ -152,6 +184,7 @@ export default function StudentExamDetailPage() {
       };
 
       setExam(safeExam);
+
       return user;
     } catch (err: unknown) {
       console.error("Gagal memuat detail paket ujian:", err);
@@ -270,7 +303,8 @@ export default function StudentExamDetailPage() {
   // =========================================================
 
   const handleStartExam = () => {
-    if (exam.premium) {
+    // Hanya siswa tanpa Premium aktif yang diarahkan ke upgrade.
+    if (exam.premium && !isPremium) {
       openUpgrade();
       return;
     }
@@ -380,10 +414,7 @@ export default function StudentExamDetailPage() {
         </div>
       </div>
 
-      {/* =====================================================
-          HERO
-      ===================================================== */}
-
+      {/* HERO */}
       <section className="relative isolate overflow-hidden rounded-[28px] border border-emerald-500/20 bg-slate-950 shadow-xl shadow-emerald-950/10">
         <div className="absolute inset-0 -z-10 bg-gradient-to-br from-emerald-700 via-teal-800 to-slate-950" />
 
@@ -447,10 +478,7 @@ export default function StudentExamDetailPage() {
         </div>
       </section>
 
-      {/* =====================================================
-          MAIN CONTENT
-      ===================================================== */}
-
+      {/* MAIN CONTENT */}
       <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_340px]">
         <div className="min-w-0 space-y-6">
           {/* STATISTICS */}
@@ -572,10 +600,7 @@ export default function StudentExamDetailPage() {
           </div>
         </div>
 
-        {/* ===================================================
-            RIGHT SIDEBAR
-        =================================================== */}
-
+        {/* RIGHT SIDEBAR */}
         <aside className="space-y-5 lg:sticky lg:top-5">
           {/* START EXAM CARD */}
           <Card className="overflow-hidden rounded-2xl border-border bg-card shadow-md">
@@ -589,8 +614,17 @@ export default function StudentExamDetailPage() {
 
                 {exam.premium ? (
                   <Badge variant="warning">
-                    <Lock className="mr-1 h-3 w-3" />
-                    Premium
+                    {isPremium ? (
+                      <>
+                        <CheckCircle2 className="mr-1 h-3 w-3" />
+                        Premium Aktif
+                      </>
+                    ) : (
+                      <>
+                        <Lock className="mr-1 h-3 w-3" />
+                        Premium
+                      </>
+                    )}
                   </Badge>
                 ) : (
                   <Badge variant="success">
@@ -602,12 +636,18 @@ export default function StudentExamDetailPage() {
 
               <div>
                 <h2 className="text-xl font-black tracking-tight text-foreground">
-                  {exam.premium ? "Akses Premium" : "Siap untuk ujian?"}
+                  {exam.premium
+                    ? isPremium
+                      ? "Premium Aktif"
+                      : "Akses Premium"
+                    : "Siap untuk ujian?"}
                 </h2>
 
                 <p className="mt-2 text-xs leading-relaxed text-muted-foreground">
                   {exam.premium
-                    ? "Paket ini termasuk konten Premium GradeUp. Upgrade untuk mendapatkan akses."
+                    ? isPremium
+                      ? "Langganan Premium kamu aktif. Kamu dapat mengerjakan paket ujian ini."
+                      : "Paket ini termasuk konten Premium GradeUp. Upgrade untuk mendapatkan akses."
                     : "Pastikan kamu sudah memahami instruksi sebelum masuk ke ruang ujian."}
                 </p>
               </div>
@@ -645,7 +685,7 @@ export default function StudentExamDetailPage() {
                 className="h-12 w-full gap-2 rounded-xl bg-emerald-600 font-bold text-white shadow-lg shadow-emerald-600/15 transition-all hover:bg-emerald-700 hover:shadow-xl"
                 onClick={handleStartExam}
               >
-                {exam.premium ? (
+                {exam.premium && !isPremium ? (
                   <>
                     <Lock className="h-4 w-4" />
                     Upgrade untuk Mulai
@@ -797,10 +837,7 @@ export default function StudentExamDetailPage() {
         </aside>
       </div>
 
-      {/* =====================================================
-          CONFIRMATION DIALOG
-      ===================================================== */}
-
+      {/* CONFIRMATION DIALOG */}
       <Dialog
         open={open}
         onOpenChange={(nextOpen) => {
