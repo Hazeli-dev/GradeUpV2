@@ -7,7 +7,6 @@ import {
   BrainCircuit,
   CheckCircle2,
   CircleHelp,
-  Clock3,
   GraduationCap,
   Lightbulb,
   Medal,
@@ -35,10 +34,19 @@ import {
 } from "recharts";
 
 import { PageHeader } from "@/components/shared/page-header";
-import { ChartCard, axisProps, chartTooltipStyle } from "@/components/shared/chart-card";
+import {
+  ChartCard,
+  axisProps,
+  chartTooltipStyle,
+} from "@/components/shared/chart-card";
 import { StatCard } from "@/components/shared/stat-card";
 import { PageSkeleton, EmptyState } from "@/components/shared/states";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { CHART_COLORS } from "@/constants";
@@ -49,8 +57,8 @@ interface ScoreTrendData {
   skor: number;
 }
 
-interface SubjectPerformanceData {
-  mapel: string;
+interface CategoryPerformanceData {
+  kategori: string;
   skor: number;
   totalSoal: number;
   benar: number;
@@ -71,11 +79,9 @@ interface LearningInsightResult {
 }
 
 interface ProfileStatistics {
-  total_xp: number;
-  all_time_xp: number;
+  totalXP: number;
   level: number;
-  total_articles_read: number;
-  total_exams_passed: number;
+  totalArticlesRead: number;
 }
 
 interface CourseStatistics {
@@ -99,7 +105,11 @@ interface ExamStatistics {
   unansweredQuestions: number;
 }
 
-const pieColors = [CHART_COLORS.secondary, CHART_COLORS.danger, "#94a3b8"];
+const pieColors = [
+  CHART_COLORS.secondary,
+  CHART_COLORS.danger,
+  "#94a3b8",
+];
 
 const emptyExamStatistics: ExamStatistics = {
   totalExams: 0,
@@ -122,6 +132,12 @@ const emptyCourseStatistics: CourseStatistics = {
   courseXP: 0,
 };
 
+const emptyProfileStatistics: ProfileStatistics = {
+  totalXP: 0,
+  level: 1,
+  totalArticlesRead: 0,
+};
+
 function safeNumber(value: unknown, fallback = 0): number {
   const number = Number(value);
   return Number.isFinite(number) ? number : fallback;
@@ -140,98 +156,100 @@ function getScoreLabel(score: number) {
   return "Perlu Ditingkatkan";
 }
 
+function getQuestionCount(attempt: any): number {
+  const storedCount = safeNumber(attempt.total_questions, -1);
+
+  if (storedCount >= 0) return storedCount;
+
+  if (
+    attempt.answers &&
+    typeof attempt.answers === "object" &&
+    !Array.isArray(attempt.answers)
+  ) {
+    return Object.keys(attempt.answers).length;
+  }
+
+  return 0;
+}
+
+function getAnswerCounts(attempt: any, questionCount: number) {
+  let correct = safeNumber(attempt.correct_count, NaN);
+  let wrong = safeNumber(
+    attempt.wrong_count ?? attempt.incorrect_count,
+    NaN,
+  );
+
+  const hasCorrect = Number.isFinite(correct);
+  const hasWrong = Number.isFinite(wrong);
+
+  if (!hasCorrect && !hasWrong) {
+    correct = Math.round(
+      (Math.max(0, Math.min(100, safeNumber(attempt.score))) / 100) *
+        questionCount,
+    );
+    wrong = Math.max(0, questionCount - correct);
+  } else if (!hasCorrect) {
+    correct = Math.max(0, questionCount - wrong);
+  } else if (!hasWrong) {
+    wrong = Math.max(0, questionCount - correct);
+  } else if (correct === 0 && wrong === 0 && questionCount > 0) {
+    correct = Math.round(
+      (Math.max(0, Math.min(100, safeNumber(attempt.score))) / 100) *
+        questionCount,
+    );
+    wrong = Math.max(0, questionCount - correct);
+  }
+
+  correct = Math.max(0, Math.min(questionCount, correct));
+  wrong = Math.max(0, Math.min(questionCount - correct, wrong));
+
+  return {
+    correct,
+    wrong,
+    unanswered: Math.max(0, questionCount - correct - wrong),
+  };
+}
+
 function generateDetailedLearningInsight(
-  subjects: SubjectPerformanceData[],
+  categories: CategoryPerformanceData[],
   accuracy: number,
   examCount: number,
 ): LearningInsightResult {
-  if (examCount === 0 || subjects.length === 0) {
+  if (examCount === 0 || categories.length === 0) {
     return {
       title: "Mulai Perjalanan Belajarmu",
       type: "info",
       description:
         "Belum tersedia cukup data untuk menganalisis performa. Selesaikan beberapa ujian agar GradeUp dapat menampilkan pola perkembangan belajarmu.",
       actionPlan: [
-        "Mulai dengan satu paket ujian sesuai jenjang dan mata pelajaran.",
+        "Mulai dengan satu paket ujian yang sesuai dengan jenjangmu.",
         "Periksa pembahasan setelah menyelesaikan ujian.",
         "Pantau perkembangan nilai setelah mengikuti beberapa evaluasi.",
       ],
     };
   }
 
-  const best = [...subjects].sort((a, b) => b.skor - a.skor)[0];
-  const weakest = [...subjects].sort((a, b) => a.skor - b.skor)[0];
+  const best = [...categories].sort((a, b) => b.skor - a.skor)[0];
+  const weakest = [...categories].sort((a, b) => a.skor - b.skor)[0];
 
-  const mathSubjects = subjects.filter((subject) =>
-    /matematika|math|hitung|kalkulus|fisika|ekonomi/i.test(subject.mapel),
-  );
-
-  const scienceSubjects = subjects.filter((subject) =>
-    /ipa|biologi|sains|kimia|alam/i.test(subject.mapel),
-  );
-
-  const mathAverage = mathSubjects.length
-    ? Math.round(
-        mathSubjects.reduce((sum, item) => sum + item.skor, 0) /
-          mathSubjects.length,
-      )
-    : null;
-
-  const scienceAverage = scienceSubjects.length
-    ? Math.round(
-        scienceSubjects.reduce((sum, item) => sum + item.skor, 0) /
-          scienceSubjects.length,
-      )
-    : null;
-
-  if (mathAverage !== null && mathAverage < 65) {
+  if (best.skor >= 85 && weakest.skor < 70 && best.kategori !== weakest.kategori) {
     return {
-      title: "Perlu Penguatan Materi Numerik",
+      title: "Ada Kategori yang Perlu Ditingkatkan",
       type: "warning",
-      description: `Rata-rata kategori hitunganmu masih ${mathAverage}%. Materi seperti ${mathSubjects
-        .map((item) => item.mapel)
-        .join(", ")} layak mendapatkan perhatian lebih.`,
+      description: `Hasil terbaikmu ada pada kategori ${best.kategori} (${best.skor}%), sedangkan kategori ${weakest.kategori} masih ${weakest.skor}%. Fokus berikutnya adalah memperkuat kategori dengan nilai lebih rendah.`,
       actionPlan: [
-        "Ulangi konsep dasar sebelum mencoba soal dengan tingkat kesulitan lebih tinggi.",
-        "Tuliskan informasi yang diketahui dan yang ditanyakan sebelum menghitung.",
-        `Periksa kembali pembahasan soal pada kategori ${mathSubjects
-          .map((item) => item.mapel)
-          .join(", ")}.`,
-      ],
-    };
-  }
-
-  if (scienceAverage !== null && scienceAverage >= 80) {
-    return {
-      title: "Penguasaan Sains Menonjol",
-      type: "success",
-      description: `Rata-rata kategori sains mencapai ${scienceAverage}%. Ini merupakan area dengan hasil yang kuat dalam riwayat evaluasimu.`,
-      actionPlan: [
-        "Pertahankan hasil dengan mencoba variasi soal dan tingkat kesulitan yang lebih tinggi.",
-        "Hubungkan konsep yang dipelajari dengan contoh penerapannya.",
-        `Gunakan strategi belajar yang berhasil untuk membantu meningkatkan ${weakest.mapel}.`,
-      ],
-    };
-  }
-
-  if (best.skor >= 85 && weakest.skor < 70) {
-    return {
-      title: "Ada Perbedaan Penguasaan Antarmapel",
-      type: "warning",
-      description: `Hasil terbaikmu ada pada ${best.mapel} (${best.skor}%), sedangkan ${weakest.mapel} masih ${weakest.skor}%. Fokus berikutnya adalah memperkuat kategori dengan nilai lebih rendah.`,
-      actionPlan: [
-        `Prioritaskan materi ${weakest.mapel} dan pelajari kembali konsep yang belum dikuasai.`,
+        `Prioritaskan latihan pada kategori ${weakest.kategori}.`,
         "Gunakan pembahasan ujian untuk mengenali pola kesalahan.",
         "Lakukan evaluasi ulang setelah mempelajari materi terkait.",
       ],
     };
   }
 
-  if (accuracy >= 80) {
+  if (accuracy >= 85) {
     return {
       title: "Performa Evaluasi Sangat Baik",
       type: "success",
-      description: `Akurasi jawabanmu mencapai ${accuracy}%. Hasil ini menunjukkan penguasaan yang baik terhadap soal-soal yang telah dijawab.`,
+      description: `Akurasi jawabanmu mencapai ${accuracy}%. Hasil ini menunjukkan ketepatan yang sangat baik pada soal-soal yang telah dijawab.`,
       actionPlan: [
         "Pertahankan konsistensi belajar dan evaluasi secara berkala.",
         "Coba soal penalaran dan penerapan konsep.",
@@ -240,14 +258,14 @@ function generateDetailedLearningInsight(
     };
   }
 
-  if (accuracy >= 65) {
+  if (accuracy >= 70) {
     return {
       title: "Perkembangan Belajar yang Positif",
       type: "balanced",
-      description: `Akurasi jawaban berada di angka ${accuracy}%. Kamu sudah memiliki dasar yang cukup, dan masih ada ruang untuk meningkatkan ketepatan.`,
+      description: `Akurasi jawaban berada di angka ${accuracy}%. Kamu sudah memiliki dasar yang cukup dan masih memiliki peluang untuk meningkatkan ketepatan.`,
       actionPlan: [
         "Ulas kembali soal yang pernah dijawab salah.",
-        `Prioritaskan penguatan pada ${weakest.mapel}.`,
+        `Prioritaskan latihan pada kategori ${weakest.kategori}.`,
         "Lakukan latihan secara konsisten dan pantau perubahan nilai.",
       ],
     };
@@ -258,8 +276,8 @@ function generateDetailedLearningInsight(
     type: "warning",
     description: `Akurasi jawaban saat ini ${accuracy}%. Hasil evaluasi menunjukkan bahwa beberapa konsep masih perlu dipelajari kembali.`,
     actionPlan: [
-      `Mulai dari materi dasar pada ${weakest.mapel}.`,
-      "Baca materi pembelajaran sebelum mengerjakan evaluasi berikutnya.",
+      `Mulai dengan mengevaluasi hasil ujian kategori ${weakest.kategori}.`,
+      "Baca kembali materi pembelajaran sebelum mengerjakan evaluasi berikutnya.",
       "Pelajari penjelasan jawaban agar kesalahan yang sama tidak terulang.",
     ],
   };
@@ -270,8 +288,8 @@ export default function StatisticsPage() {
   const [errorMessage, setErrorMessage] = useState("");
 
   const [scoreTrend, setScoreTrend] = useState<ScoreTrendData[]>([]);
-  const [subjectPerformance, setSubjectPerformance] = useState<
-    SubjectPerformanceData[]
+  const [categoryPerformance, setCategoryPerformance] = useState<
+    CategoryPerformanceData[]
   >([]);
   const [answerBreakdown, setAnswerBreakdown] = useState<
     AnswerBreakdownData[]
@@ -280,13 +298,9 @@ export default function StatisticsPage() {
   const [examStats, setExamStats] =
     useState<ExamStatistics>(emptyExamStatistics);
 
-  const [profileStats, setProfileStats] = useState<ProfileStatistics>({
-    total_xp: 0,
-    all_time_xp: 0,
-    level: 1,
-    total_articles_read: 0,
-    total_exams_passed: 0,
-  });
+  const [profileStats, setProfileStats] = useState<ProfileStatistics>(
+    emptyProfileStatistics,
+  );
 
   const [courseStats, setCourseStats] =
     useState<CourseStatistics>(emptyCourseStatistics);
@@ -305,9 +319,11 @@ export default function StatisticsPage() {
         } = await supabase.auth.getUser();
 
         if (authError) throw authError;
+
         if (!user) {
-          setErrorMessage("Sesi pengguna tidak ditemukan. Silakan masuk kembali.");
-          return;
+          throw new Error(
+            "Sesi pengguna tidak ditemukan. Silakan masuk kembali.",
+          );
         }
 
         const [
@@ -323,6 +339,7 @@ export default function StatisticsPage() {
             .from("exam_attempts")
             .select("*")
             .eq("user_id", user.id)
+            .eq("status", "completed")
             .order("created_at", { ascending: true }),
 
           supabase
@@ -331,9 +348,7 @@ export default function StatisticsPage() {
 
           supabase
             .from("profiles")
-            .select(
-              "total_xp, all_time_xp, level, total_articles_read, total_exams_passed",
-            )
+            .select("total_xp, level, total_articles_read")
             .eq("id", user.id)
             .maybeSingle(),
 
@@ -361,27 +376,31 @@ export default function StatisticsPage() {
 
         const attempts = attemptsResult.data || [];
         const packages = packagesResult.data || [];
-        const packageMap = new Map(packages.map((item) => [item.id, item]));
 
-        if (profileResult.data) {
+        const packageMap = new Map(
+          packages.map((item) => [item.id, item]),
+        );
+
+        // Data profil
+        if (!profileResult.error && profileResult.data) {
           const profile = profileResult.data;
 
           setProfileStats({
-            total_xp: safeNumber(profile.total_xp),
-            all_time_xp: safeNumber(profile.all_time_xp),
+            totalXP: safeNumber(profile.total_xp),
             level: Math.max(1, safeNumber(profile.level, 1)),
-            total_articles_read: safeNumber(profile.total_articles_read),
-            total_exams_passed: safeNumber(profile.total_exams_passed),
+            totalArticlesRead: safeNumber(profile.total_articles_read),
           });
+        } else {
+          setProfileStats(emptyProfileStatistics);
         }
 
-        // Analisis hasil ujian
+        // Analisis hasil ujian yang telah selesai
         const categoryScores: Record<
           string,
           {
             totalScore: number;
             count: number;
-            totalQ: number;
+            totalQuestions: number;
             correct: number;
             wrong: number;
           }
@@ -395,51 +414,36 @@ export default function StatisticsPage() {
         let highestScore = 0;
         let passCount = 0;
 
-        const trend = attempts.map((item: any) => {
-          const score = Math.max(0, Math.min(100, safeNumber(item.score)));
-          const packageId = item.exam_package_id || item.exam_id;
-          const examPackage = packageMap.get(packageId);
-          const category = examPackage?.category || "Umum";
+        const trend: ScoreTrendData[] = [];
 
-          const questionCount = Math.max(
+        attempts.forEach((item: any) => {
+          const score = Math.max(
             0,
-            safeNumber(
-              item.total_questions,
-              item.answers ? Object.keys(item.answers).length : 0,
-            ),
+            Math.min(100, safeNumber(item.score)),
           );
 
-          let correct = safeNumber(item.correct_count, NaN);
-          let wrong = safeNumber(
-            item.wrong_count ?? item.incorrect_count,
-            NaN,
-          );
+          // exam_attempts.exam_id mengarah ke exam_packages.id
+          const examPackage = item.exam_id
+            ? packageMap.get(item.exam_id)
+            : undefined;
 
-          if (
-            !Number.isFinite(correct) ||
-            (correct === 0 && (!Number.isFinite(wrong) || wrong === 0) && score > 0)
-          ) {
-            correct = Math.round((score / 100) * questionCount);
-          }
+          const category = examPackage?.category || "Umum";
+          const questionCount = getQuestionCount(item);
 
-          if (!Number.isFinite(wrong)) {
-            wrong = Math.max(0, questionCount - correct);
-          }
+          const answerCounts = getAnswerCounts(item, questionCount);
 
-          correct = Math.max(0, Math.min(questionCount, correct));
-          wrong = Math.max(0, Math.min(questionCount - correct, wrong));
-
-          const unanswered = Math.max(0, questionCount - correct - wrong);
-          const answered = correct + wrong;
-
-          totalCorrect += correct;
-          totalWrong += wrong;
-          totalUnanswered += unanswered;
+          totalCorrect += answerCounts.correct;
+          totalWrong += answerCounts.wrong;
+          totalUnanswered += answerCounts.unanswered;
           totalQuestions += questionCount;
           totalScore += score;
           highestScore = Math.max(highestScore, score);
 
-          const passingScore = safeNumber(examPackage?.passing_score, 75);
+          const passingScore = safeNumber(
+            examPackage?.passing_score,
+            75,
+          );
+
           const passed =
             typeof item.is_passed === "boolean"
               ? item.is_passed
@@ -451,7 +455,7 @@ export default function StatisticsPage() {
             categoryScores[category] = {
               totalScore: 0,
               count: 0,
-              totalQ: 0,
+              totalQuestions: 0,
               correct: 0,
               wrong: 0,
             };
@@ -459,20 +463,25 @@ export default function StatisticsPage() {
 
           categoryScores[category].totalScore += score;
           categoryScores[category].count += 1;
-          categoryScores[category].totalQ += questionCount;
-          categoryScores[category].correct += correct;
-          categoryScores[category].wrong += wrong;
+          categoryScores[category].totalQuestions += questionCount;
+          categoryScores[category].correct += answerCounts.correct;
+          categoryScores[category].wrong += answerCounts.wrong;
 
-          return {
-            tanggal: new Date(item.created_at).toLocaleDateString("id-ID", {
-              day: "numeric",
-              month: "short",
-            }),
+          const createdAt = new Date(item.created_at);
+
+          trend.push({
+            tanggal: Number.isNaN(createdAt.getTime())
+              ? "-"
+              : createdAt.toLocaleDateString("id-ID", {
+                  day: "numeric",
+                  month: "short",
+                }),
             skor: score,
-          };
+          });
         });
 
         const answeredQuestions = totalCorrect + totalWrong;
+
         const accuracy = answeredQuestions
           ? Math.round((totalCorrect / answeredQuestions) * 100)
           : 0;
@@ -496,12 +505,14 @@ export default function StatisticsPage() {
 
         setScoreTrend(trend);
 
-        setSubjectPerformance(
+        setCategoryPerformance(
           Object.entries(categoryScores)
             .map(([category, data]) => ({
-              mapel: category,
-              skor: Math.round(data.totalScore / data.count),
-              totalSoal: data.totalQ,
+              kategori: category,
+              skor: data.count
+                ? Math.round(data.totalScore / data.count)
+                : 0,
+              totalSoal: data.totalQuestions,
               benar: data.correct,
               salah: data.wrong,
               ujian: data.count,
@@ -516,35 +527,45 @@ export default function StatisticsPage() {
         ]);
 
         // Statistik kursus dan materi
-        if (
+        const courseQueriesSucceeded =
           !progressResult.error &&
           !lessonsResult.error &&
           !modulesResult.error &&
-          !coursesResult.error
-        ) {
+          !coursesResult.error;
+
+        if (courseQueriesSucceeded) {
           const progress = progressResult.data || [];
           const lessons = lessonsResult.data || [];
           const modules = modulesResult.data || [];
           const courses = coursesResult.data || [];
 
+          const lessonIds = new Set(
+            lessons.map((lesson) => lesson.id),
+          );
+
           const completedLessonIds = new Set(
             progress
-              .filter((item: any) => item.is_completed)
+              .filter(
+                (item: any) =>
+                  item.is_completed && lessonIds.has(item.lesson_id),
+              )
               .map((item: any) => item.lesson_id),
           );
 
-          const lessonMap = new Map(lessons.map((item) => [item.id, item]));
-          const moduleMap = new Map(modules.map((item) => [item.id, item]));
+          const moduleMap = new Map(
+            modules.map((module) => [module.id, module]),
+          );
 
-          const completedCourseIds = new Set<string>();
           const courseLessonCounts = new Map<string, number>();
           const completedCourseLessonCounts = new Map<string, number>();
 
           lessons.forEach((lesson: any) => {
             const module = moduleMap.get(lesson.module_id);
+
             if (!module) return;
 
             const courseId = module.course_id;
+
             courseLessonCounts.set(
               courseId,
               (courseLessonCounts.get(courseId) || 0) + 1,
@@ -558,17 +579,22 @@ export default function StatisticsPage() {
             }
           });
 
+          let completedCourses = 0;
+
           courseLessonCounts.forEach((count, courseId) => {
             if (
               count > 0 &&
               completedCourseLessonCounts.get(courseId) === count
             ) {
-              completedCourseIds.add(courseId);
+              completedCourses += 1;
             }
           });
 
           const courseXP = progress
-            .filter((item: any) => item.is_completed)
+            .filter(
+              (item: any) =>
+                item.is_completed && lessonIds.has(item.lesson_id),
+            )
             .reduce(
               (sum: number, item: any) =>
                 sum + safeNumber(item.xp_awarded),
@@ -578,16 +604,22 @@ export default function StatisticsPage() {
           setCourseStats({
             completedLessons: completedLessonIds.size,
             totalLessons: lessons.length,
-            completedCourses: completedCourseIds.size,
+            completedCourses,
             courseCount: courses.length,
             courseXP,
           });
+        } else {
+          setCourseStats(emptyCourseStatistics);
         }
       } catch (error) {
         console.error("Gagal memuat statistik belajar:", error);
+
         if (active) {
           setErrorMessage(
-            "Statistik belum dapat dimuat. Silakan coba muat ulang halaman.",
+            error instanceof Error &&
+              error.message.includes("Sesi pengguna")
+              ? error.message
+              : "Statistik belum dapat dimuat. Silakan coba muat ulang halaman.",
           );
         }
       } finally {
@@ -613,11 +645,11 @@ export default function StatisticsPage() {
   const insight = useMemo(
     () =>
       generateDetailedLearningInsight(
-        subjectPerformance,
+        categoryPerformance,
         accuracyRate,
         examStats.totalExams,
       ),
-    [subjectPerformance, accuracyRate, examStats.totalExams],
+    [categoryPerformance, accuracyRate, examStats.totalExams],
   );
 
   if (loading) return <PageSkeleton />;
@@ -638,6 +670,7 @@ export default function StatisticsPage() {
   }
 
   const hasExamData = examStats.totalExams > 0;
+
   const courseProgress = courseStats.totalLessons
     ? Math.min(
         100,
@@ -666,7 +699,7 @@ export default function StatisticsPage() {
                 Total XP
               </p>
               <p className="text-2xl font-black tabular-nums text-foreground">
-                {profileStats.total_xp.toLocaleString("id-ID")}
+                {profileStats.totalXP.toLocaleString("id-ID")}
               </p>
               <p className="text-xs text-muted-foreground">
                 Akumulasi XP saat ini
@@ -728,7 +761,7 @@ export default function StatisticsPage() {
             label="Rata-rata Nilai"
             value={`${examStats.averageScore}%`}
             icon={Target}
-            hint="Rata-rata seluruh ujian"
+            hint="Rata-rata seluruh ujian selesai"
           />
           <StatCard
             label="Nilai Tertinggi"
@@ -794,7 +827,9 @@ export default function StatisticsPage() {
               key={item.label}
               className="rounded-xl border border-border/60 bg-card p-3 sm:p-4"
             >
-              <div className={`mb-3 inline-flex rounded-xl p-2 ${item.bg} ${item.color}`}>
+              <div
+                className={`mb-3 inline-flex rounded-xl p-2 ${item.bg} ${item.color}`}
+              >
                 <item.icon className="h-4 w-4" />
               </div>
               <p className="text-xl font-black tabular-nums text-foreground sm:text-2xl">
@@ -822,25 +857,33 @@ export default function StatisticsPage() {
               <p className="text-xl font-black text-foreground">
                 {courseStats.courseCount}
               </p>
-              <p className="text-xs text-muted-foreground">Kursus tersedia</p>
+              <p className="text-xs text-muted-foreground">
+                Kursus tersedia
+              </p>
             </div>
             <div className="rounded-xl bg-muted/50 p-3">
               <p className="text-xl font-black text-foreground">
                 {courseStats.completedLessons}
               </p>
-              <p className="text-xs text-muted-foreground">Materi selesai</p>
+              <p className="text-xs text-muted-foreground">
+                Materi selesai
+              </p>
             </div>
             <div className="rounded-xl bg-muted/50 p-3">
               <p className="text-xl font-black text-foreground">
                 {courseStats.totalLessons}
               </p>
-              <p className="text-xs text-muted-foreground">Total materi</p>
+              <p className="text-xs text-muted-foreground">
+                Total materi
+              </p>
             </div>
             <div className="rounded-xl bg-muted/50 p-3">
               <p className="text-xl font-black text-foreground">
                 {courseStats.completedCourses}
               </p>
-              <p className="text-xs text-muted-foreground">Kursus tuntas</p>
+              <p className="text-xs text-muted-foreground">
+                Kursus tuntas
+              </p>
             </div>
           </div>
 
@@ -855,16 +898,15 @@ export default function StatisticsPage() {
             </div>
             <Progress value={courseProgress} className="h-3" />
             <p className="text-xs text-muted-foreground">
-              Berdasarkan materi yang memiliki catatan progres dan daftar materi
-              yang dapat diakses.
+              Berdasarkan seluruh materi yang terdaftar di GradeUp.
             </p>
           </div>
 
           <div className="flex items-start gap-3 rounded-xl border border-border/60 bg-muted/30 p-3">
             <BookOpen className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
             <p className="text-xs leading-relaxed text-muted-foreground">
-              Statistik ini menghitung penyelesaian materi kursus. Aktivitas
-              membaca artikel ditampilkan terpisah pada data profil.
+              Statistik ini menghitung penyelesaian materi kursus.
+              Aktivitas membaca artikel ditampilkan terpisah pada data profil.
             </p>
           </div>
         </CardContent>
@@ -879,7 +921,7 @@ export default function StatisticsPage() {
             </div>
             <div>
               <p className="text-2xl font-black text-foreground">
-                {profileStats.total_articles_read}
+                {profileStats.totalArticlesRead.toLocaleString("id-ID")}
               </p>
               <p className="text-sm font-semibold text-foreground">
                 Artikel dibaca
@@ -898,13 +940,13 @@ export default function StatisticsPage() {
             </div>
             <div>
               <p className="text-2xl font-black text-foreground">
-                {profileStats.total_exams_passed}
+                {examStats.passCount}
               </p>
               <p className="text-sm font-semibold text-foreground">
-                Ujian lulus tercatat
+                Ujian lulus
               </p>
               <p className="text-xs text-muted-foreground">
-                Berdasarkan rekap profil
+                Berdasarkan hasil ujian yang telah selesai
               </p>
             </div>
           </CardContent>
@@ -944,7 +986,10 @@ export default function StatisticsPage() {
             </h4>
             <ul className="space-y-3">
               {insight.actionPlan.map((action, index) => (
-                <li key={index} className="flex items-start gap-3 text-sm text-foreground/90">
+                <li
+                  key={index}
+                  className="flex items-start gap-3 text-sm text-foreground/90"
+                >
                   <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-emerald-500/10 text-xs font-bold text-emerald-600 dark:text-emerald-400">
                     {index + 1}
                   </span>
@@ -961,31 +1006,33 @@ export default function StatisticsPage() {
         <CardHeader className="border-b border-border/60 bg-muted/20 px-4 py-4 sm:px-6">
           <CardTitle className="flex items-center gap-2 text-base font-extrabold">
             <Award className="h-5 w-5 text-emerald-500" />
-            Peta Penguasaan Mata Pelajaran
+            Peta Penguasaan Kategori Ujian
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4 p-4 sm:p-6">
-          {subjectPerformance.length === 0 ? (
+          {categoryPerformance.length === 0 ? (
             <p className="py-6 text-center text-sm text-muted-foreground">
-              Belum ada data penguasaan mata pelajaran.
+              Belum ada data penguasaan kategori ujian.
             </p>
           ) : (
-            subjectPerformance.map((item) => (
+            categoryPerformance.map((item) => (
               <div
-                key={item.mapel}
+                key={item.kategori}
                 className="space-y-3 rounded-xl border border-border/60 bg-muted/20 p-4"
               >
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <div>
                     <p className="text-sm font-bold text-foreground">
-                      {item.mapel}
+                      {item.kategori}
                     </p>
                     <p className="mt-1 text-xs text-muted-foreground">
                       {item.ujian} ujian · {item.benar} benar · {item.salah} salah
                     </p>
                   </div>
                   <div className="text-right">
-                    <p className={`text-xl font-black ${getScoreColor(item.skor)}`}>
+                    <p
+                      className={`text-xl font-black ${getScoreColor(item.skor)}`}
+                    >
                       {item.skor}%
                     </p>
                     <Badge variant="outline" className="text-[10px]">
@@ -1006,7 +1053,7 @@ export default function StatisticsPage() {
           <div className="min-w-0 overflow-hidden rounded-2xl">
             <ChartCard
               title="Perkembangan Nilai Ujian"
-              description="Perubahan skor dari setiap ujian yang telah dikerjakan"
+              description="Perubahan skor dari setiap ujian yang telah diselesaikan"
               height={300}
             >
               <ResponsiveContainer width="100%" height="100%">
@@ -1022,12 +1069,18 @@ export default function StatisticsPage() {
                   <XAxis
                     dataKey="tanggal"
                     {...axisProps}
-                    tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 11 }}
+                    tick={{
+                      fill: "hsl(var(--muted-foreground))",
+                      fontSize: 11,
+                    }}
                   />
                   <YAxis
                     domain={[0, 100]}
                     {...axisProps}
-                    tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 11 }}
+                    tick={{
+                      fill: "hsl(var(--muted-foreground))",
+                      fontSize: 11,
+                    }}
                   />
                   <Tooltip {...chartTooltipStyle} />
                   <Line
@@ -1052,12 +1105,12 @@ export default function StatisticsPage() {
           <div className="grid min-w-0 gap-5 xl:grid-cols-2">
             <div className="min-w-0 overflow-hidden rounded-2xl">
               <ChartCard
-                title="Perbandingan Skor per Mapel"
+                title="Perbandingan Skor per Kategori"
                 description="Rata-rata nilai pada setiap kategori ujian"
               >
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart
-                    data={subjectPerformance}
+                    data={categoryPerformance}
                     margin={{ top: 8, right: 8, left: -20, bottom: 0 }}
                   >
                     <CartesianGrid
@@ -1066,15 +1119,21 @@ export default function StatisticsPage() {
                       stroke="hsl(var(--border))"
                     />
                     <XAxis
-                      dataKey="mapel"
+                      dataKey="kategori"
                       {...axisProps}
                       interval={0}
-                      tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 10 }}
+                      tick={{
+                        fill: "hsl(var(--muted-foreground))",
+                        fontSize: 10,
+                      }}
                     />
                     <YAxis
                       domain={[0, 100]}
                       {...axisProps}
-                      tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 11 }}
+                      tick={{
+                        fill: "hsl(var(--muted-foreground))",
+                        fontSize: 11,
+                      }}
                     />
                     <Tooltip {...chartTooltipStyle} />
                     <Bar
@@ -1106,7 +1165,10 @@ export default function StatisticsPage() {
                       stroke="none"
                     >
                       {answerBreakdown.map((_, index) => (
-                        <Cell key={index} fill={pieColors[index]} />
+                        <Cell
+                          key={index}
+                          fill={pieColors[index % pieColors.length]}
+                        />
                       ))}
                     </Pie>
                     <Tooltip {...chartTooltipStyle} />
