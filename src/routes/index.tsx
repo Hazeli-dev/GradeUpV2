@@ -60,6 +60,7 @@ import AdminExamsPage from "@/pages/admin/exams-page";
 import AdminQuestionsPage from "@/pages/admin/questions-page";
 import AdminTransactionsPage from "@/pages/admin/transactions-page";
 import AdminPremiumPlansPage from "@/pages/admin/premium-plans-page";
+import AdminPromoManagementPage from "@/pages/admin/promo-management-page";
 import AdminReportsPage from "@/pages/admin/reports-page";
 import AdminAnnouncementsPage from "@/pages/admin/announcements-page";
 import AdminSettingsPage from "@/pages/admin/settings-page";
@@ -302,10 +303,18 @@ export function AppRoutes() {
           <Route path="exams" element={<AdminExamsPage />} />
           <Route path="questions" element={<AdminQuestionsPage />} />
           <Route path="transactions" element={<AdminTransactionsPage />} />
+
+          {/* Manajemen Premium */}
           <Route
             path="premium-plans"
             element={<AdminPremiumPlansPage />}
           />
+          <Route
+            path="promos"
+            element={<AdminPromoManagementPage />}
+          />
+
+          {/* Laporan dan Pengumuman */}
           <Route path="reports" element={<AdminReportsPage />} />
           <Route
             path="announcements"
