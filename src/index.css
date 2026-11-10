@@ -1007,3 +1007,106 @@
     white-space: nowrap;
   }
 }
+
+
+/* =========================================
+   GRADEUP GLOBAL MICRO INTERACTIONS
+   Lightweight CSS Animation System
+========================================= */
+
+/* Animasi halaman */
+@keyframes gu-page-enter {
+  from {
+    opacity: 0;
+    transform: translateY(7px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.gu-page-transition {
+  animation: gu-page-enter 220ms ease-out both;
+}
+
+/* Animasi modal */
+@keyframes gu-modal-enter {
+  from {
+    opacity: 0;
+    transform: scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.gu-modal-enter {
+  animation: gu-modal-enter 180ms ease-out both;
+}
+
+/* Animasi dropdown dan popover */
+@keyframes gu-dropdown-enter {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.gu-dropdown-enter {
+  animation: gu-dropdown-enter 160ms ease-out both;
+}
+
+/* Transisi sidebar */
+.gu-sidebar-transition {
+  transition:
+    transform 220ms ease,
+    opacity 220ms ease;
+}
+
+/* Respons tombol */
+button,
+[role="button"] {
+  transition:
+    color 150ms ease,
+    background-color 150ms ease,
+    border-color 150ms ease,
+    box-shadow 150ms ease,
+    transform 150ms ease;
+}
+
+button:active:not(:disabled),
+[role="button"]:active {
+  transform: scale(0.985);
+}
+
+/* Respons tautan */
+a {
+  transition:
+    color 150ms ease,
+    background-color 150ms ease;
+}
+
+/* Optimasi hover kartu yang sudah tersedia */
+.card-hover {
+  transition:
+    transform 200ms ease,
+    box-shadow 200ms ease;
+}
+
+/* Aksesibilitas: kurangi animasi jika diminta pengguna */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
