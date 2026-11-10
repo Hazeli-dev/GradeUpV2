@@ -20,6 +20,7 @@ import {
   MessageCircle,
   CalendarDays,
   TicketPercent,
+  Gamepad2,
   type LucideIcon,
 } from "lucide-react";
 
@@ -76,6 +77,11 @@ export const STUDENT_NAV: NavItem[] = [
     label: "Koleksi Saya",
     to: "/dashboard/collections",
     icon: Bookmark,
+  },
+  {
+    label: "GradeUp Games",
+    to: "/dashboard/games",
+    icon: Gamepad2,
   },
   {
     label: "Paket Ujian",
