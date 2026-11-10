@@ -47,6 +47,7 @@ type SidebarNav = NavItem[] | NavGroup[];
 
 interface SidebarShellProps {
   nav: SidebarNav;
+  compactMenu?: boolean;
   areaLabel?: string;
   storageKey: string;
   topbarRight: ReactNode;
@@ -70,6 +71,7 @@ type Announcement = {
 /** Cangkang dashboard dengan sidebar responsif dan navigasi kategori. */
 export function SidebarShell({
   nav,
+  compactMenu = false,
   areaLabel,
   storageKey,
   topbarRight,
@@ -97,7 +99,10 @@ export function SidebarShell({
 
   const location = useLocation();
 
-  // Normalisasi: NavItem[] dan NavGroup[] menjadi format kategori.
+  // ==========================================
+  // NORMALISASI NAVIGASI
+  // ==========================================
+
   const groupedNav = useMemo<NavGroup[]>(() => {
     if (nav.length === 0) return [];
 
@@ -134,7 +139,6 @@ export function SidebarShell({
       ? actionItem
       : undefined;
 
-  // Semua item navigasi untuk menentukan judul halaman aktif.
   const allVisibleItems = useMemo(
     () => visibleNav.flatMap((group) => group.items),
     [visibleNav]
@@ -150,6 +154,10 @@ export function SidebarShell({
     () => announcements.filter((item) => !readIds.includes(item.id)).length,
     [announcements, readIds]
   );
+
+  // ==========================================
+  // EFEK SIDEBAR
+  // ==========================================
 
   useEffect(() => {
     setMobileOpen(false);
@@ -316,12 +324,24 @@ export function SidebarShell({
       {visibleNav.map((group, groupIndex) => (
         <div
           key={group.title || `group-${groupIndex}`}
-          className="space-y-1"
+          className={cn(
+            compactMenu ? "space-y-0.5" : "space-y-1"
+          )}
         >
           {/* Judul kategori */}
           {!isCollapsed && group.title && (
-            <div className="px-3 pb-2 pt-2 first:pt-0">
-              <p className="text-[10px] font-bold uppercase tracking-[0.13em] text-muted-foreground/70">
+            <div
+              className={cn(
+                "px-3 pb-2 pt-2 first:pt-0",
+                compactMenu && "pb-1.5 pt-1.5"
+              )}
+            >
+              <p
+                className={cn(
+                  "text-[10px] font-bold uppercase tracking-[0.13em] text-muted-foreground/70",
+                  compactMenu && "text-[9px] tracking-[0.12em]"
+                )}
+              >
                 {group.title}
               </p>
             </div>
@@ -337,6 +357,7 @@ export function SidebarShell({
               className={({ isActive }) =>
                 cn(
                   "group relative flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold transition-all duration-200",
+                  compactMenu && "gap-2.5 px-3 py-2 text-xs",
                   isCollapsed && "justify-center px-0",
                   isActive
                     ? "bg-brand-gradient text-white shadow-glow"
@@ -353,6 +374,7 @@ export function SidebarShell({
                   <item.icon
                     className={cn(
                       "h-[18px] w-[18px] shrink-0 transition-transform duration-200",
+                      compactMenu && "h-[17px] w-[17px]",
                       !isActive && "group-hover:scale-110"
                     )}
                   />
@@ -380,10 +402,16 @@ export function SidebarShell({
             title={isCollapsed ? visibleActionItem.label : undefined}
             className={cn(
               "group flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold text-primary transition-all duration-200 hover:bg-soft dark:text-accent",
+              compactMenu && "gap-2.5 py-2 text-xs",
               isCollapsed && "justify-center px-0"
             )}
           >
-            <visibleActionItem.icon className="h-[18px] w-[18px] shrink-0 transition-transform duration-200 group-hover:scale-110" />
+            <visibleActionItem.icon
+              className={cn(
+                "h-[18px] w-[18px] shrink-0 transition-transform duration-200 group-hover:scale-110",
+                compactMenu && "h-[17px] w-[17px]"
+              )}
+            />
 
             {!isCollapsed && (
               <span className="truncate">{visibleActionItem.label}</span>
