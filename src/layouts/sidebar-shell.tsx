@@ -1,3 +1,4 @@
+
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import { NavLink, Outlet, useLocation } from "react-router-dom";
 import {
@@ -31,6 +32,7 @@ import {
 } from "@/components/ui/dialog";
 
 import { supabase } from "@/lib/supabase";
+import { useStudentMembership } from "@/hooks/use-student-membership";
 import { cn } from "@/lib/utils";
 import type { NavItem } from "@/constants";
 
@@ -75,8 +77,8 @@ export function SidebarShell({
 
   const [mobileOpen, setMobileOpen] = useState(false);
 
-  // null berarti status Premium belum berhasil diperiksa.
-  const [isPremium, setIsPremium] = useState<boolean | null>(null);
+  // Menggunakan hook membership bersama.
+  const { isPremium } = useStudentMembership();
 
   const [announcements, setAnnouncements] = useState<Announcement[]>([]);
   const [readIds, setReadIds] = useState<string[]>([]);
@@ -86,87 +88,6 @@ export function SidebarShell({
     useState<Announcement | null>(null);
 
   const location = useLocation();
-
-  // Memeriksa status Premium berdasarkan data profil dan masa berlaku.
-  useEffect(() => {
-    let active = true;
-
-    const loadPremiumStatus = async (userId?: string) => {
-      try {
-        let currentUserId = userId;
-
-        if (currentUserId === undefined) {
-          const {
-            data: { user },
-            error: authError,
-          } = await supabase.auth.getUser();
-
-          if (authError) throw authError;
-          currentUserId = user?.id;
-        }
-
-        if (!currentUserId) {
-          if (active) setIsPremium(false);
-          return;
-        }
-
-        const { data, error } = await supabase
-          .from("profiles")
-          .select("plan, is_premium, premium_until")
-          .eq("id", currentUserId)
-          .maybeSingle();
-
-        if (error) throw error;
-
-        const premiumUntil = data?.premium_until
-          ? new Date(data.premium_until).getTime()
-          : 0;
-
-        const isPremiumActive =
-          data?.plan === "Premium" &&
-          data?.is_premium === true &&
-          Number.isFinite(premiumUntil) &&
-          premiumUntil > Date.now();
-
-        if (active) {
-          setIsPremium(isPremiumActive);
-        }
-      } catch (error) {
-        console.error("Gagal memeriksa status Premium:", error);
-
-        // Jika pemeriksaan gagal, status tetap null.
-        // Menu Upgrade tidak akan ditampilkan sampai status terverifikasi.
-        if (active) setIsPremium(null);
-      }
-    };
-
-    void loadPremiumStatus();
-
-    // Perbarui status ketika pengguna login atau logout.
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
-      void loadPremiumStatus(session?.user?.id ?? "");
-    });
-
-    // Sinkronisasi ulang ketika pengguna kembali ke tab dashboard.
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === "visible") {
-        void loadPremiumStatus();
-      }
-    };
-
-    document.addEventListener("visibilitychange", handleVisibilityChange);
-
-    return () => {
-      active = false;
-      subscription.unsubscribe();
-      document.removeEventListener(
-        "visibilitychange",
-        handleVisibilityChange
-      );
-    };
-  }, []);
 
   // Menghitung jumlah pengumuman yang belum dibaca.
   const unreadCount = useMemo(
@@ -192,7 +113,7 @@ export function SidebarShell({
     };
   }, [mobileOpen]);
 
-  // Upgrade hanya tampil setelah status berhasil diverifikasi dan akun bukan Premium.
+  // Upgrade hanya tampil jika status berhasil diperiksa dan akun bukan Premium.
   const visibleNav = nav.filter((item) => {
     const isUpgradeMenu = /upgrade\s*premium/i.test(item.label);
     return !isUpgradeMenu || isPremium === false;
