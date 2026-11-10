@@ -14,9 +14,9 @@ export function useStudentMembership(): MembershipStatus {
   const [userId, setUserId] = useState<string | null>(null);
 
   const checkMembership = useCallback(
-    async (currentUserId?: string | null) => {
+    async (currentUserId: string | null | undefined = undefined) => {
       try {
-        let id: string | null;
+        let id: string | null = null;
 
         if (currentUserId === undefined) {
           const {
