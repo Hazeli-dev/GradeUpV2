@@ -1,9 +1,12 @@
+
 import { useEffect, useState } from "react";
 import {
   Check,
   Crown,
   Loader2,
   RefreshCw,
+  Tag,
+  X,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -35,10 +38,24 @@ interface PremiumPlan {
 interface PaymentStatusResponse {
   success?: boolean;
   order_id?: string;
+  merchant_order_id?: string;
   database_status?: string;
   payment_method?: string | null;
   amount?: number;
   message?: string;
+  error?: string;
+}
+
+interface CheckoutResponse {
+  success?: boolean;
+  payment_url?: string;
+  merchant_order_id?: string;
+  reference?: string;
+  statusCode?: string;
+  original_amount?: number;
+  discount_amount?: number;
+  payment_amount?: number;
+  promo_code?: string | null;
   error?: string;
 }
 
@@ -51,20 +68,35 @@ export function UpgradeModal({
 }) {
   const [plans, setPlans] = useState<PremiumPlan[]>([]);
   const [selected, setSelected] = useState("");
+
   const [loading, setLoading] = useState(false);
   const [loadingError, setLoadingError] = useState("");
+
   const [checkoutLoading, setCheckoutLoading] = useState(false);
   const [invoice, setInvoice] = useState("");
+
   const [message, setMessage] = useState("");
   const [checking, setChecking] = useState(false);
+
+  const [promoCode, setPromoCode] = useState("");
 
   const [paymentStatus, setPaymentStatus] =
     useState<PaymentStatusResponse | null>(null);
 
+  const [checkoutSummary, setCheckoutSummary] = useState<{
+    originalAmount: number;
+    discountAmount: number;
+    paymentAmount: number;
+    promoCode: string | null;
+  } | null>(null);
+
   const plan =
     plans.find((item) => item.id === selected) ?? plans[0];
 
-  // Load Premium plans
+  // =================================================
+  // LOAD PREMIUM PLANS
+  // =================================================
+
   useEffect(() => {
     if (!open) return;
 
@@ -109,15 +141,23 @@ export function UpgradeModal({
     };
   }, [open]);
 
-  // Start Duitku checkout
+  // =================================================
+  // START DUITKU CHECKOUT + PROMO
+  // =================================================
+
   const handleChoosePlan = async () => {
     if (!plan || checkoutLoading) return;
 
     setMessage("");
     setPaymentStatus(null);
     setInvoice("");
+    setCheckoutSummary(null);
+
+    const normalizedPromoCode = promoCode.trim();
 
     try {
+      setCheckoutLoading(true);
+
       const {
         data: { session },
         error: sessionError,
@@ -129,37 +169,63 @@ export function UpgradeModal({
         );
       }
 
-      setCheckoutLoading(true);
-
       const { data, error } = await supabase.functions.invoke(
         "create-payment",
         {
           body: {
             plan_id: plan.id,
-            payment_method: "VC", // Default Duitku hosted checkout
+            payment_method: "VC",
+            promo_code: normalizedPromoCode || null,
           },
         }
       );
 
       if (error) {
         console.error("Create payment error:", error);
+
+        const responseData = error.context
+          ? await error.context.json().catch(() => null)
+          : null;
+
         throw new Error(
-          error.message || "Gagal membuat transaksi pembayaran Duitku."
+          responseData?.error ||
+            error.message ||
+            "Gagal membuat transaksi pembayaran Duitku."
         );
       }
 
-      if (!data?.payment_url) {
+      const result = data as CheckoutResponse;
+
+      if (!result?.payment_url) {
         throw new Error(
-          data?.error || "URL pembayaran tidak diterima dari Duitku."
+          result?.error ||
+            "URL pembayaran tidak diterima dari Duitku."
         );
       }
 
-      if (typeof data.order_id === "string") {
-        setInvoice(data.order_id);
+      // Simpan ID transaksi dari respons backend.
+      const merchantOrderId = result.merchant_order_id;
+
+      if (merchantOrderId) {
+        setInvoice(merchantOrderId);
       }
 
-      // Redirect langsung ke hosted checkout Duitku
-      window.location.href = data.payment_url;
+      // Simpan ringkasan pembayaran dari hasil kalkulasi database.
+      if (
+        typeof result.original_amount === "number" &&
+        typeof result.discount_amount === "number" &&
+        typeof result.payment_amount === "number"
+      ) {
+        setCheckoutSummary({
+          originalAmount: result.original_amount,
+          discountAmount: result.discount_amount,
+          paymentAmount: result.payment_amount,
+          promoCode: result.promo_code ?? null,
+        });
+      }
+
+      // Redirect ke hosted checkout Duitku.
+      window.location.href = result.payment_url;
     } catch (error) {
       console.error("Checkout error:", error);
 
@@ -173,7 +239,10 @@ export function UpgradeModal({
     }
   };
 
-  // Check payment status
+  // =================================================
+  // CHECK PAYMENT STATUS
+  // =================================================
+
   const handleCheckStatus = async () => {
     if (!invoice || checking) return;
 
@@ -185,12 +254,15 @@ export function UpgradeModal({
       const { data, error } = await supabase.functions.invoke(
         "check-payment-status",
         {
-          body: { merchant_order_id: invoice },
+          body: {
+            merchant_order_id: invoice,
+          },
         }
       );
 
       if (error) {
         console.error("Check payment:", error);
+
         throw new Error(
           "Gagal memeriksa status pembayaran."
         );
@@ -200,7 +272,8 @@ export function UpgradeModal({
 
       if (!result?.success) {
         throw new Error(
-          result?.error || "Status pembayaran belum tersedia."
+          result?.error ||
+            "Status pembayaran belum tersedia."
         );
       }
 
@@ -210,7 +283,10 @@ export function UpgradeModal({
         result.database_status ?? ""
       ).toLowerCase();
 
-      if (status === "success" || status === "settlement") {
+      if (
+        status === "success" ||
+        status === "settlement"
+      ) {
         setMessage(
           "Pembayaran berhasil terverifikasi. Premium Anda telah aktif!"
         );
@@ -218,8 +294,14 @@ export function UpgradeModal({
         setMessage(
           "Pembayaran masih menunggu penyelesaian."
         );
-      } else if (status === "failed" || status === "expire") {
-        setMessage("Transaksi gagal atau sudah kedaluwarsa.");
+      } else if (
+        status === "failed" ||
+        status === "expire" ||
+        status === "expired"
+      ) {
+        setMessage(
+          "Transaksi gagal atau sudah kedaluwarsa."
+        );
       } else {
         setMessage(
           result.message ||
@@ -239,12 +321,22 @@ export function UpgradeModal({
     }
   };
 
+  // =================================================
+  // PAYMENT STATUS
+  // =================================================
+
   const isPaymentSuccessful = [
     "success",
     "settlement",
   ].includes(
-    String(paymentStatus?.database_status ?? "").toLowerCase()
+    String(
+      paymentStatus?.database_status ?? ""
+    ).toLowerCase()
   );
+
+  // =================================================
+  // RENDER
+  // =================================================
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -263,6 +355,7 @@ export function UpgradeModal({
           </DialogDescription>
         </DialogHeader>
 
+        {/* PESAN */}
         {message && (
           <div
             role="status"
@@ -273,6 +366,7 @@ export function UpgradeModal({
           </div>
         )}
 
+        {/* DETAIL TRANSAKSI */}
         {invoice && (
           <div className="rounded-xl border bg-card p-4">
             <p className="text-xs text-muted-foreground">
@@ -325,7 +419,9 @@ export function UpgradeModal({
                     <span>Nominal</span>
 
                     <strong>
-                      {formatRupiah(Number(paymentStatus.amount))}
+                      {formatRupiah(
+                        Number(paymentStatus.amount)
+                      )}
                     </strong>
                   </div>
                 )}
@@ -346,6 +442,7 @@ export function UpgradeModal({
           </div>
         )}
 
+        {/* LOAD STATE */}
         {loading ? (
           <div className="flex min-h-32 items-center justify-center gap-3 text-sm text-muted-foreground">
             <Loader2 className="h-5 w-5 animate-spin" />
@@ -361,6 +458,7 @@ export function UpgradeModal({
           </p>
         ) : (
           <>
+            {/* PILIH PAKET */}
             <div className="grid gap-3 sm:grid-cols-2">
               {plans.map((item) => (
                 <button
@@ -405,6 +503,7 @@ export function UpgradeModal({
               ))}
             </div>
 
+            {/* FITUR PREMIUM */}
             {plan && (
               <ul className="grid gap-2 text-sm sm:grid-cols-2">
                 <li className="flex items-start gap-2">
@@ -436,6 +535,98 @@ export function UpgradeModal({
               </ul>
             )}
 
+            {/* INPUT KODE PROMO */}
+            <div className="space-y-2 rounded-xl border bg-card p-4">
+              <div className="flex items-center gap-2">
+                <Tag className="h-4 w-4 text-primary" />
+
+                <p className="text-sm font-semibold">
+                  Punya kode promo?
+                </p>
+              </div>
+
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={promoCode}
+                  onChange={(event) => {
+                    setPromoCode(event.target.value);
+                    setMessage("");
+                  }}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter") {
+                      event.preventDefault();
+                      handleChoosePlan();
+                    }
+                  }}
+                  placeholder="Masukkan kode promo"
+                  maxLength={50}
+                  autoComplete="off"
+                  disabled={checkoutLoading}
+                  className="h-11 min-w-0 flex-1 rounded-lg border border-input bg-background px-3 text-sm uppercase outline-none transition-colors placeholder:normal-case placeholder:text-muted-foreground focus:border-primary focus:ring-2 focus:ring-primary/20 disabled:cursor-not-allowed disabled:opacity-60"
+                />
+
+                {promoCode && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon"
+                    onClick={() => {
+                      setPromoCode("");
+                      setMessage("");
+                    }}
+                    disabled={checkoutLoading}
+                    aria-label="Hapus kode promo"
+                  >
+                    <X className="h-4 w-4" />
+                  </Button>
+                )}
+              </div>
+
+              <p className="text-xs text-muted-foreground">
+                Diskon akan divalidasi otomatis sebelum pembayaran dibuat.
+              </p>
+            </div>
+
+            {/* RINGKASAN PEMBAYARAN */}
+            {checkoutSummary && (
+              <div className="space-y-2 rounded-xl border bg-muted/30 p-4 text-sm">
+                <div className="flex justify-between gap-3">
+                  <span className="text-muted-foreground">
+                    Harga awal
+                  </span>
+
+                  <span>
+                    {formatRupiah(checkoutSummary.originalAmount)}
+                  </span>
+                </div>
+
+                {checkoutSummary.discountAmount > 0 && (
+                  <div className="flex justify-between gap-3 text-emerald-600">
+                    <span>
+                      Diskon
+                      {checkoutSummary.promoCode
+                        ? ` (${checkoutSummary.promoCode})`
+                        : ""}
+                    </span>
+
+                    <span>
+                      -{formatRupiah(checkoutSummary.discountAmount)}
+                    </span>
+                  </div>
+                )}
+
+                <div className="flex justify-between gap-3 border-t pt-2 font-bold">
+                  <span>Total pembayaran</span>
+
+                  <span>
+                    {formatRupiah(checkoutSummary.paymentAmount)}
+                  </span>
+                </div>
+              </div>
+            )}
+
+            {/* CHECKOUT */}
             <Button
               size="lg"
               className="w-full"
