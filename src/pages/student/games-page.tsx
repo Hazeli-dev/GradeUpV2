@@ -5,7 +5,7 @@ import {
   Sparkles,
   Search,
   ArrowRight,
-  LockKeyhole,
+  Microscope,
 } from "lucide-react";
 
 const games = [
@@ -19,6 +19,17 @@ const games = [
     icon: Search,
     path: "/dashboard/games/cari-kata",
     color: "from-teal-500 to-emerald-500",
+  },
+  {
+    id: "detektif-sains",
+    title: "Detektif Sains IPA",
+    description:
+      "Asah pengetahuan IPA dengan menebak 400 kosakata ilmiah dari 20 modul pembelajaran.",
+    category: "Sains dan Pengetahuan",
+    difficulty: "Menengah",
+    icon: Microscope,
+    path: "/dashboard/games/detektif-sains",
+    color: "from-emerald-500 to-green-600",
   },
 ];
 
