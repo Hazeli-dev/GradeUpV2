@@ -157,72 +157,97 @@ export const STUDENT_NAV: NavGroup[] = [
 // NAVIGASI DASHBOARD ADMIN
 // ==========================================
 
-export const ADMIN_NAV: NavItem[] = [
+export const ADMIN_NAV: NavGroup[] = [
   {
-    label: "Overview",
-    to: "/admin",
-    icon: LayoutDashboard,
-    end: true,
+    title: "MENU UTAMA",
+    items: [
+      {
+        label: "Overview",
+        to: "/admin",
+        icon: LayoutDashboard,
+        end: true,
+      },
+    ],
   },
   {
-    label: "Manajemen Pengguna",
-    to: "/admin/users",
-    icon: Users,
+    title: "MANAJEMEN AKADEMIK",
+    items: [
+      {
+        label: "Manajemen Materi",
+        to: "/admin/courses",
+        icon: BookOpen,
+      },
+      {
+        label: "Kategori Materi",
+        to: "/admin/categories",
+        icon: FolderTree,
+      },
+      {
+        label: "Paket Ujian",
+        to: "/admin/exams",
+        icon: ClipboardList,
+      },
+      {
+        label: "Bank Soal",
+        to: "/admin/questions",
+        icon: Library,
+      },
+    ],
   },
   {
-    label: "Manajemen Materi",
-    to: "/admin/courses",
-    icon: BookOpen,
+    title: "PENGGUNA & KOMUNIKASI",
+    items: [
+      {
+        label: "Manajemen Pengguna",
+        to: "/admin/users",
+        icon: Users,
+      },
+      {
+        label: "Chat Siswa",
+        to: "/admin/chats",
+        icon: MessageCircle,
+      },
+      {
+        label: "Manajemen Pengumuman",
+        to: "/admin/announcements",
+        icon: Megaphone,
+      },
+    ],
   },
   {
-    label: "Kategori Materi",
-    to: "/admin/categories",
-    icon: FolderTree,
+    title: "MONETISASI",
+    items: [
+      {
+        label: "Transaksi",
+        to: "/admin/transactions",
+        icon: Receipt,
+      },
+      {
+        label: "Manajemen Paket Premium",
+        to: "/admin/premium-plans",
+        icon: Crown,
+      },
+      {
+        label: "Manajemen Promo",
+        to: "/admin/promos",
+        icon: TicketPercent,
+      },
+    ],
   },
   {
-    label: "Paket Ujian",
-    to: "/admin/exams",
-    icon: ClipboardList,
-  },
-  {
-    label: "Bank Soal",
-    to: "/admin/questions",
-    icon: Library,
-  },
-  {
-    label: "Manajemen Pengumuman",
-    to: "/admin/announcements",
-    icon: Megaphone,
-  },
-  {
-    label: "Chat Siswa",
-    to: "/admin/chats",
-    icon: MessageCircle,
-  },
-  {
-    label: "Transaksi",
-    to: "/admin/transactions",
-    icon: Receipt,
-  },
-  {
-    label: "Manajemen Paket",
-    to: "/admin/premium-plans",
-    icon: Crown,
-  },
-  {
-    label: "Manajemen Promo",
-    to: "/admin/promos",
-    icon: TicketPercent,
-  },
-  {
-    label: "Laporan & Analitik",
-    to: "/admin/reports",
-    icon: FileBarChart,
-  },
-  {
-    label: "Pengaturan Sistem",
-    to: "/admin/settings",
-    icon: SlidersHorizontal,
+    title: "ANALITIK & SISTEM",
+    items: [
+      {
+        label: "Laporan & Analitik",
+        to: "/admin/reports",
+        icon: FileBarChart,
+      },
+      {
+        label: "Pengaturan Sistem",
+        to: "/admin/settings",
+        icon: SlidersHorizontal,
+      },
+    ],
   },
 ];
 
