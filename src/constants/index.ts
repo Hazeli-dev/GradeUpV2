@@ -24,6 +24,10 @@ import {
   type LucideIcon,
 } from "lucide-react";
 
+// ==========================================
+// INFORMASI APLIKASI
+// ==========================================
+
 export const APP_NAME = "GradeUp";
 
 export const CONTACT = {
@@ -32,11 +36,20 @@ export const CONTACT = {
   address: "Jl. Jenderal Sudirman Kav. 52, Jakarta Selatan",
 };
 
+// ==========================================
+// TIPE NAVIGASI
+// ==========================================
+
 export interface NavItem {
   label: string;
   to: string;
   icon: LucideIcon;
   end?: boolean;
+}
+
+export interface NavGroup {
+  title: string;
+  items: NavItem[];
 }
 
 // ==========================================
@@ -56,62 +69,87 @@ export const PUBLIC_NAV: { label: string; to: string }[] = [
 // NAVIGASI DASHBOARD SISWA
 // ==========================================
 
-export const STUDENT_NAV: NavItem[] = [
+export const STUDENT_NAV: NavGroup[] = [
   {
-    label: "Overview",
-    to: "/dashboard",
-    icon: LayoutDashboard,
-    end: true,
+    title: "MENU UTAMA",
+    items: [
+      {
+        label: "Overview",
+        to: "/dashboard",
+        icon: LayoutDashboard,
+        end: true,
+      },
+    ],
   },
   {
-    label: "Materi Belajar",
-    to: "/dashboard/courses",
-    icon: BookOpen,
+    title: "PEMBELAJARAN",
+    items: [
+      {
+        label: "Materi Belajar",
+        to: "/dashboard/courses",
+        icon: BookOpen,
+      },
+      {
+        label: "Koleksi Saya",
+        to: "/dashboard/collections",
+        icon: Bookmark,
+      },
+      {
+        label: "Jadwal Belajar",
+        to: "/dashboard/learning-schedule",
+        icon: CalendarDays,
+      },
+    ],
   },
   {
-    label: "Jadwal Belajar",
-    to: "/dashboard/learning-schedule",
-    icon: CalendarDays,
+    title: "EVALUASI & UJIAN",
+    items: [
+      {
+        label: "Paket Ujian",
+        to: "/dashboard/exams",
+        icon: ClipboardList,
+      },
+      {
+        label: "Hasil Belajar",
+        to: "/dashboard/results",
+        icon: Award,
+      },
+      {
+        label: "Statistik Belajar",
+        to: "/dashboard/statistics",
+        icon: BarChart3,
+      },
+    ],
   },
   {
-    label: "Koleksi Saya",
-    to: "/dashboard/collections",
-    icon: Bookmark,
+    title: "PENGEMBANGAN DIRI",
+    items: [
+      {
+        label: "GradeUp Games",
+        to: "/dashboard/games",
+        icon: Gamepad2,
+      },
+      {
+        label: "Pencapaian",
+        to: "/dashboard/achievements",
+        icon: Trophy,
+      },
+      {
+        label: "Riwayat Aktivitas",
+        to: "/dashboard/activity",
+        icon: History,
+      },
+    ],
   },
   {
-    label: "GradeUp Games",
-    to: "/dashboard/games",
-    icon: Gamepad2,
-  },
-  {
-    label: "Paket Ujian",
-    to: "/dashboard/exams",
-    icon: ClipboardList,
-  },
-  {
-    label: "Hasil Belajar",
-    to: "/dashboard/results",
-    icon: Award,
-  },
-  {
-    label: "Pencapaian",
-    to: "/dashboard/achievements",
-    icon: Trophy,
-  },
-  {
-    label: "Statistik Belajar",
-    to: "/dashboard/statistics",
-    icon: BarChart3,
-  },
-  {
-    label: "Riwayat Aktivitas",
-    to: "/dashboard/activity",
-    icon: History,
-  },
-  {
-    label: "Pengaturan",
-    to: "/dashboard/settings",
-    icon: Settings,
+    title: "PENGATURAN",
+    items: [
+      {
+        label: "Pengaturan",
+        to: "/dashboard/settings",
+        icon: Settings,
+      },
+    ],
   },
 ];
 
