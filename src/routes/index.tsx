@@ -50,7 +50,10 @@ import AchievementsPage from "@/pages/student/achievements-page";
 import StatisticsPage from "@/pages/student/statistics-page";
 import ActivityPage from "@/pages/student/activity-page";
 import StudentSettingsPage from "@/pages/student/settings-page";
+
+// GradeUp Games
 import StudentGamesPage from "@/pages/student/games-page";
+import CariKataPage from "@/pages/student/games/cari-kata-page";
 
 // Halaman Admin
 import AdminOverviewPage from "@/pages/admin/overview-page";
@@ -267,6 +270,10 @@ export function AppRoutes() {
 
           {/* GradeUp Games */}
           <Route path="games" element={<StudentGamesPage />} />
+          <Route
+            path="games/cari-kata"
+            element={<CariKataPage />}
+          />
 
           {/* Paket Ujian */}
           <Route path="exams" element={<StudentExamsPage />} />
