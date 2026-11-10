@@ -1,5 +1,11 @@
 
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+  type ReactNode,
+} from "react";
 import { NavLink, Outlet, useLocation } from "react-router-dom";
 import {
   Bell,
@@ -34,10 +40,13 @@ import {
 import { supabase } from "@/lib/supabase";
 import { useStudentMembership } from "@/hooks/use-student-membership";
 import { cn } from "@/lib/utils";
-import type { NavItem } from "@/constants";
+import type { NavItem, NavGroup } from "@/constants";
+
+// Mendukung navigasi biasa dan navigasi berbasis kategori.
+type SidebarNav = NavItem[] | NavGroup[];
 
 interface SidebarShellProps {
-  nav: NavItem[];
+  nav: SidebarNav;
   areaLabel?: string;
   storageKey: string;
   topbarRight: ReactNode;
@@ -58,7 +67,7 @@ type Announcement = {
   created_at: string;
 };
 
-/** Cangkang dashboard dengan sidebar yang bisa diciutkan dan drawer mobile. */
+/** Cangkang dashboard dengan sidebar responsif dan navigasi kategori. */
 export function SidebarShell({
   nav,
   areaLabel,
@@ -77,7 +86,6 @@ export function SidebarShell({
 
   const [mobileOpen, setMobileOpen] = useState(false);
 
-  // Menggunakan hook membership bersama.
   const { isPremium } = useStudentMembership();
 
   const [announcements, setAnnouncements] = useState<Announcement[]>([]);
@@ -89,13 +97,63 @@ export function SidebarShell({
 
   const location = useLocation();
 
-  // Menghitung jumlah pengumuman yang belum dibaca.
+  // Normalisasi: NavItem[] dan NavGroup[] menjadi format kategori.
+  const groupedNav = useMemo<NavGroup[]>(() => {
+    if (nav.length === 0) return [];
+
+    const firstItem = nav[0];
+
+    if ("items" in firstItem) {
+      return nav as NavGroup[];
+    }
+
+    return [
+      {
+        title: "",
+        items: nav as NavItem[],
+      },
+    ];
+  }, [nav]);
+
+  // Menyembunyikan menu Upgrade Premium jika akun sudah Premium.
+  const visibleNav = useMemo<NavGroup[]>(() => {
+    return groupedNav
+      .map((group) => ({
+        ...group,
+        items: group.items.filter((item) => {
+          const isUpgradeMenu = /upgrade\s*premium/i.test(item.label);
+          return !isUpgradeMenu || isPremium === false;
+        }),
+      }))
+      .filter((group) => group.items.length > 0);
+  }, [groupedNav, isPremium]);
+
+  const visibleActionItem =
+    actionItem &&
+    (!/upgrade\s*premium/i.test(actionItem.label) || isPremium === false)
+      ? actionItem
+      : undefined;
+
+  // Semua item navigasi untuk menentukan judul halaman aktif.
+  const allVisibleItems = useMemo(
+    () => visibleNav.flatMap((group) => group.items),
+    [visibleNav]
+  );
+
+  const current = allVisibleItems.find((item) =>
+    item.end
+      ? location.pathname === item.to
+      : location.pathname.startsWith(item.to)
+  );
+
   const unreadCount = useMemo(
     () => announcements.filter((item) => !readIds.includes(item.id)).length,
     [announcements, readIds]
   );
 
-  useEffect(() => setMobileOpen(false), [location.pathname]);
+  useEffect(() => {
+    setMobileOpen(false);
+  }, [location.pathname]);
 
   useEffect(() => {
     try {
@@ -113,25 +171,10 @@ export function SidebarShell({
     };
   }, [mobileOpen]);
 
-  // Upgrade hanya tampil jika status berhasil diperiksa dan akun bukan Premium.
-  const visibleNav = nav.filter((item) => {
-    const isUpgradeMenu = /upgrade\s*premium/i.test(item.label);
-    return !isUpgradeMenu || isPremium === false;
-  });
+  // ==========================================
+  // NOTIFIKASI PENGUMUMAN
+  // ==========================================
 
-  const visibleActionItem =
-    actionItem &&
-    (!/upgrade\s*premium/i.test(actionItem.label) || isPremium === false)
-      ? actionItem
-      : undefined;
-
-  const current = visibleNav.find((item) =>
-    item.end
-      ? location.pathname === item.to
-      : location.pathname.startsWith(item.to)
-  );
-
-  // Mengambil pengumuman yang sudah diterbitkan dan waktunya telah tiba.
   const loadAnnouncements = useCallback(async (showLoading = true) => {
     if (showLoading) {
       setLoadingAnnouncements(true);
@@ -181,7 +224,6 @@ export function SidebarShell({
     } catch (error) {
       console.error("Gagal memuat pengumuman:", error);
 
-      // Hindari toast berulang setiap pemeriksaan otomatis.
       if (showLoading) {
         toast.error("Gagal memuat notifikasi pengumuman.");
       }
@@ -192,12 +234,11 @@ export function SidebarShell({
     }
   }, []);
 
-  // Memuat data saat dashboard pertama kali dibuka.
   useEffect(() => {
     void loadAnnouncements();
   }, [loadAnnouncements]);
 
-  // Memeriksa pengumuman baru secara otomatis setiap 30 detik.
+  // Pemeriksaan pengumuman otomatis setiap 30 detik.
   useEffect(() => {
     const notificationInterval = window.setInterval(() => {
       if (document.visibilityState === "visible") {
@@ -210,7 +251,6 @@ export function SidebarShell({
     };
   }, [loadAnnouncements]);
 
-  // Memperbarui status pengumuman menjadi sudah dibaca.
   const markAsRead = async (announcementId: string) => {
     if (readIds.includes(announcementId)) return;
 
@@ -264,86 +304,136 @@ export function SidebarShell({
     });
   };
 
+  // ==========================================
+  // KOMPONEN MENU SIDEBAR
+  // ==========================================
+
   const links = (isCollapsed: boolean) => (
     <nav
-      className="flex-1 space-y-1 overflow-y-auto px-3 py-2"
+      className="flex-1 space-y-4 overflow-y-auto px-3 py-3"
       aria-label="Navigasi utama"
     >
-      {visibleNav.map((item) => (
-        <NavLink
-          key={item.to}
-          to={item.to}
-          end={item.end}
-          title={isCollapsed ? item.label : undefined}
-          className={({ isActive }) =>
-            cn(
-              "group flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold transition-all",
-              isCollapsed && "justify-center px-0",
-              isActive
-                ? "bg-brand-gradient text-white shadow-glow"
-                : "text-muted-foreground hover:bg-muted hover:text-foreground"
-            )
-          }
+      {visibleNav.map((group, groupIndex) => (
+        <div
+          key={group.title || `group-${groupIndex}`}
+          className="space-y-1"
         >
-          <item.icon className="h-[18px] w-[18px] shrink-0" />
-          {!isCollapsed && (
-            <span className="truncate">{item.label}</span>
+          {/* Judul kategori */}
+          {!isCollapsed && group.title && (
+            <div className="px-3 pb-2 pt-2 first:pt-0">
+              <p className="text-[10px] font-bold uppercase tracking-[0.13em] text-muted-foreground/70">
+                {group.title}
+              </p>
+            </div>
           )}
-        </NavLink>
+
+          {/* Item navigasi */}
+          {group.items.map((item) => (
+            <NavLink
+              key={item.to}
+              to={item.to}
+              end={item.end}
+              title={isCollapsed ? item.label : undefined}
+              className={({ isActive }) =>
+                cn(
+                  "group relative flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold transition-all duration-200",
+                  isCollapsed && "justify-center px-0",
+                  isActive
+                    ? "bg-brand-gradient text-white shadow-glow"
+                    : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                )
+              }
+            >
+              {({ isActive }) => (
+                <>
+                  {isActive && (
+                    <span className="absolute bottom-2 left-0 top-2 w-1 rounded-r-full bg-white/90" />
+                  )}
+
+                  <item.icon
+                    className={cn(
+                      "h-[18px] w-[18px] shrink-0 transition-transform duration-200",
+                      !isActive && "group-hover:scale-110"
+                    )}
+                  />
+
+                  {!isCollapsed && (
+                    <span className="truncate">{item.label}</span>
+                  )}
+                </>
+              )}
+            </NavLink>
+          ))}
+        </div>
       ))}
 
+      {/* Tombol Upgrade Premium */}
       {visibleActionItem && (
-        <button
-          type="button"
-          onClick={visibleActionItem.onClick}
-          title={isCollapsed ? visibleActionItem.label : undefined}
-          className={cn(
-            "flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold text-primary transition-all hover:bg-soft dark:text-accent",
-            isCollapsed && "justify-center px-0"
-          )}
-        >
-          <visibleActionItem.icon className="h-[18px] w-[18px] shrink-0" />
+        <div className="pt-2">
           {!isCollapsed && (
-            <span className="truncate">{visibleActionItem.label}</span>
+            <div className="mb-2 border-t border-border/70" />
           )}
-        </button>
+
+          <button
+            type="button"
+            onClick={visibleActionItem.onClick}
+            title={isCollapsed ? visibleActionItem.label : undefined}
+            className={cn(
+              "group flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold text-primary transition-all duration-200 hover:bg-soft dark:text-accent",
+              isCollapsed && "justify-center px-0"
+            )}
+          >
+            <visibleActionItem.icon className="h-[18px] w-[18px] shrink-0 transition-transform duration-200 group-hover:scale-110" />
+
+            {!isCollapsed && (
+              <span className="truncate">{visibleActionItem.label}</span>
+            )}
+          </button>
+        </div>
       )}
     </nav>
   );
 
   return (
     <div className="min-h-screen bg-background">
-      {/* SIDEBAR DESKTOP */}
+      {/* ========================================
+          SIDEBAR DESKTOP
+      ======================================== */}
       <aside
         className={cn(
-          "fixed inset-y-0 left-0 z-30 hidden flex-col border-r bg-card transition-[width] duration-300 lg:flex",
+          "fixed inset-y-0 left-0 z-30 hidden flex-col border-r border-border/70 bg-card transition-[width] duration-300 lg:flex",
           collapsed ? "w-[76px]" : "w-64"
         )}
       >
+        {/* Logo */}
         <div
           className={cn(
-            "flex h-16 items-center border-b px-4",
+            "flex h-16 shrink-0 items-center border-b border-border/70 px-4",
             collapsed && "justify-center px-0"
           )}
         >
           <Logo compact={collapsed} />
         </div>
 
+        {/* Label dashboard */}
         {areaLabel && !collapsed && (
           <div className="px-5 pt-4">
             <Badge variant="default">{areaLabel}</Badge>
           </div>
         )}
 
+        {/* Navigasi */}
         <div className="flex flex-1 flex-col overflow-hidden pt-2">
           {links(collapsed)}
         </div>
 
+        {/* Footer sidebar */}
         {sidebarFooter && !collapsed && (
           <div className="p-3">{sidebarFooter}</div>
         )}
 
-        <div className="border-t p-3">
+        {/* Tombol collapse */}
+        <div className="shrink-0 border-t border-border/70 p-3">
           <Button
             variant="ghost"
             size="sm"
@@ -368,7 +458,9 @@ export function SidebarShell({
         </div>
       </aside>
 
-      {/* DRAWER MOBILE */}
+      {/* ========================================
+          DRAWER MOBILE
+      ======================================== */}
       {mobileOpen && (
         <div
           className="fixed inset-0 z-40 lg:hidden"
@@ -382,7 +474,7 @@ export function SidebarShell({
           />
 
           <aside className="absolute inset-y-0 left-0 flex w-72 max-w-[85vw] animate-fade-up flex-col bg-card shadow-2xl">
-            <div className="flex h-16 items-center justify-between border-b px-4">
+            <div className="flex h-16 shrink-0 items-center justify-between border-b border-border/70 px-4">
               <Logo />
 
               <Button
@@ -412,14 +504,17 @@ export function SidebarShell({
         </div>
       )}
 
-      {/* KONTEN DASHBOARD */}
+      {/* ========================================
+          KONTEN DASHBOARD
+      ======================================== */}
       <div
         className={cn(
           "transition-[padding] duration-300",
           collapsed ? "lg:pl-[76px]" : "lg:pl-64"
         )}
       >
-        <header className="sticky top-0 z-25 flex h-16 items-center gap-3 border-b bg-background/80 px-4 backdrop-blur-xl sm:px-6">
+        {/* Topbar */}
+        <header className="sticky top-0 z-25 flex h-16 items-center gap-3 border-b border-border/70 bg-background/80 px-4 backdrop-blur-xl sm:px-6">
           <Button
             variant="ghost"
             size="icon"
@@ -436,7 +531,7 @@ export function SidebarShell({
             </p>
           </div>
 
-          {/* NOTIFIKASI PENGUMUMAN */}
+          {/* Notifikasi pengumuman */}
           <DropdownMenu
             open={notificationsOpen}
             onOpenChange={(open) => {
@@ -576,12 +671,15 @@ export function SidebarShell({
           {topbarRight}
         </header>
 
+        {/* Halaman */}
         <main className="mx-auto w-full max-w-7xl px-4 py-6 sm:px-6 sm:py-8">
           <Outlet />
         </main>
       </div>
 
-      {/* DETAIL PENGUMUMAN */}
+      {/* ========================================
+          DETAIL PENGUMUMAN
+      ======================================== */}
       <Dialog
         open={!!selectedAnnouncement}
         onOpenChange={(open) => {
