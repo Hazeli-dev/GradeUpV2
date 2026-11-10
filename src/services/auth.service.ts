@@ -1,3 +1,4 @@
+
 import { supabase } from "@/lib/supabase";
 
 // ======================================================
@@ -20,6 +21,30 @@ export interface AuthResult {
 }
 
 // ======================================================
+// URL REDIRECT AUTHENTICATION
+// ======================================================
+
+function getAuthRedirectUrl(path: string): string {
+  return `${window.location.origin}${path}`;
+}
+
+// ======================================================
+// VALIDASI KONFIGURASI
+// ======================================================
+
+function checkConfiguration(): AuthResult | null {
+  if (!isConfigured) {
+    return {
+      ok: false,
+      message:
+        "Layanan autentikasi belum dikonfigurasi. Silakan hubungi administrator.",
+    };
+  }
+
+  return null;
+}
+
+// ======================================================
 // 1. MASUK DENGAN EMAIL DAN PASSWORD
 // ======================================================
 
@@ -27,18 +52,18 @@ export async function signIn(
   email: string,
   password: string
 ): Promise<AuthResult> {
-  if (!isConfigured) {
-    return {
-      ok: true,
-      message: "Berhasil masuk (mode demo)!",
-    };
-  }
+  const configurationError = checkConfiguration();
+
+  if (configurationError) return configurationError;
 
   try {
-    const { data, error } = await supabase.auth.signInWithPassword({
-      email: email.trim(),
-      password,
-    });
+    const normalizedEmail = email.trim().toLowerCase();
+
+    const { data, error } =
+      await supabase.auth.signInWithPassword({
+        email: normalizedEmail,
+        password,
+      });
 
     if (error) {
       return {
@@ -52,10 +77,13 @@ export async function signIn(
       message: "Berhasil masuk!",
       data,
     };
-  } catch (err: any) {
+  } catch (err: unknown) {
     return {
       ok: false,
-      message: err?.message || "Gagal masuk.",
+      message:
+        err instanceof Error
+          ? err.message
+          : "Terjadi kesalahan saat masuk.",
     };
   }
 }
@@ -70,24 +98,30 @@ export async function signUp(
   password: string,
   referralCode?: string
 ): Promise<AuthResult> {
-  if (!isConfigured) {
-    return {
-      ok: true,
-      message: "Pendaftaran berhasil (mode demo)!",
-    };
-  }
+  const configurationError = checkConfiguration();
+
+  if (configurationError) return configurationError;
 
   try {
+    const normalizedName = name.trim();
+    const normalizedEmail = email.trim().toLowerCase();
+
     const normalizedReferralCode = referralCode
       ?.trim()
       .toUpperCase();
 
     const { data, error } = await supabase.auth.signUp({
-      email: email.trim(),
+      email: normalizedEmail,
       password,
+
       options: {
+        // Redirect setelah pengguna mengklik email verifikasi
+        emailRedirectTo: getAuthRedirectUrl("/verify-email"),
+
+        // Metadata profil dan referral
         data: {
-          full_name: name.trim(),
+          full_name: normalizedName,
+
           ...(normalizedReferralCode
             ? {
                 referral_code: normalizedReferralCode,
@@ -107,13 +141,16 @@ export async function signUp(
     return {
       ok: true,
       message:
-        "Pendaftaran berhasil! Silakan cek email untuk verifikasi.",
+        "Pendaftaran berhasil! Silakan periksa email untuk verifikasi akun.",
       data,
     };
-  } catch (err: any) {
+  } catch (err: unknown) {
     return {
       ok: false,
-      message: err?.message || "Gagal mendaftar.",
+      message:
+        err instanceof Error
+          ? err.message
+          : "Terjadi kesalahan saat mendaftar.",
     };
   }
 }
@@ -125,20 +162,20 @@ export async function signUp(
 export async function requestPasswordReset(
   email: string
 ): Promise<AuthResult> {
-  if (!isConfigured) {
-    return {
-      ok: true,
-      message: "Tautan reset dikirim (mode demo).",
-    };
-  }
+  const configurationError = checkConfiguration();
+
+  if (configurationError) return configurationError;
 
   try {
-    const { error } = await supabase.auth.resetPasswordForEmail(
-      email.trim(),
-      {
-        redirectTo: `${window.location.origin}/reset-password`,
-      }
-    );
+    const normalizedEmail = email.trim().toLowerCase();
+
+    const { error } =
+      await supabase.auth.resetPasswordForEmail(
+        normalizedEmail,
+        {
+          redirectTo: getAuthRedirectUrl("/reset-password"),
+        }
+      );
 
     if (error) {
       return {
@@ -152,11 +189,13 @@ export async function requestPasswordReset(
       message:
         "Tautan pengaturan ulang kata sandi telah dikirim ke email Anda.",
     };
-  } catch (err: any) {
+  } catch (err: unknown) {
     return {
       ok: false,
       message:
-        err?.message || "Gagal mengirim permintaan reset.",
+        err instanceof Error
+          ? err.message
+          : "Gagal mengirim permintaan reset kata sandi.",
     };
   }
 }
@@ -168,12 +207,9 @@ export async function requestPasswordReset(
 export async function resetPassword(
   password: string
 ): Promise<AuthResult> {
-  if (!isConfigured) {
-    return {
-      ok: true,
-      message: "Kata sandi diperbarui (mode demo).",
-    };
-  }
+  const configurationError = checkConfiguration();
+
+  if (configurationError) return configurationError;
 
   try {
     const { error } = await supabase.auth.updateUser({
@@ -191,11 +227,13 @@ export async function resetPassword(
       ok: true,
       message: "Kata sandi berhasil diperbarui.",
     };
-  } catch (err: any) {
+  } catch (err: unknown) {
     return {
       ok: false,
       message:
-        err?.message || "Gagal memperbarui kata sandi.",
+        err instanceof Error
+          ? err.message
+          : "Gagal memperbarui kata sandi.",
     };
   }
 }
@@ -207,35 +245,45 @@ export async function resetPassword(
 export async function resendVerification(
   email?: string
 ): Promise<AuthResult> {
-  if (!isConfigured) {
-    return {
-      ok: true,
-      message: "Email verifikasi terkirim (mode demo).",
-    };
-  }
+  const configurationError = checkConfiguration();
+
+  if (configurationError) return configurationError;
 
   try {
-    let targetEmail = email?.trim();
+    let targetEmail = email?.trim().toLowerCase();
 
+    // Ambil email dari session jika tidak diberikan
     if (!targetEmail) {
       const {
         data: { session },
+        error: sessionError,
       } = await supabase.auth.getSession();
 
-      targetEmail = session?.user?.email;
+      if (sessionError) {
+        return {
+          ok: false,
+          message: sessionError.message,
+        };
+      }
+
+      targetEmail = session?.user?.email?.toLowerCase();
     }
 
     if (!targetEmail) {
       return {
         ok: false,
         message:
-          "Email tidak ditemukan. Silakan masukkan email Anda.",
+          "Email tidak ditemukan. Silakan masukkan alamat email Anda.",
       };
     }
 
     const { error } = await supabase.auth.resend({
       type: "signup",
       email: targetEmail,
+
+      options: {
+        emailRedirectTo: getAuthRedirectUrl("/verify-email"),
+      },
     });
 
     if (error) {
@@ -247,13 +295,16 @@ export async function resendVerification(
 
     return {
       ok: true,
-      message: "Email verifikasi berhasil dikirim ulang.",
+      message:
+        "Email verifikasi berhasil dikirim ulang. Silakan periksa kotak masuk Anda.",
     };
-  } catch (err: any) {
+  } catch (err: unknown) {
     return {
       ok: false,
       message:
-        err?.message || "Gagal mengirim ulang email verifikasi.",
+        err instanceof Error
+          ? err.message
+          : "Gagal mengirim ulang email verifikasi.",
     };
   }
 }
