@@ -403,26 +403,32 @@ export default function AdminSettingsPage() {
       setConfirmText("");
 
       // Perbarui konfigurasi dan riwayat setelah reset
-      await Promise.all([
-        refreshSeasonLogs(),
-        (async () => {
-          const { data: configData, error: configError } =
-            await supabase
-              .from("system_settings")
-              .select("value")
-              .eq("key", "season_config")
-              .maybeSingle();
+            // Perbarui riwayat dan konfigurasi setelah reset berhasil.
+      // Kegagalan refresh tidak boleh dianggap sebagai kegagalan reset.
+      await refreshSeasonLogs();
 
-          if (configError) throw configError;
+      const { data: configData, error: configError } =
+        await supabase
+          .from("system_settings")
+          .select("value")
+          .eq("key", "season_config")
+          .maybeSingle();
 
-          if (configData?.value) {
-            const config = configData.value as SeasonConfig;
+      if (configError) {
+        console.error(
+          "Reset berhasil, tetapi konfigurasi gagal dimuat ulang:",
+          configError
+        );
 
-            setSeasonName(config.season_name || result.new_season);
-            setAutoResetEnabled(config.enabled !== false);
-          }
-        })(),
-      ]);
+        toast.warning(
+          "Reset berhasil, tetapi konfigurasi perlu dimuat ulang."
+        );
+      } else if (configData?.value) {
+        const config = configData.value as SeasonConfig;
+
+        setSeasonName(config.season_name || result.new_season);
+        setAutoResetEnabled(config.enabled !== false);
+      }
     } catch (error: any) {
       console.error("Reset Season error:", error);
 
