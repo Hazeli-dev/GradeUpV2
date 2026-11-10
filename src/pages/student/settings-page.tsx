@@ -1,7 +1,6 @@
 
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useState, type FormEvent } from "react";
 import {
-  Bell,
   Palette,
   ShieldCheck,
   SlidersHorizontal,
@@ -49,7 +48,6 @@ import { SettingRow } from "@/components/shared/setting-row";
 import { PasswordInput } from "@/components/auth/password-input";
 import { FieldError } from "@/components/auth/auth-bits";
 
-import { isValidEmail } from "@/utils/format";
 import { supabase } from "@/lib/supabase";
 
 // =====================================================
@@ -84,7 +82,13 @@ type ProfileData = {
   school: string;
   educationLevel: string;
   grade: string;
+};
+
+type PreferencesData = {
   targetExams: number;
+  dailyGoal: string;
+  autoplay: boolean;
+  showTimer: boolean;
 };
 
 type ReferralItem = {
@@ -110,17 +114,53 @@ type ReferralStatusInfo = {
 };
 
 // =====================================================
+// CONSTANTS
+// =====================================================
+
+const DEFAULT_PREFERENCES: PreferencesData = {
+  targetExams: 10,
+  dailyGoal: "30",
+  autoplay: true,
+  showTimer: true,
+};
+
+const getErrorMessage = (
+  error: unknown,
+  fallback: string
+) => {
+  if (error instanceof Error && error.message) {
+    return error.message;
+  }
+
+  if (
+    typeof error === "object" &&
+    error !== null &&
+    "message" in error &&
+    typeof error.message === "string"
+  ) {
+    return error.message;
+  }
+
+  return fallback;
+};
+
+// =====================================================
 // MAIN COMPONENT
 // =====================================================
 
 export default function StudentSettingsPage() {
   // ---------------------------------------------------
-  // PROFILE STATE
+  // GENERAL STATE
   // ---------------------------------------------------
 
   const [loading, setLoading] = useState(true);
   const [savingProfile, setSavingProfile] = useState(false);
+  const [savingPreferences, setSavingPreferences] = useState(false);
   const [savingPassword, setSavingPassword] = useState(false);
+
+  // ---------------------------------------------------
+  // PROFILE STATE
+  // ---------------------------------------------------
 
   const [profile, setProfile] = useState<ProfileData>({
     name: "",
@@ -128,7 +168,6 @@ export default function StudentSettingsPage() {
     school: "",
     educationLevel: "",
     grade: "",
-    targetExams: 10,
   });
 
   const [profileErr, setProfileErr] = useState<
@@ -140,7 +179,6 @@ export default function StudentSettingsPage() {
   // ---------------------------------------------------
 
   const [pw, setPw] = useState({
-    current: "",
     next: "",
     confirm: "",
   });
@@ -150,26 +188,16 @@ export default function StudentSettingsPage() {
   >({});
 
   // ---------------------------------------------------
-  // PREFERENCES STATE
+  // LEARNING PREFERENCES
   // ---------------------------------------------------
 
-  const [prefs, setPrefs] = useState({
-    language: "id",
-    dailyGoal: "30",
-    autoplay: true,
-    showTimer: true,
-  });
+  const [prefs, setPrefs] = useState<PreferencesData>(
+    DEFAULT_PREFERENCES
+  );
 
-  // ---------------------------------------------------
-  // NOTIFICATION STATE
-  // ---------------------------------------------------
-
-  const [notif, setNotif] = useState({
-    email: true,
-    reminder: true,
-    results: true,
-    promo: false,
-  });
+  const [prefsErr, setPrefsErr] = useState<
+    Record<string, string>
+  >({});
 
   // ---------------------------------------------------
   // REFERRAL STATE
@@ -177,6 +205,7 @@ export default function StudentSettingsPage() {
 
   const [referralLoading, setReferralLoading] = useState(true);
   const [referralCode, setReferralCode] = useState("");
+  const [referralError, setReferralError] = useState("");
   const [referrals, setReferrals] = useState<ReferralItem[]>([]);
   const [referralRewards, setReferralRewards] = useState<
     ReferralReward[]
@@ -197,15 +226,30 @@ export default function StudentSettingsPage() {
   // REFERRAL DERIVED DATA
   // ---------------------------------------------------
 
-  const referralLink =
-    referralCode && typeof window !== "undefined"
-      ? `${window.location.origin}/register?ref=${encodeURIComponent(
-          referralCode
-        )}`
-      : "";
+  const referralLink = useMemo(() => {
+    if (!referralCode || typeof window === "undefined") {
+      return "";
+    }
+
+    return `${window.location.origin}/register?ref=${encodeURIComponent(
+      referralCode
+    )}`;
+  }, [referralCode]);
+
+  const issuedReferralIds = useMemo(
+    () =>
+      new Set(
+        referralRewards
+          .filter((item) => item.status === "issued")
+          .map((item) => item.referral_id)
+      ),
+    [referralRewards]
+  );
 
   const rewardedCount = referrals.filter(
-    (item) => item.status === "rewarded"
+    (item) =>
+      item.status === "rewarded" ||
+      issuedReferralIds.has(item.id)
   ).length;
 
   const pendingCount = referrals.filter(
@@ -215,12 +259,13 @@ export default function StudentSettingsPage() {
   const totalRewardDays = referralRewards
     .filter((item) => item.status === "issued")
     .reduce(
-      (total, item) => total + Number(item.reward_days || 0),
+      (total, item) =>
+        total + Number(item.reward_days || 0),
       0
     );
 
   // =====================================================
-  // LOAD PROFILE
+  // LOAD PROFILE & PREFERENCES
   // =====================================================
 
   useEffect(() => {
@@ -231,13 +276,11 @@ export default function StudentSettingsPage() {
         setLoading(true);
 
         const {
-          data: { session },
-          error: sessionError,
-        } = await supabase.auth.getSession();
+          data: { user },
+          error: userError,
+        } = await supabase.auth.getUser();
 
-        if (sessionError) throw sessionError;
-
-        const user = session?.user;
+        if (userError) throw userError;
 
         if (!user) {
           throw new Error(
@@ -245,42 +288,67 @@ export default function StudentSettingsPage() {
           );
         }
 
-        const { data: profData, error } = await supabase
-          .from("profiles")
-          .select(
-            "full_name, name, school, education_level, grade, target_exams"
-          )
-          .eq("id", user.id)
-          .maybeSingle();
+        const [
+          { data: profileData, error: profileError },
+          { data: settingsData, error: settingsError },
+        ] = await Promise.all([
+          supabase
+            .from("profiles")
+            .select(
+              "full_name, name, school, education_level, grade, target_exams"
+            )
+            .eq("id", user.id)
+            .maybeSingle(),
 
-        if (error) throw error;
+          supabase
+            .from("user_settings")
+            .select(
+              "daily_goal_minutes, autoplay, show_timer"
+            )
+            .eq("user_id", user.id)
+            .maybeSingle(),
+        ]);
+
+        if (profileError) throw profileError;
+        if (settingsError) throw settingsError;
 
         if (!mounted) return;
 
         setProfile({
           name:
-            profData?.full_name ||
-            profData?.name ||
+            profileData?.full_name ||
+            profileData?.name ||
             user.user_metadata?.full_name ||
             user.user_metadata?.name ||
             "",
           email: user.email || "",
-          school: profData?.school || "",
-          educationLevel: profData?.education_level || "",
+          school: profileData?.school || "",
+          educationLevel:
+            profileData?.education_level || "",
           grade:
-            profData?.grade != null
-              ? String(profData.grade)
+            profileData?.grade != null
+              ? String(profileData.grade)
               : "",
-          targetExams: profData?.target_exams ?? 10,
+        });
+
+        setPrefs({
+          targetExams:
+            profileData?.target_exams ?? 10,
+          dailyGoal: String(
+            settingsData?.daily_goal_minutes ?? 30
+          ),
+          autoplay: settingsData?.autoplay ?? true,
+          showTimer: settingsData?.show_timer ?? true,
         });
       } catch (error) {
-        console.error("Gagal memuat profil user:", error);
+        console.error("Gagal memuat pengaturan:", error);
 
         if (mounted) {
           toast.error(
-            error instanceof Error
-              ? error.message
-              : "Gagal memuat data profil."
+            getErrorMessage(
+              error,
+              "Gagal memuat pengaturan akun."
+            )
           );
         }
       } finally {
@@ -298,61 +366,105 @@ export default function StudentSettingsPage() {
   }, []);
 
   // =====================================================
-  // LOAD REFERRAL
+  // REFERRAL DATA LOADER
+  // =====================================================
+
+  const loadReferralData = async (
+    showSuccess = false,
+    mountedCheck?: () => boolean
+  ) => {
+    try {
+      setReferralLoading(true);
+      setReferralError("");
+
+      const {
+        data: { user },
+        error: userError,
+      } = await supabase.auth.getUser();
+
+      if (userError) throw userError;
+      if (!user) {
+        throw new Error("Sesi login tidak ditemukan.");
+      }
+
+      const [
+        { data: referralData, error: referralError },
+        { data: rewardData, error: rewardError },
+      ] = await Promise.all([
+        supabase
+          .from("referrals")
+          .select(
+            "id, status, created_at, qualified_at, qualifying_invoice_number"
+          )
+          .eq("referrer_user_id", user.id)
+          .order("created_at", { ascending: false }),
+
+        supabase
+          .from("referral_rewards")
+          .select(
+            "id, referral_id, reward_days, status, issued_at, created_at"
+          )
+          .eq("user_id", user.id)
+          .order("created_at", { ascending: false }),
+      ]);
+
+      if (referralError) throw referralError;
+      if (rewardError) throw rewardError;
+
+      if (mountedCheck && !mountedCheck()) return;
+
+      setReferrals((referralData || []) as ReferralItem[]);
+      setReferralRewards(
+        (rewardData || []) as ReferralReward[]
+      );
+
+      if (showSuccess) {
+        toast.success("Data referral berhasil diperbarui.");
+      }
+    } catch (error) {
+      console.error("Gagal memuat referral:", error);
+
+      const message = getErrorMessage(
+        error,
+        "Gagal memuat data referral."
+      );
+
+      if (!mountedCheck || mountedCheck()) {
+        setReferralError(message);
+        toast.error(message);
+      }
+
+      throw error;
+    } finally {
+      if (!mountedCheck || mountedCheck()) {
+        setReferralLoading(false);
+      }
+    }
+  };
+
+  // =====================================================
+  // INITIAL REFERRAL LOAD
   // =====================================================
 
   useEffect(() => {
     let mounted = true;
 
-    async function loadReferralData() {
+    async function initializeReferral() {
       try {
-        setReferralLoading(true);
-
         const {
           data: { user },
           error: userError,
         } = await supabase.auth.getUser();
 
         if (userError) throw userError;
-
         if (!user) {
           throw new Error("Sesi login tidak ditemukan.");
         }
 
-        // Membuat kode referral jika belum tersedia.
-        // Fungsi RPC sudah membatasi pembuatan kode
-        // hanya untuk akun siswa.
-        const {
-          data: codeData,
-          error: codeError,
-        } = await supabase.rpc("get_or_create_referral_code");
+        const { data: codeData, error: codeError } =
+          await supabase.rpc("get_or_create_referral_code");
 
         if (codeError) throw codeError;
-
-        // Memuat data undangan dan hadiah milik siswa.
-        const [
-          { data: referralData, error: referralError },
-          { data: rewardData, error: rewardError },
-        ] = await Promise.all([
-          supabase
-            .from("referrals")
-            .select(
-              "id, status, created_at, qualified_at, qualifying_invoice_number"
-            )
-            .eq("referrer_user_id", user.id)
-            .order("created_at", { ascending: false }),
-
-          supabase
-            .from("referral_rewards")
-            .select(
-              "id, referral_id, reward_days, status, issued_at, created_at"
-            )
-            .eq("user_id", user.id)
-            .order("created_at", { ascending: false }),
-        ]);
-
-        if (referralError) throw referralError;
-        if (rewardError) throw rewardError;
 
         if (!mounted) return;
 
@@ -360,22 +472,18 @@ export default function StudentSettingsPage() {
           typeof codeData === "string" ? codeData : ""
         );
 
-        setReferrals(
-          (referralData || []) as ReferralItem[]
-        );
-
-        setReferralRewards(
-          (rewardData || []) as ReferralReward[]
-        );
+        await loadReferralData(false, () => mounted);
       } catch (error) {
-        console.error("Gagal memuat data referral:", error);
+        console.error("Gagal memuat referral:", error);
 
         if (mounted) {
-          toast.error(
-            error instanceof Error
-              ? error.message
-              : "Gagal memuat kode referral."
+          const message = getErrorMessage(
+            error,
+            "Kode referral belum berhasil dimuat."
           );
+
+          setReferralError(message);
+          toast.error(message);
         }
       } finally {
         if (mounted) {
@@ -384,7 +492,7 @@ export default function StudentSettingsPage() {
       }
     }
 
-    loadReferralData();
+    initializeReferral();
 
     return () => {
       mounted = false;
@@ -410,16 +518,24 @@ export default function StudentSettingsPage() {
       toast.success(successMessage);
     } catch (error) {
       console.error("Gagal menyalin:", error);
-      toast.error("Tidak dapat menyalin. Silakan salin secara manual.");
+      toast.error(
+        "Tidak dapat menyalin. Silakan salin secara manual."
+      );
     }
   };
 
   const copyReferralCode = () => {
-    copyText(referralCode, "Kode referral berhasil disalin!");
+    void copyText(
+      referralCode,
+      "Kode referral berhasil disalin!"
+    );
   };
 
   const copyReferralLink = () => {
-    copyText(referralLink, "Link undangan berhasil disalin!");
+    void copyText(
+      referralLink,
+      "Link undangan berhasil disalin!"
+    );
   };
 
   const shareReferralLink = async () => {
@@ -447,54 +563,9 @@ export default function StudentSettingsPage() {
 
   const refreshReferralData = async () => {
     try {
-      setReferralLoading(true);
-
-      const {
-        data: { user },
-        error: userError,
-      } = await supabase.auth.getUser();
-
-      if (userError) throw userError;
-      if (!user) throw new Error("Sesi login tidak ditemukan.");
-
-      const [
-        { data: referralData, error: referralError },
-        { data: rewardData, error: rewardError },
-      ] = await Promise.all([
-        supabase
-          .from("referrals")
-          .select(
-            "id, status, created_at, qualified_at, qualifying_invoice_number"
-          )
-          .eq("referrer_user_id", user.id)
-          .order("created_at", { ascending: false }),
-
-        supabase
-          .from("referral_rewards")
-          .select(
-            "id, referral_id, reward_days, status, issued_at, created_at"
-          )
-          .eq("user_id", user.id)
-          .order("created_at", { ascending: false }),
-      ]);
-
-      if (referralError) throw referralError;
-      if (rewardError) throw rewardError;
-
-      setReferrals((referralData || []) as ReferralItem[]);
-      setReferralRewards((rewardData || []) as ReferralReward[]);
-
-      toast.success("Data referral berhasil diperbarui!");
-    } catch (error) {
-      console.error("Gagal memperbarui referral:", error);
-
-      toast.error(
-        error instanceof Error
-          ? error.message
-          : "Gagal memperbarui data referral."
-      );
-    } finally {
-      setReferralLoading(false);
+      await loadReferralData(true);
+    } catch {
+      // Pesan error sudah ditampilkan oleh loader.
     }
   };
 
@@ -503,41 +574,48 @@ export default function StudentSettingsPage() {
   // =====================================================
 
   const getReferralStatus = (
-    status: string
+    status: string,
+    hasReward: boolean
   ): ReferralStatusInfo => {
-    switch (status) {
-      case "rewarded":
-        return {
-          label: "Hadiah diberikan",
-          className:
-            "bg-emerald-500/10 text-emerald-600 border-emerald-500/20",
-        };
-
-      case "qualified":
-        return {
-          label: "Memenuhi syarat",
-          className:
-            "bg-blue-500/10 text-blue-600 border-blue-500/20",
-        };
-
-      case "rejected":
-        return {
-          label: "Tidak memenuhi syarat",
-          className:
-            "bg-destructive/10 text-destructive border-destructive/20",
-        };
-
-      default:
-        return {
-          label: "Menunggu pembelian Premium",
-          className:
-            "bg-amber-500/10 text-amber-600 border-amber-500/20",
-        };
+    if (status === "rejected") {
+      return {
+        label: "Tidak memenuhi syarat",
+        className:
+          "border-destructive/20 bg-destructive/10 text-destructive",
+      };
     }
+
+    if (status === "rewarded" || hasReward) {
+      return {
+        label: "Hadiah diberikan",
+        className:
+          "border-emerald-500/20 bg-emerald-500/10 text-emerald-600",
+      };
+    }
+
+    if (status === "qualified") {
+      return {
+        label: "Memenuhi syarat",
+        className:
+          "border-blue-500/20 bg-blue-500/10 text-blue-600",
+      };
+    }
+
+    return {
+      label: "Menunggu pembelian Premium",
+      className:
+        "border-amber-500/20 bg-amber-500/10 text-amber-600",
+    };
   };
 
   const formatReferralDate = (value: string) => {
-    return new Date(value).toLocaleDateString("id-ID", {
+    const date = new Date(value);
+
+    if (Number.isNaN(date.getTime())) {
+      return "Tanggal tidak tersedia";
+    }
+
+    return date.toLocaleDateString("id-ID", {
       day: "numeric",
       month: "long",
       year: "numeric",
@@ -545,7 +623,7 @@ export default function StudentSettingsPage() {
   };
 
   // =====================================================
-  // EDUCATION LEVEL
+  // PROFILE HANDLERS
   // =====================================================
 
   const handleEducationLevelChange = (value: string) => {
@@ -565,13 +643,9 @@ export default function StudentSettingsPage() {
     }));
   };
 
-  // =====================================================
-  // UPDATE PROFILE STATE
-  // =====================================================
-
   const updateProfile = (
     field: keyof ProfileData,
-    value: string | number
+    value: string
   ) => {
     setProfile((prev) => ({
       ...prev,
@@ -584,28 +658,36 @@ export default function StudentSettingsPage() {
     }));
   };
 
-  // =====================================================
-  // PROFILE VALIDATION
-  // =====================================================
-
   const validateProfile = () => {
-    const err: Record<string, string> = {};
+    const errors: Record<string, string> = {};
 
     if (profile.name.trim().length < 3) {
-      err.name = "Nama minimal 3 karakter.";
+      errors.name = "Nama minimal 3 karakter.";
     }
 
-    if (!isValidEmail(profile.email)) {
-      err.email = "Email tidak valid.";
+    if (profile.name.trim().length > 100) {
+      errors.name = "Nama maksimal 100 karakter.";
+    }
+
+    if (profile.school.trim().length > 150) {
+      errors.school =
+        "Nama sekolah maksimal 150 karakter.";
     }
 
     if (!profile.educationLevel) {
-      err.educationLevel =
+      errors.educationLevel =
         "Silakan pilih jenjang pendidikan.";
+    } else if (
+      !EDUCATION_LEVELS.some(
+        (item) => item.value === profile.educationLevel
+      )
+    ) {
+      errors.educationLevel =
+        "Jenjang pendidikan tidak valid.";
     }
 
     if (requiresGrade && !profile.grade) {
-      err.grade = "Silakan pilih kelas.";
+      errors.grade = "Silakan pilih kelas.";
     }
 
     if (
@@ -613,30 +695,21 @@ export default function StudentSettingsPage() {
       requiresGrade &&
       !availableGrades.includes(Number(profile.grade))
     ) {
-      err.grade =
+      errors.grade =
         "Kelas tidak sesuai dengan jenjang pendidikan.";
     }
 
-    if (
-      !Number.isInteger(profile.targetExams) ||
-      profile.targetExams < 1 ||
-      profile.targetExams > 100
-    ) {
-      err.targetExams =
-        "Target ujian harus antara 1–100.";
-    }
+    setProfileErr(errors);
 
-    setProfileErr(err);
-
-    return Object.keys(err).length === 0;
+    return Object.keys(errors).length === 0;
   };
 
   // =====================================================
   // SAVE PROFILE
   // =====================================================
 
-  const saveProfile = async (e?: FormEvent) => {
-    e?.preventDefault();
+  const saveProfile = async (e: FormEvent) => {
+    e.preventDefault();
 
     if (!validateProfile()) return;
 
@@ -644,75 +717,211 @@ export default function StudentSettingsPage() {
       setSavingProfile(true);
 
       const {
-        data: { session },
-        error: sessionError,
-      } = await supabase.auth.getSession();
+        data: { user },
+        error: userError,
+      } = await supabase.auth.getUser();
 
-      if (sessionError) throw sessionError;
-
-      const user = session?.user;
-
+      if (userError) throw userError;
       if (!user) {
         throw new Error(
-          "Sesi login tidak ditemukan. Silakan login kembali."
+          "Sesi login berakhir. Silakan login kembali."
         );
       }
 
-      const profilePayload = {
-        full_name: profile.name.trim(),
-        school: profile.school.trim() || null,
-        education_level: profile.educationLevel,
-        grade: requiresGrade
-          ? Number(profile.grade)
-          : null,
-        target_exams: profile.targetExams,
-      };
-
       const { error } = await supabase
         .from("profiles")
-        .update(profilePayload)
+        .update({
+          full_name: profile.name.trim(),
+          school: profile.school.trim() || null,
+          education_level: profile.educationLevel,
+          grade: requiresGrade
+            ? Number(profile.grade)
+            : null,
+        })
         .eq("id", user.id);
 
       if (error) throw error;
 
-      toast.success("Profil berhasil diperbarui!");
+      toast.success("Profil berhasil diperbarui.");
       setProfileErr({});
-    } catch (error: unknown) {
-      console.error("DETAIL ERROR SIMPAN PROFIL:", error);
+    } catch (error) {
+      console.error("Gagal menyimpan profil:", error);
 
-      const message =
-        error instanceof Error
-          ? error.message
-          : "Terjadi kesalahan yang tidak diketahui.";
-
-      toast.error("Gagal menyimpan profil: " + message);
+      toast.error(
+        getErrorMessage(
+          error,
+          "Gagal menyimpan perubahan profil."
+        )
+      );
     } finally {
       setSavingProfile(false);
     }
   };
 
   // =====================================================
-  // SAVE PASSWORD
+  // PREFERENCES HANDLERS
   // =====================================================
+
+  const updatePreferences = (
+    field: keyof PreferencesData,
+    value: string | number | boolean
+  ) => {
+    setPrefs((prev) => ({
+      ...prev,
+      [field]: value,
+    }));
+
+    setPrefsErr((prev) => ({
+      ...prev,
+      [field]: "",
+    }));
+  };
+
+  const validatePreferences = () => {
+    const errors: Record<string, string> = {};
+    const target = Number(prefs.targetExams);
+    const dailyGoal = Number(prefs.dailyGoal);
+
+    if (
+      !Number.isInteger(target) ||
+      target < 1 ||
+      target > 100
+    ) {
+      errors.targetExams =
+        "Target ujian harus berupa angka 1–100.";
+    }
+
+    if (![15, 30, 60, 90].includes(dailyGoal)) {
+      errors.dailyGoal =
+        "Target waktu belajar tidak valid.";
+    }
+
+    setPrefsErr(errors);
+
+    return Object.keys(errors).length === 0;
+  };
+
+  // =====================================================
+  // SAVE PREFERENCES
+  // =====================================================
+
+  const savePreferences = async () => {
+    if (!validatePreferences()) return;
+
+    try {
+      setSavingPreferences(true);
+
+      const {
+        data: { user },
+        error: userError,
+      } = await supabase.auth.getUser();
+
+      if (userError) throw userError;
+      if (!user) {
+        throw new Error(
+          "Sesi login berakhir. Silakan login kembali."
+        );
+      }
+
+      // Simpan target ujian pada tabel profiles.
+      const { error: profileError } = await supabase
+        .from("profiles")
+        .update({
+          target_exams: Number(prefs.targetExams),
+        })
+        .eq("id", user.id);
+
+      if (profileError) throw profileError;
+
+      // Simpan preferensi belajar pada user_settings.
+      const { error: settingsError } = await supabase
+        .from("user_settings")
+        .upsert(
+          {
+            user_id: user.id,
+            daily_goal_minutes: Number(prefs.dailyGoal),
+            autoplay: prefs.autoplay,
+            show_timer: prefs.showTimer,
+            updated_at: new Date().toISOString(),
+          },
+          {
+            onConflict: "user_id",
+          }
+        );
+
+      if (settingsError) throw settingsError;
+
+      setPrefsErr({});
+      toast.success("Preferensi belajar berhasil disimpan.");
+    } catch (error) {
+      console.error(
+        "Gagal menyimpan preferensi belajar:",
+        error
+      );
+
+      toast.error(
+        getErrorMessage(
+          error,
+          "Gagal menyimpan preferensi belajar."
+        )
+      );
+    } finally {
+      setSavingPreferences(false);
+    }
+  };
+
+  // =====================================================
+  // PASSWORD
+  // =====================================================
+
+  const updatePasswordField = (
+    field: "next" | "confirm",
+    value: string
+  ) => {
+    setPw((prev) => ({
+      ...prev,
+      [field]: value,
+    }));
+
+    setPwErr((prev) => ({
+      ...prev,
+      [field]: "",
+    }));
+  };
 
   const savePassword = async (e: FormEvent) => {
     e.preventDefault();
 
-    const err: Record<string, string> = {};
+    const errors: Record<string, string> = {};
 
     if (pw.next.length < 8) {
-      err.next =
+      errors.next =
         "Kata sandi baru minimal 8 karakter.";
     }
 
+    if (pw.next.length > 72) {
+      errors.next =
+        "Kata sandi terlalu panjang.";
+    }
+
+    if (!/[a-zA-Z]/.test(pw.next)) {
+      errors.next =
+        "Kata sandi harus memiliki setidaknya satu huruf.";
+    }
+
+    if (!/[0-9]/.test(pw.next)) {
+      errors.next =
+        "Kata sandi harus memiliki setidaknya satu angka.";
+    }
+
     if (pw.confirm !== pw.next) {
-      err.confirm =
+      errors.confirm =
         "Konfirmasi kata sandi tidak cocok.";
     }
 
-    setPwErr(err);
+    setPwErr(errors);
 
-    if (Object.keys(err).length > 0) return;
+    if (Object.keys(errors).length > 0) return;
 
     try {
       setSavingPassword(true);
@@ -724,20 +933,20 @@ export default function StudentSettingsPage() {
       if (error) throw error;
 
       setPw({
-        current: "",
         next: "",
         confirm: "",
       });
 
       setPwErr({});
+      toast.success("Kata sandi berhasil diperbarui.");
+    } catch (error) {
+      console.error("Gagal memperbarui password:", error);
 
-      toast.success("Kata sandi berhasil diperbarui!");
-    } catch (error: unknown) {
       toast.error(
-        "Gagal memperbarui kata sandi: " +
-          (error instanceof Error
-            ? error.message
-            : "Terjadi kesalahan.")
+        getErrorMessage(
+          error,
+          "Gagal memperbarui kata sandi."
+        )
       );
     } finally {
       setSavingPassword(false);
@@ -749,254 +958,281 @@ export default function StudentSettingsPage() {
   // =====================================================
 
   return (
-    <div className="space-y-6">
+    <div className="mx-auto w-full max-w-6xl space-y-6 pb-8">
       <PageHeader
         title="Pengaturan"
-        description="Kelola profil, target belajar, akun, dan tampilan."
+        description="Kelola profil, keamanan akun, target belajar, dan tampilan GradeUp."
       />
 
-      <Tabs defaultValue="profile">
-        {/* TAB NAVIGATION */}
-        <TabsList className="h-auto flex-wrap justify-start gap-1">
-          <TabsTrigger value="profile">
-            <User className="mr-1.5 h-4 w-4" />
+      <Tabs defaultValue="profile" className="w-full">
+        <TabsList className="grid h-auto w-full grid-cols-2 gap-1 rounded-xl p-1 sm:grid-cols-4">
+          <TabsTrigger value="profile" className="gap-2 py-2.5">
+            <User className="h-4 w-4" />
             Profil
           </TabsTrigger>
 
-          <TabsTrigger value="account">
-            <ShieldCheck className="mr-1.5 h-4 w-4" />
+          <TabsTrigger value="account" className="gap-2 py-2.5">
+            <ShieldCheck className="h-4 w-4" />
             Akun
           </TabsTrigger>
 
-          <TabsTrigger value="preferences">
-            <SlidersHorizontal className="mr-1.5 h-4 w-4" />
+          <TabsTrigger
+            value="preferences"
+            className="gap-2 py-2.5"
+          >
+            <SlidersHorizontal className="h-4 w-4" />
             Preferensi
           </TabsTrigger>
 
-          <TabsTrigger value="notifications">
-            <Bell className="mr-1.5 h-4 w-4" />
-            Notifikasi
-          </TabsTrigger>
-
-          <TabsTrigger value="appearance">
-            <Palette className="mr-1.5 h-4 w-4" />
+          <TabsTrigger
+            value="appearance"
+            className="gap-2 py-2.5"
+          >
+            <Palette className="h-4 w-4" />
             Tampilan
           </TabsTrigger>
         </TabsList>
 
-        {/* ================================================= */}
+        {/* ============================================= */}
         {/* PROFIL */}
-        {/* ================================================= */}
+        {/* ============================================= */}
 
-        <TabsContent value="profile" className="space-y-6">
-          <Card>
-            <CardHeader>
+        <TabsContent
+          value="profile"
+          className="mt-5 space-y-6"
+        >
+          <Card className="overflow-hidden">
+            <CardHeader className="border-b bg-muted/20">
               <div className="flex items-center gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 text-primary">
+                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
                   <GraduationCap className="h-5 w-5" />
                 </div>
 
                 <div>
                   <CardTitle>Informasi Profil</CardTitle>
-                  <CardDescription>
-                    Lengkapi data pendidikan agar GradeUp dapat
-                    menampilkan ujian sesuai jenjang dan kelas Anda.
+                  <CardDescription className="mt-1">
+                    Lengkapi data pendidikan agar rekomendasi
+                    GradeUp lebih sesuai.
                   </CardDescription>
                 </div>
               </div>
             </CardHeader>
 
-            <CardContent>
-              <form
-                onSubmit={saveProfile}
-                noValidate
-                className="max-w-2xl space-y-6"
-              >
-                <div className="grid gap-5 sm:grid-cols-2">
-                  <div className="space-y-2">
-                    <Label htmlFor="p-name">
-                      Nama lengkap
-                    </Label>
-
-                    <Input
-                      id="p-name"
-                      value={profile.name}
-                      onChange={(e) =>
-                        updateProfile("name", e.target.value)
-                      }
-                      disabled={loading}
-                      placeholder="Masukkan nama lengkap"
-                    />
-
-                    <FieldError message={profileErr.name} />
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="p-email">
-                      Email
-                    </Label>
-
-                    <Input
-                      id="p-email"
-                      type="email"
-                      value={profile.email}
-                      disabled
-                      className="bg-muted opacity-70"
-                    />
-
-                    <p className="text-xs text-muted-foreground">
-                      Email terikat pada akun dan tidak dapat
-                      diubah langsung.
-                    </p>
-                  </div>
-
-                  <div className="space-y-2 sm:col-span-2">
-                    <Label htmlFor="p-school">
-                      <span className="inline-flex items-center gap-2">
-                        <School className="h-4 w-4" />
-                        Nama Sekolah / Instansi
-                      </span>
-                    </Label>
-
-                    <Input
-                      id="p-school"
-                      value={profile.school}
-                      onChange={(e) =>
-                        updateProfile("school", e.target.value)
-                      }
-                      disabled={loading}
-                      placeholder="Contoh: SMP Negeri 1 Jakarta"
-                    />
-
-                    <p className="text-xs text-muted-foreground">
-                      Masukkan nama sekolah atau instansi Anda.
-                    </p>
-                  </div>
-                </div>
-
-                <div className="space-y-4 rounded-xl border bg-muted/20 p-4">
-                  <div>
-                    <h3 className="font-semibold">
-                      Informasi Pendidikan
-                    </h3>
-
-                    <p className="mt-1 text-sm text-muted-foreground">
-                      Data ini digunakan untuk menyesuaikan
-                      rekomendasi dan filter paket ujian.
-                    </p>
-                  </div>
-
+            <CardContent className="pt-6">
+              {loading ? (
+                <div className="max-w-2xl space-y-4">
                   <div className="grid gap-4 sm:grid-cols-2">
+                    <div className="h-16 animate-pulse rounded-lg bg-muted" />
+                    <div className="h-16 animate-pulse rounded-lg bg-muted" />
+                    <div className="h-16 animate-pulse rounded-lg bg-muted sm:col-span-2" />
+                  </div>
+                  <div className="h-36 animate-pulse rounded-xl bg-muted" />
+                </div>
+              ) : (
+                <form
+                  onSubmit={saveProfile}
+                  noValidate
+                  className="max-w-3xl space-y-6"
+                >
+                  <div className="grid gap-5 sm:grid-cols-2">
                     <div className="space-y-2">
-                      <Label>Jenjang Pendidikan</Label>
+                      <Label htmlFor="p-name">
+                        Nama lengkap
+                      </Label>
 
-                      <Select
-                        value={
-                          profile.educationLevel || NO_SELECTION
+                      <Input
+                        id="p-name"
+                        value={profile.name}
+                        onChange={(e) =>
+                          updateProfile("name", e.target.value)
                         }
-                        onValueChange={handleEducationLevelChange}
-                        disabled={loading}
-                      >
-                        <SelectTrigger>
-                          <SelectValue placeholder="Pilih jenjang" />
-                        </SelectTrigger>
-
-                        <SelectContent>
-                          <SelectItem value={NO_SELECTION}>
-                            Pilih jenjang pendidikan
-                          </SelectItem>
-
-                          {EDUCATION_LEVELS.map((item) => (
-                            <SelectItem
-                              key={item.value}
-                              value={item.value}
-                            >
-                              {item.label}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-
-                      <FieldError
-                        message={profileErr.educationLevel}
+                        maxLength={100}
+                        placeholder="Masukkan nama lengkap"
+                        aria-invalid={Boolean(profileErr.name)}
                       />
+
+                      <FieldError message={profileErr.name} />
                     </div>
 
-                    {requiresGrade && (
+                    <div className="space-y-2">
+                      <Label htmlFor="p-email">
+                        Email akun
+                      </Label>
+
+                      <Input
+                        id="p-email"
+                        type="email"
+                        value={profile.email}
+                        disabled
+                        className="bg-muted/60"
+                      />
+
+                      <p className="text-xs text-muted-foreground">
+                        Email terhubung dengan akun dan tidak
+                        dapat diubah dari halaman ini.
+                      </p>
+                    </div>
+
+                    <div className="space-y-2 sm:col-span-2">
+                      <Label htmlFor="p-school">
+                        <span className="inline-flex items-center gap-2">
+                          <School className="h-4 w-4" />
+                          Nama sekolah / instansi
+                        </span>
+                      </Label>
+
+                      <Input
+                        id="p-school"
+                        value={profile.school}
+                        onChange={(e) =>
+                          updateProfile("school", e.target.value)
+                        }
+                        maxLength={150}
+                        placeholder="Contoh: SMP Negeri 1 Jakarta"
+                        aria-invalid={Boolean(profileErr.school)}
+                      />
+
+                      <FieldError
+                        message={profileErr.school}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="space-y-4 rounded-xl border bg-muted/20 p-4 sm:p-5">
+                    <div>
+                      <h3 className="font-semibold">
+                        Informasi pendidikan
+                      </h3>
+                      <p className="mt-1 text-sm text-muted-foreground">
+                        Pilih jenjang dan kelas saat ini.
+                      </p>
+                    </div>
+
+                    <div className="grid gap-4 sm:grid-cols-2">
                       <div className="space-y-2">
-                        <Label>Kelas</Label>
+                        <Label>Jenjang pendidikan</Label>
 
                         <Select
-                          value={profile.grade || NO_SELECTION}
-                          onValueChange={(value) =>
-                            updateProfile(
-                              "grade",
-                              value === NO_SELECTION ? "" : value
-                            )
+                          value={
+                            profile.educationLevel || NO_SELECTION
                           }
-                          disabled={loading}
+                          onValueChange={
+                            handleEducationLevelChange
+                          }
                         >
-                          <SelectTrigger>
-                            <SelectValue placeholder="Pilih kelas" />
+                          <SelectTrigger
+                            aria-invalid={Boolean(
+                              profileErr.educationLevel
+                            )}
+                          >
+                            <SelectValue placeholder="Pilih jenjang" />
                           </SelectTrigger>
 
                           <SelectContent>
                             <SelectItem value={NO_SELECTION}>
-                              Pilih kelas
+                              Pilih jenjang pendidikan
                             </SelectItem>
 
-                            {availableGrades.map((grade) => (
+                            {EDUCATION_LEVELS.map((item) => (
                               <SelectItem
-                                key={grade}
-                                value={String(grade)}
+                                key={item.value}
+                                value={item.value}
                               >
-                                Kelas {grade}
+                                {item.label}
                               </SelectItem>
                             ))}
                           </SelectContent>
                         </Select>
 
-                        <FieldError message={profileErr.grade} />
+                        <FieldError
+                          message={profileErr.educationLevel}
+                        />
                       </div>
-                    )}
+
+                      {requiresGrade && (
+                        <div className="space-y-2">
+                          <Label>Kelas</Label>
+
+                          <Select
+                            value={
+                              profile.grade || NO_SELECTION
+                            }
+                            onValueChange={(value) =>
+                              updateProfile(
+                                "grade",
+                                value === NO_SELECTION ? "" : value
+                              )
+                            }
+                          >
+                            <SelectTrigger
+                              aria-invalid={Boolean(
+                                profileErr.grade
+                              )}
+                            >
+                              <SelectValue placeholder="Pilih kelas" />
+                            </SelectTrigger>
+
+                            <SelectContent>
+                              <SelectItem value={NO_SELECTION}>
+                                Pilih kelas
+                              </SelectItem>
+
+                              {availableGrades.map((grade) => (
+                                <SelectItem
+                                  key={grade}
+                                  value={String(grade)}
+                                >
+                                  Kelas {grade}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+
+                          <FieldError
+                            message={profileErr.grade}
+                          />
+                        </div>
+                      )}
+                    </div>
+
+                    {!requiresGrade &&
+                      profile.educationLevel && (
+                        <p className="text-xs text-muted-foreground">
+                          Jenjang ini tidak memerlukan pilihan
+                          kelas sekolah formal.
+                        </p>
+                      )}
                   </div>
 
-                  {!requiresGrade && profile.educationLevel && (
+                  <div className="flex flex-col-reverse gap-3 border-t pt-5 sm:flex-row sm:items-center sm:justify-between">
                     <p className="text-xs text-muted-foreground">
-                      Jenjang ini tidak memerlukan pilihan kelas
-                      sekolah formal.
+                      Perubahan profil akan disimpan ke akun Anda.
                     </p>
-                  )}
-                </div>
 
-                <div className="flex flex-wrap items-center justify-between gap-3 border-t pt-4">
-                  <p className="max-w-md text-xs text-muted-foreground">
-                    Pastikan jenjang dan kelas sudah benar agar
-                    rekomendasi ujian lebih sesuai.
-                  </p>
-
-                  <Button
-                    type="submit"
-                    disabled={savingProfile || loading}
-                  >
-                    {savingProfile
-                      ? "Menyimpan..."
-                      : "Simpan Perubahan"}
-                  </Button>
-                </div>
-              </form>
+                    <Button
+                      type="submit"
+                      disabled={savingProfile}
+                      className="w-full sm:w-auto"
+                    >
+                      {savingProfile
+                        ? "Menyimpan..."
+                        : "Simpan Profil"}
+                    </Button>
+                  </div>
+                </form>
+              )}
             </CardContent>
           </Card>
 
-          {/* ================================================= */}
-          {/* REFERRAL CARD */}
-          {/* ================================================= */}
+          {/* =========================================== */}
+          {/* REFERRAL */}
+          {/* =========================================== */}
 
           <Card className="overflow-hidden">
             <div className="bg-gradient-to-br from-primary/15 via-primary/5 to-transparent">
               <CardHeader>
-                <div className="flex items-center gap-3">
-                  <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-primary text-primary-foreground shadow-sm">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-primary text-primary-foreground shadow-sm">
                     <Gift className="h-6 w-6" />
                   </div>
 
@@ -1004,9 +1240,8 @@ export default function StudentSettingsPage() {
                     <CardTitle>
                       Undang Teman & Dapatkan Premium
                     </CardTitle>
-
                     <CardDescription className="mt-1">
-                      Ajak teman belajar di GradeUp dan dapatkan
+                      Ajak teman belajar bersama dan dapatkan
                       tambahan Premium 7 hari.
                     </CardDescription>
                   </div>
@@ -1015,27 +1250,24 @@ export default function StudentSettingsPage() {
             </div>
 
             <CardContent className="space-y-6 pt-6">
-              {/* REWARD INFO */}
               <div className="rounded-xl border border-primary/20 bg-primary/5 p-4">
                 <div className="flex items-start gap-3">
                   <Gift className="mt-0.5 h-5 w-5 shrink-0 text-primary" />
-
                   <div>
                     <p className="font-semibold">
                       Hadiah Premium 7 Hari
                     </p>
-
-                    <p className="mt-1 text-sm text-muted-foreground">
-                      Setiap teman yang mendaftar menggunakan kode
-                      Anda dan menyelesaikan pembelian Premium
-                      pertamanya akan memberikan Anda tambahan
+                    <p className="mt-1 text-sm leading-relaxed text-muted-foreground">
+                      Setiap teman yang mendaftar menggunakan
+                      kode Anda dan menyelesaikan pembelian
+                      Premium pertamanya akan memberikan tambahan
                       Premium selama 7 hari.
                     </p>
                   </div>
                 </div>
               </div>
 
-              {/* REFERRAL CODE */}
+              {/* KODE REFERRAL */}
               <div className="space-y-3">
                 <div>
                   <Label>Kode referral Anda</Label>
@@ -1050,7 +1282,7 @@ export default function StudentSettingsPage() {
                 ) : referralCode ? (
                   <div className="flex flex-col gap-2 sm:flex-row">
                     <div className="flex min-h-12 flex-1 items-center justify-center rounded-lg border bg-muted/30 px-4">
-                      <span className="font-mono text-xl font-bold tracking-[0.2em]">
+                      <span className="break-all font-mono text-xl font-bold tracking-[0.2em]">
                         {referralCode}
                       </span>
                     </div>
@@ -1059,6 +1291,7 @@ export default function StudentSettingsPage() {
                       type="button"
                       variant="outline"
                       onClick={copyReferralCode}
+                      className="w-full sm:w-auto"
                     >
                       <Copy className="mr-2 h-4 w-4" />
                       Salin Kode
@@ -1067,20 +1300,25 @@ export default function StudentSettingsPage() {
                 ) : (
                   <div className="rounded-lg border border-dashed p-4 text-center">
                     <p className="text-sm text-muted-foreground">
-                      Kode referral belum berhasil dimuat.
+                      {referralError ||
+                        "Kode referral belum tersedia."}
                     </p>
                   </div>
                 )}
               </div>
 
-              {/* REFERRAL LINK */}
+              {/* LINK UNDANGAN */}
               <div className="space-y-3">
-                <Label>Link undangan Anda</Label>
+                <div>
+                  <Label>Link undangan Anda</Label>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    Teman dapat membuka link ini untuk mendaftar.
+                  </p>
+                </div>
 
                 <div className="flex flex-col gap-2 sm:flex-row">
                   <div className="flex min-h-11 min-w-0 flex-1 items-center gap-2 overflow-hidden rounded-lg border bg-muted/30 px-3">
                     <Link2 className="h-4 w-4 shrink-0 text-muted-foreground" />
-
                     <span className="truncate text-sm text-muted-foreground">
                       {referralLoading
                         ? "Memuat link undangan..."
@@ -1093,6 +1331,7 @@ export default function StudentSettingsPage() {
                     variant="outline"
                     onClick={copyReferralLink}
                     disabled={!referralLink || referralLoading}
+                    className="w-full sm:w-auto"
                   >
                     <Copy className="mr-2 h-4 w-4" />
                     Salin Link
@@ -1101,96 +1340,83 @@ export default function StudentSettingsPage() {
 
                 <Button
                   type="button"
-                  className="w-full sm:w-auto"
                   onClick={shareReferralLink}
                   disabled={!referralLink || referralLoading}
+                  className="w-full sm:w-auto"
                 >
                   <Share2 className="mr-2 h-4 w-4" />
                   Bagikan Undangan
                 </Button>
               </div>
 
-              {/* REFERRAL STATISTICS */}
-              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-                <div className="rounded-xl border p-4">
+              {/* STATISTIK */}
+              <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                <div className="rounded-xl border bg-card p-4 transition-colors hover:bg-muted/20">
                   <div className="flex items-center gap-2 text-muted-foreground">
                     <Users className="h-4 w-4" />
                     <span className="text-xs">
                       Total pendaftar
                     </span>
                   </div>
-
-                  <p className="mt-2 text-2xl font-bold">
+                  <p className="mt-2 text-2xl font-bold tabular-nums">
                     {referralLoading ? "—" : referrals.length}
                   </p>
-
                   <p className="mt-1 text-xs text-muted-foreground">
                     Teman menggunakan kode Anda
                   </p>
                 </div>
 
-                <div className="rounded-xl border p-4">
+                <div className="rounded-xl border bg-card p-4 transition-colors hover:bg-muted/20">
                   <div className="flex items-center gap-2 text-muted-foreground">
                     <Clock3 className="h-4 w-4" />
-                    <span className="text-xs">
-                      Menunggu
-                    </span>
+                    <span className="text-xs">Menunggu</span>
                   </div>
-
-                  <p className="mt-2 text-2xl font-bold">
+                  <p className="mt-2 text-2xl font-bold tabular-nums">
                     {referralLoading ? "—" : pendingCount}
                   </p>
-
                   <p className="mt-1 text-xs text-muted-foreground">
                     Belum menyelesaikan pembelian
                   </p>
                 </div>
 
-                <div className="rounded-xl border p-4">
+                <div className="rounded-xl border bg-card p-4 transition-colors hover:bg-muted/20">
                   <div className="flex items-center gap-2 text-muted-foreground">
                     <CheckCircle2 className="h-4 w-4" />
-                    <span className="text-xs">
-                      Berhasil
-                    </span>
+                    <span className="text-xs">Berhasil</span>
                   </div>
-
-                  <p className="mt-2 text-2xl font-bold">
+                  <p className="mt-2 text-2xl font-bold tabular-nums">
                     {referralLoading ? "—" : rewardedCount}
                   </p>
-
                   <p className="mt-1 text-xs text-muted-foreground">
                     Referral mendapatkan hadiah
                   </p>
                 </div>
 
-                <div className="rounded-xl border p-4">
+                <div className="rounded-xl border bg-card p-4 transition-colors hover:bg-muted/20">
                   <div className="flex items-center gap-2 text-muted-foreground">
                     <Gift className="h-4 w-4" />
                     <span className="text-xs">
                       Premium tambahan
                     </span>
                   </div>
-
-                  <p className="mt-2 text-2xl font-bold">
+                  <p className="mt-2 text-2xl font-bold tabular-nums">
                     {referralLoading
                       ? "—"
                       : `${totalRewardDays} hari`}
                   </p>
-
                   <p className="mt-1 text-xs text-muted-foreground">
-                    Total hadiah yang diberikan
+                    Total hadiah yang sudah diberikan
                   </p>
                 </div>
               </div>
 
-              {/* REFERRAL HISTORY */}
+              {/* RIWAYAT */}
               <div className="space-y-4 border-t pt-5">
-                <div className="flex flex-wrap items-center justify-between gap-3">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                   <div>
                     <h3 className="font-semibold">
                       Riwayat undangan
                     </h3>
-
                     <p className="mt-1 text-sm text-muted-foreground">
                       Pantau status teman yang menggunakan kode
                       referral Anda.
@@ -1203,6 +1429,7 @@ export default function StudentSettingsPage() {
                     size="sm"
                     onClick={refreshReferralData}
                     disabled={referralLoading}
+                    className="w-full sm:w-auto"
                   >
                     <RefreshCw
                       className={`mr-2 h-4 w-4 ${
@@ -1221,11 +1448,9 @@ export default function StudentSettingsPage() {
                 ) : referrals.length === 0 ? (
                   <div className="rounded-xl border border-dashed p-8 text-center">
                     <Users className="mx-auto mb-3 h-9 w-9 text-muted-foreground" />
-
                     <p className="font-semibold">
                       Belum ada teman yang mendaftar
                     </p>
-
                     <p className="mx-auto mt-1 max-w-sm text-sm text-muted-foreground">
                       Bagikan kode referral atau link undangan
                       Anda untuk mulai mengajak teman belajar
@@ -1235,37 +1460,35 @@ export default function StudentSettingsPage() {
                 ) : (
                   <div className="space-y-3">
                     {referrals.map((item) => {
-                      const statusInfo = getReferralStatus(
-                        item.status
-                      );
-
                       const reward = referralRewards.find(
                         (entry) =>
-                          entry.referral_id === item.id
+                          entry.referral_id === item.id &&
+                          entry.status === "issued"
+                      );
+
+                      const statusInfo = getReferralStatus(
+                        item.status,
+                        Boolean(reward)
                       );
 
                       return (
                         <div
                           key={item.id}
-                          className="flex flex-col gap-3 rounded-xl border p-4 sm:flex-row sm:items-center sm:justify-between"
+                          className="flex flex-col gap-3 rounded-xl border bg-card p-4 sm:flex-row sm:items-center sm:justify-between"
                         >
                           <div className="min-w-0">
                             <p className="font-medium">
                               Pendaftaran teman
                             </p>
-
                             <p className="mt-1 text-xs text-muted-foreground">
-                              {formatReferralDate(
-                                item.created_at
-                              )}
+                              {formatReferralDate(item.created_at)}
                             </p>
 
-                            {reward?.status === "issued" && (
+                            {reward && (
                               <p className="mt-2 flex items-center gap-1 text-xs font-medium text-emerald-600">
                                 <CheckCircle2 className="h-3.5 w-3.5" />
-                                Hadiah Premium{" "}
-                                {reward.reward_days} hari telah
-                                diberikan
+                                Hadiah Premium {reward.reward_days}{" "}
+                                hari telah diberikan
                               </p>
                             )}
                           </div>
@@ -1273,12 +1496,12 @@ export default function StudentSettingsPage() {
                           <span
                             className={`inline-flex w-fit shrink-0 items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium ${statusInfo.className}`}
                           >
-                            {item.status === "rewarded" ? (
+                            {reward ||
+                            item.status === "rewarded" ? (
                               <CheckCircle2 className="h-3.5 w-3.5" />
                             ) : (
                               <Clock3 className="h-3.5 w-3.5" />
                             )}
-
                             {statusInfo.label}
                           </span>
                         </div>
@@ -1288,12 +1511,11 @@ export default function StudentSettingsPage() {
                 )}
               </div>
 
-              {/* REFERRAL TERMS */}
+              {/* KETENTUAN */}
               <div className="rounded-xl bg-muted/40 p-4">
                 <p className="text-sm font-semibold">
                   Ketentuan program referral
                 </p>
-
                 <ul className="mt-2 list-disc space-y-1 pl-5 text-xs leading-relaxed text-muted-foreground">
                   <li>
                     Kode referral hanya dapat digunakan saat
@@ -1321,298 +1543,253 @@ export default function StudentSettingsPage() {
           </Card>
         </TabsContent>
 
-        {/* ================================================= */}
+        {/* ============================================= */}
         {/* AKUN */}
-        {/* ================================================= */}
+        {/* ============================================= */}
 
-        <TabsContent value="account">
+        <TabsContent value="account" className="mt-5">
           <Card>
-            <CardHeader>
-              <CardTitle>Ubah Kata Sandi</CardTitle>
-
-              <CardDescription>
-                Perbarui kata sandi akun Anda untuk menjaga
-                keamanan data.
-              </CardDescription>
+            <CardHeader className="border-b bg-muted/20">
+              <div className="flex items-center gap-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 text-primary">
+                  <ShieldCheck className="h-5 w-5 text-primary" />
+                </div>
+                <div>
+                  <CardTitle>Keamanan Akun</CardTitle>
+                  <CardDescription className="mt-1">
+                    Gunakan kata sandi yang kuat untuk menjaga
+                    keamanan akun GradeUp.
+                  </CardDescription>
+                </div>
+              </div>
             </CardHeader>
 
-            <CardContent>
+            <CardContent className="pt-6">
               <form
                 onSubmit={savePassword}
                 noValidate
-                className="max-w-md space-y-4"
+                className="max-w-md space-y-5"
               >
                 <div className="space-y-2">
                   <Label htmlFor="pw-next">
                     Kata sandi baru
                   </Label>
-
                   <PasswordInput
                     id="pw-next"
                     value={pw.next}
                     onChange={(e) =>
-                      setPw({
-                        ...pw,
-                        next: e.target.value,
-                      })
+                      updatePasswordField("next", e.target.value)
                     }
+                    autoComplete="new-password"
                   />
-
                   <FieldError message={pwErr.next} />
+                  <p className="text-xs text-muted-foreground">
+                    Minimal 8 karakter, terdiri dari huruf dan angka.
+                  </p>
                 </div>
 
                 <div className="space-y-2">
                   <Label htmlFor="pw-confirm">
                     Konfirmasi kata sandi baru
                   </Label>
-
                   <PasswordInput
                     id="pw-confirm"
                     value={pw.confirm}
                     onChange={(e) =>
-                      setPw({
-                        ...pw,
-                        confirm: e.target.value,
-                      })
+                      updatePasswordField(
+                        "confirm",
+                        e.target.value
+                      )
                     }
+                    autoComplete="new-password"
                   />
-
                   <FieldError message={pwErr.confirm} />
                 </div>
 
-                <Button
-                  type="submit"
-                  disabled={savingPassword}
-                >
-                  {savingPassword
-                    ? "Memperbarui..."
-                    : "Perbarui Kata Sandi"}
-                </Button>
+                <div className="border-t pt-4">
+                  <Button
+                    type="submit"
+                    disabled={savingPassword}
+                    className="w-full sm:w-auto"
+                  >
+                    {savingPassword
+                      ? "Memperbarui..."
+                      : "Perbarui Kata Sandi"}
+                  </Button>
+                </div>
               </form>
             </CardContent>
           </Card>
         </TabsContent>
 
-        {/* ================================================= */}
+        {/* ============================================= */}
         {/* PREFERENSI */}
-        {/* ================================================= */}
+        {/* ============================================= */}
 
-        <TabsContent value="preferences">
+        <TabsContent value="preferences" className="mt-5">
           <Card>
-            <CardHeader>
-              <CardTitle>
-                Preferensi Belajar & Target
-              </CardTitle>
-
-              <CardDescription>
-                Atur target belajar pribadi Anda.
-              </CardDescription>
+            <CardHeader className="border-b bg-muted/20">
+              <div className="flex items-center gap-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 text-primary">
+                  <SlidersHorizontal className="h-5 w-5 text-primary" />
+                </div>
+                <div>
+                  <CardTitle>Preferensi Belajar</CardTitle>
+                  <CardDescription className="mt-1">
+                    Sesuaikan target dan pengalaman belajar Anda.
+                    Pengaturan tersimpan di akun.
+                  </CardDescription>
+                </div>
+              </div>
             </CardHeader>
 
-            <CardContent className="max-w-2xl divide-y">
-              <div className="grid gap-4 pb-5 sm:grid-cols-2">
-                <div className="space-y-2">
-                  <Label htmlFor="p-target">
-                    Target Paket Ujian (Bulan Ini)
-                  </Label>
-
-                  <Input
-                    id="p-target"
-                    type="number"
-                    min={1}
-                    max={100}
-                    value={profile.targetExams}
-                    onChange={(e) =>
-                      updateProfile(
-                        "targetExams",
-                        Number(e.target.value)
-                      )
-                    }
-                  />
-
-                  <FieldError
-                    message={profileErr.targetExams}
-                  />
-
-                  <p className="text-xs text-muted-foreground">
-                    Digunakan untuk menghitung ketercapaian
-                    target di Dashboard.
-                  </p>
+            <CardContent className="max-w-3xl pt-6">
+              {loading ? (
+                <div className="space-y-4">
+                  <div className="h-20 animate-pulse rounded-lg bg-muted" />
+                  <div className="h-16 animate-pulse rounded-lg bg-muted" />
+                  <div className="h-16 animate-pulse rounded-lg bg-muted" />
                 </div>
+              ) : (
+                <div className="space-y-5">
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <div className="space-y-2">
+                      <Label htmlFor="p-target">
+                        Target paket ujian per bulan
+                      </Label>
+                      <Input
+                        id="p-target"
+                        type="number"
+                        min={1}
+                        max={100}
+                        step={1}
+                        value={prefs.targetExams}
+                        onChange={(e) =>
+                          updatePreferences(
+                            "targetExams",
+                            e.target.value === ""
+                              ? 0
+                              : Number(e.target.value)
+                          )
+                        }
+                        aria-invalid={Boolean(
+                          prefsErr.targetExams
+                        )}
+                      />
+                      <FieldError
+                        message={prefsErr.targetExams}
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        Digunakan untuk menghitung ketercapaian
+                        target di Dashboard.
+                      </p>
+                    </div>
 
-                <div className="space-y-2">
-                  <Label>
-                    Target Waktu Belajar Harian
-                  </Label>
+                    <div className="space-y-2">
+                      <Label>Target waktu belajar harian</Label>
+                      <Select
+                        value={prefs.dailyGoal}
+                        onValueChange={(value) =>
+                          updatePreferences("dailyGoal", value)
+                        }
+                      >
+                        <SelectTrigger
+                          aria-invalid={Boolean(
+                            prefsErr.dailyGoal
+                          )}
+                        >
+                          <SelectValue placeholder="Pilih target belajar" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {["15", "30", "60", "90"].map(
+                            (minutes) => (
+                              <SelectItem
+                                key={minutes}
+                                value={minutes}
+                              >
+                                {minutes} menit / hari
+                              </SelectItem>
+                            )
+                          )}
+                        </SelectContent>
+                      </Select>
+                      <FieldError
+                        message={prefsErr.dailyGoal}
+                      />
+                    </div>
+                  </div>
 
-                  <Select
-                    value={prefs.dailyGoal}
-                    onValueChange={(value) =>
-                      setPrefs({
-                        ...prefs,
-                        dailyGoal: value,
-                      })
-                    }
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
+                  <div className="divide-y rounded-xl border px-4">
+                    <SettingRow
+                      id="autoplay"
+                      title="Putar pelajaran berikutnya otomatis"
+                      description="Lanjut ke pembahasan berikutnya secara otomatis."
+                      checked={prefs.autoplay}
+                      onChange={(value) =>
+                        updatePreferences("autoplay", value)
+                      }
+                    />
 
-                    <SelectContent>
-                      {["15", "30", "60", "90"].map(
-                        (minutes) => (
-                          <SelectItem
-                            key={minutes}
-                            value={minutes}
-                          >
-                            {minutes} menit / hari
-                          </SelectItem>
-                        )
-                      )}
-                    </SelectContent>
-                  </Select>
+                    <SettingRow
+                      id="timer"
+                      title="Tampilkan timer saat ujian"
+                      description="Tampilkan sisa waktu selama mengerjakan ujian."
+                      checked={prefs.showTimer}
+                      onChange={(value) =>
+                        updatePreferences("showTimer", value)
+                      }
+                    />
+                  </div>
+
+                  <div className="flex flex-col gap-3 border-t pt-5 sm:flex-row sm:items-center sm:justify-between">
+                    <p className="text-xs text-muted-foreground">
+                      Preferensi ini mengikuti akun saat Anda
+                      masuk dari perangkat lain.
+                    </p>
+
+                    <Button
+                      type="button"
+                      onClick={savePreferences}
+                      disabled={savingPreferences}
+                      className="w-full sm:w-auto"
+                    >
+                      {savingPreferences
+                        ? "Menyimpan..."
+                        : "Simpan Preferensi"}
+                    </Button>
+                  </div>
                 </div>
-              </div>
-
-              <SettingRow
-                id="autoplay"
-                title="Putar pelajaran berikutnya otomatis"
-                description="Lanjut ke pembahasan berikutnya secara otomatis."
-                checked={prefs.autoplay}
-                onChange={(value) =>
-                  setPrefs({
-                    ...prefs,
-                    autoplay: value,
-                  })
-                }
-              />
-
-              <SettingRow
-                id="timer"
-                title="Tampilkan timer saat ujian"
-                description="Timer selalu terlihat di ruang ujian."
-                checked={prefs.showTimer}
-                onChange={(value) =>
-                  setPrefs({
-                    ...prefs,
-                    showTimer: value,
-                  })
-                }
-              />
-
-              <div className="pt-5">
-                <Button
-                  onClick={() => saveProfile()}
-                  disabled={savingProfile || loading}
-                >
-                  {savingProfile
-                    ? "Menyimpan Target..."
-                    : "Simpan Preferensi & Target"}
-                </Button>
-              </div>
+              )}
             </CardContent>
           </Card>
         </TabsContent>
 
-        {/* ================================================= */}
-        {/* NOTIFIKASI */}
-        {/* ================================================= */}
-
-        <TabsContent value="notifications">
-          <Card>
-            <CardHeader>
-              <CardTitle>Notifikasi</CardTitle>
-
-              <CardDescription>
-                Atur pemberitahuan yang ingin Anda terima.
-              </CardDescription>
-            </CardHeader>
-
-            <CardContent className="max-w-2xl divide-y">
-              <SettingRow
-                id="n-email"
-                title="Notifikasi email"
-                description="Terima ringkasan aktivitas melalui email."
-                checked={notif.email}
-                onChange={(value) =>
-                  setNotif({
-                    ...notif,
-                    email: value,
-                  })
-                }
-              />
-
-              <SettingRow
-                id="n-reminder"
-                title="Pengingat belajar"
-                description="Ingatkan saya agar menjaga streak harian."
-                checked={notif.reminder}
-                onChange={(value) =>
-                  setNotif({
-                    ...notif,
-                    reminder: value,
-                  })
-                }
-              />
-
-              <SettingRow
-                id="n-results"
-                title="Hasil ujian"
-                description="Beritahu saya saat hasil ujian tersedia."
-                checked={notif.results}
-                onChange={(value) =>
-                  setNotif({
-                    ...notif,
-                    results: value,
-                  })
-                }
-              />
-
-              <SettingRow
-                id="n-promo"
-                title="Info promo"
-                description="Kabar tentang fitur baru dan penawaran."
-                checked={notif.promo}
-                onChange={(value) =>
-                  setNotif({
-                    ...notif,
-                    promo: value,
-                  })
-                }
-              />
-
-              <div className="pt-5">
-                <Button
-                  onClick={() =>
-                    toast.success(
-                      "Preferensi notifikasi diperbarui"
-                    )
-                  }
-                >
-                  Simpan Notifikasi
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        {/* ================================================= */}
+        {/* ============================================= */}
         {/* TAMPILAN */}
-        {/* ================================================= */}
+        {/* ============================================= */}
 
-        <TabsContent value="appearance">
+        <TabsContent value="appearance" className="mt-5">
           <Card>
-            <CardHeader>
-              <CardTitle>Tampilan</CardTitle>
-
-              <CardDescription>
-                Pilih mode terang atau gelap. Pilihan disimpan
-                di perangkat ini.
-              </CardDescription>
+            <CardHeader className="border-b bg-muted/20">
+              <div className="flex items-center gap-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 text-primary">
+                  <Palette className="h-5 w-5 text-primary" />
+                </div>
+                <div>
+                  <CardTitle>Tampilan GradeUp</CardTitle>
+                  <CardDescription className="mt-1">
+                    Pilih tema yang paling nyaman digunakan.
+                  </CardDescription>
+                </div>
+              </div>
             </CardHeader>
 
-            <CardContent className="max-w-2xl">
+            <CardContent className="max-w-2xl pt-6">
               <ThemePicker />
+              <p className="mt-4 text-xs text-muted-foreground">
+                Pilihan tema disimpan secara otomatis di
+                perangkat ini.
+              </p>
             </CardContent>
           </Card>
         </TabsContent>
