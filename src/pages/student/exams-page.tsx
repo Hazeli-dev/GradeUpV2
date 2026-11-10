@@ -1,3 +1,4 @@
+
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
@@ -60,11 +61,7 @@ interface StudentExamResult {
   passingScore: number;
 }
 
-const STATUS_ORDER: ExamStatus[] = [
-  "Aktif",
-  "Akan Datang",
-  "Selesai",
-];
+const STATUS_ORDER: ExamStatus[] = ["Aktif", "Akan Datang", "Selesai"];
 
 const GRADES_BY_LEVEL: Record<string, number[]> = {
   SD: [1, 2, 3, 4, 5, 6],
@@ -121,8 +118,7 @@ function getCategoryTheme(category: string) {
     return {
       icon: Zap,
       color: "text-sky-700 dark:text-sky-300",
-      badge:
-        "border-sky-200 bg-sky-50 dark:border-sky-800 dark:bg-sky-950/50",
+      badge: "border-sky-200 bg-sky-50 dark:border-sky-800 dark:bg-sky-950/50",
       gradient: "from-sky-500 to-cyan-500",
     };
   }
@@ -131,8 +127,7 @@ function getCategoryTheme(category: string) {
     return {
       icon: FileText,
       color: "text-violet-700 dark:text-violet-300",
-      badge:
-        "border-violet-200 bg-violet-50 dark:border-violet-800 dark:bg-violet-950/50",
+      badge: "border-violet-200 bg-violet-50 dark:border-violet-800 dark:bg-violet-950/50",
       gradient: "from-violet-500 to-purple-500",
     };
   }
@@ -141,8 +136,7 @@ function getCategoryTheme(category: string) {
     return {
       icon: Award,
       color: "text-blue-700 dark:text-blue-300",
-      badge:
-        "border-blue-200 bg-blue-50 dark:border-blue-800 dark:bg-blue-950/50",
+      badge: "border-blue-200 bg-blue-50 dark:border-blue-800 dark:bg-blue-950/50",
       gradient: "from-blue-500 to-indigo-500",
     };
   }
@@ -150,8 +144,7 @@ function getCategoryTheme(category: string) {
   return {
     icon: BookOpen,
     color: "text-emerald-700 dark:text-emerald-300",
-    badge:
-      "border-emerald-200 bg-emerald-50 dark:border-emerald-800 dark:bg-emerald-950/50",
+    badge: "border-emerald-200 bg-emerald-50 dark:border-emerald-800 dark:bg-emerald-950/50",
     gradient: "from-emerald-500 to-teal-500",
   };
 }
@@ -160,7 +153,6 @@ function formatDate(value?: string) {
   if (!value) return "-";
 
   const date = new Date(value);
-
   if (Number.isNaN(date.getTime())) return "-";
 
   return date.toLocaleDateString("id-ID", {
@@ -193,8 +185,6 @@ export default function StudentExamsPage() {
   const [errorMessage, setErrorMessage] = useState("");
 
   const [examPackages, setExamPackages] = useState<ExamPackageItem[]>([]);
-
-  // Status hasil ujian khusus siswa yang sedang login.
   const [examResults, setExamResults] = useState<
     Record<string, StudentExamResult>
   >({});
@@ -230,16 +220,12 @@ export default function StudentExamsPage() {
         error: sessionError,
       } = await supabase.auth.getSession();
 
-      if (sessionError) {
-        throw sessionError;
-      }
+      if (sessionError) throw sessionError;
 
       const user = session?.user;
 
       if (!user) {
-        throw new Error(
-          "Sesi login tidak ditemukan. Silakan login kembali."
-        );
+        throw new Error("Sesi login tidak ditemukan. Silakan login kembali.");
       }
 
       // 2. Ambil profil siswa.
@@ -248,9 +234,7 @@ export default function StudentExamsPage() {
         error: profileError,
       } = await supabase
         .from("profiles")
-        .select(
-          "full_name, name, total_xp, level, education_level, grade"
-        )
+        .select("full_name, name, total_xp, level, education_level, grade")
         .eq("id", user.id)
         .maybeSingle();
 
@@ -267,15 +251,13 @@ export default function StudentExamsPage() {
         );
 
         const educationLevel = profile.education_level || "";
-        const grade =
-          profile.grade != null ? Number(profile.grade) : null;
+        const grade = profile.grade != null ? Number(profile.grade) : null;
 
         setProfileLevel(educationLevel);
         setProfileGrade(grade);
 
         setSelectedLevel(educationLevel || ALL);
         setSelectedGrade(grade != null ? String(grade) : ALL);
-
         setSelectedSubject(ALL);
         setSelectedExamType(ALL);
 
@@ -291,14 +273,10 @@ export default function StudentExamsPage() {
 
         setCurrentXp(totalXp % maxXp);
         setLevel(
-          Number(profile.level) ||
-            Math.floor(totalXp / maxXp) + 1
+          Number(profile.level) || Math.floor(totalXp / maxXp) + 1
         );
       } else {
-        setStudentName(
-          user.email?.split("@")[0] || "Siswa GradeUp"
-        );
-
+        setStudentName(user.email?.split("@")[0] || "Siswa GradeUp");
         setProfileLevel("");
         setProfileGrade(null);
         setSelectedLevel(ALL);
@@ -318,98 +296,86 @@ export default function StudentExamsPage() {
         .or("is_published.eq.true,status.eq.Published")
         .order("created_at", { ascending: false });
 
-      if (packagesError) {
-        throw packagesError;
-      }
+      if (packagesError) throw packagesError;
 
       const now = Date.now();
 
-      const formattedPackages: ExamPackageItem[] = (
-        packages || []
-      ).map((pkg: any) => {
-        const startDate = pkg.start_time
-          ? new Date(pkg.start_time)
-          : new Date(pkg.created_at || Date.now());
+      const formattedPackages: ExamPackageItem[] = (packages || []).map(
+        (pkg: any) => {
+          const startDate = pkg.start_time
+            ? new Date(pkg.start_time)
+            : new Date(pkg.created_at || Date.now());
 
-        const endDate = pkg.end_time
-          ? new Date(pkg.end_time)
-          : null;
+          const endDate = pkg.end_time ? new Date(pkg.end_time) : null;
 
-        let status: ExamStatus = "Aktif";
-        let daysLeft: number | undefined;
-        let timeProgress: number | undefined;
+          let status: ExamStatus = "Aktif";
+          let daysLeft: number | undefined;
+          let timeProgress: number | undefined;
 
-        if (startDate.getTime() > now) {
-          status = "Akan Datang";
-        } else if (endDate && now > endDate.getTime()) {
-          status = "Selesai";
-        } else {
-          status = "Aktif";
+          if (startDate.getTime() > now) {
+            status = "Akan Datang";
+          } else if (endDate && now > endDate.getTime()) {
+            status = "Selesai";
+          } else {
+            status = "Aktif";
 
-          if (endDate) {
-            const diffMs = endDate.getTime() - now;
+            if (endDate) {
+              const diffMs = endDate.getTime() - now;
 
-            daysLeft = Math.max(
-              1,
-              Math.ceil(diffMs / (1000 * 60 * 60 * 24))
-            );
-
-            const total =
-              endDate.getTime() - startDate.getTime();
-
-            if (total > 0) {
-              timeProgress = Math.min(
-                100,
-                Math.max(
-                  0,
-                  ((now - startDate.getTime()) / total) * 100
-                )
+              daysLeft = Math.max(
+                1,
+                Math.ceil(diffMs / (1000 * 60 * 60 * 24))
               );
+
+              const total = endDate.getTime() - startDate.getTime();
+
+              if (total > 0) {
+                timeProgress = Math.min(
+                  100,
+                  Math.max(
+                    0,
+                    ((now - startDate.getTime()) / total) * 100
+                  )
+                );
+              }
             }
           }
+
+          const packageLevel = pkg.level || "";
+          const packageGrade =
+            pkg.grade != null ? Number(pkg.grade) : null;
+
+          return {
+            id: pkg.id,
+            title: pkg.title || "Paket Ujian",
+            subject: pkg.subject || "Belum ditentukan",
+            category: pkg.type || "Ujian",
+            education_level: packageLevel,
+            grade: packageGrade,
+            class_info: packageLevel
+              ? `${getLevelLabel(packageLevel)}${
+                  packageGrade != null ? ` • Kelas ${packageGrade}` : ""
+                }`
+              : "Semua Jenjang",
+            bab_info: pkg.description || "Materi Ujian",
+            start_time: pkg.start_time,
+            end_time: pkg.end_time,
+            status,
+            days_left: daysLeft,
+            time_progress: timeProgress,
+            premium: Boolean(pkg.premium),
+            passing_score:
+              pkg.passing_score != null &&
+              Number.isFinite(Number(pkg.passing_score))
+                ? Number(pkg.passing_score)
+                : DEFAULT_PASSING_SCORE,
+            start_date_str: formatDate(pkg.start_time || pkg.created_at),
+          };
         }
+      );
 
-        const packageLevel = pkg.level || "";
-        const packageGrade =
-          pkg.grade != null ? Number(pkg.grade) : null;
-
-        return {
-          id: pkg.id,
-          title: pkg.title || "Paket Ujian",
-          subject: pkg.subject || "Belum ditentukan",
-          category: pkg.type || "Ujian",
-          education_level: packageLevel,
-          grade: packageGrade,
-          class_info: packageLevel
-            ? `${getLevelLabel(packageLevel)}${
-                packageGrade != null
-                  ? ` • Kelas ${packageGrade}`
-                  : ""
-              }`
-            : "Semua Jenjang",
-          bab_info: pkg.description || "Materi Ujian",
-          start_time: pkg.start_time,
-          end_time: pkg.end_time,
-          status,
-          days_left: daysLeft,
-          time_progress: timeProgress,
-          premium: Boolean(pkg.premium),
-          passing_score:
-            pkg.passing_score != null &&
-            Number.isFinite(Number(pkg.passing_score))
-              ? Number(pkg.passing_score)
-              : DEFAULT_PASSING_SCORE,
-          start_date_str: formatDate(
-            pkg.start_time || pkg.created_at
-          ),
-        };
-      });
-
-      // 4. Ambil semua riwayat ujian yang sudah dikumpulkan.
-      // Data hanya milik siswa yang sedang login.
-      // Ujian yang masih berjalan tidak dihitung sebagai selesai.
+      // 4. Ambil riwayat ujian siswa yang sudah selesai.
       const packageIds = formattedPackages.map((pkg) => pkg.id);
-
       const resultsMap: Record<string, StudentExamResult> = {};
 
       if (packageIds.length > 0) {
@@ -424,11 +390,8 @@ export default function StudentExamsPage() {
           .in("exam_id", packageIds)
           .order("created_at", { ascending: false });
 
-        if (attemptsError) {
-          throw attemptsError;
-        }
+        if (attemptsError) throw attemptsError;
 
-        // Kelompokkan hasil pengerjaan berdasarkan paket ujian.
         const attemptsByExam: Record<
           string,
           { score: number; createdAt: string }[]
@@ -449,17 +412,11 @@ export default function StudentExamsPage() {
 
         formattedPackages.forEach((pkg) => {
           const attempts = attemptsByExam[pkg.id] || [];
-
           if (attempts.length === 0) return;
 
           const passingScore = pkg.passing_score;
-
-          // Karena query sudah diurutkan terbaru,
-          // attempts[0] adalah hasil pengerjaan terbaru.
           const latestAttempt = attempts[0];
 
-          // Siswa dinyatakan lulus jika minimal satu percobaan
-          // mencapai atau melampaui KKM paket tersebut.
           const passedAttempt = attempts.find(
             (attempt) => attempt.score >= passingScore
           );
@@ -518,13 +475,10 @@ export default function StudentExamsPage() {
   const availableGrades = useMemo(() => {
     if (selectedLevel === ALL) return [];
 
-    const configuredGrades =
-      GRADES_BY_LEVEL[selectedLevel] || [];
+    const configuredGrades = GRADES_BY_LEVEL[selectedLevel] || [];
 
     const packageGrades = examPackages
-      .filter(
-        (item) => item.education_level === selectedLevel
-      )
+      .filter((item) => item.education_level === selectedLevel)
       .map((item) => item.grade)
       .filter((grade): grade is number => grade != null);
 
@@ -580,9 +534,7 @@ export default function StudentExamsPage() {
 
   const statusCounts = useMemo(
     () => ({
-      Aktif: examPackages.filter(
-        (item) => item.status === "Aktif"
-      ).length,
+      Aktif: examPackages.filter((item) => item.status === "Aktif").length,
       "Akan Datang": examPackages.filter(
         (item) => item.status === "Akan Datang"
       ).length,
@@ -597,9 +549,7 @@ export default function StudentExamsPage() {
     const results = Object.values(examResults);
 
     return {
-      passed: results.filter(
-        (result) => result.status === "LULUS"
-      ).length,
+      passed: results.filter((result) => result.status === "LULUS").length,
       failed: results.filter(
         (result) => result.status === "BELUM LULUS"
       ).length,
@@ -668,8 +618,7 @@ export default function StudentExamsPage() {
         .filter((item) => item.status === status)
         .sort((a, b) =>
           status === "Aktif"
-            ? (a.days_left ?? Infinity) -
-              (b.days_left ?? Infinity)
+            ? (a.days_left ?? Infinity) - (b.days_left ?? Infinity)
             : 0
         ),
     })).filter((group) => group.items.length > 0);
@@ -697,43 +646,39 @@ export default function StudentExamsPage() {
   if (loading) return <PageSkeleton />;
 
   return (
-    <div className="min-h-full w-full space-y-7 pb-12 text-foreground">
+    <div className="min-h-full w-full space-y-6 pb-10 text-foreground sm:space-y-7">
       {/* HERO */}
-      <section className="relative isolate overflow-hidden rounded-[28px] border border-emerald-500/20 bg-slate-950 shadow-xl shadow-emerald-950/10">
+      <section className="relative isolate overflow-hidden rounded-3xl border border-emerald-500/20 bg-slate-950 shadow-xl shadow-emerald-950/10">
         <div className="absolute inset-0 -z-10 bg-gradient-to-br from-emerald-700 via-teal-800 to-slate-950" />
-
         <div className="absolute -right-24 -top-28 -z-10 h-80 w-80 rounded-full bg-emerald-400/20 blur-3xl" />
         <div className="absolute -bottom-36 left-1/3 -z-10 h-80 w-80 rounded-full bg-cyan-400/10 blur-3xl" />
 
-        <div className="absolute right-5 top-5 hidden opacity-[0.07] sm:block">
+        <div className="absolute right-5 top-5 hidden opacity-[0.06] sm:block">
           <GraduationCap className="h-56 w-56 text-white" />
         </div>
 
-        <div className="relative p-6 sm:p-8 lg:p-9">
-          <div className="flex flex-col gap-7">
+        <div className="relative p-5 sm:p-8 lg:p-9">
+          <div className="flex flex-col gap-6">
             <div className="flex flex-col justify-between gap-5 sm:flex-row sm:items-start">
-              <div className="flex items-start gap-4">
-                <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl border border-white/20 bg-white/10 text-white shadow-lg backdrop-blur-md sm:h-16 sm:w-16">
-                  <Trophy className="h-7 w-7 sm:h-8 sm:w-8" />
+              <div className="flex min-w-0 items-start gap-3.5 sm:gap-4">
+                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-white/20 bg-white/10 text-white shadow-lg backdrop-blur-md sm:h-16 sm:w-16">
+                  <Trophy className="h-6 w-6 sm:h-8 sm:w-8" />
                 </div>
 
                 <div className="min-w-0">
-                  <div className="mb-2 inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/10 px-3 py-1 text-[10px] font-bold uppercase tracking-[0.18em] text-emerald-100 backdrop-blur-md">
+                  <div className="mb-2 inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/10 px-3 py-1 text-[10px] font-bold uppercase tracking-[0.16em] text-emerald-100 backdrop-blur-md">
                     <Sparkles className="h-3.5 w-3.5" />
                     GradeUp Exam Center
                   </div>
 
                   <h1 className="text-2xl font-black tracking-tight text-white sm:text-3xl lg:text-4xl">
-                    Ruang Ujian
-                    <span className="text-emerald-300"> Siswa</span>
+                    Ruang Ujian <span className="text-emerald-300">Siswa</span>
                   </h1>
 
                   <p className="mt-2 max-w-xl text-sm leading-relaxed text-emerald-50/75 sm:text-[15px]">
                     Selamat datang,{" "}
-                    <span className="font-bold text-white">
-                      {studentName}
-                    </span>
-                    . Siapkan dirimu dan tunjukkan kemampuan terbaikmu hari ini.
+                    <span className="font-bold text-white">{studentName}</span>.
+                    Siapkan dirimu dan tunjukkan kemampuan terbaikmu hari ini.
                   </p>
                 </div>
               </div>
@@ -747,7 +692,8 @@ export default function StudentExamsPage() {
               </div>
             </div>
 
-            <div className="grid gap-5 border-t border-white/15 pt-6 lg:grid-cols-[1.1fr_0.9fr] lg:items-end">
+            <div className="grid gap-4 border-t border-white/15 pt-5 sm:pt-6 lg:grid-cols-[1.1fr_0.9fr] lg:items-end">
+              {/* XP */}
               <div className="rounded-2xl border border-white/10 bg-black/10 p-4 backdrop-blur-sm sm:p-5">
                 <div className="flex items-center justify-between gap-3">
                   <div className="flex items-center gap-2 text-sm font-bold text-white">
@@ -756,13 +702,12 @@ export default function StudentExamsPage() {
                     </div>
                     Level {level}
                   </div>
-
                   <span className="text-xs font-semibold text-emerald-100/80">
                     Progres XP
                   </span>
                 </div>
 
-                <div className="mt-5 flex items-end justify-between gap-3">
+                <div className="mt-4 flex items-end justify-between gap-3">
                   <div>
                     <p className="text-3xl font-black tracking-tight text-white tabular-nums">
                       {currentXp.toLocaleString("id-ID")}
@@ -770,12 +715,11 @@ export default function StudentExamsPage() {
                         XP
                       </span>
                     </p>
-
                     <p className="mt-1 text-xs text-emerald-100/70">
-                      {xpRemaining.toLocaleString("id-ID")} XP menuju target progres berikutnya
+                      {xpRemaining.toLocaleString("id-ID")} XP menuju target
+                      progres berikutnya
                     </p>
                   </div>
-
                   <Zap className="mb-1 h-7 w-7 text-amber-300" />
                 </div>
 
@@ -792,7 +736,8 @@ export default function StudentExamsPage() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-3 gap-2.5">
+              {/* STATUS SUMMARY */}
+              <div className="grid grid-cols-3 gap-2 sm:gap-2.5">
                 {[
                   {
                     label: "Aktif",
@@ -833,7 +778,6 @@ export default function StudentExamsPage() {
                         >
                           <Icon className="h-4 w-4" />
                         </div>
-
                         <div>
                           <p className="text-2xl font-black text-white tabular-nums sm:text-3xl">
                             {item.value}
@@ -852,60 +796,79 @@ export default function StudentExamsPage() {
         </div>
       </section>
 
-      {/* RINGKASAN HASIL UJIAN */}
-      <section className="grid grid-cols-3 gap-3">
-        <div className="rounded-2xl border border-rose-500/20 bg-rose-500/5 p-3 sm:p-4">
-          <div className="flex items-center gap-2 text-rose-700 dark:text-rose-300">
-            <Sparkles className="h-4 w-4" />
-            <span className="text-xs font-bold">Belum dikerjakan</span>
+      {/* RINGKASAN HASIL */}
+      <section className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+        <div className="rounded-2xl border border-rose-500/20 bg-card p-4 shadow-sm transition-colors hover:bg-rose-500/[0.03]">
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2 text-rose-700 dark:text-rose-300">
+              <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-rose-500/10">
+                <Sparkles className="h-4 w-4" />
+              </div>
+              <span className="text-xs font-bold sm:text-sm">
+                Belum dikerjakan
+              </span>
+            </div>
+            <span className="text-2xl font-black tabular-nums text-rose-700 dark:text-rose-300">
+              {resultCounts.new}
+            </span>
           </div>
-          <p className="mt-2 text-2xl font-black tabular-nums text-rose-700 dark:text-rose-300">
-            {resultCounts.new}
-          </p>
-          <p className="mt-0.5 text-[10px] text-muted-foreground">
+          <p className="mt-2 text-xs text-muted-foreground">
             Paket berstatus NEW
           </p>
         </div>
 
-        <div className="rounded-2xl border border-emerald-500/20 bg-emerald-500/5 p-3 sm:p-4">
-          <div className="flex items-center gap-2 text-emerald-700 dark:text-emerald-300">
-            <CheckCircle2 className="h-4 w-4" />
-            <span className="text-xs font-bold">Lulus</span>
+        <div className="rounded-2xl border border-emerald-500/20 bg-card p-4 shadow-sm transition-colors hover:bg-emerald-500/[0.03]">
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2 text-emerald-700 dark:text-emerald-300">
+              <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-emerald-500/10">
+                <CheckCircle2 className="h-4 w-4" />
+              </div>
+              <span className="text-xs font-bold sm:text-sm">Lulus</span>
+            </div>
+            <span className="text-2xl font-black tabular-nums text-emerald-700 dark:text-emerald-300">
+              {resultCounts.passed}
+            </span>
           </div>
-          <p className="mt-2 text-2xl font-black tabular-nums text-emerald-700 dark:text-emerald-300">
-            {resultCounts.passed}
-          </p>
-          <p className="mt-0.5 text-[10px] text-muted-foreground">
+          <p className="mt-2 text-xs text-muted-foreground">
             Memenuhi nilai KKM
           </p>
         </div>
 
-        <div className="rounded-2xl border border-amber-500/20 bg-amber-500/5 p-3 sm:p-4">
-          <div className="flex items-center gap-2 text-amber-700 dark:text-amber-300">
-            <AlertCircle className="h-4 w-4" />
-            <span className="text-xs font-bold">Belum lulus</span>
+        <div className="rounded-2xl border border-amber-500/20 bg-card p-4 shadow-sm transition-colors hover:bg-amber-500/[0.03]">
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2 text-amber-700 dark:text-amber-300">
+              <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-amber-500/10">
+                <AlertCircle className="h-4 w-4" />
+              </div>
+              <span className="text-xs font-bold sm:text-sm">
+                Belum lulus
+              </span>
+            </div>
+            <span className="text-2xl font-black tabular-nums text-amber-700 dark:text-amber-300">
+              {resultCounts.failed}
+            </span>
           </div>
-          <p className="mt-2 text-2xl font-black tabular-nums text-amber-700 dark:text-amber-300">
-            {resultCounts.failed}
-          </p>
-          <p className="mt-0.5 text-[10px] text-muted-foreground">
+          <p className="mt-2 text-xs text-muted-foreground">
             Belum mencapai KKM
           </p>
         </div>
       </section>
 
       {/* KONTEKS SISWA */}
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-2 text-sm text-muted-foreground">
-          <GraduationCap className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
-          <span>{userClass}</span>
+      <div className="flex flex-col gap-3 rounded-2xl border border-border bg-card px-4 py-3 shadow-sm sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex min-w-0 items-center gap-2 text-xs text-muted-foreground sm:text-sm">
+          <GraduationCap className="h-4 w-4 shrink-0 text-emerald-600 dark:text-emerald-400" />
+          <span className="truncate font-semibold text-foreground">
+            {userClass}
+          </span>
           <span className="text-border">/</span>
-          <span>Daftar evaluasi pembelajaran</span>
+          <span className="truncate">Daftar evaluasi pembelajaran</span>
         </div>
 
         <button
+          type="button"
           onClick={fetchExamsData}
-          className="inline-flex items-center gap-2 rounded-lg px-3 py-2 text-xs font-bold text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+          className="inline-flex w-fit items-center gap-2 rounded-lg px-3 py-2 text-xs font-bold text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
         >
           <RefreshCw className="h-3.5 w-3.5" />
           Perbarui data
@@ -915,18 +878,17 @@ export default function StudentExamsPage() {
       {/* FILTER PAKET UJIAN */}
       <section className="overflow-hidden rounded-2xl border border-border bg-card shadow-sm">
         <div className="flex flex-col gap-4 p-4 sm:p-5">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div className="flex items-center gap-2">
-              <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
-                <Layers3 className="h-4 w-4" />
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
+                <Layers3 className="h-5 w-5" />
               </div>
-
               <div>
                 <h2 className="text-lg font-black tracking-tight text-foreground">
                   Paket Ujian
                 </h2>
                 <p className="text-xs text-muted-foreground">
-                  Filter ujian berdasarkan jenjang, kelas, dan mata pelajaran
+                  Temukan ujian sesuai jenjang dan mata pelajaran
                 </p>
               </div>
             </div>
@@ -936,7 +898,7 @@ export default function StudentExamsPage() {
               size="sm"
               variant="outline"
               onClick={resetToProfile}
-              className="gap-2 rounded-xl"
+              className="w-fit gap-2 rounded-xl"
             >
               <RotateCcw className="h-3.5 w-3.5" />
               Reset ke Profil Saya
@@ -951,8 +913,9 @@ export default function StudentExamsPage() {
                   Profil pendidikan belum dilengkapi
                 </p>
                 <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
-                  Saat ini semua jenjang ditampilkan. Lengkapi jenjang dan kelas
-                  melalui Pengaturan Profil agar filter otomatis mengikuti profilmu.
+                  Saat ini semua jenjang ditampilkan. Lengkapi jenjang dan
+                  kelas melalui Pengaturan Profil agar filter otomatis
+                  mengikuti profilmu.
                 </p>
               </div>
             </div>
@@ -966,7 +929,6 @@ export default function StudentExamsPage() {
               >
                 Jenjang Pendidikan
               </label>
-
               <select
                 id="exam-level"
                 value={selectedLevel}
@@ -994,7 +956,6 @@ export default function StudentExamsPage() {
               >
                 Kelas
               </label>
-
               <select
                 id="exam-grade"
                 value={selectedGrade}
@@ -1022,13 +983,10 @@ export default function StudentExamsPage() {
               >
                 Mata Pelajaran
               </label>
-
               <select
                 id="exam-subject"
                 value={selectedSubject}
-                onChange={(event) =>
-                  setSelectedSubject(event.target.value)
-                }
+                onChange={(event) => setSelectedSubject(event.target.value)}
                 className="h-11 w-full rounded-xl border border-border bg-background px-3 text-sm text-foreground outline-none transition focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/10"
               >
                 <option value={ALL}>Semua Mata Pelajaran</option>
@@ -1047,13 +1005,10 @@ export default function StudentExamsPage() {
               >
                 Jenis Ujian
               </label>
-
               <select
                 id="exam-type"
                 value={selectedExamType}
-                onChange={(event) =>
-                  setSelectedExamType(event.target.value)
-                }
+                onChange={(event) => setSelectedExamType(event.target.value)}
                 className="h-11 w-full rounded-xl border border-border bg-background px-3 text-sm text-foreground outline-none transition focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/10"
               >
                 <option value={ALL}>Semua Jenis Ujian</option>
@@ -1069,19 +1024,17 @@ export default function StudentExamsPage() {
           <div className="flex flex-col gap-3 border-t border-border pt-4 sm:flex-row sm:items-center sm:justify-between">
             <div className="relative w-full sm:max-w-sm">
               <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-
               <input
                 type="search"
                 value={searchQuery}
-                onChange={(event) =>
-                  setSearchQuery(event.target.value)
-                }
+                onChange={(event) => setSearchQuery(event.target.value)}
                 placeholder="Cari paket, mapel, atau materi..."
                 className="h-11 w-full rounded-xl border border-border bg-muted/40 pl-10 pr-10 text-sm text-foreground outline-none transition-all placeholder:text-muted-foreground focus:border-emerald-500 focus:bg-background focus:ring-4 focus:ring-emerald-500/10"
               />
 
               {searchQuery && (
                 <button
+                  type="button"
                   onClick={() => setSearchQuery("")}
                   aria-label="Hapus pencarian"
                   className="absolute right-2 top-1/2 -translate-y-1/2 rounded-lg p-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
@@ -1129,8 +1082,9 @@ export default function StudentExamsPage() {
               )}
 
               <button
+                type="button"
                 onClick={resetAllFilters}
-                className="ml-1 text-xs font-bold text-muted-foreground hover:text-foreground"
+                className="ml-1 text-xs font-bold text-muted-foreground transition-colors hover:text-foreground"
               >
                 Hapus semua filter
               </button>
@@ -1146,12 +1100,11 @@ export default function StudentExamsPage() {
             <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-rose-500/10 text-rose-600 dark:text-rose-400">
               <AlertCircle className="h-5 w-5" />
             </div>
-
-            <div>
+            <div className="min-w-0">
               <p className="text-sm font-bold text-foreground">
                 Gagal memuat paket ujian
               </p>
-              <p className="mt-1 text-xs text-muted-foreground">
+              <p className="mt-1 break-words text-xs text-muted-foreground">
                 {errorMessage}
               </p>
             </div>
@@ -1218,12 +1171,10 @@ export default function StudentExamsPage() {
                         <h3 className="text-base font-black tracking-tight text-foreground">
                           {config.title}
                         </h3>
-
                         <span className="rounded-full bg-muted px-2 py-0.5 text-[10px] font-black text-muted-foreground">
                           {items.length} paket
                         </span>
                       </div>
-
                       <p className="mt-0.5 text-xs text-muted-foreground">
                         {config.subtitle}
                       </p>
@@ -1241,11 +1192,8 @@ export default function StudentExamsPage() {
                       const isDone = pkg.status === "Selesai";
 
                       const examResult = examResults[pkg.id];
-
-                      // NEW hanya jika belum ada ujian berstatus completed.
                       const isNew = !examResult;
-                      const isPassed =
-                        examResult?.status === "LULUS";
+                      const isPassed = examResult?.status === "LULUS";
                       const isFailed =
                         examResult?.status === "BELUM LULUS";
 
@@ -1271,8 +1219,8 @@ export default function StudentExamsPage() {
                           />
 
                           <CardContent className="p-4 pl-5 sm:p-5 sm:pl-6">
-                            <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
-                              <div className="flex min-w-0 gap-4">
+                            <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                              <div className="flex min-w-0 gap-3.5 sm:gap-4">
                                 <div
                                   className={cn(
                                     "flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br text-white shadow-md transition-transform duration-300 group-hover:scale-105 sm:h-14 sm:w-14",
@@ -1416,7 +1364,6 @@ export default function StudentExamsPage() {
                                             }}
                                           />
                                         </div>
-
                                         <span className="text-[10px] font-bold tabular-nums text-muted-foreground">
                                           {Math.round(pkg.time_progress)}%
                                         </span>
@@ -1477,7 +1424,7 @@ export default function StudentExamsPage() {
       )}
 
       {/* FOOTER INFORMATION */}
-      <section className="relative overflow-hidden rounded-2xl border border-emerald-500/20 bg-gradient-to-br from-emerald-500/10 via-card to-teal-500/5 p-5 sm:p-6">
+      <section className="relative overflow-hidden rounded-2xl border border-emerald-500/20 bg-gradient-to-br from-emerald-500/10 via-card to-teal-500/5 p-5 shadow-sm sm:p-6">
         <div className="absolute -right-8 -top-10 h-36 w-36 rounded-full bg-emerald-500/10 blur-3xl" />
 
         <div className="relative flex items-start gap-4">
@@ -1489,11 +1436,10 @@ export default function StudentExamsPage() {
             <h4 className="text-sm font-black text-foreground">
               Persiapkan dirimu sebelum ujian
             </h4>
-
             <p className="mt-1.5 max-w-2xl text-xs leading-relaxed text-muted-foreground sm:text-sm">
-              Perhatikan jadwal dan batas waktu setiap paket ujian.
-              Pastikan koneksi internet stabil dan baca petunjuk
-              pengerjaan sebelum memulai evaluasi.
+              Perhatikan jadwal dan batas waktu setiap paket ujian. Pastikan
+              koneksi internet stabil dan baca petunjuk pengerjaan sebelum
+              memulai evaluasi.
             </p>
           </div>
 
