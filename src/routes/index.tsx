@@ -50,6 +50,7 @@ import AchievementsPage from "@/pages/student/achievements-page";
 import StatisticsPage from "@/pages/student/statistics-page";
 import ActivityPage from "@/pages/student/activity-page";
 import StudentSettingsPage from "@/pages/student/settings-page";
+import StudentGamesPage from "@/pages/student/games-page";
 
 // Halaman Admin
 import AdminOverviewPage from "@/pages/admin/overview-page";
@@ -166,7 +167,6 @@ function ProtectedRoute({
     };
   }, []);
 
-  // Tunggu sampai pemeriksaan sesi selesai.
   if (access.status === "loading") {
     return (
       <div className="flex min-h-screen flex-col items-center justify-center gap-3">
@@ -178,7 +178,6 @@ function ProtectedRoute({
     );
   }
 
-  // Pengguna belum login.
   if (access.status === "unauthenticated") {
     const redirectPath =
       location.pathname + location.search;
@@ -191,7 +190,6 @@ function ProtectedRoute({
     );
   }
 
-  // Terjadi kesalahan saat memeriksa profil.
   if (access.status === "error") {
     return (
       <div className="flex min-h-screen flex-col items-center justify-center gap-3 p-6 text-center">
@@ -213,12 +211,10 @@ function ProtectedRoute({
     );
   }
 
-  // Admin tidak boleh masuk ke dashboard siswa.
   if (allowedRole === "student" && access.role === "admin") {
     return <Navigate to="/admin" replace />;
   }
 
-  // Siswa tidak boleh masuk ke dashboard admin.
   if (allowedRole === "admin" && access.role !== "admin") {
     return <Navigate to="/dashboard" replace />;
   }
@@ -268,6 +264,9 @@ export function AppRoutes() {
             path="courses/:courseId/learn/:lessonId"
             element={<LessonLearningPage />}
           />
+
+          {/* GradeUp Games */}
+          <Route path="games" element={<StudentGamesPage />} />
 
           {/* Paket Ujian */}
           <Route path="exams" element={<StudentExamsPage />} />
