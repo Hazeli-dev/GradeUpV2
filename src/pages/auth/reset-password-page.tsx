@@ -30,33 +30,79 @@ export default function ResetPasswordPage() {
 
   useEffect(() => {
     let active = true;
+    let recoveryDetected = false;
 
-    const checkRecoverySession = async () => {
-      const {
-        data: { session },
-        error,
-      } = await supabase.auth.getSession();
+    let timeoutId: ReturnType<typeof setTimeout> | undefined;
 
+    const finishCheck = (isValid: boolean) => {
       if (!active) return;
 
-      setValidSession(!error && !!session);
+      setValidSession(isValid);
       setChecking(false);
+
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
     };
 
-    checkRecoverySession();
-
+    // Dengarkan event Supabase terlebih dahulu agar tidak
+    // melewatkan event PASSWORD_RECOVERY.
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((event, session) => {
       if (!active) return;
 
       if (event === "PASSWORD_RECOVERY") {
-        setValidSession(!!session);
+        recoveryDetected = true;
+        finishCheck(!!session);
+        return;
+      }
+
+      // Jika sesi pemulihan sudah berhasil dibuat.
+      if (
+        recoveryDetected &&
+        (event === "SIGNED_IN" || event === "TOKEN_REFRESHED")
+      ) {
+        finishCheck(!!session);
       }
     });
 
+    const checkSession = async () => {
+      try {
+        const {
+          data: { session },
+          error,
+        } = await supabase.auth.getSession();
+
+        if (!active) return;
+
+        if (error) throw error;
+
+        if (session) {
+          finishCheck(true);
+          return;
+        }
+
+        // Beri waktu kepada Supabase untuk memproses
+        // token pemulihan dari tautan email.
+        timeoutId = setTimeout(() => {
+          finishCheck(false);
+        }, 8000);
+      } catch (error) {
+        console.error("Recovery session error:", error);
+        finishCheck(false);
+      }
+    };
+
+    void checkSession();
+
     return () => {
       active = false;
+
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
+
       subscription.unsubscribe();
     };
   }, []);
@@ -94,16 +140,20 @@ export default function ResetPasswordPage() {
 
       if (error) throw error;
 
+      toast.success(
+        "Kata sandi berhasil diperbarui. Silakan masuk kembali."
+      );
+
       await supabase.auth.signOut();
 
-      toast.success("Kata sandi berhasil diperbarui. Silakan masuk kembali.");
-
       navigate("/login", { replace: true });
-    } catch (err) {
-      console.error("Reset password error:", err);
+    } catch (error) {
+      console.error("Reset password error:", error);
 
       toast.error(
-        "Gagal memperbarui kata sandi. Silakan buka kembali tautan reset dari email."
+        error instanceof Error
+          ? error.message
+          : "Gagal memperbarui kata sandi. Silakan buka kembali tautan reset dari email."
       );
     } finally {
       setLoading(false);
@@ -149,11 +199,7 @@ export default function ResetPasswordPage() {
         description="Buat kata sandi baru untuk akun Anda."
       />
 
-      <form
-        onSubmit={submit}
-        noValidate
-        className="space-y-5"
-      >
+      <form onSubmit={submit} noValidate className="space-y-5">
         <div className="space-y-2">
           <Label htmlFor="password">Kata sandi baru</Label>
 
