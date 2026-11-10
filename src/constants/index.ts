@@ -19,6 +19,7 @@ import {
   Megaphone,
   MessageCircle,
   CalendarDays,
+  TicketPercent,
   type LucideIcon,
 } from "lucide-react";
 
@@ -163,6 +164,11 @@ export const ADMIN_NAV: NavItem[] = [
     label: "Manajemen Paket",
     to: "/admin/premium-plans",
     icon: Crown,
+  },
+  {
+    label: "Manajemen Promo",
+    to: "/admin/promos",
+    icon: TicketPercent,
   },
   {
     label: "Laporan & Analitik",
