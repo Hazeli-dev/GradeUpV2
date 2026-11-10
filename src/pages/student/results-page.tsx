@@ -1,19 +1,19 @@
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Award,
-  BarChart3,
+  BookOpen,
   CalendarDays,
   CheckCircle2,
   CircleHelp,
   Clock,
   Eye,
+  FileCheck2,
   Lightbulb,
+  Search,
   Target,
-  TrendingUp,
   Trophy,
   XCircle,
-  BookOpen,
 } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
@@ -65,6 +65,7 @@ interface ResultItem {
   date: string;
   correct: number;
   incorrect: number;
+  totalQuestions: number;
   score: number;
   passed: boolean;
   answersExpired: boolean;
@@ -81,6 +82,8 @@ interface QuestionReview {
 
 type PeriodType = "7" | "30" | "90" | "365";
 
+type StatusType = "all" | "Lulus" | "Belum lulus";
+
 // =====================================================
 // CONSTANTS
 // =====================================================
@@ -91,6 +94,8 @@ const periodOptions = [
   { label: "3 Bulan", value: "90" },
   { label: "1 Tahun", value: "365" },
 ];
+
+const statusOptions = ["Lulus", "Belum lulus"];
 
 // =====================================================
 // HELPERS
@@ -103,20 +108,18 @@ const getPeriodStart = (days: number) => {
   return date;
 };
 
-const formatShortDate = (date: string) => {
-  return new Date(date).toLocaleDateString("id-ID", {
-    day: "numeric",
-    month: "short",
-  });
-};
-
 const getScoreColor = (score: number) => {
-  if (score >= 85) return "text-emerald-600 dark:text-emerald-400";
-  if (score >= 70) return "text-blue-600 dark:text-blue-400";
+  if (score >= 85) {
+    return "text-emerald-600 dark:text-emerald-400";
+  }
+
+  if (score >= 70) {
+    return "text-blue-600 dark:text-blue-400";
+  }
+
   return "text-amber-600 dark:text-amber-400";
 };
 
-// Menyamakan format pilihan jawaban dari database.
 const normalizeOptions = (
   value: unknown
 ): QuestionReview["options"] => {
@@ -147,7 +150,6 @@ const normalizeOptions = (
   });
 };
 
-// Mengubah jawaban berupa ID, huruf, atau angka menjadi indeks.
 const getAnswerIndex = (
   options: QuestionReview["options"],
   answer: unknown
@@ -186,6 +188,28 @@ const getAnswerIndex = (
   return -1;
 };
 
+const getAnswerCount = (answers: unknown): number => {
+  if (!answers || typeof answers !== "object") return 0;
+
+  if (Array.isArray(answers)) return answers.length;
+
+  return Object.keys(answers).length;
+};
+
+const getStatusBadge = (passed: boolean) => {
+  return passed ? (
+    <Badge variant="success" className="gap-1">
+      <CheckCircle2 className="h-3 w-3" />
+      Lulus
+    </Badge>
+  ) : (
+    <Badge variant="danger" className="gap-1">
+      <XCircle className="h-3 w-3" />
+      Belum lulus
+    </Badge>
+  );
+};
+
 // =====================================================
 // MAIN PAGE
 // =====================================================
@@ -196,7 +220,7 @@ export default function ResultsPage() {
   const [error, setError] = useState<string | null>(null);
 
   const [q, setQ] = useState("");
-  const [status, setStatus] = useState("all");
+  const [status, setStatus] = useState<StatusType>("all");
   const [period, setPeriod] = useState<PeriodType>("30");
 
   const [selectedResult, setSelectedResult] =
@@ -206,13 +230,14 @@ export default function ResultsPage() {
     useState<QuestionReview[]>([]);
 
   const [reviewLoading, setReviewLoading] = useState(false);
+  const [reviewError, setReviewError] = useState<string | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
 
   // ===================================================
   // FETCH EXAM RESULTS
   // ===================================================
 
-  const fetchResults = async () => {
+  const fetchResults = useCallback(async () => {
     setLoading(true);
     setError(null);
 
@@ -229,17 +254,15 @@ export default function ResultsPage() {
         return;
       }
 
-      // RLS nantinya memastikan siswa hanya membaca
-      // riwayat ujian miliknya sendiri.
       const { data: attempts, error: attemptsError } =
-  await supabase
-    .from("exam_attempts")
-    .select(
-      "id, user_id, exam_id, score, status, created_at, correct_count, wrong_count, total_questions, is_passed, answers"
-    )
-    .eq("user_id", user.id)
-    .eq("status", "completed")
-    .order("created_at", { ascending: false });
+        await supabase
+          .from("exam_attempts")
+          .select(
+            "id, user_id, exam_id, score, status, created_at, correct_count, wrong_count, total_questions, is_passed, answers"
+          )
+          .eq("user_id", user.id)
+          .eq("status", "completed")
+          .order("created_at", { ascending: false });
 
       if (attemptsError) throw attemptsError;
 
@@ -276,44 +299,53 @@ export default function ResultsPage() {
               title: pkg.title || "Paket Ujian",
               category: pkg.category || "Umum",
               passing_score: Number(pkg.passing_score ?? 60),
-            },
-          ])
+            }]
+          )
         );
       }
 
       const mappedData: ResultItem[] = (attempts || []).map(
         (attempt: any) => {
           const packageId = String(attempt.exam_id || "");
-
           const pkg = packageMap.get(packageId);
 
           const passingScore = pkg?.passing_score ?? 60;
-          const currentScore = Number(attempt.score) || 0;
-
-          const totalQuestions =
-            Number(attempt.total_questions) ||
-            (attempt.answers &&
-            typeof attempt.answers === "object"
-              ? Object.keys(attempt.answers).length
-              : 0);
-
-          let correct = Number(attempt.correct_count);
-          let incorrect = Number(
-            attempt.wrong_count ?? attempt.incorrect_count
+          const currentScore = Math.min(
+            100,
+            Math.max(0, Number(attempt.score) || 0)
           );
 
-          if (
-            !Number.isFinite(correct) ||
-            (correct === 0 &&
-              incorrect === 0 &&
-              currentScore > 0)
-          ) {
+          const totalQuestions = Math.max(
+            0,
+            Number(attempt.total_questions) ||
+              getAnswerCount(attempt.answers)
+          );
+
+          const hasCorrectCount =
+            attempt.correct_count !== null &&
+            attempt.correct_count !== undefined;
+
+          const hasWrongCount =
+            attempt.wrong_count !== null &&
+            attempt.wrong_count !== undefined;
+
+          let correct = hasCorrectCount
+            ? Math.max(0, Number(attempt.correct_count) || 0)
+            : 0;
+
+          let incorrect = hasWrongCount
+            ? Math.max(0, Number(attempt.wrong_count) || 0)
+            : 0;
+
+          if (!hasCorrectCount && !hasWrongCount) {
             correct = Math.round(
               (currentScore / 100) * totalQuestions
             );
 
             incorrect = Math.max(0, totalQuestions - correct);
-          } else if (!Number.isFinite(incorrect)) {
+          } else if (!hasCorrectCount) {
+            correct = Math.max(0, totalQuestions - incorrect);
+          } else if (!hasWrongCount) {
             incorrect = Math.max(0, totalQuestions - correct);
           }
 
@@ -324,6 +356,7 @@ export default function ResultsPage() {
             date: attempt.created_at,
             correct,
             incorrect,
+            totalQuestions,
             score: currentScore,
             passed:
               attempt.is_passed !== null &&
@@ -337,17 +370,19 @@ export default function ResultsPage() {
 
       setData(mappedData);
     } catch (err: any) {
+      console.error("Gagal memuat hasil belajar:", err);
+
       setError(
         err.message || "Gagal memuat hasil belajar dari database."
       );
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
-    fetchResults();
-  }, []);
+    void fetchResults();
+  }, [fetchResults]);
 
   // ===================================================
   // SECURE REVIEW RPC
@@ -356,6 +391,7 @@ export default function ResultsPage() {
   const handleOpenDetail = async (item: ResultItem) => {
     setSelectedResult(item);
     setReviewQuestions([]);
+    setReviewError(null);
     setDetailOpen(true);
 
     if (item.answersExpired) {
@@ -366,14 +402,14 @@ export default function ResultsPage() {
     setReviewLoading(true);
 
     try {
-      // Tidak ada lagi SELECT langsung ke tabel questions.
-      // RPC memvalidasi kepemilikan dan status ujian.
-      const { data: reviewData, error: reviewError } =
+      // Tetap menggunakan RPC untuk menjaga keamanan.
+      // Tidak ada SELECT langsung ke tabel questions.
+      const { data: reviewData, error: reviewRpcError } =
         await supabase.rpc("get_exam_attempt_review", {
           p_attempt_id: item.id,
         });
 
-      if (reviewError) throw reviewError;
+      if (reviewRpcError) throw reviewRpcError;
 
       const mappedQuestions: QuestionReview[] = (
         reviewData || []
@@ -383,9 +419,7 @@ export default function ResultsPage() {
           question.question_text || "Pertanyaan"
         ),
         options: normalizeOptions(question.options),
-        correct_answer: String(
-          question.correct_answer ?? ""
-        ),
+        correct_answer: String(question.correct_answer ?? ""),
         explanation:
           question.explanation === null ||
           question.explanation === undefined
@@ -401,6 +435,11 @@ export default function ResultsPage() {
       setReviewQuestions(mappedQuestions);
     } catch (err: any) {
       console.error("Gagal memuat tinjauan jawaban:", err);
+
+      setReviewError(
+        err.message || "Tinjauan jawaban gagal dimuat."
+      );
+
       setReviewQuestions([]);
     } finally {
       setReviewLoading(false);
@@ -412,12 +451,17 @@ export default function ResultsPage() {
   // ===================================================
 
   const periodData = useMemo(() => {
-    const days = Number(period);
-    const startDate = getPeriodStart(days);
+    const startDate = getPeriodStart(Number(period));
+    const now = Date.now();
 
     return data.filter((item) => {
-      const date = new Date(item.date);
-      return date >= startDate && date <= new Date();
+      const timestamp = new Date(item.date).getTime();
+
+      return (
+        Number.isFinite(timestamp) &&
+        timestamp >= startDate.getTime() &&
+        timestamp <= now
+      );
     });
   }, [data, period]);
 
@@ -426,134 +470,39 @@ export default function ResultsPage() {
   // ===================================================
 
   const filtered = useMemo(() => {
+    const keyword = q.trim().toLowerCase();
+
     return periodData
-      .filter(
-        (item) =>
-          item.examTitle.toLowerCase().includes(q.toLowerCase()) ||
-          item.category.toLowerCase().includes(q.toLowerCase())
-      )
-      .filter(
-        (item) =>
-          status === "all" ||
-          (status === "Lulus" ? item.passed : !item.passed)
-      );
+      .filter((item) => {
+        if (!keyword) return true;
+
+        return (
+          item.examTitle.toLowerCase().includes(keyword) ||
+          item.category.toLowerCase().includes(keyword)
+        );
+      })
+      .filter((item) => {
+        if (status === "all") return true;
+        if (status === "Lulus") return item.passed;
+
+        return !item.passed;
+      });
   }, [periodData, q, status]);
 
   // ===================================================
-  // MAIN STATISTICS
+  // SUMMARY
   // ===================================================
 
-  const avg =
-    periodData.length > 0
-      ? (
-          periodData.reduce((sum, item) => sum + item.score, 0) /
-          periodData.length
-        ).toFixed(1)
-      : "0";
+  const summary = useMemo(() => {
+    const passed = periodData.filter((item) => item.passed).length;
+    const failed = periodData.length - passed;
 
-  const best =
-    periodData.length > 0
-      ? Math.max(...periodData.map((item) => item.score))
-      : 0;
-
-  const passedCount = periodData.filter(
-    (item) => item.passed
-  ).length;
-
-  const passRate =
-    periodData.length > 0
-      ? Math.round(
-          (passedCount / periodData.length) * 100
-        )
-      : 0;
-
-  // ===================================================
-  // SCORE CHART
-  // ===================================================
-
-  const chartData = useMemo(() => {
-    return [...periodData]
-      .sort(
-        (a, b) =>
-          new Date(a.date).getTime() -
-          new Date(b.date).getTime()
-      )
-      .slice(-8);
+    return {
+      total: periodData.length,
+      passed,
+      failed,
+    };
   }, [periodData]);
-
-  const chartPoints = useMemo(() => {
-    const width = 600;
-    const height = 180;
-    const paddingX = 25;
-    const paddingY = 15;
-
-    if (chartData.length === 0) return [];
-
-    return chartData.map((item, index) => {
-      const x =
-        chartData.length === 1
-          ? width / 2
-          : paddingX +
-            (index / (chartData.length - 1)) *
-              (width - paddingX * 2);
-
-      const y =
-        height -
-        paddingY -
-        (Math.min(100, Math.max(0, item.score)) / 100) *
-          (height - paddingY * 2);
-
-      return {
-        ...item,
-        x,
-        y,
-      };
-    });
-  }, [chartData]);
-
-  const linePoints = chartPoints
-    .map((point) => `${point.x},${point.y}`)
-    .join(" ");
-
-  // ===================================================
-  // CATEGORY ANALYSIS
-  // ===================================================
-
-  const categoryStats = useMemo(() => {
-    const groups = new Map<
-      string,
-      { total: number; score: number }
-    >();
-
-    periodData.forEach((item) => {
-      const current = groups.get(item.category) || {
-        total: 0,
-        score: 0,
-      };
-
-      current.total += 1;
-      current.score += item.score;
-
-      groups.set(item.category, current);
-    });
-
-    return Array.from(groups.entries())
-      .map(([name, value]) => ({
-        name,
-        average: Math.round(value.score / value.total),
-        total: value.total,
-      }))
-      .sort((a, b) => b.average - a.average);
-  }, [periodData]);
-
-  const strongestCategory = categoryStats[0];
-
-  const weakestCategory =
-    categoryStats.length > 0
-      ? [...categoryStats].sort(
-          (a, b) => a.average - b.average
-        )[0]
-      : null;
 
   // ===================================================
   // LOADING AND ERROR
@@ -576,14 +525,18 @@ export default function ResultsPage() {
 
   return (
     <div className="space-y-6 pb-8">
-      {/* HEADER */}
-      <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
+      {/* PAGE HEADER */}
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
         <PageHeader
           title="Hasil Belajar"
-          description="Pantau perkembangan dan pencapaian belajarmu dari waktu ke waktu."
+          description="Lihat riwayat ujian, periksa hasil, dan pelajari kembali jawabanmu."
         />
 
         <div className="flex flex-wrap items-center gap-2">
+          <span className="mr-1 text-xs font-medium text-muted-foreground">
+            Periode:
+          </span>
+
           {periodOptions.map((item) => (
             <Button
               key={item.value}
@@ -592,7 +545,7 @@ export default function ResultsPage() {
                 period === item.value ? "default" : "outline"
               }
               className={cn(
-                "rounded-full px-4",
+                "rounded-full px-3",
                 period === item.value &&
                   "bg-emerald-600 text-white hover:bg-emerald-700"
               )}
@@ -606,352 +559,100 @@ export default function ResultsPage() {
         </div>
       </div>
 
-      {/* MAIN STATISTICS */}
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <Card className="relative overflow-hidden border-emerald-200/70 bg-gradient-to-br from-emerald-50 to-white p-5 dark:border-emerald-900/50 dark:from-emerald-950/40 dark:to-card">
-          <div className="flex items-center justify-between">
-            <div className="flex h-12 w-12 items-center justify-center rounded-full bg-emerald-100 text-emerald-600 dark:bg-emerald-900/60 dark:text-emerald-400">
-              <CheckCircle2 className="h-6 w-6" />
+      {/* INTRODUCTION */}
+      <Card className="overflow-hidden border-emerald-200/70 bg-gradient-to-r from-emerald-50 via-white to-teal-50 p-5 dark:border-emerald-900/50 dark:from-emerald-950/30 dark:via-card dark:to-teal-950/20">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-start gap-3">
+            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-emerald-100 text-emerald-700 dark:bg-emerald-900/60 dark:text-emerald-400">
+              <FileCheck2 className="h-6 w-6" />
             </div>
-            <TrendingUp className="h-5 w-5 text-emerald-500" />
+
+            <div>
+              <h2 className="font-bold text-foreground">
+                Evaluasi hasil ujianmu
+              </h2>
+              <p className="mt-1 max-w-2xl text-sm leading-relaxed text-muted-foreground">
+                Semua ujian yang sudah diselesaikan tersimpan di sini.
+                Periksa nilai, status kelulusan, dan pembahasan untuk
+                mengetahui bagian yang perlu dipelajari kembali.
+              </p>
+            </div>
           </div>
 
-          <p className="mt-4 text-sm font-medium text-muted-foreground">
-            Rata-rata Nilai
-          </p>
-
-          <div className="mt-1 flex items-baseline gap-2">
-            <h3 className="text-3xl font-black tracking-tight text-foreground">
-              {avg}
-            </h3>
-            <span className="text-xs font-semibold text-emerald-600">
-              / 100
-            </span>
+          <div className="flex items-center gap-2 self-start rounded-full border border-emerald-200 bg-white/80 px-3 py-2 text-xs font-semibold text-emerald-700 dark:border-emerald-900 dark:bg-emerald-950/50 dark:text-emerald-400 sm:self-center">
+            <Trophy className="h-4 w-4" />
+            Terus berkembang
           </div>
+        </div>
+      </Card>
 
-          <p className="mt-1 text-xs text-muted-foreground">
-            Berdasarkan {periodData.length} ujian
-          </p>
-        </Card>
-
-        <Card className="relative overflow-hidden border-blue-200/70 bg-gradient-to-br from-blue-50 to-white p-5 dark:border-blue-900/50 dark:from-blue-950/40 dark:to-card">
-          <div className="flex h-12 w-12 items-center justify-center rounded-full bg-blue-100 text-blue-600 dark:bg-blue-900/60 dark:text-blue-400">
-            <CalendarDays className="h-6 w-6" />
+      {/* SUMMARY CARDS */}
+      <div className="grid gap-4 sm:grid-cols-3">
+        <Card className="p-5">
+          <div className="flex items-center justify-between">
+            <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-blue-50 text-blue-600 dark:bg-blue-950/50 dark:text-blue-400">
+              <CalendarDays className="h-5 w-5" />
+            </div>
+            <Badge variant="outline" className="text-xs">
+              Periode terpilih
+            </Badge>
           </div>
 
           <p className="mt-4 text-sm font-medium text-muted-foreground">
             Total Ujian
           </p>
-
-          <h3 className="mt-1 text-3xl font-black tracking-tight text-foreground">
-            {periodData.length}
-          </h3>
-
+          <p className="mt-1 text-3xl font-black tracking-tight text-foreground">
+            {summary.total}
+          </p>
           <p className="mt-1 text-xs text-muted-foreground">
-            Ujian dalam periode terpilih
+            Ujian yang telah diselesaikan
           </p>
         </Card>
 
-        <Card className="relative overflow-hidden border-violet-200/70 bg-gradient-to-br from-violet-50 to-white p-5 dark:border-violet-900/50 dark:from-violet-950/40 dark:to-card">
-          <div className="flex h-12 w-12 items-center justify-center rounded-full bg-violet-100 text-violet-600 dark:bg-violet-900/60 dark:text-violet-400">
-            <Trophy className="h-6 w-6" />
-          </div>
-
-          <p className="mt-4 text-sm font-medium text-muted-foreground">
-            Nilai Tertinggi
-          </p>
-
-          <h3 className="mt-1 text-3xl font-black tracking-tight text-foreground">
-            {best}
-          </h3>
-
-          <p className="mt-1 text-xs text-muted-foreground">
-            Pencapaian terbaikmu
-          </p>
-        </Card>
-
-        <Card className="relative overflow-hidden border-amber-200/70 bg-gradient-to-br from-amber-50 to-white p-5 dark:border-amber-900/50 dark:from-amber-950/40 dark:to-card">
-          <div className="flex h-12 w-12 items-center justify-center rounded-full bg-amber-100 text-amber-600 dark:bg-amber-900/60 dark:text-amber-400">
-            <Target className="h-6 w-6" />
-          </div>
-
-          <p className="mt-4 text-sm font-medium text-muted-foreground">
-            Tingkat Kelulusan
-          </p>
-
-          <h3 className="mt-1 text-3xl font-black tracking-tight text-foreground">
-            {passRate}%
-          </h3>
-
-          <p className="mt-1 text-xs text-muted-foreground">
-            {passedCount} dari {periodData.length} ujian lulus
-          </p>
-        </Card>
-      </div>
-
-      {/* CHART AND CATEGORY ANALYSIS */}
-      <div className="grid gap-5 xl:grid-cols-2">
-        {/* SCORE DEVELOPMENT CHART */}
-        <Card className="overflow-hidden p-5">
-          <div className="mb-5 flex items-center justify-between gap-3">
-            <div>
-              <div className="flex items-center gap-2">
-                <BarChart3 className="h-5 w-5 text-emerald-600" />
-                <h3 className="font-bold text-foreground">
-                  Grafik Perkembangan Nilai
-                </h3>
-              </div>
-
-              <p className="mt-1 text-xs text-muted-foreground">
-                Perjalanan hasil ujianmu dalam periode terpilih.
-              </p>
-            </div>
-
-            <Badge
-              variant="outline"
-              className="border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900 dark:bg-emerald-950 dark:text-emerald-400"
-            >
-              Target 80
-            </Badge>
-          </div>
-
-          {chartPoints.length === 0 ? (
-            <div className="flex h-[230px] flex-col items-center justify-center text-center">
-              <BarChart3 className="mb-3 h-10 w-10 text-muted-foreground/40" />
-              <p className="text-sm font-semibold text-foreground">
-                Belum ada data grafik
-              </p>
-              <p className="mt-1 text-xs text-muted-foreground">
-                Selesaikan ujian untuk melihat perkembangan nilaimu.
-              </p>
-            </div>
-          ) : (
-            <div className="w-full">
-              <div className="relative">
-                <div className="absolute inset-0 flex flex-col justify-between pb-7 pt-2">
-                  {[100, 75, 50, 25, 0].map((value) => (
-                    <div
-                      key={value}
-                      className="flex items-center gap-3"
-                    >
-                      <span className="w-7 text-right text-[10px] text-muted-foreground">
-                        {value}
-                      </span>
-                      <div className="flex-1 border-t border-dashed border-border/70" />
-                    </div>
-                  ))}
-                </div>
-
-                <svg
-                  viewBox="0 0 600 210"
-                  className="relative z-10 h-[230px] w-full overflow-visible"
-                  preserveAspectRatio="none"
-                >
-                  <defs>
-                    <linearGradient
-                      id="scoreGradient"
-                      x1="0"
-                      y1="0"
-                      x2="0"
-                      y2="1"
-                    >
-                      <stop
-                        offset="0%"
-                        stopColor="#10b981"
-                        stopOpacity="0.24"
-                      />
-                      <stop
-                        offset="100%"
-                        stopColor="#10b981"
-                        stopOpacity="0.01"
-                      />
-                    </linearGradient>
-                  </defs>
-
-                  <line
-                    x1="25"
-                    y1="58"
-                    x2="575"
-                    y2="58"
-                    stroke="#34d399"
-                    strokeWidth="1.5"
-                    strokeDasharray="6 5"
-                  />
-
-                  {chartPoints.length > 1 && (
-                    <polygon
-                      points={`25,195 ${linePoints} 575,195`}
-                      fill="url(#scoreGradient)"
-                    />
-                  )}
-
-                  {chartPoints.length > 1 && (
-                    <polyline
-                      points={linePoints}
-                      fill="none"
-                      stroke="#059669"
-                      strokeWidth="3"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    />
-                  )}
-
-                  {chartPoints.map((point) => (
-                    <g key={point.id}>
-                      <circle
-                        cx={point.x}
-                        cy={point.y}
-                        r="5"
-                        fill="#059669"
-                        stroke="white"
-                        strokeWidth="2"
-                      />
-                      <text
-                        x={point.x}
-                        y={Math.max(12, point.y - 12)}
-                        fontSize="12"
-                        textAnchor="middle"
-                        fill="currentColor"
-                        fontWeight="700"
-                      >
-                        {point.score}
-                      </text>
-                    </g>
-                  ))}
-                </svg>
-              </div>
-
-              <div className="mt-1 grid grid-cols-2 gap-2 sm:grid-cols-4">
-                {chartPoints.slice(-4).map((point) => (
-                  <div
-                    key={point.id}
-                    className="rounded-lg bg-muted/50 p-2 text-center"
-                  >
-                    <p className="text-xs font-bold text-foreground">
-                      {point.score}
-                    </p>
-                    <p className="mt-1 text-[10px] text-muted-foreground">
-                      {formatShortDate(point.date)}
-                    </p>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-        </Card>
-
-        {/* CATEGORY ANALYSIS */}
         <Card className="p-5">
-          <div className="mb-5 flex items-center gap-2">
-            <BarChart3 className="h-5 w-5 text-emerald-600" />
-            <div>
-              <h3 className="font-bold text-foreground">
-                Analisis Kategori Ujian
-              </h3>
-              <p className="text-xs text-muted-foreground">
-                Rata-rata nilai berdasarkan kategori paket.
-              </p>
+          <div className="flex items-center justify-between">
+            <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-emerald-50 text-emerald-600 dark:bg-emerald-950/50 dark:text-emerald-400">
+              <CheckCircle2 className="h-5 w-5" />
             </div>
+            <Badge variant="success">Lulus</Badge>
           </div>
 
-          {categoryStats.length === 0 ? (
-            <div className="flex h-[220px] flex-col items-center justify-center text-center">
-              <Target className="mb-3 h-10 w-10 text-muted-foreground/40" />
-              <p className="text-sm font-semibold">
-                Belum ada data analisis
-              </p>
-              <p className="mt-1 text-xs text-muted-foreground">
-                Analisis muncul setelah kamu menyelesaikan ujian.
-              </p>
+          <p className="mt-4 text-sm font-medium text-muted-foreground">
+            Ujian Lulus
+          </p>
+          <p className="mt-1 text-3xl font-black tracking-tight text-emerald-600 dark:text-emerald-400">
+            {summary.passed}
+          </p>
+          <p className="mt-1 text-xs text-muted-foreground">
+            Berhasil mencapai nilai kelulusan
+          </p>
+        </Card>
+
+        <Card className="p-5">
+          <div className="flex items-center justify-between">
+            <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-amber-50 text-amber-600 dark:bg-amber-950/50 dark:text-amber-400">
+              <Target className="h-5 w-5" />
             </div>
-          ) : (
-            <div className="space-y-5">
-              <div className="flex items-center gap-4 rounded-xl bg-emerald-50 p-4 dark:bg-emerald-950/30">
-                <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-emerald-100 text-emerald-700 dark:bg-emerald-900">
-                  <Award className="h-7 w-7" />
-                </div>
+            <Badge variant="warning">Evaluasi</Badge>
+          </div>
 
-                <div className="min-w-0">
-                  <p className="text-xs text-muted-foreground">
-                    Kategori dengan rata-rata tertinggi
-                  </p>
-                  <p className="truncate text-lg font-bold text-emerald-700 dark:text-emerald-400">
-                    {strongestCategory?.name}
-                  </p>
-                  <p className="text-xs text-muted-foreground">
-                    Rata-rata nilai {strongestCategory?.average}
-                  </p>
-                </div>
-              </div>
-
-              <div className="space-y-4">
-                {categoryStats.map((item, index) => (
-                  <div key={item.name} className="space-y-2">
-                    <div className="flex items-center justify-between gap-3">
-                      <span className="text-sm font-medium text-foreground">
-                        {item.name}
-                      </span>
-
-                      <span
-                        className={cn(
-                          "text-sm font-bold",
-                          getScoreColor(item.average)
-                        )}
-                      >
-                        {item.average}%
-                      </span>
-                    </div>
-
-                    <div className="h-2.5 overflow-hidden rounded-full bg-muted">
-                      <div
-                        className={cn(
-                          "h-full rounded-full transition-all",
-                          index === 0
-                            ? "bg-emerald-500"
-                            : index === 1
-                              ? "bg-blue-500"
-                              : index === 2
-                                ? "bg-violet-500"
-                                : "bg-amber-500"
-                        )}
-                        style={{
-                          width: `${Math.min(100, item.average)}%`,
-                        }}
-                      />
-                    </div>
-
-                    <p className="text-[10px] text-muted-foreground">
-                      {item.total} kali ujian
-                    </p>
-                  </div>
-                ))}
-              </div>
-
-              {weakestCategory &&
-                weakestCategory.name !== strongestCategory?.name && (
-                  <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 dark:border-amber-900/50 dark:bg-amber-950/20">
-                    <p className="flex items-center gap-2 text-xs font-semibold text-amber-800 dark:text-amber-400">
-                      <Lightbulb className="h-4 w-4" />
-                      Perlu ditingkatkan
-                    </p>
-
-                    <p className="mt-1 text-xs text-amber-700 dark:text-amber-300">
-                      Kategori {weakestCategory.name} memiliki
-                      rata-rata nilai terendah, yaitu{" "}
-                      {weakestCategory.average}.
-                    </p>
-                  </div>
-                )}
-            </div>
-          )}
+          <p className="mt-4 text-sm font-medium text-muted-foreground">
+            Belum Lulus
+          </p>
+          <p className="mt-1 text-3xl font-black tracking-tight text-amber-600 dark:text-amber-400">
+            {summary.failed}
+          </p>
+          <p className="mt-1 text-xs text-muted-foreground">
+            Kesempatan untuk belajar lebih baik
+          </p>
         </Card>
       </div>
 
       {/* EXAM HISTORY */}
       <Card className="overflow-hidden">
         <div className="flex flex-col gap-3 border-b p-5 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex items-center gap-2">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-50 text-emerald-600 dark:bg-emerald-950">
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-50 text-emerald-600 dark:bg-emerald-950/50 dark:text-emerald-400">
               <Award className="h-5 w-5" />
             </div>
 
@@ -960,7 +661,7 @@ export default function ResultsPage() {
                 Riwayat Hasil Ujian
               </h3>
               <p className="text-xs text-muted-foreground">
-                Catatan seluruh ujian yang telah kamu kerjakan.
+                Daftar ujian yang telah kamu kerjakan.
               </p>
             </div>
           </div>
@@ -970,7 +671,8 @@ export default function ResultsPage() {
           </Badge>
         </div>
 
-        <div className="flex flex-col gap-3 p-4 sm:flex-row">
+        {/* FILTERS */}
+        <div className="flex flex-col gap-3 border-b p-4 sm:flex-row">
           <SearchInput
             value={q}
             onChange={setQ}
@@ -980,21 +682,32 @@ export default function ResultsPage() {
 
           <FilterSelect
             value={status}
-            onChange={setStatus}
-            options={["Lulus", "Belum lulus"]}
+            onChange={(value) =>
+              setStatus(value as StatusType)
+            }
+            options={statusOptions}
             allLabel="Semua status"
           />
         </div>
 
+        {/* EMPTY STATE */}
         {filtered.length === 0 ? (
-          <div className="px-4 pb-5">
-            <EmptyState
-              title="Hasil tidak ditemukan"
-              description="Belum ada riwayat ujian pada periode atau filter yang dipilih."
-            />
+          <div className="px-4 py-8">
+            {data.length === 0 ? (
+              <EmptyState
+                title="Belum ada hasil ujian"
+                description="Hasil ujian yang sudah kamu selesaikan akan muncul di halaman ini."
+              />
+            ) : (
+              <EmptyState
+                title="Hasil tidak ditemukan"
+                description="Coba ubah kata pencarian, status kelulusan, atau periode yang dipilih."
+              />
+            )}
           </div>
         ) : (
           <>
+            {/* DESKTOP TABLE */}
             <div className="hidden overflow-x-auto md:block">
               <Table>
                 <TableHeader>
@@ -1021,11 +734,11 @@ export default function ResultsPage() {
                         {index + 1}
                       </TableCell>
 
-                      <TableCell>
+                      <TableCell className="min-w-[190px]">
                         <p className="font-semibold text-foreground">
                           {item.examTitle}
                         </p>
-                        <p className="text-xs capitalize text-muted-foreground">
+                        <p className="mt-0.5 text-xs capitalize text-muted-foreground">
                           {item.category}
                         </p>
                       </TableCell>
@@ -1044,6 +757,11 @@ export default function ResultsPage() {
                         <span className="text-rose-500">
                           {item.incorrect}
                         </span>
+                        {item.totalQuestions > 0 && (
+                          <span className="ml-1 text-xs font-normal text-muted-foreground">
+                            / {item.totalQuestions}
+                          </span>
+                        )}
                       </TableCell>
 
                       <TableCell>
@@ -1055,20 +773,13 @@ export default function ResultsPage() {
                         >
                           {item.score}
                         </span>
+                        <span className="ml-0.5 text-xs text-muted-foreground">
+                          /100
+                        </span>
                       </TableCell>
 
                       <TableCell>
-                        {item.passed ? (
-                          <Badge variant="success" className="gap-1">
-                            <CheckCircle2 className="h-3 w-3" />
-                            Lulus
-                          </Badge>
-                        ) : (
-                          <Badge variant="danger" className="gap-1">
-                            <XCircle className="h-3 w-3" />
-                            Belum lulus
-                          </Badge>
-                        )}
+                        {getStatusBadge(item.passed)}
                       </TableCell>
 
                       <TableCell className="text-right">
@@ -1088,7 +799,7 @@ export default function ResultsPage() {
             </div>
 
             {/* MOBILE HISTORY */}
-            <div className="space-y-3 px-4 pb-4 md:hidden">
+            <div className="space-y-3 p-4 md:hidden">
               {filtered.map((item) => (
                 <div
                   key={item.id}
@@ -1096,7 +807,7 @@ export default function ResultsPage() {
                 >
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
-                      <p className="font-semibold text-foreground">
+                      <p className="font-semibold leading-snug text-foreground">
                         {item.examTitle}
                       </p>
                       <p className="mt-1 text-xs capitalize text-muted-foreground">
@@ -1104,14 +815,19 @@ export default function ResultsPage() {
                       </p>
                     </div>
 
-                    <span
-                      className={cn(
-                        "shrink-0 text-xl font-black",
-                        getScoreColor(item.score)
-                      )}
-                    >
-                      {item.score}
-                    </span>
+                    <div className="shrink-0 text-right">
+                      <p
+                        className={cn(
+                          "text-2xl font-black",
+                          getScoreColor(item.score)
+                        )}
+                      >
+                        {item.score}
+                      </p>
+                      <p className="text-[10px] text-muted-foreground">
+                        dari 100
+                      </p>
+                    </div>
                   </div>
 
                   <div className="my-3 flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
@@ -1124,22 +840,16 @@ export default function ResultsPage() {
                       <span className="font-bold text-emerald-600">
                         {item.correct}
                       </span>
-                      {" / "}
+                      {" benar "}
                       <span className="font-bold text-rose-500">
                         {item.incorrect}
                       </span>
-                      {" benar/salah"}
+                      {" salah"}
                     </span>
                   </div>
 
-                  <div className="flex items-center justify-between border-t pt-3">
-                    {item.passed ? (
-                      <Badge variant="success">Lulus</Badge>
-                    ) : (
-                      <Badge variant="danger">
-                        Belum lulus
-                      </Badge>
-                    )}
+                  <div className="flex items-center justify-between gap-2 border-t pt-3">
+                    {getStatusBadge(item.passed)}
 
                     <Button
                       size="sm"
@@ -1157,32 +867,22 @@ export default function ResultsPage() {
         )}
       </Card>
 
-      {/* STUDY RECOMMENDATION */}
-      <div className="overflow-hidden rounded-2xl border border-emerald-200 bg-gradient-to-r from-emerald-50 via-teal-50 to-white p-4 dark:border-emerald-900/50 dark:from-emerald-950/40 dark:via-teal-950/20 dark:to-card sm:p-5">
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex items-start gap-3">
-            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-emerald-100 text-emerald-700 dark:bg-emerald-900 dark:text-emerald-400">
-              <Lightbulb className="h-6 w-6" />
-            </div>
-
-            <div>
-              <h3 className="font-bold text-emerald-900 dark:text-emerald-300">
-                Tips Belajar untukmu!
-              </h3>
-
-              <p className="mt-1 text-sm text-emerald-800 dark:text-emerald-400">
-                {periodData.length === 0
-                  ? "Mulailah mengerjakan latihan untuk mengetahui kemampuan dan perkembangan belajarmu."
-                  : weakestCategory && weakestCategory.average < 80
-                    ? `Terus tingkatkan kemampuanmu pada kategori ${weakestCategory.name}. Coba pelajari kembali materi dan kerjakan latihan tambahan.`
-                    : "Pertahankan konsistensi belajar dan terus tingkatkan hasil ujianmu."}
-              </p>
-            </div>
+      {/* LEARNING GUIDANCE */}
+      <div className="rounded-2xl border border-blue-200/70 bg-blue-50/70 p-4 dark:border-blue-900/50 dark:bg-blue-950/20 sm:p-5">
+        <div className="flex items-start gap-3">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-blue-100 text-blue-700 dark:bg-blue-900/60 dark:text-blue-400">
+            <Lightbulb className="h-5 w-5" />
           </div>
 
-          <div className="flex items-center gap-2 text-xs font-semibold text-emerald-700 dark:text-emerald-400">
-            <Trophy className="h-4 w-4" />
-            Terus tingkatkan prestasimu!
+          <div>
+            <h3 className="font-bold text-blue-900 dark:text-blue-300">
+              Jadikan hasil ujian sebagai bahan belajar
+            </h3>
+            <p className="mt-1 text-sm leading-relaxed text-blue-800 dark:text-blue-200">
+              Periksa jawaban yang salah, baca pembahasannya, lalu
+              pelajari kembali materi terkait. Setiap hasil ujian
+              adalah kesempatan untuk meningkatkan pemahamanmu.
+            </p>
           </div>
         </div>
       </div>
@@ -1190,7 +890,16 @@ export default function ResultsPage() {
       {/* RESULT DETAIL DIALOG */}
       <Dialog
         open={detailOpen}
-        onOpenChange={setDetailOpen}
+        onOpenChange={(open) => {
+          setDetailOpen(open);
+
+          if (!open) {
+            setSelectedResult(null);
+            setReviewQuestions([]);
+            setReviewError(null);
+            setReviewLoading(false);
+          }
+        }}
       >
         {selectedResult && (
           <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-3xl">
@@ -1206,12 +915,17 @@ export default function ResultsPage() {
             </DialogHeader>
 
             {/* SCORE SUMMARY */}
-            <div className="my-3 grid grid-cols-3 gap-2 rounded-xl border bg-muted/30 p-3 text-center sm:gap-3 sm:p-4">
+            <div className="grid grid-cols-3 gap-2 rounded-xl border bg-muted/30 p-3 text-center sm:gap-3 sm:p-4">
               <div>
                 <p className="text-[10px] font-bold uppercase text-muted-foreground">
                   Skor Akhir
                 </p>
-                <p className="mt-1 text-xl font-black text-foreground">
+                <p
+                  className={cn(
+                    "mt-1 text-xl font-black",
+                    getScoreColor(selectedResult.score)
+                  )}
+                >
                   {selectedResult.score}
                 </p>
               </div>
@@ -1235,13 +949,20 @@ export default function ResultsPage() {
               </div>
             </div>
 
-            <div className="flex items-center justify-between rounded-lg bg-muted/40 px-3 py-2 text-xs">
+            <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-muted/40 px-3 py-2 text-xs">
               <span className="text-muted-foreground">
                 Tanggal pengerjaan
               </span>
               <span className="font-semibold text-foreground">
                 {formatDate(selectedResult.date)}
               </span>
+            </div>
+
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-xs text-muted-foreground">
+                Status hasil ujian
+              </span>
+              {getStatusBadge(selectedResult.passed)}
             </div>
 
             {selectedResult.answersExpired ? (
@@ -1251,12 +972,12 @@ export default function ResultsPage() {
                   Detail Evaluasi Tidak Tersedia
                 </p>
                 <p className="mt-2 text-sm text-muted-foreground">
-                  Detail jawaban sudah melewati masa penyimpanan.
-                  Nilai dan riwayat ujian tetap tersimpan.
+                  Data jawaban tidak tersimpan pada riwayat ujian ini.
+                  Nilai dan riwayat ujian tetap dapat dilihat.
                 </p>
               </div>
             ) : (
-              <div className="pt-3">
+              <div className="pt-2">
                 <Tabs defaultValue="review" className="w-full">
                   <TabsList className="grid h-auto w-full grid-cols-2">
                     <TabsTrigger
@@ -1285,6 +1006,26 @@ export default function ResultsPage() {
                       <div className="flex items-center justify-center gap-2 py-10 text-sm text-muted-foreground">
                         <Clock className="h-4 w-4 animate-pulse" />
                         Memuat lembar jawaban...
+                      </div>
+                    ) : reviewError ? (
+                      <div className="rounded-xl border border-rose-200 bg-rose-50 p-5 text-center dark:border-rose-900 dark:bg-rose-950/20">
+                        <CircleHelp className="mx-auto mb-2 h-8 w-8 text-rose-500" />
+                        <p className="text-sm font-semibold text-foreground">
+                          Gagal memuat tinjauan jawaban
+                        </p>
+                        <p className="mt-1 text-xs text-muted-foreground">
+                          {reviewError}
+                        </p>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="mt-3"
+                          onClick={() =>
+                            handleOpenDetail(selectedResult)
+                          }
+                        >
+                          Coba Lagi
+                        </Button>
                       </div>
                     ) : reviewQuestions.length === 0 ? (
                       <div className="rounded-xl border border-dashed p-6 text-center">
@@ -1379,46 +1120,49 @@ export default function ResultsPage() {
                               </div>
 
                               <div className="space-y-1.5 border-l-2 border-border/80 pl-2">
-                                {question.options.map((option, optionIndex) => {
-                                  const isUserChoice =
-                                    hasAnswered && userIndex === optionIndex;
+                                {question.options.map(
+                                  (option, optionIndex) => {
+                                    const isUserChoice =
+                                      hasAnswered &&
+                                      userIndex === optionIndex;
 
-                                  const isCorrectOption =
-                                    correctIndex === optionIndex;
+                                    const isCorrectOption =
+                                      correctIndex === optionIndex;
 
-                                  return (
-                                    <div
-                                      key={`${question.id}-${optionIndex}`}
-                                      className={cn(
-                                        "flex items-center justify-between gap-2 rounded-lg p-2",
-                                        isCorrectOption &&
-                                          "bg-emerald-500/15 font-bold text-emerald-700 dark:text-emerald-400",
-                                        isUserChoice &&
-                                          !isCorrectOption &&
-                                          "bg-rose-500/15 text-rose-700 dark:text-rose-400"
-                                      )}
-                                    >
-                                      <span className="leading-relaxed">
-                                        <strong className="mr-1.5">
-                                          {option.id}.
-                                        </strong>
-                                        {option.text}
-                                      </span>
-
-                                      <span className="flex shrink-0 items-center gap-1">
-                                        {isUserChoice && (
-                                          <span className="text-[9px] font-semibold">
-                                            Jawabanmu
-                                          </span>
+                                    return (
+                                      <div
+                                        key={`${question.id}-${optionIndex}`}
+                                        className={cn(
+                                          "flex items-center justify-between gap-2 rounded-lg p-2",
+                                          isCorrectOption &&
+                                            "bg-emerald-500/15 font-bold text-emerald-700 dark:text-emerald-400",
+                                          isUserChoice &&
+                                            !isCorrectOption &&
+                                            "bg-rose-500/15 text-rose-700 dark:text-rose-400"
                                         )}
+                                      >
+                                        <span className="leading-relaxed">
+                                          <strong className="mr-1.5">
+                                            {option.id}.
+                                          </strong>
+                                          {option.text}
+                                        </span>
 
-                                        {isCorrectOption && (
-                                          <CheckCircle2 className="h-3.5 w-3.5" />
-                                        )}
-                                      </span>
-                                    </div>
-                                  );
-                                })}
+                                        <span className="flex shrink-0 items-center gap-1">
+                                          {isUserChoice && (
+                                            <span className="text-[9px] font-semibold">
+                                              Jawabanmu
+                                            </span>
+                                          )}
+
+                                          {isCorrectOption && (
+                                            <CheckCircle2 className="h-3.5 w-3.5" />
+                                          )}
+                                        </span>
+                                      </div>
+                                    );
+                                  }
+                                )}
                               </div>
 
                               <div className="grid gap-2 border-t pt-3 sm:grid-cols-2">
@@ -1461,6 +1205,16 @@ export default function ResultsPage() {
                       <div className="flex items-center justify-center gap-2 py-10 text-sm text-muted-foreground">
                         <Clock className="h-4 w-4 animate-pulse" />
                         Memuat pembahasan...
+                      </div>
+                    ) : reviewError ? (
+                      <div className="rounded-xl border border-rose-200 bg-rose-50 p-5 text-center dark:border-rose-900 dark:bg-rose-950/20">
+                        <CircleHelp className="mx-auto mb-2 h-8 w-8 text-rose-500" />
+                        <p className="text-sm font-semibold text-foreground">
+                          Pembahasan gagal dimuat
+                        </p>
+                        <p className="mt-1 text-xs text-muted-foreground">
+                          {reviewError}
+                        </p>
                       </div>
                     ) : reviewQuestions.length === 0 ? (
                       <div className="rounded-xl border border-dashed p-6 text-center">
