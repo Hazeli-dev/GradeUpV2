@@ -1,3 +1,4 @@
+
 import { categories } from "@/data/categories";
 import { exams } from "@/data/exams";
 import { questions } from "@/data/questions";
@@ -21,25 +22,16 @@ interface SupabaseCourseRow {
   premium: boolean | null;
   status: Course["status"];
   thumbnail: string | null;
-  course_modules?: {
-    id: string;
-    course_lessons?: {
-      id: string;
-    }[] | null;
-  }[] | null;
 }
 
 export type CatalogCourse = Course & {
   lessonCount: number;
-};
+}
 
+/**
+ * Memetakan data kursus dari Supabase.
+ */
 function mapSupabaseCourse(row: SupabaseCourseRow): CatalogCourse {
-  const lessonCount = (row.course_modules ?? []).reduce(
-    (total, module) =>
-      total + (module.course_lessons?.length ?? 0),
-    0
-  );
-
   return {
     id: row.id,
     title: row.title,
@@ -51,11 +43,10 @@ function mapSupabaseCourse(row: SupabaseCourseRow): CatalogCourse {
     status: row.status,
     thumbnail: row.thumbnail ?? "from-emerald-500 to-teal-600",
 
-    // Jumlah materi diambil dari relasi Supabase.
-    lessonCount,
+    // Jumlah materi sementara belum dihitung dari relasi.
+    lessonCount: 0,
 
-    // Field berikut belum disimpan pada tabel courses.
-    // Tetap disediakan agar kompatibel dengan tipe Course lama.
+    // Field kompatibilitas dengan tipe Course.
     lessons: [],
     objectives: [],
     duration: 0,
@@ -65,7 +56,8 @@ function mapSupabaseCourse(row: SupabaseCourseRow): CatalogCourse {
 }
 
 /**
- * Mengambil katalog kursus yang sudah diterbitkan.
+ * Mengambil seluruh katalog kursus yang sudah diterbitkan.
+ * Menggunakan pola query yang sama dengan Home Page.
  */
 export async function listCourses(): Promise<CatalogCourse[]> {
   const { data, error } = await supabase
@@ -79,13 +71,7 @@ export async function listCourses(): Promise<CatalogCourse[]> {
       instructor,
       premium,
       status,
-      thumbnail,
-      course_modules (
-        id,
-        course_lessons (
-          id
-        )
-      )
+      thumbnail
     `)
     .eq("status", "Published")
     .order("created_at", { ascending: false });
@@ -117,13 +103,7 @@ export async function getCourseById(
       instructor,
       premium,
       status,
-      thumbnail,
-      course_modules (
-        id,
-        course_lessons (
-          id
-        )
-      )
+      thumbnail
     `)
     .eq("id", id)
     .maybeSingle();
