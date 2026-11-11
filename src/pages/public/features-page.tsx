@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import {
   ArrowDown,
   ArrowRight,
+  BookOpen,
   Check,
   ChevronRight,
   GraduationCap,
@@ -17,15 +18,62 @@ import { SectionHeading } from "@/components/shared/page-header";
 import { features } from "@/data/marketing";
 import { cn } from "@/lib/utils";
 
+const benefits = [
+  {
+    icon: Layers3,
+    title: "Terintegrasi",
+    description: "Berbagai kebutuhan belajar dalam satu platform.",
+  },
+  {
+    icon: Target,
+    title: "Terarah",
+    description: "Mendukung proses belajar yang lebih terstruktur.",
+  },
+  {
+    icon: Zap,
+    title: "Interaktif",
+    description: "Pengalaman belajar digital yang praktis.",
+  },
+];
+
+const learningHighlights = [
+  {
+    icon: BookOpen,
+    title: "Mulai dari materi",
+    description:
+      "Bangun pemahaman melalui materi pembelajaran yang tersedia.",
+  },
+  {
+    icon: Target,
+    title: "Lanjutkan dengan latihan",
+    description:
+      "Asah kemampuan melalui latihan soal dan simulasi.",
+  },
+  {
+    icon: GraduationCap,
+    title: "Evaluasi perkembangan",
+    description:
+      "Gunakan hasil pengerjaan sebagai bahan evaluasi belajar.",
+  },
+];
+
+const experiencePoints = [
+  "Akses pembelajaran dalam satu platform",
+  "Latihan sesuai kebutuhan belajar",
+  "Evaluasi untuk mengenali kemampuan",
+  "Motivasi untuk terus berkembang",
+];
+
 export default function FeaturesPage() {
   return (
     <>
-      {/* HERO SECTION */}
+      {/* HERO */}
       <section className="relative isolate overflow-hidden border-b bg-muted/30">
         <div
           aria-hidden="true"
           className="pointer-events-none absolute -right-32 -top-32 -z-10 h-96 w-96 rounded-full bg-primary/10 blur-3xl"
         />
+
         <div
           aria-hidden="true"
           className="pointer-events-none absolute -bottom-40 -left-32 -z-10 h-96 w-96 rounded-full bg-primary/10 blur-3xl"
@@ -73,24 +121,8 @@ export default function FeaturesPage() {
               </Button>
             </div>
 
-            <div className="mx-auto mt-14 grid max-w-3xl grid-cols-1 gap-3 sm:grid-cols-3">
-              {[
-                {
-                  icon: Layers3,
-                  title: "Terintegrasi",
-                  text: "Berbagai kebutuhan belajar dalam satu platform.",
-                },
-                {
-                  icon: Target,
-                  title: "Terarah",
-                  text: "Mendukung proses belajar yang lebih terstruktur.",
-                },
-                {
-                  icon: Zap,
-                  title: "Interaktif",
-                  text: "Pengalaman belajar digital yang praktis.",
-                },
-              ].map((item) => (
+            <div className="mx-auto mt-14 grid max-w-3xl gap-3 sm:grid-cols-3">
+              {benefits.map((item) => (
                 <div
                   key={item.title}
                   className="rounded-2xl border bg-background/80 p-5 text-left shadow-sm backdrop-blur-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-md"
@@ -99,9 +131,12 @@ export default function FeaturesPage() {
                     <item.icon className="h-5 w-5" />
                   </div>
 
-                  <h3 className="mt-4 text-sm font-bold">{item.title}</h3>
+                  <h3 className="mt-4 text-sm font-bold">
+                    {item.title}
+                  </h3>
+
                   <p className="mt-1.5 text-xs leading-relaxed text-muted-foreground">
-                    {item.text}
+                    {item.description}
                   </p>
                 </div>
               ))}
@@ -110,8 +145,11 @@ export default function FeaturesPage() {
         </div>
       </section>
 
-      {/* FEATURE OVERVIEW */}
-      <section id="daftar-fitur" className="container scroll-mt-24 py-20 sm:py-24">
+      {/* DAFTAR FITUR */}
+      <section
+        id="daftar-fitur"
+        className="container scroll-mt-24 py-20 sm:py-24"
+      >
         <SectionHeading
           eyebrow="JELAJAHI GRADEUP"
           title="Fitur yang mendukung setiap langkah belajar"
@@ -152,7 +190,7 @@ export default function FeaturesPage() {
         </div>
       </section>
 
-      {/* FEATURE DETAILS */}
+      {/* DETAIL FITUR */}
       <section className="border-y bg-muted/30 py-20 sm:py-24">
         <div className="container">
           <SectionHeading
@@ -170,11 +208,11 @@ export default function FeaturesPage() {
               >
                 <div
                   className={cn(
-                    "grid items-center gap-8 overflow-hidden rounded-3xl border bg-card p-6 shadow-sm transition-all duration-300 hover:shadow-lg sm:p-9 lg:gap-12 lg:p-10",
-                    index % 2 === 1 && "lg:[&>*:first-child]:order-2"
+                    "grid items-center gap-8 overflow-hidden rounded-3xl border bg-card p-6 shadow-sm transition-all duration-300 hover:shadow-lg sm:p-9 lg:grid-cols-2 lg:gap-12 lg:p-10",
+                    index % 2 === 1 &&
+                      "lg:[&>*:first-child]:order-2"
                   )}
                 >
-                  {/* DESCRIPTION */}
                   <div>
                     <div className="flex items-center gap-3">
                       <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-brand-gradient text-white shadow-glow">
@@ -208,7 +246,8 @@ export default function FeaturesPage() {
                       ]
                         .filter(
                           (item, itemIndex, array) =>
-                            item && array.indexOf(item) === itemIndex
+                            item &&
+                            array.indexOf(item) === itemIndex
                         )
                         .map((text) => (
                           <li
@@ -216,8 +255,12 @@ export default function FeaturesPage() {
                             className="flex items-start gap-3 text-sm leading-7 text-muted-foreground"
                           >
                             <span className="mt-1 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
-                              <Check className="h-3 w-3" strokeWidth={3} />
+                              <Check
+                                className="h-3 w-3"
+                                strokeWidth={3}
+                              />
                             </span>
+
                             <span>{text}</span>
                           </li>
                         ))}
@@ -237,12 +280,13 @@ export default function FeaturesPage() {
                     </div>
                   </div>
 
-                  {/* VISUAL */}
+                  {/* VISUAL FITUR */}
                   <div className="relative flex min-h-64 items-center justify-center overflow-hidden rounded-2xl border bg-gradient-to-br from-soft via-muted to-primary/5 p-8 sm:min-h-80">
                     <div
                       aria-hidden="true"
                       className="absolute h-48 w-48 rounded-full border border-primary/10 sm:h-64 sm:w-64"
                     />
+
                     <div
                       aria-hidden="true"
                       className="absolute h-36 w-36 rounded-full border border-primary/10 sm:h-48 sm:w-48"
@@ -272,7 +316,7 @@ export default function FeaturesPage() {
         </div>
       </section>
 
-      {/* LEARNING EXPERIENCE */}
+      {/* PENGALAMAN BELAJAR */}
       <section className="container py-20 sm:py-24">
         <div className="grid items-center gap-12 lg:grid-cols-2 lg:gap-16">
           <div>
@@ -283,23 +327,7 @@ export default function FeaturesPage() {
             />
 
             <div className="mt-8 space-y-5">
-              {[
-                {
-                  icon: BookOpen,
-                  title: "Mulai dari materi",
-                  text: "Bangun pemahaman melalui materi pembelajaran.",
-                },
-                {
-                  icon: Target,
-                  title: "Lanjutkan dengan latihan",
-                  text: "Asah kemampuan melalui latihan dan simulasi.",
-                },
-                {
-                  icon: GraduationCap,
-                  title: "Evaluasi perkembangan",
-                  text: "Gunakan hasil pengerjaan sebagai bahan evaluasi.",
-                },
-              ].map((item, index) => (
+              {learningHighlights.map((item) => (
                 <div key={item.title} className="flex gap-4">
                   <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
                     <item.icon className="h-5 w-5" />
@@ -307,8 +335,9 @@ export default function FeaturesPage() {
 
                   <div>
                     <h3 className="font-bold">{item.title}</h3>
+
                     <p className="mt-1 text-sm leading-7 text-muted-foreground">
-                      {item.text}
+                      {item.description}
                     </p>
                   </div>
                 </div>
@@ -347,12 +376,7 @@ export default function FeaturesPage() {
               <div className="my-7 h-px bg-border" />
 
               <div className="space-y-4">
-                {[
-                  "Akses pembelajaran dalam satu platform",
-                  "Latihan sesuai kebutuhan belajar",
-                  "Evaluasi untuk mengenali kemampuan",
-                  "Motivasi untuk terus berkembang",
-                ].map((item) => (
+                {experiencePoints.map((item) => (
                   <div key={item} className="flex items-center gap-3">
                     <Check className="h-4 w-4 shrink-0 text-primary" />
                     <span className="text-sm font-medium">{item}</span>
@@ -371,6 +395,7 @@ export default function FeaturesPage() {
             aria-hidden="true"
             className="pointer-events-none absolute -right-20 -top-24 -z-10 h-72 w-72 rounded-full border border-white/15"
           />
+
           <div
             aria-hidden="true"
             className="pointer-events-none absolute -bottom-36 -left-20 -z-10 h-80 w-80 rounded-full border border-white/15"
