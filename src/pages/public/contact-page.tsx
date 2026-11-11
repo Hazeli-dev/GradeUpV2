@@ -1,6 +1,13 @@
 
-import { useState, type ChangeEvent, type FormEvent } from "react";
-import { Loader2, Mail, MapPin, Phone, Send } from "lucide-react";
+import { useEffect, useState, type ChangeEvent, type FormEvent } from "react";
+import {
+  Loader2,
+  Mail,
+  MapPin,
+  Phone,
+  Send,
+  UserRound,
+} from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
@@ -18,6 +25,13 @@ type ContactForm = {
   message: string;
 };
 
+type PlatformContact = {
+  name: string;
+  email: string;
+  phone: string;
+  address: string;
+};
+
 const INITIAL_FORM: ContactForm = {
   name: "",
   email: "",
@@ -25,10 +39,62 @@ const INITIAL_FORM: ContactForm = {
   message: "",
 };
 
+const DEFAULT_CONTACT: PlatformContact = {
+  name: "Tim GradeUp",
+  email: CONTACT.email,
+  phone: CONTACT.phone,
+  address: CONTACT.address,
+};
+
 export default function ContactPage() {
   const [form, setForm] = useState<ContactForm>(INITIAL_FORM);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
+
+  const [contact, setContact] =
+    useState<PlatformContact>(DEFAULT_CONTACT);
+  const [loadingContact, setLoadingContact] = useState(true);
+
+  // Ambil informasi kontak terbaru dari Supabase.
+  useEffect(() => {
+    let active = true;
+
+    async function fetchContact() {
+      try {
+        const { data, error } = await supabase
+          .from("system_settings")
+          .select("value")
+          .eq("key", "platform_contact")
+          .maybeSingle();
+
+        if (error) throw error;
+
+        if (!active) return;
+
+        if (data?.value && typeof data.value === "object") {
+          const value = data.value as Partial<PlatformContact>;
+
+          setContact({
+            name: value.name?.trim() || DEFAULT_CONTACT.name,
+            email: value.email?.trim() || DEFAULT_CONTACT.email,
+            phone: value.phone?.trim() || DEFAULT_CONTACT.phone,
+            address:
+              value.address?.trim() || DEFAULT_CONTACT.address,
+          });
+        }
+      } catch (error) {
+        console.error("Gagal memuat informasi kontak:", error);
+      } finally {
+        if (active) setLoadingContact(false);
+      }
+    }
+
+    fetchContact();
+
+    return () => {
+      active = false;
+    };
+  }, []);
 
   const set =
     (key: keyof ContactForm) =>
@@ -81,6 +147,7 @@ export default function ContactPage() {
     return Object.keys(next).length === 0;
   };
 
+  // Kirim pesan melalui Supabase Edge Function dan Resend.
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
@@ -103,7 +170,9 @@ export default function ContactPage() {
 
       if (error) {
         console.error("Contact email error:", error);
-        throw new Error("Pesan belum berhasil dikirim. Silakan coba lagi.");
+        throw new Error(
+          "Pesan belum berhasil dikirim. Silakan coba lagi.",
+        );
       }
 
       if (!data?.success) {
@@ -135,13 +204,33 @@ export default function ContactPage() {
 
   const fieldError = (key: keyof ContactForm) =>
     errors[key] ? (
-      <p
-        className="text-xs font-medium text-destructive"
-        role="alert"
-      >
+      <p className="text-xs font-medium text-destructive" role="alert">
         {errors[key]}
       </p>
     ) : null;
+
+  const contactItems = [
+    {
+      icon: UserRound,
+      label: "Nama Kontak",
+      value: contact.name,
+    },
+    {
+      icon: Mail,
+      label: "Email",
+      value: contact.email,
+    },
+    {
+      icon: Phone,
+      label: "Telepon",
+      value: contact.phone,
+    },
+    {
+      icon: MapPin,
+      label: "Alamat",
+      value: contact.address,
+    },
+  ];
 
   return (
     <section className="container py-16 sm:py-24">
@@ -152,36 +241,38 @@ export default function ContactPage() {
       />
 
       <div className="mx-auto mt-12 grid max-w-5xl gap-8 lg:grid-cols-5">
+        {/* INFORMASI KONTAK */}
         <div className="space-y-4 lg:col-span-2">
-          {[
-            [Mail, "Email", CONTACT.email],
-            [Phone, "Telepon", CONTACT.phone],
-            [MapPin, "Alamat", CONTACT.address],
-          ].map(([Icon, label, value]) => {
-            const I = Icon as typeof Mail;
+          {contactItems.map(({ icon: Icon, label, value }) => (
+            <div
+              key={label}
+              className="flex items-start gap-4 rounded-2xl border bg-card p-5 shadow-soft"
+            >
+              <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-soft text-primary dark:text-accent">
+                <Icon className="h-5 w-5" />
+              </span>
 
-            return (
-              <div
-                key={label as string}
-                className="flex items-start gap-4 rounded-2xl border bg-card p-5 shadow-soft"
-              >
-                <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-soft text-primary dark:text-accent">
-                  <I className="h-5 w-5" />
-                </span>
+              <div className="min-w-0">
+                <p className="text-xs font-semibold text-muted-foreground">
+                  {label}
+                </p>
 
-                <div>
-                  <p className="text-xs font-semibold text-muted-foreground">
-                    {label as string}
-                  </p>
-                  <p className="text-sm font-bold">
-                    {value as string}
-                  </p>
-                </div>
+                <p className="break-words text-sm font-bold">
+                  {loadingContact ? (
+                    <span className="inline-flex items-center gap-2 font-normal text-muted-foreground">
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      Memuat...
+                    </span>
+                  ) : (
+                    value
+                  )}
+                </p>
               </div>
-            );
-          })}
+            </div>
+          ))}
         </div>
 
+        {/* FORMULIR KONTAK */}
         <form
           onSubmit={submit}
           noValidate
@@ -191,6 +282,7 @@ export default function ContactPage() {
             <p className="text-sm font-medium">
               Ada yang ingin ditanyakan?
             </p>
+
             <p className="mt-1 text-xs text-muted-foreground">
               Kirim pesan melalui formulir ini. Pesan Anda akan diteruskan
               langsung ke tim admin GradeUp melalui email.
@@ -200,6 +292,7 @@ export default function ContactPage() {
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-2">
               <Label htmlFor="name">Nama</Label>
+
               <Input
                 id="name"
                 value={form.name}
@@ -207,13 +300,17 @@ export default function ContactPage() {
                 placeholder="Nama lengkap"
                 maxLength={100}
                 aria-invalid={!!errors.name}
-                aria-describedby={errors.name ? "name-error" : undefined}
+                aria-describedby={
+                  errors.name ? "name-error" : undefined
+                }
               />
+
               {fieldError("name")}
             </div>
 
             <div className="space-y-2">
               <Label htmlFor="email">Email</Label>
+
               <Input
                 id="email"
                 type="email"
@@ -222,14 +319,18 @@ export default function ContactPage() {
                 placeholder="nama@email.com"
                 maxLength={254}
                 aria-invalid={!!errors.email}
-                aria-describedby={errors.email ? "email-error" : undefined}
+                aria-describedby={
+                  errors.email ? "email-error" : undefined
+                }
               />
+
               {fieldError("email")}
             </div>
           </div>
 
           <div className="space-y-2">
             <Label htmlFor="subject">Subjek</Label>
+
             <Input
               id="subject"
               value={form.subject}
@@ -238,11 +339,13 @@ export default function ContactPage() {
               maxLength={150}
               aria-invalid={!!errors.subject}
             />
+
             {fieldError("subject")}
           </div>
 
           <div className="space-y-2">
             <Label htmlFor="message">Pesan</Label>
+
             <Textarea
               id="message"
               value={form.message}
@@ -251,7 +354,9 @@ export default function ContactPage() {
               maxLength={5000}
               aria-invalid={!!errors.message}
             />
+
             {fieldError("message")}
+
             <p className="text-right text-xs text-muted-foreground">
               {form.message.length}/5000 karakter
             </p>
