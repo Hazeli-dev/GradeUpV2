@@ -467,7 +467,7 @@ export default function AboutPage() {
               <Button
                 asChild
                 size="lg"
-                variant="secondary"
+                variant="outline"
                 className="gap-2 font-bold"
               >
                 <Link to="/register">
