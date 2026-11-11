@@ -286,7 +286,7 @@ export default function FaqPage() {
               <Button
                 asChild
                 size="lg"
-                variant="secondary"
+                variant="solid"
                 className="gap-2 rounded-xl font-bold"
               >
                 <Link to="/contact">
