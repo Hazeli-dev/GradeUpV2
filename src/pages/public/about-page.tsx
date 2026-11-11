@@ -7,53 +7,37 @@ import {
   BookOpen,
   BrainCircuit,
   CheckCircle2,
-  Compass,
+  ClipboardCheck,
+  Eye,
   GraduationCap,
   Heart,
   Lightbulb,
+  Rocket,
   ShieldCheck,
   Sparkles,
   Target,
   Trophy,
   Users,
-  Eye,
-  ClipboardCheck,
-  Rocket,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { SectionHeading } from "@/components/shared/page-header";
 
-const values = [
+const highlights = [
   {
-    icon: Target,
-    title: "Terarah",
-    text: "Setiap materi, latihan, dan evaluasi dirancang agar siswa memiliki tujuan belajar yang jelas dan terukur.",
+    icon: GraduationCap,
+    title: "Berbagai Jenjang",
+    description: "Mendukung kebutuhan belajar dari berbagai jenjang pendidikan.",
   },
   {
-    icon: Heart,
-    title: "Ramah Siswa",
-    text: "Menghadirkan pengalaman belajar yang nyaman, mudah dipahami, dan mendorong semangat belajar.",
+    icon: BookOpen,
+    title: "Materi Terstruktur",
+    description: "Membantu siswa belajar secara bertahap dan terarah.",
   },
   {
     icon: BarChart3,
-    title: "Berbasis Data",
-    text: "Hasil latihan dan statistik belajar membantu siswa memahami perkembangan serta menentukan langkah berikutnya.",
-  },
-  {
-    icon: Lightbulb,
-    title: "Terus Berkembang",
-    text: "Kami percaya bahwa proses belajar merupakan perjalanan yang membutuhkan konsistensi dan perbaikan berkelanjutan.",
-  },
-  {
-    icon: ShieldCheck,
-    title: "Bertanggung Jawab",
-    text: "Mengutamakan pengalaman belajar yang aman, informatif, dan memberikan manfaat bagi penggunanya.",
-  },
-  {
-    icon: Users,
-    title: "Inklusif",
-    text: "Mengembangkan pengalaman pembelajaran digital yang dapat digunakan oleh siswa dari berbagai jenjang pendidikan.",
+    title: "Evaluasi Belajar",
+    description: "Memahami hasil latihan dan perkembangan kemampuan.",
   },
 ];
 
@@ -61,118 +45,159 @@ const features = [
   {
     icon: BookOpen,
     title: "Materi Pembelajaran",
-    text: "Akses materi belajar yang disusun secara terstruktur untuk membantu memahami berbagai topik pelajaran.",
+    text: "Pelajari berbagai topik melalui materi yang disusun secara terstruktur untuk membantu membangun pemahaman.",
   },
   {
     icon: ClipboardCheck,
-    title: "Latihan dan Simulasi Ujian",
-    text: "Berlatih melalui soal-soal dan simulasi ujian dengan pengalaman pengerjaan berbasis komputer.",
+    title: "Latihan dan Simulasi",
+    text: "Asah kemampuan melalui latihan soal dan simulasi ujian dengan pengalaman pengerjaan berbasis komputer.",
   },
   {
     icon: BarChart3,
     title: "Evaluasi Hasil Belajar",
-    text: "Lihat hasil pengerjaan, jumlah jawaban benar dan salah, serta perkembangan kemampuan belajar.",
+    text: "Tinjau hasil pengerjaan, jawaban benar dan salah, serta perkembangan kemampuan belajar.",
   },
   {
     icon: Trophy,
-    title: "Motivasi dan Pencapaian",
-    text: "Bangun kebiasaan belajar melalui XP, level, badge, dan pencapaian yang mendorong konsistensi.",
+    title: "Pencapaian Belajar",
+    text: "Bangun motivasi melalui XP, level, badge, dan pencapaian untuk mendukung konsistensi belajar.",
+  },
+];
+
+const values = [
+  {
+    icon: Target,
+    title: "Terarah",
+    text: "Setiap materi, latihan, dan evaluasi memiliki tujuan belajar yang jelas.",
+  },
+  {
+    icon: Heart,
+    title: "Ramah Siswa",
+    text: "Menghadirkan pengalaman belajar yang nyaman, sederhana, dan mudah digunakan.",
+  },
+  {
+    icon: BarChart3,
+    title: "Berbasis Evaluasi",
+    text: "Hasil latihan membantu siswa mengenali kemampuan dan menentukan langkah berikutnya.",
+  },
+  {
+    icon: Lightbulb,
+    title: "Terus Berkembang",
+    text: "Mendorong proses belajar yang konsisten melalui latihan dan perbaikan berkelanjutan.",
+  },
+  {
+    icon: ShieldCheck,
+    title: "Bertanggung Jawab",
+    text: "Mengutamakan pengalaman belajar yang informatif dan memberikan manfaat.",
+  },
+  {
+    icon: Users,
+    title: "Inklusif",
+    text: "Mengembangkan pembelajaran digital yang dapat dimanfaatkan oleh siswa dari berbagai jenjang.",
   },
 ];
 
 const learningSteps = [
   {
     number: "01",
+    icon: Users,
     title: "Buat Akun",
     text: "Daftar dan lengkapi profil untuk memulai perjalanan belajar di GradeUp.",
   },
   {
     number: "02",
-    title: "Pilih Materi atau Ujian",
-    text: "Temukan materi, latihan soal, atau paket ujian yang sesuai dengan kebutuhan belajar.",
+    icon: BookOpen,
+    title: "Pilih Pembelajaran",
+    text: "Temukan materi, latihan soal, atau paket ujian sesuai kebutuhan.",
   },
   {
     number: "03",
+    icon: BrainCircuit,
     title: "Belajar dan Berlatih",
-    text: "Pelajari materi dan kerjakan latihan secara bertahap untuk memperkuat pemahaman.",
+    text: "Pelajari materi dan kerjakan latihan untuk memperkuat pemahaman.",
   },
   {
     number: "04",
-    title: "Evaluasi Perkembangan",
-    text: "Periksa hasil belajar, pahami kesalahan, dan tingkatkan kemampuan melalui latihan berikutnya.",
+    icon: BarChart3,
+    title: "Evaluasi Hasil",
+    text: "Tinjau hasil belajar, pahami kesalahan, dan tingkatkan kemampuan.",
   },
+];
+
+const missions = [
+  "Menyediakan materi dan latihan soal yang terstruktur serta mudah diakses.",
+  "Menghadirkan simulasi ujian digital sebagai sarana persiapan siswa.",
+  "Menyediakan evaluasi untuk membantu memahami hasil belajar.",
+  "Mengembangkan pengalaman pembelajaran yang interaktif dan nyaman.",
+  "Mendorong kebiasaan belajar mandiri dan konsisten.",
+  "Terus meningkatkan kualitas layanan berdasarkan kebutuhan pengguna.",
 ];
 
 export default function AboutPage() {
   return (
     <>
       {/* HERO */}
-      <section className="relative overflow-hidden border-b bg-muted/30">
-        <div className="pointer-events-none absolute -right-24 -top-24 h-80 w-80 rounded-full bg-primary/10 blur-3xl" />
-        <div className="pointer-events-none absolute -bottom-32 -left-24 h-80 w-80 rounded-full bg-primary/10 blur-3xl" />
+      <section className="relative isolate overflow-hidden border-b bg-muted/30">
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute -right-32 -top-32 -z-10 h-96 w-96 rounded-full bg-primary/10 blur-3xl"
+        />
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute -bottom-40 -left-32 -z-10 h-96 w-96 rounded-full bg-primary/10 blur-3xl"
+        />
 
-        <div className="container relative py-20 sm:py-28">
+        <div className="container py-20 sm:py-28 lg:py-32">
           <div className="mx-auto max-w-4xl text-center">
-            <div className="mb-6 inline-flex items-center gap-2 rounded-full border bg-background px-4 py-2 text-xs font-bold text-primary shadow-sm">
+            <div className="mb-6 inline-flex items-center gap-2 rounded-full border bg-background/90 px-4 py-2 text-xs font-bold tracking-wide text-primary shadow-sm">
               <Sparkles className="h-4 w-4" />
-              Mengenal GradeUp
+              MENGENAL GRADEUP
             </div>
 
-            <h1 className="text-4xl font-black leading-tight tracking-tight sm:text-5xl lg:text-6xl">
-              Membantu Setiap Siswa
-              <span className="block text-primary">
-                Belajar dan Berkembang
+            <h1 className="text-4xl font-black leading-[1.12] tracking-tight sm:text-5xl lg:text-6xl">
+              Belajar Lebih Terarah,
+              <span className="mt-2 block text-primary">
+                Berkembang Lebih Baik.
               </span>
             </h1>
 
-            <p className="mx-auto mt-6 max-w-2xl text-base leading-relaxed text-muted-foreground sm:text-lg">
-              GradeUp adalah platform pembelajaran digital berbasis
-              latihan dan evaluasi ujian yang dirancang untuk membantu
-              siswa dari berbagai jenjang pendidikan belajar lebih
-              terarah, memahami kemampuan, dan mempersiapkan diri
-              menghadapi ujian.
+            <p className="mx-auto mt-6 max-w-2xl text-base leading-8 text-muted-foreground sm:text-lg">
+              GradeUp merupakan platform pembelajaran digital yang
+              menggabungkan materi, latihan soal, simulasi ujian, dan
+              evaluasi hasil belajar untuk mendukung perjalanan akademik
+              siswa dari berbagai jenjang pendidikan.
             </p>
 
             <div className="mt-9 flex flex-col justify-center gap-3 sm:flex-row">
-              <Button asChild size="lg" className="gap-2">
+              <Button asChild size="lg" className="gap-2 rounded-xl px-7">
                 <Link to="/register">
                   Mulai Belajar Gratis
                   <ArrowRight className="h-4 w-4" />
                 </Link>
               </Button>
 
-              <Button asChild size="lg" variant="outline">
+              <Button
+                asChild
+                size="lg"
+                variant="outline"
+                className="rounded-xl px-7"
+              >
                 <Link to="/login">Masuk ke GradeUp</Link>
               </Button>
             </div>
 
-            <div className="mt-14 grid grid-cols-2 gap-4 sm:grid-cols-3">
-              {[
-                {
-                  icon: GraduationCap,
-                  title: "Berbagai Jenjang",
-                  description: "Pengalaman belajar yang fleksibel",
-                },
-                {
-                  icon: BookOpen,
-                  title: "Materi dan Latihan",
-                  description: "Belajar secara bertahap",
-                },
-                {
-                  icon: BarChart3,
-                  title: "Evaluasi Belajar",
-                  description: "Pantau hasil perkembangan",
-                },
-              ].map((item) => (
+            <div className="mx-auto mt-14 grid max-w-3xl gap-3 text-left sm:grid-cols-3">
+              {highlights.map((item) => (
                 <div
                   key={item.title}
-                  className="rounded-2xl border bg-background/80 p-4 text-left shadow-sm"
+                  className="rounded-2xl border bg-background/80 p-5 shadow-sm backdrop-blur-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-md"
                 >
-                  <item.icon className="h-6 w-6 text-primary" />
-                  <p className="mt-3 text-sm font-bold">
-                    {item.title}
-                  </p>
-                  <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+                  <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-primary/10 text-primary">
+                    <item.icon className="h-5 w-5" />
+                  </div>
+
+                  <h3 className="mt-4 text-sm font-bold">{item.title}</h3>
+                  <p className="mt-1.5 text-xs leading-relaxed text-muted-foreground">
                     {item.description}
                   </p>
                 </div>
@@ -182,61 +207,70 @@ export default function AboutPage() {
         </div>
       </section>
 
-      {/* PROFIL GRADEUP */}
+      {/* PROFIL */}
       <section className="container py-20 sm:py-24">
-        <div className="grid items-center gap-12 lg:grid-cols-2">
+        <div className="grid items-center gap-12 lg:grid-cols-2 lg:gap-16">
           <div>
             <SectionHeading
-              eyebrow="Siapa Kami"
-              title="Belajar bukan sekadar mengerjakan soal"
-              description="Kami percaya bahwa proses belajar yang baik tidak berhenti pada mendapatkan nilai. Siswa juga perlu memahami materi, mengenali kemampuan, dan mengetahui hal-hal yang masih perlu ditingkatkan."
+              eyebrow="TENTANG KAMI"
+              title="Belajar bukan sekadar mendapatkan nilai"
+              description="Proses belajar yang baik tidak hanya berfokus pada hasil akhir. Memahami materi, mengenali kemampuan, dan memperbaiki kekurangan juga merupakan bagian penting dari perjalanan pendidikan."
             />
 
-            <div className="mt-7 space-y-4 text-sm leading-relaxed text-muted-foreground sm:text-base">
+            <div className="mt-7 space-y-4 text-sm leading-8 text-muted-foreground sm:text-base">
               <p>
                 GradeUp hadir sebagai platform pembelajaran digital
-                yang menggabungkan materi, latihan soal, simulasi
-                ujian, dan evaluasi hasil belajar dalam satu
-                pengalaman yang terintegrasi.
+                yang mengintegrasikan materi, latihan soal, simulasi
+                ujian, dan evaluasi hasil belajar dalam satu pengalaman
+                yang lebih terstruktur.
               </p>
 
               <p>
-                Melalui pendekatan pembelajaran berbasis latihan,
-                siswa dapat membangun pemahaman secara bertahap.
-                Hasil pengerjaan juga dapat digunakan sebagai bahan
-                evaluasi untuk menentukan strategi belajar berikutnya.
+                Melalui pendekatan belajar berbasis latihan, siswa
+                dapat membangun pemahaman secara bertahap. Hasil
+                pengerjaan juga dapat menjadi bahan evaluasi untuk
+                menentukan strategi belajar selanjutnya.
               </p>
 
               <p>
                 Kami ingin menjadikan teknologi sebagai sarana
                 pendukung pendidikan yang membantu siswa belajar
-                dengan lebih terstruktur, mandiri, dan percaya diri.
+                secara lebih mandiri, terarah, dan percaya diri.
               </p>
             </div>
           </div>
 
           <div className="relative">
-            <div className="absolute -inset-4 rounded-[2rem] bg-primary/10 blur-2xl" />
+            <div
+              aria-hidden="true"
+              className="absolute -inset-4 rounded-[2rem] bg-primary/10 blur-2xl"
+            />
 
-            <div className="relative overflow-hidden rounded-3xl border bg-card p-7 shadow-soft sm:p-9">
-              <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-brand-gradient text-white">
+            <div className="relative overflow-hidden rounded-3xl border bg-card p-7 shadow-soft sm:p-10">
+              <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-brand-gradient text-white shadow-lg">
                 <GraduationCap className="h-8 w-8" />
               </div>
 
-              <h3 className="mt-6 text-2xl font-black">
+              <p className="mt-7 text-xs font-bold uppercase tracking-[0.18em] text-primary">
+                Learning Experience
+              </p>
+
+              <h3 className="mt-3 text-2xl font-black leading-snug sm:text-3xl">
                 Satu Platform,
                 <span className="block text-primary">
-                  Banyak Kesempatan Belajar
+                  Banyak Kesempatan Belajar.
                 </span>
               </h3>
 
-              <p className="mt-4 text-sm leading-relaxed text-muted-foreground">
+              <p className="mt-4 text-sm leading-7 text-muted-foreground">
                 Dari memahami materi hingga mengevaluasi hasil ujian,
-                GradeUp dirancang untuk mendukung perjalanan belajar
-                dalam satu platform digital.
+                GradeUp dirancang untuk mendukung proses belajar dalam
+                satu platform digital.
               </p>
 
-              <div className="mt-7 space-y-4">
+              <div className="my-7 h-px bg-border" />
+
+              <div className="space-y-4">
                 {[
                   "Pembelajaran lebih terstruktur",
                   "Latihan dan simulasi ujian",
@@ -244,10 +278,10 @@ export default function AboutPage() {
                   "Motivasi melalui pencapaian belajar",
                 ].map((item) => (
                   <div key={item} className="flex items-center gap-3">
-                    <CheckCircle2 className="h-5 w-5 shrink-0 text-primary" />
-                    <span className="text-sm font-medium">
-                      {item}
-                    </span>
+                    <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
+                      <CheckCircle2 className="h-4 w-4" />
+                    </div>
+                    <span className="text-sm font-medium">{item}</span>
                   </div>
                 ))}
               </div>
@@ -257,23 +291,29 @@ export default function AboutPage() {
       </section>
 
       {/* VISI DAN MISI */}
-      <section className="bg-muted/40 py-20 sm:py-24">
+      <section className="border-y bg-muted/30 py-20 sm:py-24">
         <div className="container">
           <SectionHeading
-            eyebrow="Arah dan Tujuan"
+            eyebrow="ARAH DAN TUJUAN"
             title="Visi dan Misi GradeUp"
-            description="Menjadi platform yang terus berkembang untuk mendukung pengalaman belajar digital yang lebih baik."
+            description="Landasan yang menjadi arah pengembangan GradeUp dalam menghadirkan pengalaman pembelajaran digital."
           />
 
-          <div className="mt-12 grid gap-6 md:grid-cols-2">
-            <div className="rounded-3xl border bg-card p-8 shadow-soft sm:p-10">
-              <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-soft text-primary dark:text-accent">
-                <Eye className="h-7 w-7" />
+          <div className="mt-12 grid gap-6 lg:grid-cols-2">
+            <div className="rounded-3xl border bg-card p-7 shadow-sm transition-shadow hover:shadow-md sm:p-9">
+              <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10 text-primary">
+                <Eye className="h-6 w-6" />
               </div>
 
-              <h3 className="mt-6 text-2xl font-black">Visi</h3>
+              <p className="mt-6 text-xs font-bold uppercase tracking-[0.18em] text-primary">
+                Visi Kami
+              </p>
 
-              <p className="mt-4 text-base leading-relaxed text-muted-foreground">
+              <h3 className="mt-2 text-2xl font-black">
+                Pendidikan yang Lebih Terarah
+              </h3>
+
+              <p className="mt-4 text-sm leading-8 text-muted-foreground sm:text-base">
                 Menjadi platform pembelajaran digital yang membantu
                 siswa dari berbagai jenjang pendidikan mengembangkan
                 potensi, meningkatkan pemahaman, dan membangun
@@ -281,25 +321,27 @@ export default function AboutPage() {
               </p>
             </div>
 
-            <div className="rounded-3xl border bg-card p-8 shadow-soft sm:p-10">
-              <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-soft text-primary dark:text-accent">
-                <Target className="h-7 w-7" />
+            <div className="rounded-3xl border bg-card p-7 shadow-sm transition-shadow hover:shadow-md sm:p-9">
+              <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10 text-primary">
+                <Target className="h-6 w-6" />
               </div>
 
-              <h3 className="mt-6 text-2xl font-black">Misi</h3>
+              <p className="mt-6 text-xs font-bold uppercase tracking-[0.18em] text-primary">
+                Misi Kami
+              </p>
 
-              <ul className="mt-4 space-y-4 text-sm leading-relaxed text-muted-foreground">
-                {[
-                  "Menyediakan materi dan latihan soal yang terstruktur dan mudah diakses.",
-                  "Menghadirkan simulasi ujian digital untuk membantu siswa berlatih.",
-                  "Menyediakan evaluasi yang membantu siswa memahami hasil belajar.",
-                  "Mengembangkan pengalaman belajar yang interaktif dan mudah digunakan.",
-                  "Mendorong kebiasaan belajar mandiri dan konsisten.",
-                  "Terus meningkatkan kualitas layanan dan pengalaman pengguna.",
-                ].map((item) => (
-                  <li key={item} className="flex items-start gap-3">
-                    <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
-                    <span>{item}</span>
+              <h3 className="mt-2 text-2xl font-black">
+                Langkah Nyata untuk Belajar
+              </h3>
+
+              <ul className="mt-5 space-y-4">
+                {missions.map((mission) => (
+                  <li
+                    key={mission}
+                    className="flex items-start gap-3 text-sm leading-7 text-muted-foreground"
+                  >
+                    <CheckCircle2 className="mt-1 h-4 w-4 shrink-0 text-primary" />
+                    <span>{mission}</span>
                   </li>
                 ))}
               </ul>
@@ -308,75 +350,69 @@ export default function AboutPage() {
         </div>
       </section>
 
-      {/* FITUR DAN LAYANAN */}
+      {/* FITUR */}
       <section className="container py-20 sm:py-24">
         <SectionHeading
-          eyebrow="Apa yang Kami Hadirkan"
-          title="Dukungan belajar dalam satu platform"
-          description="GradeUp menggabungkan beberapa kebutuhan pembelajaran agar siswa dapat belajar, berlatih, dan mengevaluasi kemampuan secara lebih terstruktur."
+          eyebrow="FITUR DAN LAYANAN"
+          title="Semua kebutuhan belajar dalam satu tempat"
+          description="Berbagai fasilitas pembelajaran yang dirancang untuk membantu siswa memahami materi, berlatih, dan mengevaluasi kemampuan."
         />
 
         <div className="mt-12 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
-          {features.map((feature) => (
-            <div
+          {features.map((feature, index) => (
+            <article
               key={feature.title}
-              className="card-hover rounded-2xl border bg-card p-6 shadow-soft"
+              className="group rounded-2xl border bg-card p-6 shadow-sm transition-all duration-300 hover:-translate-y-1 hover:border-primary/30 hover:shadow-lg"
             >
-              <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-soft text-primary dark:text-accent">
+              <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10 text-primary transition-colors group-hover:bg-primary group-hover:text-primary-foreground">
                 <feature.icon className="h-6 w-6" />
               </div>
 
-              <h3 className="mt-5 font-bold">
-                {feature.title}
-              </h3>
+              <p className="mt-6 text-xs font-bold tracking-widest text-primary/70">
+                0{index + 1}
+              </p>
 
-              <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
+              <h3 className="mt-2 text-base font-bold">{feature.title}</h3>
+
+              <p className="mt-3 text-sm leading-7 text-muted-foreground">
                 {feature.text}
               </p>
-            </div>
+            </article>
           ))}
         </div>
       </section>
 
-      {/* CARA KERJA */}
-      <section className="bg-muted/40 py-20 sm:py-24">
+      {/* CARA BELAJAR */}
+      <section className="border-y bg-muted/30 py-20 sm:py-24">
         <div className="container">
           <SectionHeading
-            eyebrow="Cara Menggunakan"
-            title="Mulai belajar dengan langkah sederhana"
-            description="Perjalanan belajar di GradeUp dirancang agar mudah diikuti dan dapat dilakukan secara bertahap."
+            eyebrow="MULAI BELAJAR"
+            title="Empat langkah menuju belajar lebih terarah"
+            description="Mulai dari membuat akun hingga mengevaluasi hasil belajar. Setiap langkah dirancang agar mudah diikuti."
           />
 
-          <div className="relative mt-14 grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
-            {learningSteps.map((step, index) => (
-              <div
+          <div className="mt-12 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
+            {learningSteps.map((step) => (
+              <article
                 key={step.number}
-                className="relative rounded-2xl border bg-card p-6 shadow-soft"
+                className="relative rounded-2xl border bg-card p-6 shadow-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-md"
               >
                 <div className="flex items-center justify-between">
-                  <span className="text-3xl font-black text-primary/20">
+                  <span className="text-4xl font-black tracking-tight text-primary/20">
                     {step.number}
                   </span>
 
-                  {index === 0 ? (
-                    <Users className="h-5 w-5 text-primary" />
-                  ) : index === 1 ? (
-                    <BookOpen className="h-5 w-5 text-primary" />
-                  ) : index === 2 ? (
-                    <BrainCircuit className="h-5 w-5 text-primary" />
-                  ) : (
-                    <BarChart3 className="h-5 w-5 text-primary" />
-                  )}
+                  <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-primary/10 text-primary">
+                    <step.icon className="h-5 w-5" />
+                  </div>
                 </div>
 
-                <h3 className="mt-5 font-bold">
-                  {step.title}
-                </h3>
+                <h3 className="mt-6 font-bold">{step.title}</h3>
 
-                <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
+                <p className="mt-2 text-sm leading-7 text-muted-foreground">
                   {step.text}
                 </p>
-              </div>
+              </article>
             ))}
           </div>
         </div>
@@ -385,58 +421,60 @@ export default function AboutPage() {
       {/* NILAI GRADEUP */}
       <section className="container py-20 sm:py-24">
         <SectionHeading
-          eyebrow="Prinsip Kami"
-          title="Nilai yang kami pegang"
-          description="Nilai-nilai ini menjadi dasar dalam mengembangkan GradeUp dan menghadirkan pengalaman pembelajaran yang bermanfaat."
+          eyebrow="PRINSIP KAMI"
+          title="Nilai yang menjadi dasar GradeUp"
+          description="Prinsip yang kami pegang dalam mengembangkan platform dan menghadirkan pengalaman pembelajaran yang bermanfaat."
         />
 
         <div className="mt-12 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
           {values.map((value) => (
-            <div
+            <article
               key={value.title}
-              className="card-hover rounded-2xl border bg-card p-6 shadow-soft"
+              className="group rounded-2xl border bg-card p-6 shadow-sm transition-all duration-300 hover:-translate-y-1 hover:border-primary/30 hover:shadow-lg"
             >
-              <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-brand-gradient text-white">
+              <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-brand-gradient text-white shadow-sm transition-transform duration-300 group-hover:scale-105">
                 <value.icon className="h-6 w-6" />
               </div>
 
-              <h3 className="mt-5 text-lg font-bold">
-                {value.title}
-              </h3>
+              <h3 className="mt-5 text-lg font-bold">{value.title}</h3>
 
-              <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
+              <p className="mt-2 text-sm leading-7 text-muted-foreground">
                 {value.text}
               </p>
-            </div>
+            </article>
           ))}
         </div>
       </section>
 
       {/* KOMITMEN */}
-      <section className="border-y bg-muted/30 py-20">
+      <section className="border-y bg-muted/30 py-20 sm:py-24">
         <div className="container">
           <div className="mx-auto max-w-3xl text-center">
-            <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-soft text-primary dark:text-accent">
+            <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-primary/10 text-primary">
               <Award className="h-7 w-7" />
             </div>
 
-            <h2 className="mt-6 text-2xl font-black sm:text-3xl">
-              Komitmen Kami untuk Pembelajaran
-            </h2>
-
-            <p className="mt-5 text-sm leading-relaxed text-muted-foreground sm:text-base">
-              GradeUp berkomitmen untuk terus mengembangkan platform
-              pembelajaran yang mudah digunakan, relevan dengan
-              kebutuhan siswa, dan mendukung proses belajar yang
-              lebih terarah. Kami memahami bahwa setiap siswa
-              memiliki kebutuhan dan kecepatan belajar yang berbeda.
+            <p className="mt-6 text-xs font-bold uppercase tracking-[0.18em] text-primary">
+              Komitmen GradeUp
             </p>
 
-            <p className="mt-4 text-sm leading-relaxed text-muted-foreground sm:text-base">
-              Karena itu, kami ingin menjadikan GradeUp sebagai
-              salah satu sarana pendukung bagi siswa untuk terus
-              berlatih, memahami kemampuan, dan meningkatkan
-              pencapaian akademik secara bertahap.
+            <h2 className="mt-3 text-2xl font-black tracking-tight sm:text-3xl">
+              Setiap Proses Belajar Berarti
+            </h2>
+
+            <p className="mt-5 text-sm leading-8 text-muted-foreground sm:text-base">
+              Kami berkomitmen untuk terus mengembangkan platform
+              pembelajaran yang mudah digunakan, relevan dengan
+              kebutuhan siswa, dan mendukung proses belajar yang
+              lebih terarah.
+            </p>
+
+            <p className="mt-4 text-sm leading-8 text-muted-foreground sm:text-base">
+              Kami memahami bahwa setiap siswa memiliki kebutuhan
+              dan kecepatan belajar yang berbeda. Karena itu, GradeUp
+              ingin menjadi salah satu sarana pendukung agar siswa
+              dapat terus berlatih, memahami kemampuan, dan
+              meningkatkan pencapaian akademik secara bertahap.
             </p>
           </div>
         </div>
@@ -444,23 +482,33 @@ export default function AboutPage() {
 
       {/* CTA */}
       <section className="container py-20 sm:py-24">
-        <div className="relative overflow-hidden rounded-3xl bg-brand-gradient px-6 py-14 text-center text-white shadow-soft sm:px-12 sm:py-16">
-          <div className="pointer-events-none absolute -right-16 -top-20 h-64 w-64 rounded-full border border-white/10" />
-          <div className="pointer-events-none absolute -bottom-32 -left-20 h-72 w-72 rounded-full border border-white/10" />
+        <div className="relative isolate overflow-hidden rounded-3xl bg-brand-gradient px-6 py-14 text-center text-white shadow-soft sm:px-12 sm:py-16">
+          <div
+            aria-hidden="true"
+            className="pointer-events-none absolute -right-20 -top-24 -z-10 h-72 w-72 rounded-full border border-white/15"
+          />
+          <div
+            aria-hidden="true"
+            className="pointer-events-none absolute -bottom-36 -left-20 -z-10 h-80 w-80 rounded-full border border-white/15"
+          />
 
           <div className="relative mx-auto max-w-2xl">
             <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl border border-white/20 bg-white/10">
               <Rocket className="h-7 w-7" />
             </div>
 
-            <h2 className="mt-6 text-2xl font-black sm:text-4xl">
-              Saatnya Meningkatkan Kemampuan Belajar
+            <p className="mt-6 text-xs font-bold uppercase tracking-[0.2em] text-white/75">
+              Waktunya Berkembang
+            </p>
+
+            <h2 className="mt-3 text-2xl font-black leading-tight sm:text-4xl">
+              Mulai Perjalanan Belajarmu Bersama GradeUp
             </h2>
 
-            <p className="mx-auto mt-4 max-w-xl text-sm leading-relaxed text-white/85 sm:text-base">
-              Mulai perjalanan belajar yang lebih terarah bersama
-              GradeUp. Pelajari materi, kerjakan latihan, dan
-              evaluasi perkembanganmu selangkah demi selangkah.
+            <p className="mx-auto mt-5 max-w-xl text-sm leading-7 text-white/85 sm:text-base">
+              Pelajari materi, kerjakan latihan, dan evaluasi
+              perkembanganmu. Jadikan setiap proses belajar sebagai
+              langkah menuju kemampuan yang lebih baik.
             </p>
 
             <div className="mt-8 flex flex-col justify-center gap-3 sm:flex-row">
@@ -468,7 +516,7 @@ export default function AboutPage() {
                 asChild
                 size="lg"
                 variant="outline"
-                className="gap-2 font-bold"
+                className="gap-2 rounded-xl border-white bg-white px-7 font-bold text-primary hover:bg-white/90 hover:text-primary"
               >
                 <Link to="/register">
                   Daftar Gratis
@@ -480,7 +528,7 @@ export default function AboutPage() {
                 asChild
                 size="lg"
                 variant="outline"
-                className="border-white/40 bg-transparent text-white hover:bg-white/10 hover:text-white"
+                className="rounded-xl border-white/40 bg-transparent px-7 font-semibold text-white hover:bg-white/10 hover:text-white"
               >
                 <Link to="/login">Sudah Punya Akun?</Link>
               </Button>
