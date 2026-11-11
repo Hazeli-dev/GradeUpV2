@@ -65,6 +65,7 @@ import { isValidEmail } from "@/utils/format";
 import { supabase } from "@/lib/supabase";
 
 interface PlatformContact {
+  name: string;
   email: string;
   phone: string;
   address: string;
@@ -98,6 +99,7 @@ interface SeasonResetResult {
 }
 
 const DEFAULT_CONTACT: PlatformContact = {
+  name: "Tim GradeUp",
   email: CONTACT.email,
   phone: CONTACT.phone,
   address: CONTACT.address,
@@ -112,11 +114,27 @@ function formatDateTime(value?: string) {
 
   if (Number.isNaN(date.getTime())) return "-";
 
-  return date.toLocaleString("id-ID", {
-    dateStyle: "medium",
-    timeStyle: "short",
-    timeZone: "Asia/Jakarta",
-  }) + " WIB";
+  return (
+    date.toLocaleString("id-ID", {
+      dateStyle: "medium",
+      timeStyle: "short",
+      timeZone: "Asia/Jakarta",
+    }) + " WIB"
+  );
+}
+
+function toLocalDateTime(value?: string) {
+  if (!value) return "";
+
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) return "";
+
+  return new Date(
+    date.getTime() - date.getTimezoneOffset() * 60000,
+  )
+    .toISOString()
+    .slice(0, 16);
 }
 
 export default function AdminSettingsPage() {
@@ -162,7 +180,7 @@ export default function AdminSettingsPage() {
 
   const supabaseReady = isLoadedSupabase();
 
-  // Memuat konfigurasi Season dan informasi platform
+  // Memuat konfigurasi Season, informasi kontak, dan riwayat.
   useEffect(() => {
     let active = true;
 
@@ -191,56 +209,43 @@ export default function AdminSettingsPage() {
         if (seasonResult.error) {
           console.error(
             "Gagal mengambil konfigurasi Season:",
-            seasonResult.error
+            seasonResult.error,
           );
         } else if (seasonResult.data?.value) {
           const value = seasonResult.data.value as SeasonConfig;
 
           setSeasonName(value.season_name || "Season 1");
           setAutoResetEnabled(value.enabled !== false);
-
-          if (value.reset_at) {
-            const date = new Date(value.reset_at);
-
-            if (!Number.isNaN(date.getTime())) {
-              const localIso = new Date(
-                date.getTime() -
-                  date.getTimezoneOffset() * 60000
-              )
-                .toISOString()
-                .slice(0, 16);
-
-              setResetDateTime(localIso);
-            }
-          }
+          setResetDateTime(toLocalDateTime(value.reset_at));
         }
 
-        // Informasi platform
+        // Informasi kontak platform
         if (contactResult.error) {
           console.error(
             "Gagal mengambil informasi platform:",
-            contactResult.error
+            contactResult.error,
           );
         } else if (contactResult.data?.value) {
-          const value = contactResult.data.value as Partial<PlatformContact>;
+          const value =
+            contactResult.data.value as Partial<PlatformContact>;
 
           setInfo({
-            email: value.email ?? CONTACT.email,
-            phone: value.phone ?? CONTACT.phone,
-            address: value.address ?? CONTACT.address,
+            name: value.name?.trim() || DEFAULT_CONTACT.name,
+            email: value.email?.trim() || DEFAULT_CONTACT.email,
+            phone: value.phone?.trim() || DEFAULT_CONTACT.phone,
+            address:
+              value.address?.trim() || DEFAULT_CONTACT.address,
           });
         }
 
-        // Riwayat reset
+        // Riwayat Season
         if (logsResult.error) {
           console.error(
             "Gagal mengambil riwayat Season:",
-            logsResult.error
+            logsResult.error,
           );
         } else {
-          setSeasonLogs(
-            (logsResult.data || []) as SeasonResetLog[]
-          );
+          setSeasonLogs((logsResult.data || []) as SeasonResetLog[]);
         }
       } catch (error) {
         console.error("Gagal mengambil pengaturan:", error);
@@ -287,7 +292,6 @@ export default function AdminSettingsPage() {
     setSavingSchedule(true);
 
     try {
-      // Ambil konfigurasi lama agar properti lain tidak hilang
       const { data: currentData, error: readError } = await supabase
         .from("system_settings")
         .select("value")
@@ -314,7 +318,7 @@ export default function AdminSettingsPage() {
             value: newConfig,
             updated_at: new Date().toISOString(),
           },
-          { onConflict: "key" }
+          { onConflict: "key" },
         );
 
       if (error) throw error;
@@ -322,14 +326,14 @@ export default function AdminSettingsPage() {
       toast.success(
         autoResetEnabled
           ? "Konfigurasi Season dan jadwal otomatis berhasil disimpan."
-          : "Konfigurasi Season tersimpan. Reset otomatis dinonaktifkan."
+          : "Konfigurasi Season tersimpan. Reset otomatis dinonaktifkan.",
       );
     } catch (error: any) {
       console.error("Gagal menyimpan jadwal Season:", error);
 
       toast.error(
         "Gagal menyimpan jadwal: " +
-          (error.message || "Terjadi kesalahan")
+          (error.message || "Terjadi kesalahan"),
       );
     } finally {
       setSavingSchedule(false);
@@ -342,7 +346,7 @@ export default function AdminSettingsPage() {
 
     try {
       const { data, error } = await supabase.rpc(
-        "admin_get_season_reset_logs"
+        "admin_get_season_reset_logs",
       );
 
       if (error) throw error;
@@ -367,7 +371,7 @@ export default function AdminSettingsPage() {
 
     try {
       const { data, error } = await supabase.rpc(
-        "admin_reset_season_xp"
+        "admin_reset_season_xp",
       );
 
       if (error) throw error;
@@ -375,26 +379,16 @@ export default function AdminSettingsPage() {
       const result = data as SeasonResetResult;
 
       if (!result?.success) {
-        throw new Error("Server tidak mengembalikan hasil reset yang valid.");
+        throw new Error(
+          "Server tidak mengembalikan hasil reset yang valid.",
+        );
       }
 
       setResetResult(result);
-
       setSeasonName(result.new_season);
 
       if (result.next_reset_at) {
-        const nextDate = new Date(result.next_reset_at);
-
-        if (!Number.isNaN(nextDate.getTime())) {
-          const localIso = new Date(
-            nextDate.getTime() -
-              nextDate.getTimezoneOffset() * 60000
-          )
-            .toISOString()
-            .slice(0, 16);
-
-          setResetDateTime(localIso);
-        }
+        setResetDateTime(toLocalDateTime(result.next_reset_at));
       }
 
       toast.success("Reset Season berhasil dijalankan.");
@@ -402,50 +396,50 @@ export default function AdminSettingsPage() {
       setResetOpen(false);
       setConfirmText("");
 
-      // Perbarui konfigurasi dan riwayat setelah reset
-            // Perbarui riwayat dan konfigurasi setelah reset berhasil.
-      // Kegagalan refresh tidak boleh dianggap sebagai kegagalan reset.
+      // Refresh riwayat.
       await refreshSeasonLogs();
 
-      const { data: configData, error: configError } =
-        await supabase
-          .from("system_settings")
-          .select("value")
-          .eq("key", "season_config")
-          .maybeSingle();
+      // Muat ulang konfigurasi tanpa membatalkan hasil reset.
+      const { data: configData, error: configError } = await supabase
+        .from("system_settings")
+        .select("value")
+        .eq("key", "season_config")
+        .maybeSingle();
 
       if (configError) {
         console.error(
           "Reset berhasil, tetapi konfigurasi gagal dimuat ulang:",
-          configError
+          configError,
         );
 
         toast.warning(
-          "Reset berhasil, tetapi konfigurasi perlu dimuat ulang."
+          "Reset berhasil, tetapi konfigurasi perlu dimuat ulang.",
         );
       } else if (configData?.value) {
         const config = configData.value as SeasonConfig;
 
         setSeasonName(config.season_name || result.new_season);
         setAutoResetEnabled(config.enabled !== false);
+        setResetDateTime(toLocalDateTime(config.reset_at));
       }
     } catch (error: any) {
       console.error("Reset Season error:", error);
 
       toast.error(
         "Gagal mereset Season: " +
-          (error.message || "Terjadi kesalahan")
+          (error.message || "Terjadi kesalahan"),
       );
     } finally {
       setResetting(false);
     }
   };
 
-  // Simpan informasi kontak platform
+  // Simpan informasi kontak platform.
   const saveInfo = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
     const cleanedInfo: PlatformContact = {
+      name: info.name.trim(),
       email: info.email.trim(),
       phone: info.phone.trim(),
       address: info.address.trim(),
@@ -453,16 +447,28 @@ export default function AdminSettingsPage() {
 
     const errors: Record<string, string> = {};
 
+    if (!cleanedInfo.name) {
+      errors.name = "Nama kontak wajib diisi.";
+    } else if (cleanedInfo.name.length > 100) {
+      errors.name = "Nama kontak maksimal 100 karakter.";
+    }
+
     if (!isValidEmail(cleanedInfo.email)) {
       errors.email = "Email tidak valid.";
+    } else if (cleanedInfo.email.length > 254) {
+      errors.email = "Email terlalu panjang.";
     }
 
     if (cleanedInfo.phone.length < 6) {
       errors.phone = "Nomor telepon tidak valid.";
+    } else if (cleanedInfo.phone.length > 30) {
+      errors.phone = "Nomor telepon maksimal 30 karakter.";
     }
 
     if (!cleanedInfo.address) {
       errors.address = "Alamat kantor tidak boleh kosong.";
+    } else if (cleanedInfo.address.length > 500) {
+      errors.address = "Alamat maksimal 500 karakter.";
     }
 
     setInfoErr(errors);
@@ -480,7 +486,7 @@ export default function AdminSettingsPage() {
             value: cleanedInfo,
             updated_at: new Date().toISOString(),
           },
-          { onConflict: "key" }
+          { onConflict: "key" },
         );
 
       if (error) throw error;
@@ -488,13 +494,16 @@ export default function AdminSettingsPage() {
       setInfo(cleanedInfo);
       setInfoErr({});
 
-      toast.success("Informasi platform berhasil disimpan!");
+      toast.success("Informasi kontak berhasil disimpan!", {
+        description:
+          "Nama, email, telepon, dan alamat telah diperbarui.",
+      });
     } catch (error: any) {
       console.error("Gagal menyimpan informasi platform:", error);
 
       toast.error(
         "Gagal menyimpan informasi platform: " +
-          (error.message || "Terjadi kesalahan")
+          (error.message || "Terjadi kesalahan"),
       );
     } finally {
       setSavingInfo(false);
@@ -653,7 +662,6 @@ export default function AdminSettingsPage() {
             <CardHeader>
               <div className="flex items-center gap-2 text-emerald-500">
                 <Sparkles className="h-5 w-5" />
-
                 <CardTitle className="text-lg font-bold">
                   Pengaturan Season
                 </CardTitle>
@@ -683,9 +691,7 @@ export default function AdminSettingsPage() {
 
                   <div className="grid gap-4 border-t pt-5 sm:grid-cols-2">
                     <div className="space-y-2">
-                      <Label htmlFor="season-name">
-                        Nama Season
-                      </Label>
+                      <Label htmlFor="season-name">Nama Season</Label>
 
                       <Input
                         id="season-name"
@@ -725,16 +731,14 @@ export default function AdminSettingsPage() {
                   <div className="flex flex-col justify-between gap-3 rounded-lg border bg-background p-3 sm:flex-row sm:items-center">
                     <div className="flex items-center gap-2 text-sm">
                       <Clock className="h-4 w-4 text-muted-foreground" />
-
                       <span className="text-muted-foreground">
                         Reset berikutnya:
                       </span>
-
                       <strong>
                         {formatDateTime(
                           resetDateTime
                             ? new Date(resetDateTime).toISOString()
-                            : undefined
+                            : undefined,
                         )}
                       </strong>
                     </div>
@@ -763,7 +767,6 @@ export default function AdminSettingsPage() {
                       ) : (
                         <Save className="h-4 w-4" />
                       )}
-
                       Simpan Konfigurasi Season
                     </Button>
                   </div>
@@ -777,7 +780,6 @@ export default function AdminSettingsPage() {
             <CardHeader>
               <div className="flex items-center gap-2 text-destructive">
                 <ShieldAlert className="h-5 w-5" />
-
                 <CardTitle className="text-lg font-bold">
                   Reset Season Manual
                 </CardTitle>
@@ -813,7 +815,6 @@ export default function AdminSettingsPage() {
                   onOpenChange={(open) => {
                     if (!resetting) {
                       setResetOpen(open);
-
                       if (!open) setConfirmText("");
                     }
                   }}
@@ -905,8 +906,7 @@ export default function AdminSettingsPage() {
                         variant="destructive"
                         onClick={handleResetXp}
                         disabled={
-                          confirmText !== CONFIRM_KEYWORD ||
-                          resetting
+                          confirmText !== CONFIRM_KEYWORD || resetting
                         }
                         className="w-full gap-2 font-bold sm:w-auto"
                       >
@@ -932,7 +932,6 @@ export default function AdminSettingsPage() {
               <CardHeader>
                 <div className="flex items-center gap-2">
                   <CheckCircle2 className="h-5 w-5 text-emerald-500" />
-
                   <CardTitle>Hasil Reset Terakhir</CardTitle>
                 </div>
 
@@ -946,7 +945,6 @@ export default function AdminSettingsPage() {
                   <p className="text-xs text-muted-foreground">
                     Season sebelumnya
                   </p>
-
                   <p className="mt-1 font-bold">
                     {resetResult.previous_season}
                   </p>
@@ -956,7 +954,6 @@ export default function AdminSettingsPage() {
                   <p className="text-xs text-muted-foreground">
                     Season baru
                   </p>
-
                   <p className="mt-1 font-bold text-emerald-600">
                     {resetResult.new_season}
                   </p>
@@ -967,7 +964,6 @@ export default function AdminSettingsPage() {
                     <Users className="h-3.5 w-3.5" />
                     Siswa terdampak
                   </p>
-
                   <p className="mt-1 text-xl font-bold">
                     {resetResult.affected_students}
                   </p>
@@ -978,7 +974,6 @@ export default function AdminSettingsPage() {
                     <Trash2 className="h-3.5 w-3.5" />
                     Aktivitas dihapus
                   </p>
-
                   <p className="mt-1 text-xl font-bold">
                     {resetResult.deleted_activities}
                   </p>
@@ -988,7 +983,6 @@ export default function AdminSettingsPage() {
                   <p className="text-xs text-muted-foreground">
                     Jadwal reset berikutnya
                   </p>
-
                   <p className="mt-1 font-semibold">
                     {formatDateTime(resetResult.next_reset_at)}
                   </p>
@@ -1004,7 +998,6 @@ export default function AdminSettingsPage() {
                 <div>
                   <div className="flex items-center gap-2">
                     <History className="h-5 w-5" />
-
                     <CardTitle>Riwayat Reset Season</CardTitle>
                   </div>
 
@@ -1025,7 +1018,6 @@ export default function AdminSettingsPage() {
                   ) : (
                     <RotateCcw className="h-4 w-4" />
                   )}
-
                   Muat Ulang
                 </Button>
               </div>
@@ -1040,11 +1032,9 @@ export default function AdminSettingsPage() {
               ) : seasonLogs.length === 0 ? (
                 <div className="rounded-lg border border-dashed p-8 text-center">
                   <History className="mx-auto mb-2 h-8 w-8 text-muted-foreground" />
-
                   <p className="font-semibold">
                     Belum ada riwayat reset
                   </p>
-
                   <p className="mt-1 text-xs text-muted-foreground">
                     Riwayat akan muncul setelah reset Season pertama berhasil.
                   </p>
@@ -1052,20 +1042,14 @@ export default function AdminSettingsPage() {
               ) : (
                 <div className="space-y-3">
                   {seasonLogs.map((log) => (
-                    <div
-                      key={log.id}
-                      className="rounded-lg border p-3"
-                    >
+                    <div key={log.id} className="rounded-lg border p-3">
                       <div className="flex flex-col justify-between gap-2 sm:flex-row sm:items-center">
                         <div>
                           <p className="font-semibold">
                             {log.previous_season}{" "}
-                            <span className="text-muted-foreground">
-                              →
-                            </span>{" "}
+                            <span className="text-muted-foreground">→</span>{" "}
                             {log.new_season}
                           </p>
-
                           <p className="mt-1 text-xs text-muted-foreground">
                             {formatDateTime(log.reset_at)}
                           </p>
@@ -1078,12 +1062,11 @@ export default function AdminSettingsPage() {
                         </span>
                       </div>
 
-                      <div className="mt-3 grid grid-cols-2 gap-3 border-t pt-3 sm:grid-cols-2">
+                      <div className="mt-3 grid grid-cols-2 gap-3 border-t pt-3">
                         <div>
                           <p className="text-xs text-muted-foreground">
                             Siswa terdampak
                           </p>
-
                           <p className="font-bold">
                             {log.affected_students}
                           </p>
@@ -1093,7 +1076,6 @@ export default function AdminSettingsPage() {
                           <p className="text-xs text-muted-foreground">
                             Aktivitas dihapus
                           </p>
-
                           <p className="font-bold">
                             {log.deleted_activities}
                           </p>
@@ -1114,8 +1096,9 @@ export default function AdminSettingsPage() {
               <CardTitle>Informasi Platform</CardTitle>
 
               <CardDescription>
-                Kontak yang tampil di footer situs publik.
-                Perubahan akan disimpan ke database.
+                Kelola nama kontak, email, telepon, dan alamat yang
+                ditampilkan di halaman kontak publik GradeUp.
+                Perubahan akan disimpan ke Supabase.
               </CardDescription>
             </CardHeader>
 
@@ -1131,6 +1114,31 @@ export default function AdminSettingsPage() {
                   noValidate
                   className="grid max-w-2xl gap-4 sm:grid-cols-2"
                 >
+                  <div className="space-y-2 sm:col-span-2">
+                    <Label htmlFor="i-name">Nama Kontak</Label>
+
+                    <Input
+                      id="i-name"
+                      value={info.name}
+                      onChange={(event) => {
+                        setInfo({
+                          ...info,
+                          name: event.target.value,
+                        });
+
+                        setInfoErr((previous) => ({
+                          ...previous,
+                          name: "",
+                        }));
+                      }}
+                      placeholder="Contoh: Tim GradeUp"
+                      maxLength={100}
+                      aria-invalid={!!infoErr.name}
+                    />
+
+                    <FieldError message={infoErr.name} />
+                  </div>
+
                   <div className="space-y-2">
                     <Label htmlFor="i-email">Email</Label>
 
@@ -1150,6 +1158,7 @@ export default function AdminSettingsPage() {
                         }));
                       }}
                       placeholder="contoh@gradeup.id"
+                      maxLength={254}
                       aria-invalid={!!infoErr.email}
                     />
 
@@ -1175,6 +1184,7 @@ export default function AdminSettingsPage() {
                         }));
                       }}
                       placeholder="+62..."
+                      maxLength={30}
                       aria-invalid={!!infoErr.phone}
                     />
 
@@ -1199,6 +1209,7 @@ export default function AdminSettingsPage() {
                         }));
                       }}
                       placeholder="Masukkan alamat kantor..."
+                      maxLength={500}
                       aria-invalid={!!infoErr.address}
                     />
 
@@ -1232,7 +1243,6 @@ export default function AdminSettingsPage() {
           <Card>
             <CardHeader>
               <CardTitle>Status Integrasi</CardTitle>
-
               <CardDescription>
                 Kesiapan layanan platform.
               </CardDescription>
@@ -1255,7 +1265,6 @@ export default function AdminSettingsPage() {
                   className="flex items-center justify-between gap-4 py-3"
                 >
                   <span className="font-semibold">{key}</span>
-
                   <span className="text-right text-muted-foreground">
                     {value}
                   </span>
@@ -1270,7 +1279,6 @@ export default function AdminSettingsPage() {
           <Card>
             <CardHeader>
               <CardTitle>Tampilan</CardTitle>
-
               <CardDescription>
                 Mode terang atau gelap untuk perangkat ini.
               </CardDescription>
@@ -1287,7 +1295,6 @@ export default function AdminSettingsPage() {
           <Card>
             <CardHeader>
               <CardTitle>Notifikasi Admin</CardTitle>
-
               <CardDescription>
                 Pengaturan notifikasi ini masih berupa demo.
               </CardDescription>
@@ -1300,10 +1307,7 @@ export default function AdminSettingsPage() {
                 description="Beritahu saat ada registrasi baru."
                 checked={notif.newUser}
                 onChange={(value) =>
-                  setNotif({
-                    ...notif,
-                    newUser: value,
-                  })
+                  setNotif({ ...notif, newUser: value })
                 }
               />
 
@@ -1313,10 +1317,7 @@ export default function AdminSettingsPage() {
                 description="Beritahu saat transaksi berhasil atau gagal."
                 checked={notif.payment}
                 onChange={(value) =>
-                  setNotif({
-                    ...notif,
-                    payment: value,
-                  })
+                  setNotif({ ...notif, payment: value })
                 }
               />
 
@@ -1326,10 +1327,7 @@ export default function AdminSettingsPage() {
                 description="Kirim ringkasan analitik tiap minggu."
                 checked={notif.report}
                 onChange={(value) =>
-                  setNotif({
-                    ...notif,
-                    report: value,
-                  })
+                  setNotif({ ...notif, report: value })
                 }
               />
 
@@ -1339,10 +1337,7 @@ export default function AdminSettingsPage() {
                 description="Beritahu saat ada masalah sistem."
                 checked={notif.system}
                 onChange={(value) =>
-                  setNotif({
-                    ...notif,
-                    system: value,
-                  })
+                  setNotif({ ...notif, system: value })
                 }
               />
 
