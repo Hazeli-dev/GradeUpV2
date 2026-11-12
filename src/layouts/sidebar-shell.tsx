@@ -318,9 +318,9 @@ export function SidebarShell({
 
   const links = (isCollapsed: boolean) => (
     <nav
-      className="flex-1 space-y-4 overflow-y-auto px-3 py-3"
-      aria-label="Navigasi utama"
-    >
+  className="flex-1 space-y-4 overflow-y-auto px-3 py-3 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
+  aria-label="Navigasi utama"
+>
       {visibleNav.map((group, groupIndex) => (
         <div
           key={group.title || `group-${groupIndex}`}
