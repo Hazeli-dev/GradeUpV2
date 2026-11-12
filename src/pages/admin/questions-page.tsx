@@ -70,6 +70,7 @@ interface QuestionOption {
 interface QuestionItem {
   id: string;
   category: string;
+  grade: number | null;
   question_text: string;
   options: QuestionOption[];
   correct_answer: string;
@@ -114,6 +115,7 @@ export default function AdminQuestionsPage() {
   const [q, setQ] = useState("");
   const [category, setCategory] = useState("all");
   const [answerFilter, setAnswerFilter] = useState("all");
+  const [gradeFilter, setGradeFilter] = useState("all");
 
   const [draft, setDraft] = useState<Draft | null>(null);
   const [errs, setErrs] = useState<Record<string, string>>({});
@@ -139,7 +141,7 @@ export default function AdminQuestionsPage() {
       const { data: qData, error: qErr } = await supabase
         .from("questions")
         .select(
-          "id, category, question_text, options, correct_answer, explanation, created_at"
+          "id, category, grade, question_text, options, correct_answer, explanation, created_at"
         )
         .order("created_at", { ascending: false });
 
@@ -161,7 +163,7 @@ export default function AdminQuestionsPage() {
     fetchData();
   }, []);
 
-  // Filter pencarian, kategori, dan kunci jawaban.
+  // Filter pencarian, kategori, kunci jawaban, dan kelas.
   const filtered = useMemo(
     () =>
       questions
@@ -175,8 +177,13 @@ export default function AdminQuestionsPage() {
           (item) =>
             answerFilter === "all" ||
             item.correct_answer === answerFilter
+        )
+        .filter(
+          (item) =>
+            gradeFilter === "all" ||
+            item.grade === Number(gradeFilter)
         ),
-    [questions, q, category, answerFilter]
+    [questions, q, category, answerFilter, gradeFilter]
   );
 
   const allFilteredSelected =
@@ -212,6 +219,7 @@ export default function AdminQuestionsPage() {
     setQ("");
     setCategory("all");
     setAnswerFilter("all");
+    setGradeFilter("all");
     setSelectedIds([]);
   };
 
@@ -531,7 +539,7 @@ export default function AdminQuestionsPage() {
           <div>
             <h3 className="font-semibold">Filter Bank Soal</h3>
             <p className="text-sm text-muted-foreground">
-              Temukan soal berdasarkan pertanyaan, kategori, atau kunci jawaban.
+              Temukan soal berdasarkan pertanyaan, kategori, kelas, atau kunci jawaban.
             </p>
           </div>
 
@@ -546,7 +554,7 @@ export default function AdminQuestionsPage() {
           </Button>
         </div>
 
-        <div className="grid gap-3 md:grid-cols-3">
+        <div className="grid gap-3 md:grid-cols-4">
           <div className="md:col-span-1">
             <SearchInput
               value={q}
@@ -568,6 +576,30 @@ export default function AdminQuestionsPage() {
             options={categories.map((c) => c.name)}
             allLabel="Semua Mata Pelajaran"
           />
+
+          <Select
+            value={gradeFilter}
+            onValueChange={(value) => {
+              setGradeFilter(value);
+              setSelectedIds([]);
+            }}
+          >
+            <SelectTrigger>
+              <SelectValue placeholder="Semua Kelas" />
+            </SelectTrigger>
+
+            <SelectContent>
+              <SelectItem value="all">Semua Kelas</SelectItem>
+
+              {Array.from({ length: 12 }, (_, index) => index + 1).map(
+                (grade) => (
+                  <SelectItem key={grade} value={String(grade)}>
+                    Kelas {grade}
+                  </SelectItem>
+                )
+              )}
+            </SelectContent>
+          </Select>
 
           <Select
             value={answerFilter}
