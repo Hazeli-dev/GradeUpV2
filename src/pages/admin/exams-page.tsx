@@ -1141,6 +1141,7 @@ export default function AdminExamsPage() {
         const { error: updateQuestionError } = await supabase
           .from("questions")
           .update({
+            grade: Number(draft.grade),
             category: question.category || draft.category,
             question_text: question.question_text.trim(),
             options: question.options,
@@ -1164,6 +1165,7 @@ export default function AdminExamsPage() {
 
           return {
             exam_package_id: packageId,
+            grade: Number(draft.grade),
             category: question.category || draft.category,
             question_text: question.question_text.trim(),
             options: question.options,
