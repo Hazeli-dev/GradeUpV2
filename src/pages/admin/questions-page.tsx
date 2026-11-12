@@ -117,6 +117,10 @@ export default function AdminQuestionsPage() {
   const [answerFilter, setAnswerFilter] = useState("all");
   const [gradeFilter, setGradeFilter] = useState("all");
 
+  // Pagination agar tabel tidak merender seluruh soal sekaligus.
+  const [currentPage, setCurrentPage] = useState(1);
+  const pageSize = 20;
+
   const [draft, setDraft] = useState<Draft | null>(null);
   const [errs, setErrs] = useState<Record<string, string>>({});
   const [removing, setRemoving] = useState<QuestionItem | null>(null);
@@ -138,16 +142,34 @@ export default function AdminQuestionsPage() {
       if (catError) throw catError;
       if (catData) setCategories(catData);
 
-      const { data: qData, error: qErr } = await supabase
-        .from("questions")
-        .select(
-          "id, category, grade, question_text, options, correct_answer, explanation, created_at"
-        )
-        .order("created_at", { ascending: false });
+      // Supabase REST membatasi jumlah baris per permintaan.
+      // Ambil bertahap supaya semua soal tetap terbaca, bukan hanya 1.000 pertama.
+      const batchSize = 500;
+      const allQuestions: QuestionItem[] = [];
+      let from = 0;
 
-      if (qErr) throw qErr;
+      while (true) {
+        const { data: qData, error: qErr } = await supabase
+          .from("questions")
+          .select(
+            "id, category, grade, question_text, options, correct_answer, explanation, created_at"
+          )
+          .order("created_at", { ascending: false })
+          .order("id", { ascending: false })
+          .range(from, from + batchSize - 1);
 
-      if (qData) setQuestions(qData as QuestionItem[]);
+        if (qErr) throw qErr;
+
+        const batch = (qData ?? []) as QuestionItem[];
+        allQuestions.push(...batch);
+
+        if (batch.length < batchSize) break;
+        from += batchSize;
+      }
+
+      setQuestions(allQuestions);
+      setCurrentPage(1);
+      setSelectedIds([]);
     } catch (err: unknown) {
       setError(
         err instanceof Error
@@ -186,9 +208,30 @@ export default function AdminQuestionsPage() {
     [questions, q, category, answerFilter, gradeFilter]
   );
 
+  // Tampilkan maksimal 20 soal pada setiap halaman.
+  const totalPages = Math.ceil(filtered.length / pageSize);
+  const paginatedQuestions = filtered.slice(
+    (currentPage - 1) * pageSize,
+    currentPage * pageSize
+  );
+
+  // Kembali ke halaman pertama saat filter pencarian berubah.
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [q, category, answerFilter, gradeFilter]);
+
+  // Jaga agar halaman aktif tetap valid setelah data/filter berubah.
+  useEffect(() => {
+    if (totalPages === 0 && currentPage !== 1) {
+      setCurrentPage(1);
+    } else if (totalPages > 0 && currentPage > totalPages) {
+      setCurrentPage(totalPages);
+    }
+  }, [currentPage, totalPages]);
+
   const allFilteredSelected =
-    filtered.length > 0 &&
-    filtered.every((item) => selectedIds.includes(item.id));
+    paginatedQuestions.length > 0 &&
+    paginatedQuestions.every((item) => selectedIds.includes(item.id));
 
   // Memilih atau membatalkan pilihan satu soal.
   const toggleQuestion = (id: string) => {
@@ -199,17 +242,20 @@ export default function AdminQuestionsPage() {
     );
   };
 
-  // Memilih atau membatalkan semua soal yang sedang tampil.
+  // Pilih semua hanya pada halaman yang sedang dibuka.
   const toggleAllFiltered = () => {
     if (allFilteredSelected) {
-      const filteredIds = new Set(filtered.map((item) => item.id));
+      const pageIds = new Set(paginatedQuestions.map((item) => item.id));
 
       setSelectedIds((current) =>
-        current.filter((id) => !filteredIds.has(id))
+        current.filter((id) => !pageIds.has(id))
       );
     } else {
       setSelectedIds((current) => [
-        ...new Set([...current, ...filtered.map((item) => item.id)]),
+        ...new Set([
+          ...current,
+          ...paginatedQuestions.map((item) => item.id),
+        ]),
       ]);
     }
   };
@@ -674,13 +720,14 @@ export default function AdminQuestionsPage() {
             />
           </div>
         ) : (
-          <Table>
-            <TableHeader>
+          <>
+            <Table>
+              <TableHeader>
               <TableRow>
                 <TableHead className="w-12">
                   <input
                     type="checkbox"
-                    aria-label="Pilih semua soal yang tampil"
+                    aria-label="Pilih semua soal pada halaman ini"
                     checked={allFilteredSelected}
                     onChange={toggleAllFiltered}
                     className="h-4 w-4 cursor-pointer accent-emerald-600"
@@ -695,7 +742,7 @@ export default function AdminQuestionsPage() {
             </TableHeader>
 
             <TableBody>
-              {filtered.map((item) => (
+              {paginatedQuestions.map((item) => (
                 <TableRow key={item.id}>
                   <TableCell>
                     <input
@@ -770,7 +817,56 @@ export default function AdminQuestionsPage() {
                 </TableRow>
               ))}
             </TableBody>
-          </Table>
+            </Table>
+
+            {filtered.length > 0 && (
+              <div className="flex flex-wrap items-center justify-between gap-3 border-t p-4">
+                <p className="text-sm text-muted-foreground">
+                  Menampilkan{" "}
+                  <strong className="text-foreground">
+                    {(currentPage - 1) * pageSize + 1}
+                  </strong>
+                  –
+                  <strong className="text-foreground">
+                    {Math.min(currentPage * pageSize, filtered.length)}
+                  </strong>
+                  {" dari "}
+                  <strong className="text-foreground">{filtered.length}</strong>
+                  {" soal"}
+                </p>
+
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={currentPage === 1}
+                    onClick={() =>
+                      setCurrentPage((page) => Math.max(1, page - 1))
+                    }
+                  >
+                    Sebelumnya
+                  </Button>
+
+                  <span className="whitespace-nowrap text-sm">
+                    Halaman {currentPage} dari {totalPages}
+                  </span>
+
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={currentPage >= totalPages}
+                    onClick={() =>
+                      setCurrentPage((page) =>
+                        Math.min(totalPages, page + 1)
+                      )
+                    }
+                  >
+                    Berikutnya
+                  </Button>
+                </div>
+              </div>
+            )}
+          </>
         )}
       </Card>
 
