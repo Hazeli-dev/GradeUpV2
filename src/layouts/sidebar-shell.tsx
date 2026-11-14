@@ -430,7 +430,7 @@ export function SidebarShell({
       <aside
         className={cn(
           "fixed inset-y-0 left-0 z-30 hidden flex-col border-r border-border/70 bg-card transition-[width] duration-300 lg:flex",
-          collapsed ? "w-[76px]" : "w-64"
+          collapsed ? "w-[76px]" : "w-56"
         )}
       >
         {/* Logo */}
@@ -538,7 +538,7 @@ export function SidebarShell({
       <div
         className={cn(
           "transition-[padding] duration-300",
-          collapsed ? "lg:pl-[76px]" : "lg:pl-64"
+          collapsed ? "lg:pl-[76px]" : "lg:pl-56"
         )}
       >
         {/* Topbar */}
