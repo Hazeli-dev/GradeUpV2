@@ -27,6 +27,8 @@ import {
   X,
   Ruler,
   Code2,
+  Maximize2,
+  Minimize2,
 } from "lucide-react";
 
 import {
@@ -51,7 +53,6 @@ import TableRow from "@tiptap/extension-table-row";
 import TableHeader from "@tiptap/extension-table-header";
 import TableCell from "@tiptap/extension-table-cell";
 
-// Menggunakan komponen Kode & Preview yang sudah ditetapkan FIX.
 import {
   CodePreviewBlock,
   DEFAULT_HTML,
@@ -219,6 +220,7 @@ export default function EditorCanvas({
   const [activeTab, setActiveTab] = useState<EditorTab>("beranda");
   const [isPreview, setIsPreview] = useState(false);
   const [isCompact, setIsCompact] = useState(false);
+  const [isCanvasFullscreen, setIsCanvasFullscreen] = useState(false);
   const [wordCount, setWordCount] = useState(0);
 
   const [showRuler, setShowRuler] = useState(true);
@@ -293,7 +295,6 @@ export default function EditorCanvas({
       TableHeader,
       TableCell,
 
-      // Ekstensi Kode & Preview dari file bersama.
       CodePreviewBlock,
     ],
 
@@ -391,6 +392,25 @@ export default function EditorCanvas({
 
     readLayout(editor);
   }, [editor]);
+
+  /**
+   * Menangani tombol Escape untuk keluar dari layar penuh.
+   */
+  useEffect(() => {
+    if (!isCanvasFullscreen) return;
+
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setIsCanvasFullscreen(false);
+      }
+    };
+
+    window.addEventListener("keydown", handleEscape);
+
+    return () => {
+      window.removeEventListener("keydown", handleEscape);
+    };
+  }, [isCanvasFullscreen]);
 
   if (!editor) {
     return (
@@ -1017,7 +1037,11 @@ export default function EditorCanvas({
    * Tampilan utama GradeUp Studio.
    */
   return (
-    <section className="gu-studio">
+    <section
+      className={`gu-studio gu-studio--wide ${
+        isCanvasFullscreen ? "gu-studio--fullscreen" : ""
+      }`}
+    >
       <div className="gu-studio-header">
         <div>
           <div className="gu-studio-eyebrow">
@@ -1029,8 +1053,40 @@ export default function EditorCanvas({
           <p>Ruang pembuatan materi pembelajaran</p>
         </div>
 
-        <div className="gu-studio-document-icon">
-          <FileText size={23} />
+        <div className="gu-studio-header-actions">
+          <button
+            type="button"
+            className="gu-canvas-fullscreen-button"
+            onClick={() =>
+              setIsCanvasFullscreen(!isCanvasFullscreen)
+            }
+            title={
+              isCanvasFullscreen
+                ? "Keluar dari layar penuh"
+                : "Perluas editor ke layar penuh"
+            }
+            aria-label={
+              isCanvasFullscreen
+                ? "Keluar dari layar penuh"
+                : "Perluas editor ke layar penuh"
+            }
+          >
+            {isCanvasFullscreen ? (
+              <>
+                <Minimize2 size={17} />
+                <span>Keluar Layar Penuh</span>
+              </>
+            ) : (
+              <>
+                <Maximize2 size={17} />
+                <span>Layar Penuh</span>
+              </>
+            )}
+          </button>
+
+          <div className="gu-studio-document-icon">
+            <FileText size={23} />
+          </div>
         </div>
       </div>
 
@@ -1085,7 +1141,7 @@ export default function EditorCanvas({
 
       {!isPreview && showRuler && renderRuler()}
 
-      <div className="gu-document-workspace">
+      <div className="gu-document-workspace gu-document-workspace--wide">
         <div
           className={`gu-document-page ${
             isCompact ? "gu-document-page--compact" : ""
