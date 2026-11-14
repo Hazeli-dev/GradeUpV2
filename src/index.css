@@ -1640,3 +1640,205 @@ textarea:focus-visible {
 /* =====================================================
    END GRADEUP TYPOGRAPHY REFINEMENT
 ===================================================== */
+
+
+/* =====================================================
+   GRADEUP STUDIO - FULL WIDTH & RESPONSIVE FIX
+   Override aman: letakkan di paling bawah index.css
+===================================================== */
+
+/* Studio menggunakan seluruh lebar kontainer */
+.gu-studio {
+  width: 100%;
+  max-width: none;
+  min-width: 0;
+  box-sizing: border-box;
+}
+
+/* Area ribbon dan toolbar */
+.gu-ribbon {
+  width: 100%;
+  max-width: none;
+  box-sizing: border-box;
+}
+
+/* Area kerja dokumen */
+.gu-document-workspace {
+  width: 100%;
+  max-width: none;
+  min-width: 0;
+  box-sizing: border-box;
+  padding: 24px 16px;
+}
+
+/* Halaman dokumen lebih lebar */
+.gu-document-page,
+.gu-document-page--compact,
+.gu-document-page--preview {
+  width: 100%;
+  max-width: 1440px;
+  min-width: 0;
+  box-sizing: border-box;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+/* Area penulisan memanfaatkan ruang tersedia */
+.gu-prose {
+  width: 100%;
+  max-width: none;
+  min-width: 0;
+  box-sizing: border-box;
+}
+
+/* Blok kode dan preview */
+.gu-code-preview-block {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+}
+
+.gu-code-preview-block iframe {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  min-height: 420px;
+  border: 0;
+}
+
+/* Hindari elemen melebar keluar halaman */
+.gu-studio *,
+.gu-studio *::before,
+.gu-studio *::after {
+  box-sizing: border-box;
+}
+
+/* =====================================================
+   LAPTOP / DESKTOP
+===================================================== */
+
+@media (min-width: 1024px) {
+  .gu-document-workspace {
+    padding: 24px 14px;
+  }
+
+  .gu-document-page {
+    max-width: 1500px;
+    padding-left: 64px;
+    padding-right: 64px;
+  }
+
+  .gu-document-page--preview {
+    max-width: 1500px;
+  }
+}
+
+/* =====================================================
+   TABLET
+===================================================== */
+
+@media (max-width: 1023px) {
+  .gu-document-workspace {
+    padding: 16px 10px;
+  }
+
+  .gu-document-page,
+  .gu-document-page--compact,
+  .gu-document-page--preview {
+    max-width: 100%;
+    padding: 36px 28px;
+  }
+}
+
+/* =====================================================
+   MOBILE
+===================================================== */
+
+@media (max-width: 640px) {
+  .gu-studio {
+    width: 100%;
+    max-width: 100%;
+    margin: 0;
+    padding: 0;
+  }
+
+  .gu-document-workspace {
+    width: 100%;
+    min-height: 500px;
+    padding: 8px 0;
+    margin: 0;
+    border-left: 0;
+    border-right: 0;
+  }
+
+  .gu-document-page,
+  .gu-document-page--compact,
+  .gu-document-page--preview {
+    width: 100%;
+    max-width: 100%;
+    min-height: 600px;
+    margin: 0;
+    padding: 28px 16px;
+    border-left: 0;
+    border-right: 0;
+    border-radius: 0;
+    box-shadow: none;
+  }
+
+  .gu-prose {
+    width: 100%;
+    min-height: 500px;
+    font-size: 15px;
+    overflow-wrap: anywhere;
+  }
+
+  .gu-ruler-wrapper {
+    width: 100%;
+    padding: 10px;
+  }
+
+  .gu-ruler-controls {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+
+  .gu-code-preview-block {
+    width: 100%;
+    max-width: 100%;
+    margin: 16px 0;
+  }
+
+  .gu-code-preview-block iframe {
+    width: 100%;
+    min-height: 360px;
+  }
+
+  .gu-editor-statusbar {
+    padding: 8px 10px;
+  }
+}
+
+/* =====================================================
+   SMALL MOBILE
+===================================================== */
+
+@media (max-width: 380px) {
+  .gu-document-page,
+  .gu-document-page--compact,
+  .gu-document-page--preview {
+    padding: 22px 12px;
+  }
+
+  .gu-ribbon-tools {
+    gap: 5px;
+    padding: 8px;
+  }
+
+  .gu-tool-button {
+    min-width: 30px;
+    min-height: 30px;
+    padding: 5px;
+  }
+}
