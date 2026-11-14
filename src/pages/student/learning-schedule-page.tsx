@@ -231,8 +231,9 @@ export default function StudentLearningSchedulePage() {
     }
   }, [navigate]);
 
+  // Memuat rekomendasi dan menyembunyikan latihan yang sudah completed.
   const loadRecommendations = useCallback(async () => {
-    if (!profileComplete) {
+    if (!profileComplete || !userId) {
       setRecommendations([]);
       return;
     }
@@ -240,6 +241,7 @@ export default function StudentLearningSchedulePage() {
     setLoadingRecommendations(true);
 
     try {
+      // 1. Ambil rekomendasi sesuai jadwal hari ini.
       const { data, error } = await supabase.rpc(
         "get_daily_learning_recommendations",
         {
@@ -249,7 +251,50 @@ export default function StudentLearningSchedulePage() {
 
       if (error) throw error;
 
-      setRecommendations((data ?? []) as Recommendation[]);
+      const dailyRecommendations = (data ?? []) as Recommendation[];
+
+      // Tidak perlu memeriksa riwayat jika tidak ada rekomendasi.
+      if (dailyRecommendations.length === 0) {
+        setRecommendations([]);
+        return;
+      }
+
+      // 2. Ambil ID seluruh paket latihan yang direkomendasikan.
+      const packageIds = Array.from(
+        new Set(
+          dailyRecommendations
+            .map((item) => item.package_id)
+            .filter((id): id is string => Boolean(id)),
+        ),
+      );
+
+      if (packageIds.length === 0) {
+        setRecommendations([]);
+        return;
+      }
+
+      // 3. Periksa riwayat pengerjaan siswa.
+      // Latihan dengan status completed tidak akan ditampilkan kembali.
+      const { data: completedAttempts, error: attemptsError } =
+        await supabase
+          .from("exam_attempts")
+          .select("exam_id")
+          .eq("user_id", userId)
+          .eq("status", "completed")
+          .in("exam_id", packageIds);
+
+      if (attemptsError) throw attemptsError;
+
+      const completedIds = new Set(
+        (completedAttempts ?? []).map((attempt) => attempt.exam_id),
+      );
+
+      // 4. Tampilkan hanya latihan yang belum selesai.
+      const unfinishedRecommendations = dailyRecommendations.filter(
+        (item) => !completedIds.has(item.package_id),
+      );
+
+      setRecommendations(unfinishedRecommendations);
     } catch (error) {
       console.error("Gagal memuat rekomendasi:", error);
       setRecommendations([]);
@@ -259,7 +304,7 @@ export default function StudentLearningSchedulePage() {
     } finally {
       setLoadingRecommendations(false);
     }
-  }, [profileComplete, selectedDay]);
+  }, [profileComplete, selectedDay, userId]);
 
   useEffect(() => {
     void loadPage();
@@ -277,10 +322,10 @@ export default function StudentLearningSchedulePage() {
   }, [scheduleRows, selectedDay]);
 
   useEffect(() => {
-    if (!loading) {
+    if (!loading && userId) {
       void loadRecommendations();
     }
-  }, [loading, loadRecommendations]);
+  }, [loading, userId, loadRecommendations]);
 
   const toggleSubject = (subject: string) => {
     setSuccessMessage("");
@@ -379,8 +424,6 @@ export default function StudentLearningSchedulePage() {
   };
 
   const handleStartPractice = (item: Recommendation) => {
-    // Tetap menggunakan halaman pengerjaan ujian GradeUp yang sudah ada.
-    // Halaman/backend pengerjaan wajib memvalidasi hak akses paket Premium.
     navigate(`/dashboard/exams/${item.package_id}/attempt`);
   };
 
@@ -656,9 +699,7 @@ export default function StudentLearningSchedulePage() {
                               size="icon"
                               className="h-8 w-8"
                               disabled={index === 0}
-                              onClick={() =>
-                                changeSubjectOrder(index, -1)
-                              }
+                              onClick={() => changeSubjectOrder(index, -1)}
                               aria-label={`Naikkan ${subject}`}
                             >
                               <ArrowUp className="h-4 w-4" />
@@ -669,12 +710,8 @@ export default function StudentLearningSchedulePage() {
                               variant="outline"
                               size="icon"
                               className="h-8 w-8"
-                              disabled={
-                                index === selectedSubjects.length - 1
-                              }
-                              onClick={() =>
-                                changeSubjectOrder(index, 1)
-                              }
+                              disabled={index === selectedSubjects.length - 1}
+                              onClick={() => changeSubjectOrder(index, 1)}
                               aria-label={`Turunkan ${subject}`}
                             >
                               <ArrowDown className="h-4 w-4" />
@@ -760,8 +797,8 @@ export default function StudentLearningSchedulePage() {
             <div className="flex items-start gap-3 rounded-xl border border-border/60 p-4">
               <Target className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
               <p className="text-xs leading-relaxed text-muted-foreground">
-                Latihan yang sudah diselesaikan dengan nilai mencapai KKM
-                tidak akan muncul lagi sebagai rekomendasi aktif.
+                Materi yang sudah berstatus completed tidak akan muncul lagi
+                pada rekomendasi jadwal aktif.
               </p>
             </div>
           </CardContent>
@@ -865,14 +902,13 @@ export default function StudentLearningSchedulePage() {
         ) : recommendations.length === 0 ? (
           <Card className="rounded-2xl border-dashed border-border">
             <CardContent className="flex flex-col items-center py-10 text-center">
-              <BookOpen className="h-9 w-9 text-muted-foreground" />
+              <CheckCircle2 className="h-9 w-9 text-emerald-600 dark:text-emerald-400" />
               <h3 className="mt-3 font-bold text-foreground">
-                Belum ada latihan yang tersedia
+                Semua latihan sudah selesai!
               </h3>
               <p className="mt-1 max-w-md text-sm text-muted-foreground">
-                Belum ada paket latihan aktif untuk mata pelajaran yang
-                dijadwalkan, atau semua latihan yang tersedia sudah berhasil
-                diselesaikan sesuai KKM.
+                Tidak ada latihan aktif yang perlu ditampilkan untuk jadwal
+                hari ini. Latihan yang sudah completed telah disembunyikan.
               </p>
             </CardContent>
           </Card>
