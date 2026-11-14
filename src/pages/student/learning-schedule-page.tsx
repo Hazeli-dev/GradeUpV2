@@ -18,6 +18,8 @@ import {
   Trophy,
   BookMarked,
   AlertCircle,
+  Plus,
+  X,
 } from "lucide-react";
 
 import { supabase } from "@/lib/supabase";
@@ -28,7 +30,7 @@ import { supabase } from "@/lib/supabase";
 
 type ProfileData = {
   full_name: string | null;
-  grade: string | null;
+  grade: number | null;
   education_level: string | null;
   is_premium: boolean;
   premium_until: string | null;
@@ -92,50 +94,28 @@ type LearningProgressData = {
   } | null;
 };
 
-type CourseLessonRow = {
+type CourseRow = {
   id: string;
   title: string;
-  description: string | null;
-  estimated_minutes: number | null;
-  module:
-    | {
-        id: string;
-        title: string;
-        course:
-          | {
-              id: string;
-              title: string;
-              premium: boolean | null;
-            }
-          | Array<{
-              id: string;
-              title: string;
-              premium: boolean | null;
-            }>;
-      }
-    | Array<{
-        id: string;
-        title: string;
-        course:
-          | {
-              id: string;
-              title: string;
-              premium: boolean | null;
-            }
-          | Array<{
-              id: string;
-              title: string;
-              premium: boolean | null;
-            }>;
-      }>;
+  premium: boolean | null;
+  level: string | null;
+  grade: number | null;
+  status: string | null;
 };
 
-type CourseLessonRaw = {
+type ModuleRow = {
+  id: string;
+  title: string;
+  course_id: string;
+  is_published: boolean;
+};
+
+type LessonRow = {
   id: string;
   title: string;
   description: string | null;
   estimated_minutes: number | null;
-  module_id?: string;
+  module_id: string;
 };
 
 type DayInfo = {
@@ -172,21 +152,57 @@ function formatError(error: unknown): string {
   return "Terjadi kesalahan. Silakan coba kembali.";
 }
 
-function normalizeRelation<T>(
-  value: T | T[] | null | undefined
-): T | null {
-  if (Array.isArray(value)) return value[0] ?? null;
-  return value ?? null;
-}
-
 function getTodayIndex(): number {
   const day = new Date().getDay();
   return day === 0 ? 6 : day - 1;
 }
 
-function isLessonCompleted(
-  value: unknown
-): boolean {
+function normalizeLevel(value: string | null | undefined): string {
+  const normalized = (value ?? "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]/g, "");
+
+  if (
+    normalized === "sd" ||
+    normalized.includes("sekolahdasar") ||
+    normalized.includes("sdmi") ||
+    normalized.includes("madrasahibtidaiyah")
+  ) {
+    return "SD";
+  }
+
+  if (
+    normalized === "smp" ||
+    normalized.includes("sekolahmenengahpertama") ||
+    normalized.includes("smpmts") ||
+    normalized.includes("mts")
+  ) {
+    return "SMP";
+  }
+
+  if (
+    normalized === "sma" ||
+    normalized.includes("sekolahmenengahatas") ||
+    normalized.includes("smama") ||
+    normalized.includes("madrasahaliyah")
+  ) {
+    return "SMA";
+  }
+
+  return "";
+}
+
+function inferLevelFromGrade(grade: number | null): string {
+  if (grade === null) return "";
+
+  if (grade >= 1 && grade <= 6) return "SD";
+  if (grade >= 7 && grade <= 9) return "SMP";
+  if (grade >= 10 && grade <= 12) return "SMA";
+
+  return "";
+}
+
+function isLessonCompleted(value: unknown): boolean {
   if (!value || typeof value !== "object") {
     return false;
   }
@@ -196,7 +212,6 @@ function isLessonCompleted(
     ? progress.sections
     : [];
 
-  // Materi tanpa bagian yang terbaca tidak dianggap selesai.
   if (sections.length === 0) return false;
 
   const allSectionsCompleted = sections.every(
@@ -205,8 +220,6 @@ function isLessonCompleted(
 
   if (!allSectionsCompleted) return false;
 
-  // Jika evaluasi akhir tersedia, evaluasi tersebut
-  // juga harus selesai.
   if (progress.final_assessment) {
     return progress.final_assessment.completed === true;
   }
@@ -222,7 +235,6 @@ export default function StudentLearningSchedulePage() {
   const navigate = useNavigate();
 
   const [userId, setUserId] = useState("");
-
   const [profile, setProfile] = useState<ProfileData | null>(null);
 
   const [scheduleRows, setScheduleRows] = useState<ScheduleRow[]>([]);
@@ -230,6 +242,7 @@ export default function StudentLearningSchedulePage() {
 
   const [selectedSubjects, setSelectedSubjects] = useState<string[]>([]);
   const [availableSubjects, setAvailableSubjects] = useState<string[]>([]);
+  const [subjectToAdd, setSubjectToAdd] = useState("");
 
   const [recommendations, setRecommendations] = useState<Recommendation[]>([]);
   const [lessons, setLessons] = useState<LessonInfo[]>([]);
@@ -248,123 +261,212 @@ export default function StudentLearningSchedulePage() {
   // LOAD COURSE MATERIALS
   // ===================================================
 
-  const loadCourseMaterials = useCallback(async () => {
-    setLoadingLessons(true);
-    setLessonError("");
+  const loadCourseMaterials = useCallback(
+    async (studentProfile: ProfileData) => {
+      setLoadingLessons(true);
+      setLessonError("");
 
-    try {
-      const { data, error: queryError } = await supabase
-        .from("course_lessons")
-        .select(`
-          id,
-          title,
-          description,
-          estimated_minutes,
-          module:course_modules!inner (
-            id,
-            title,
-            course:courses!inner (
-              id,
-              title,
-              premium
-            )
-          )
-        `);
+      try {
+        const studentLevel =
+          normalizeLevel(studentProfile.education_level) ||
+          inferLevelFromGrade(studentProfile.grade);
 
-      if (queryError) throw queryError;
+        if (!studentLevel) {
+          setLessons([]);
+          setLessonError(
+            "Jenjang pendidikan pada profil belum dapat dikenali. Periksa kembali profil siswa."
+          );
+          return;
+        }
 
-      const rawLessons = (data ?? []) as unknown as CourseLessonRow[];
+        // 1. Ambil kursus yang sudah dipublikasikan.
+        const { data: courseData, error: courseError } = await supabase
+          .from("courses")
+          .select("id,title,premium,level,grade,status")
+          .eq("status", "Published");
 
-      if (rawLessons.length === 0) {
-        setLessons([]);
-        return;
-      }
+        if (courseError) throw courseError;
 
-      // Periksa progres setiap materi menggunakan RPC
-      // yang sama dengan halaman LessonLearningPage.
-      const progressResults = await Promise.all(
-        rawLessons.map(async (item) => {
-          try {
-            const { data: progressData, error: progressError } =
-              await supabase.rpc("get_lesson_learning_progress", {
-                p_lesson_id: item.id,
-              });
+        const matchingCourses = ((courseData ?? []) as CourseRow[]).filter(
+          (course) => {
+            const courseLevel = normalizeLevel(course.level);
 
-            if (progressError) {
-              console.error(
-                "Load lesson progress:",
-                item.id,
-                progressError
-              );
+            if (courseLevel !== studentLevel) return false;
 
-              return {
-                lessonId: item.id,
-                completed: false,
-              };
+            // Jika kelas kursus ditentukan, harus cocok
+            // dengan kelas siswa.
+            if (
+              course.grade !== null &&
+              studentProfile.grade !== null &&
+              course.grade !== studentProfile.grade
+            ) {
+              return false;
             }
 
-            return {
-              lessonId: item.id,
-              completed: isLessonCompleted(progressData),
-            };
-          } catch (err) {
-            console.error("Check lesson progress:", err);
-
-            return {
-              lessonId: item.id,
-              completed: false,
-            };
+            return true;
           }
-        })
-      );
+        );
 
-      const progressMap = new Map(
-        progressResults.map((item) => [
-          item.lessonId,
-          item.completed,
-        ])
-      );
+        if (matchingCourses.length === 0) {
+          setLessons([]);
+          return;
+        }
 
-      const mappedLessons: LessonInfo[] = rawLessons
-        .map((item) => {
-          const moduleData = normalizeRelation(item.module);
+        const courseIds = matchingCourses.map((course) => course.id);
 
-          if (!moduleData) return null;
+        // 2. Ambil modul yang sudah dipublikasikan.
+        const { data: moduleData, error: moduleError } = await supabase
+          .from("course_modules")
+          .select("id,title,course_id,is_published")
+          .in("course_id", courseIds)
+          .eq("is_published", true)
+          .order("sort_order", { ascending: true });
 
-          const courseData = normalizeRelation(moduleData.course);
+        if (moduleError) throw moduleError;
 
-          if (!courseData) return null;
+        const publishedModules = (moduleData ?? []) as ModuleRow[];
 
-          return {
-            id: item.id,
-            title: item.title,
-            description: item.description,
-            estimated_minutes: item.estimated_minutes ?? 0,
-            module: {
-              id: moduleData.id,
-              title: moduleData.title,
-              course: {
-                id: courseData.id,
-                title: courseData.title,
-                premium: courseData.premium === true,
-              },
+        if (publishedModules.length === 0) {
+          setLessons([]);
+          return;
+        }
+
+        const moduleIds = publishedModules.map((module) => module.id);
+
+        // 3. Ambil pelajaran yang sudah dipublikasikan.
+        const { data: lessonData, error: lessonErrorResult } =
+          await supabase
+            .from("course_lessons")
+            .select(
+              "id,title,description,estimated_minutes,module_id"
+            )
+            .in("module_id", moduleIds)
+            .eq("is_published", true)
+            .order("sort_order", { ascending: true });
+
+        if (lessonErrorResult) throw lessonErrorResult;
+
+        const publishedLessons = (lessonData ?? []) as LessonRow[];
+
+        if (publishedLessons.length === 0) {
+          setLessons([]);
+          return;
+        }
+
+        const courseMap = new Map(
+          matchingCourses.map((course) => [
+            course.id,
+            {
+              id: course.id,
+              title: course.title,
+              premium: course.premium === true,
             },
-            completed: progressMap.get(item.id) === true,
-          };
-        })
-        .filter((item): item is LessonInfo => item !== null);
+          ])
+        );
 
-      // Materi yang telah selesai tidak ditampilkan.
-      setLessons(
-        mappedLessons.filter((item) => !item.completed)
-      );
-    } catch (err) {
-      console.error("Load course materials:", err);
-      setLessonError(formatError(err));
-    } finally {
-      setLoadingLessons(false);
-    }
-  }, []);
+        const moduleMap = new Map(
+          publishedModules.map((module) => [
+            module.id,
+            module,
+          ])
+        );
+
+        // Hanya pelajaran dengan hubungan modul dan kursus valid.
+        const validLessons = publishedLessons.filter((lesson) => {
+          const module = moduleMap.get(lesson.module_id);
+
+          return Boolean(
+            module && courseMap.has(module.course_id)
+          );
+        });
+
+        if (validLessons.length === 0) {
+          setLessons([]);
+          return;
+        }
+
+        // 4. Periksa progres dengan batas enam permintaan bersamaan.
+        const progressMap = new Map<string, boolean>();
+        let currentIndex = 0;
+
+        const worker = async () => {
+          while (currentIndex < validLessons.length) {
+            const index = currentIndex++;
+            const lesson = validLessons[index];
+
+            try {
+              const { data: progressData, error: progressError } =
+                await supabase.rpc("get_lesson_learning_progress", {
+                  p_lesson_id: lesson.id,
+                });
+
+              if (progressError) {
+                console.error(
+                  "Load lesson progress:",
+                  lesson.id,
+                  progressError
+                );
+
+                progressMap.set(lesson.id, false);
+                continue;
+              }
+
+              progressMap.set(
+                lesson.id,
+                isLessonCompleted(progressData)
+              );
+            } catch (err) {
+              console.error("Check lesson progress:", err);
+              progressMap.set(lesson.id, false);
+            }
+          }
+        };
+
+        const workerCount = Math.min(6, validLessons.length);
+
+        await Promise.all(
+          Array.from({ length: workerCount }, () => worker())
+        );
+
+        // 5. Bentuk data untuk tampilan.
+        const mappedLessons: LessonInfo[] = validLessons
+          .map((lesson) => {
+            const module = moduleMap.get(lesson.module_id);
+
+            if (!module) return null;
+
+            const course = courseMap.get(module.course_id);
+
+            if (!course) return null;
+
+            return {
+              id: lesson.id,
+              title: lesson.title,
+              description: lesson.description,
+              estimated_minutes: lesson.estimated_minutes ?? 0,
+              module: {
+                id: module.id,
+                title: module.title,
+                course,
+              },
+              completed: progressMap.get(lesson.id) === true,
+            };
+          })
+          .filter((item): item is LessonInfo => item !== null);
+
+        // Materi yang sudah selesai tidak ditampilkan.
+        setLessons(
+          mappedLessons.filter((lesson) => !lesson.completed)
+        );
+      } catch (err) {
+        console.error("Load course materials:", err);
+        setLessonError(formatError(err));
+      } finally {
+        setLoadingLessons(false);
+      }
+    },
+    []
+  );
 
   // ===================================================
   // LOAD RECOMMENDATIONS
@@ -389,13 +491,7 @@ export default function StudentLearningSchedulePage() {
           : [];
 
         setRecommendations(
-          result
-            .filter((item) =>
-              selectedSubjects.length > 0
-                ? selectedSubjects.includes(item.subject)
-                : true
-            )
-            .sort((a, b) => a.sort_order - b.sort_order)
+          result.sort((a, b) => a.sort_order - b.sort_order)
         );
       } catch (err) {
         console.error("Load recommendations:", err);
@@ -404,7 +500,7 @@ export default function StudentLearningSchedulePage() {
         setLoadingRecommendations(false);
       }
     },
-    [selectedSubjects]
+    []
   );
 
   // ===================================================
@@ -463,16 +559,21 @@ export default function StudentLearningSchedulePage() {
       if (scheduleError) throw scheduleError;
       if (packageError) throw packageError;
 
-      setProfile({
+      const normalizedProfile: ProfileData = {
         full_name: profileData?.full_name ?? null,
-        grade: profileData?.grade ?? null,
+        grade:
+          profileData?.grade === null ||
+          profileData?.grade === undefined
+            ? null
+            : Number(profileData.grade),
         education_level: profileData?.education_level ?? null,
         is_premium: profileData?.is_premium === true,
         premium_until: profileData?.premium_until ?? null,
-      });
+      };
+
+      setProfile(normalizedProfile);
 
       const schedules = (scheduleData ?? []) as ScheduleRow[];
-
       setScheduleRows(schedules);
 
       const subjects = Array.from(
@@ -495,10 +596,9 @@ export default function StudentLearningSchedulePage() {
 
       setSelectedSubjects(currentDaySubjects);
 
-      // Muat materi kursus dan latihan bersamaan.
-      await Promise.all([
-        loadCourseMaterials(),
-      ]);
+      // Materi hanya dimuat ketika halaman pertama kali
+      // dibuka atau pengguna menekan tombol Muat Ulang.
+      await loadCourseMaterials(normalizedProfile);
     } catch (err) {
       console.error("Load schedule page:", err);
       setError(formatError(err));
@@ -534,21 +634,39 @@ export default function StudentLearningSchedulePage() {
       .map((item) => item.subject);
 
     setSelectedSubjects(daySubjects);
+    setSubjectToAdd("");
     setSuccessMessage("");
   };
 
   // ===================================================
-  // TOGGLE SUBJECT
+  // ADD SUBJECT
   // ===================================================
 
-  const toggleSubject = (subject: string) => {
-    setSelectedSubjects((previous) => {
-      if (previous.includes(subject)) {
-        return previous.filter((item) => item !== subject);
-      }
+  const addSubject = () => {
+    if (!subjectToAdd) return;
 
-      return [...previous, subject];
-    });
+    if (selectedSubjects.includes(subjectToAdd)) {
+      setSubjectToAdd("");
+      return;
+    }
+
+    setSelectedSubjects((previous) => [
+      ...previous,
+      subjectToAdd,
+    ]);
+
+    setSubjectToAdd("");
+    setSuccessMessage("");
+  };
+
+  // ===================================================
+  // REMOVE SUBJECT
+  // ===================================================
+
+  const removeSubject = (subject: string) => {
+    setSelectedSubjects((previous) =>
+      previous.filter((item) => item !== subject)
+    );
 
     setSuccessMessage("");
   };
@@ -608,7 +726,7 @@ export default function StudentLearningSchedulePage() {
         (subject) => !currentSubjects.includes(subject)
       );
 
-      // Hapus mata pelajaran yang tidak lagi dipilih.
+      // Hapus kategori yang tidak dipilih.
       if (removedRows.length > 0) {
         const { error: deleteError } = await supabase
           .from("student_learning_schedules")
@@ -622,7 +740,7 @@ export default function StudentLearningSchedulePage() {
         if (deleteError) throw deleteError;
       }
 
-      // Perbarui urutan mata pelajaran yang sudah ada.
+      // Perbarui urutan kategori yang sudah ada.
       for (let index = 0; index < selectedSubjects.length; index++) {
         const subject = selectedSubjects[index];
 
@@ -644,7 +762,7 @@ export default function StudentLearningSchedulePage() {
         }
       }
 
-      // Tambahkan mata pelajaran baru.
+      // Tambahkan kategori baru.
       for (const subject of newSubjects) {
         const index = selectedSubjects.indexOf(subject);
 
@@ -675,6 +793,7 @@ export default function StudentLearningSchedulePage() {
       setScheduleRows((data ?? []) as ScheduleRow[]);
       setSuccessMessage("Jadwal berhasil disimpan.");
 
+      // Perbarui rekomendasi tanpa memuat ulang seluruh halaman.
       await loadRecommendations(selectedDay);
     } catch (err) {
       console.error("Save schedule:", err);
@@ -693,12 +812,16 @@ export default function StudentLearningSchedulePage() {
   const currentRecommendations = useMemo(() => {
     return recommendations
       .filter((item) =>
-        selectedSubjects.length > 0
-          ? selectedSubjects.includes(item.subject)
-          : true
+        selectedSubjects.includes(item.subject)
       )
       .sort((a, b) => a.sort_order - b.sort_order);
   }, [recommendations, selectedSubjects]);
+
+  const remainingSubjects = useMemo(() => {
+    return availableSubjects.filter(
+      (subject) => !selectedSubjects.includes(subject)
+    );
+  }, [availableSubjects, selectedSubjects]);
 
   const lessonsByCourse = useMemo(() => {
     const groups = new Map<
@@ -805,7 +928,7 @@ export default function StudentLearningSchedulePage() {
                 Halo, {profile?.full_name || "Siswa"}!
                 {profile?.grade ? (
                   <span className="ml-2 font-normal text-muted-foreground">
-                    {profile.grade}
+                    {profile.education_level || "Kelas"} {profile.grade}
                   </span>
                 ) : null}
               </p>
@@ -955,7 +1078,7 @@ export default function StudentLearningSchedulePage() {
                 </h2>
               </div>
               <p className="mt-1 text-sm text-muted-foreground">
-                Pilih mata pelajaran dan atur urutan latihanmu.
+                Tambahkan kategori latihan melalui dropdown.
               </p>
             </div>
 
@@ -973,46 +1096,42 @@ export default function StudentLearningSchedulePage() {
             </button>
           </div>
 
-          {availableSubjects.length > 0 ? (
-            <div className="mt-5 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4">
-              {availableSubjects.map((subject) => {
-                const active = selectedSubjects.includes(subject);
+          {/* DROPDOWN CATEGORY */}
+          <div className="mt-5 flex flex-col gap-2 sm:flex-row">
+            <select
+              value={subjectToAdd}
+              onChange={(event) => setSubjectToAdd(event.target.value)}
+              className="min-h-12 min-w-0 flex-1 rounded-xl border border-border bg-background px-4 py-3 text-sm outline-none transition focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20"
+            >
+              <option value="">Pilih kategori mata pelajaran...</option>
 
-                return (
-                  <button
-                    key={subject}
-                    onClick={() => toggleSubject(subject)}
-                    className={`flex items-center gap-2 rounded-xl border p-3 text-left text-sm font-semibold transition ${
-                      active
-                        ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300"
-                        : "border-border bg-background text-muted-foreground hover:border-emerald-500/40"
-                    }`}
-                  >
-                    <span
-                      className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-md border ${
-                        active
-                          ? "border-emerald-600 bg-emerald-600 text-white"
-                          : "border-border"
-                      }`}
-                    >
-                      {active && <CheckCircle2 className="h-3.5 w-3.5" />}
-                    </span>
-                    <span className="truncate">{subject}</span>
-                  </button>
-                );
-              })}
-            </div>
-          ) : (
-            <p className="mt-5 rounded-xl bg-muted p-4 text-sm text-muted-foreground">
-              Belum ada mata pelajaran latihan yang tersedia.
-            </p>
-          )}
+              {remainingSubjects.map((subject) => (
+                <option key={subject} value={subject}>
+                  {subject}
+                </option>
+              ))}
+            </select>
 
-          {selectedSubjects.length > 0 && (
+            <button
+              onClick={addSubject}
+              disabled={!subjectToAdd}
+              className="inline-flex min-h-12 items-center justify-center gap-2 rounded-xl bg-emerald-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              <Plus className="h-4 w-4" />
+              Tambahkan
+            </button>
+          </div>
+
+          {selectedSubjects.length > 0 ? (
             <div className="mt-6 border-t border-border pt-5">
-              <h3 className="mb-3 text-sm font-bold">
-                Urutan latihan
-              </h3>
+              <div className="mb-3 flex items-center justify-between gap-2">
+                <h3 className="text-sm font-bold">
+                  Kategori terpilih
+                </h3>
+                <span className="text-xs text-muted-foreground">
+                  {selectedSubjects.length} kategori
+                </span>
+              </div>
 
               <div className="space-y-2">
                 {selectedSubjects.map((subject, index) => (
@@ -1029,7 +1148,7 @@ export default function StudentLearningSchedulePage() {
                       </span>
                     </div>
 
-                    <div className="flex shrink-0 gap-1">
+                    <div className="flex shrink-0 items-center gap-1">
                       <button
                         onClick={() => moveSubject(index, "up")}
                         disabled={index === 0}
@@ -1047,11 +1166,35 @@ export default function StudentLearningSchedulePage() {
                       >
                         <ChevronRight className="h-4 w-4 rotate-90" />
                       </button>
+
+                      <button
+                        onClick={() => removeSubject(subject)}
+                        className="rounded-lg border border-border p-2 text-red-500 transition hover:bg-red-500/10"
+                        title="Hapus kategori"
+                      >
+                        <X className="h-4 w-4" />
+                      </button>
                     </div>
                   </div>
                 ))}
               </div>
             </div>
+          ) : (
+            <div className="mt-5 rounded-xl border border-dashed border-border bg-muted/30 p-5 text-center">
+              <GraduationCap className="mx-auto h-7 w-7 text-muted-foreground" />
+              <p className="mt-2 text-sm font-semibold">
+                Belum ada mata pelajaran
+              </p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Pilih kategori dari dropdown untuk membuat jadwal belajar.
+              </p>
+            </div>
+          )}
+
+          {availableSubjects.length === 0 && (
+            <p className="mt-4 rounded-xl bg-muted p-4 text-sm text-muted-foreground">
+              Belum ada kategori latihan aktif yang tersedia.
+            </p>
           )}
         </section>
 
@@ -1069,7 +1212,7 @@ export default function StudentLearningSchedulePage() {
               </h2>
 
               <p className="mt-1 text-sm text-muted-foreground">
-                Materi yang sudah selesai tidak ditampilkan lagi di sini.
+                Materi disesuaikan dengan jenjang dan kelas pada profilmu.
               </p>
             </div>
 
@@ -1091,7 +1234,9 @@ export default function StudentLearningSchedulePage() {
               </div>
               <p className="mt-2">{lessonError}</p>
               <button
-                onClick={() => void loadCourseMaterials()}
+                onClick={() => {
+                  if (profile) void loadCourseMaterials(profile);
+                }}
                 className="mt-4 inline-flex items-center gap-2 rounded-lg border border-current/20 px-3 py-2 font-semibold"
               >
                 <RefreshCw className="h-4 w-4" />
@@ -1184,16 +1329,16 @@ export default function StudentLearningSchedulePage() {
           ) : (
             <div className="rounded-3xl border border-dashed border-border bg-card px-5 py-12 text-center">
               <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-emerald-500/10">
-                <CheckCircle2 className="h-8 w-8 text-emerald-600" />
+                <BookOpen className="h-8 w-8 text-emerald-600" />
               </div>
 
               <h3 className="mt-4 text-lg font-bold">
-                Semua materi sudah selesai!
+                Belum ada materi yang tersedia
               </h3>
 
               <p className="mx-auto mt-2 max-w-md text-sm leading-relaxed text-muted-foreground">
-                Belum ada materi kursus yang perlu dilanjutkan.
-                Kamu dapat kembali lagi saat ada materi baru.
+                Belum ada materi yang sesuai dengan jenjang dan kelasmu,
+                atau semua materi yang tersedia sudah selesai dipelajari.
               </p>
             </div>
           )}
