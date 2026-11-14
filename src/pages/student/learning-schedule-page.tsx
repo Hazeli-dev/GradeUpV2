@@ -300,7 +300,7 @@ export default function StudentLearningSchedulePage() {
         // 1. Ambil kursus yang sudah dipublikasikan.
         const { data: courseData, error: courseError } = await supabase
           .from("courses")
-          .select("id,title,premium,level,grade,status")
+          .select("id,title,premium,level,grade,status,category")
           .eq("status", "Published");
 
         if (courseError) throw courseError;
@@ -457,6 +457,7 @@ export default function StudentLearningSchedulePage() {
         );
 
         // 5. Bentuk data untuk tampilan.
+
         const mappedLessons: LessonInfo[] = validLessons
           .map((lesson) => {
             const module = moduleMap.get(lesson.module_id);
@@ -482,10 +483,42 @@ export default function StudentLearningSchedulePage() {
           })
           .filter((item): item is LessonInfo => item !== null);
 
-        // PENTING:
-        // Materi selesai tetap ditampilkan.
-        // Status selesai hanya menjadi informasi bagi siswa.
-        setLessons(mappedLessons);
+        // Tampilkan materi sesuai mata pelajaran hari yang dipilih.
+        const selectedCategories = selectedSubjects.map((subject) =>
+          subject.trim().toLowerCase()
+        );
+
+        const filteredLessons = mappedLessons.filter((lesson) => {
+          const courseTitle = lesson.module.course.title
+            .trim()
+            .toLowerCase();
+
+          // Cari kategori kursus dari data kursus.
+          const matchingCourse = matchingCourses.find(
+            (course) => course.id === lesson.module.course.id
+          );
+
+          const category = (
+            (matchingCourse as (CourseRow & { category?: string }) | undefined)
+              ?.category ?? ""
+          )
+            .trim()
+            .toLowerCase();
+
+          return selectedCategories.some(
+            (subject) =>
+              category === subject ||
+              courseTitle.includes(subject)
+          );
+        });
+
+        setLessons(filteredLessons);
+
+        console.info("[GradeUp] Materi berdasarkan jadwal:", {
+          selectedCategories,
+          total: filteredLessons.length,
+        });
+
 
         console.info("[GradeUp] Total materi ditampilkan:", {
           total: mappedLessons.length,
