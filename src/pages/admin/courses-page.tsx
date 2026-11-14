@@ -104,12 +104,35 @@ const gradients = [
   "from-cyan-600 to-emerald-400",
 ];
 
+/* =========================================
+   GRADE OPTIONS
+========================================= */
+
+const getGradeOptions = (level: Level): number[] => {
+  const normalizedLevel = String(level).trim().toUpperCase();
+
+  switch (normalizedLevel) {
+    case "SD":
+      return [1, 2, 3, 4, 5, 6];
+
+    case "SMP":
+      return [7, 8, 9];
+
+    case "SMA":
+      return [10, 11, 12];
+
+    default:
+      return [];
+  }
+};
+
 interface CourseItem {
   id: string;
   title: string;
   description: string;
   category: string;
   level: Level;
+  grade: number | null;
   instructor: string;
   premium: boolean;
   status: "Published" | "Draft";
@@ -123,6 +146,7 @@ type Draft = {
   description: string;
   category: string;
   level: Level;
+  grade: number | null;
   instructor: string;
   thumbnail: string;
   premium: boolean;
@@ -149,6 +173,7 @@ const emptyDraft: Draft = {
   description: "",
   category: "Matematika",
   level: "SMA",
+  grade: 10,
   instructor: "",
   thumbnail: "",
   premium: false,
@@ -324,6 +349,16 @@ export default function AdminCoursesPage() {
       validation.instructor = "Nama pengajar wajib diisi.";
     }
 
+    const validGrades = getGradeOptions(draft.level);
+
+    if (
+      draft.grade === null ||
+      !validGrades.includes(draft.grade)
+    ) {
+      validation.grade =
+        "Pilih kelas yang sesuai dengan jenjang.";
+    }
+
     const thumbnailUrl = draft.thumbnail.trim();
 
     if (
@@ -346,6 +381,7 @@ export default function AdminCoursesPage() {
         draft.description || "Belum ada deskripsi.",
       category: draft.category,
       level: draft.level,
+      grade: draft.grade,
       instructor: draft.instructor.trim(),
       premium: draft.premium,
       status: draft.published ? "Published" : "Draft",
@@ -411,6 +447,7 @@ export default function AdminCoursesPage() {
       description: course.description ?? "",
       category: course.category,
       level: course.level,
+      grade: course.grade ?? null,
       instructor: course.instructor,
       thumbnail: course.thumbnail ?? "",
       premium: course.premium,
@@ -1667,6 +1704,12 @@ export default function AdminCoursesPage() {
                     </Badge>
 
                     <Badge variant="outline">
+                      {activeCourse.grade !== null
+                        ? `Kelas ${activeCourse.grade}`
+                        : "Kelas belum diatur"}
+                    </Badge>
+
+                    <Badge variant="outline">
                       Bagian Materi
                     </Badge>
                   </div>
@@ -1827,6 +1870,7 @@ export default function AdminCoursesPage() {
                 <TableHead>Kursus</TableHead>
                 <TableHead>Kategori</TableHead>
                 <TableHead>Jenjang</TableHead>
+                <TableHead>Kelas</TableHead>
                 <TableHead>Akses</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead className="text-right">
@@ -1882,6 +1926,18 @@ export default function AdminCoursesPage() {
                     <Badge variant="outline">
                       {c.level}
                     </Badge>
+                  </TableCell>
+
+                  <TableCell>
+                    {c.grade !== null ? (
+                      <Badge variant="secondary">
+                        Kelas {c.grade}
+                      </Badge>
+                    ) : (
+                      <span className="text-xs text-muted-foreground">
+                        Belum diatur
+                      </span>
+                    )}
                   </TableCell>
 
                   <TableCell>
@@ -2021,7 +2077,7 @@ export default function AdminCoursesPage() {
                   />
                 </div>
 
-                {/* KATEGORI DAN JENJANG */}
+                {/* KATEGORI, JENJANG, DAN KELAS */}
 
                 <div className="grid gap-4 sm:grid-cols-2">
                   <div className="space-y-2">
@@ -2064,12 +2120,22 @@ export default function AdminCoursesPage() {
 
                     <Select
                       value={draft.level}
-                      onValueChange={(value) =>
+                      onValueChange={(value) => {
+                        const nextLevel = value as Level;
+                        const nextGrades =
+                          getGradeOptions(nextLevel);
+
                         setDraft({
                           ...draft,
-                          level: value as Level,
-                        })
-                      }
+                          level: nextLevel,
+                          grade: nextGrades[0] ?? null,
+                        });
+
+                        setErrs((previous) => ({
+                          ...previous,
+                          grade: "",
+                        }));
+                      }}
                     >
                       <SelectTrigger>
                         <SelectValue placeholder="Pilih jenjang" />
@@ -2086,6 +2152,55 @@ export default function AdminCoursesPage() {
                         ))}
                       </SelectContent>
                     </Select>
+                  </div>
+
+                  <div className="space-y-2 sm:col-span-2">
+                    <Label>Kelas</Label>
+
+                    <Select
+                      value={
+                        draft.grade !== null
+                          ? String(draft.grade)
+                          : ""
+                      }
+                      onValueChange={(value) => {
+                        setDraft({
+                          ...draft,
+                          grade: Number(value),
+                        });
+
+                        setErrs((previous) => ({
+                          ...previous,
+                          grade: "",
+                        }));
+                      }}
+                      disabled={
+                        getGradeOptions(draft.level).length === 0
+                      }
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Pilih kelas" />
+                      </SelectTrigger>
+
+                      <SelectContent>
+                        {getGradeOptions(draft.level).map(
+                          (grade) => (
+                            <SelectItem
+                              key={grade}
+                              value={String(grade)}
+                            >
+                              Kelas {grade}
+                            </SelectItem>
+                          )
+                        )}
+                      </SelectContent>
+                    </Select>
+
+                    <FieldError message={errs.grade} />
+
+                    <p className="text-xs text-muted-foreground">
+                      Pilihan kelas akan menyesuaikan jenjang yang dipilih.
+                    </p>
                   </div>
                 </div>
 
