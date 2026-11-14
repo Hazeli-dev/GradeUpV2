@@ -1,6 +1,6 @@
 
 import { useState } from "react";
-import { Code, Code2, Eye } from "lucide-react";
+import { Code2, Eye, Code } from "lucide-react";
 
 import {
   Node,
@@ -54,10 +54,10 @@ export const DEFAULT_HTML = `<!DOCTYPE html>
 </html>`;
 
 /**
- * Membungkus kode dalam dokumen preview terisolasi.
+ * Membungkus HTML ke dalam dokumen preview terisolasi.
  * JavaScript dan koneksi jaringan tidak diizinkan.
  */
-function createPreviewDocument(code: string) {
+export function createPreviewDocument(code: string) {
   const securityPolicy = `
     <meta
       http-equiv="Content-Security-Policy"
@@ -106,9 +106,9 @@ function CodePreviewView({
   updateAttributes,
   editor,
 }: NodeViewProps) {
-  const [activeView, setActiveView] = useState<
-    "kode" | "preview"
-  >("preview");
+  const [activeView, setActiveView] = useState<"kode" | "preview">(
+    "preview"
+  );
 
   const code = String(node.attrs.code ?? "");
   const title = String(node.attrs.title ?? "Contoh Kode");
