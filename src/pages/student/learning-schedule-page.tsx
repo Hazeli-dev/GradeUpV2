@@ -174,9 +174,15 @@ function formatError(error: unknown): string {
   return "Terjadi kesalahan. Silakan coba kembali.";
 }
 
+// Frontend: Senin = 0 sampai Minggu = 6.
+// Database: Senin = 1 sampai Minggu = 7.
 function getTodayIndex(): number {
   const day = new Date().getDay();
   return day === 0 ? 6 : day - 1;
+}
+
+function toDatabaseDay(frontendDay: number): number {
+  return frontendDay + 1;
 }
 
 function normalizeLevel(value: string | null | undefined): string {
@@ -231,17 +237,6 @@ function normalizeSubject(value: string | null | undefined): string {
     .replace(/\s+/g, " ");
 }
 
-/**
- * Menghilangkan akhiran jenjang dari kategori.
- *
- * Contoh:
- * "Bahasa Inggris SD/MI" -> "bahasa inggris"
- * "Bahasa Inggris"       -> "bahasa inggris"
- *
- * Pencocokan ini diperlukan karena kategori kursus
- * terkadang memakai nama singkat, sedangkan jadwal
- * memakai nama lengkap beserta jenjang.
- */
 function normalizeSubjectBase(
   value: string | null | undefined
 ): string {
@@ -316,8 +311,6 @@ export default function StudentLearningSchedulePage() {
   const [selectedDay, setSelectedDay] = useState(getTodayIndex());
 
   const selectedDayRef = useRef(selectedDay);
-
-  // Mencegah hasil RPC lama menimpa hasil hari terbaru.
   const recommendationRequestRef = useRef(0);
 
   const [selectedSubjects, setSelectedSubjects] = useState<string[]>([]);
@@ -462,7 +455,7 @@ export default function StudentLearningSchedulePage() {
           return;
         }
 
-        // 5. Periksa progres materi.
+        // 5. Periksa progres materi secara paralel.
         const progressMap = new Map<string, boolean>();
         let currentIndex = 0;
 
@@ -529,8 +522,6 @@ export default function StudentLearningSchedulePage() {
           })
           .filter((item): item is LessonInfo => item !== null);
 
-        // Simpan materi profil siswa.
-        // Filter jadwal dilakukan di useMemo.
         setAllLessons(mappedLessons);
 
         console.info("[GradeUp] Materi berhasil dimuat:", {
@@ -561,13 +552,14 @@ export default function StudentLearningSchedulePage() {
       const { data, error: rpcError } = await supabase.rpc(
         "get_daily_learning_recommendations",
         {
+          // RPC menerima indeks frontend.
+          // Fungsi SQL harus membandingkan dengan p_day_of_week + 1.
           p_day_of_week: dayIndex,
         }
       );
 
       if (rpcError) throw rpcError;
 
-      // Abaikan respons yang sudah kedaluwarsa.
       if (requestId !== recommendationRequestRef.current) return;
 
       const result = Array.isArray(data)
@@ -702,10 +694,13 @@ export default function StudentLearningSchedulePage() {
 
       setScheduleRows(schedules);
 
+      // Konversi indeks hari sebelum membaca jadwal database.
       const activeDay = selectedDayRef.current;
+      const databaseDay = toDatabaseDay(activeDay);
 
       const currentDaySubjects = schedules
-        .filter((item) => item.day_of_week === activeDay)
+        .filter((item) => item.day_of_week === databaseDay)
+        .sort((a, b) => a.sort_order - b.sort_order)
         .map((item) => item.subject);
 
       setSelectedSubjects(currentDaySubjects);
@@ -757,8 +752,10 @@ export default function StudentLearningSchedulePage() {
     selectedDayRef.current = index;
     setSelectedDay(index);
 
+    const databaseDay = toDatabaseDay(index);
+
     const daySubjects = scheduleRows
-      .filter((item) => item.day_of_week === index)
+      .filter((item) => item.day_of_week === databaseDay)
       .sort((a, b) => a.sort_order - b.sort_order)
       .map((item) => item.subject);
 
@@ -852,8 +849,11 @@ export default function StudentLearningSchedulePage() {
 
     setScheduleRows(updatedSchedules);
 
+    const databaseDay = toDatabaseDay(selectedDayRef.current);
+
     const currentSubjects = updatedSchedules
-      .filter((item) => item.day_of_week === selectedDayRef.current)
+      .filter((item) => item.day_of_week === databaseDay)
+      .sort((a, b) => a.sort_order - b.sort_order)
       .map((item) => item.subject);
 
     setSelectedSubjects(currentSubjects);
@@ -874,6 +874,7 @@ export default function StudentLearningSchedulePage() {
 
     try {
       const dayIndex = selectedDayRef.current;
+      const databaseDay = toDatabaseDay(dayIndex);
 
       // Hilangkan kemungkinan kategori ganda.
       const desiredSubjects = Array.from(
@@ -884,8 +885,10 @@ export default function StudentLearningSchedulePage() {
         )
       );
 
+      // Hanya mengambil jadwal untuk hari yang sedang diedit.
+      // Jadwal hari lain tidak akan ikut diubah.
       const currentRows = scheduleRows.filter(
-        (item) => item.day_of_week === dayIndex
+        (item) => item.day_of_week === databaseDay
       );
 
       const currentSubjects = currentRows.map(
@@ -900,13 +903,11 @@ export default function StudentLearningSchedulePage() {
         (subject) => !currentSubjects.includes(subject)
       );
 
-      // LANGKAH 1:
-      // Tambahkan kategori baru terlebih dahulu.
-      // Jadwal lama belum dihapus pada tahap ini.
+      // LANGKAH 1: Tambahkan kategori baru.
       if (newSubjects.length > 0) {
         const newRows = newSubjects.map((subject) => ({
           user_id: userId,
-          day_of_week: dayIndex,
+          day_of_week: databaseDay,
           subject,
           sort_order: desiredSubjects.indexOf(subject),
           is_active: true,
@@ -919,8 +920,7 @@ export default function StudentLearningSchedulePage() {
         if (insertError) throw insertError;
       }
 
-      // LANGKAH 2:
-      // Perbarui urutan kategori yang sudah tersimpan.
+      // LANGKAH 2: Perbarui urutan kategori yang sudah tersimpan.
       for (let index = 0; index < desiredSubjects.length; index++) {
         const subject = desiredSubjects[index];
 
@@ -942,9 +942,7 @@ export default function StudentLearningSchedulePage() {
         if (updateError) throw updateError;
       }
 
-      // LANGKAH 3:
-      // Hapus kategori yang tidak lagi dipilih.
-      // Penghapusan dilakukan setelah insert dan update berhasil.
+      // LANGKAH 3: Hapus kategori yang tidak lagi dipilih.
       if (removedRows.length > 0) {
         const { error: deleteError } = await supabase
           .from("student_learning_schedules")
@@ -958,18 +956,17 @@ export default function StudentLearningSchedulePage() {
         if (deleteError) throw deleteError;
       }
 
-      // LANGKAH 4:
-      // Ambil ulang jadwal yang benar-benar tersimpan.
+      // LANGKAH 4: Ambil ulang data jadwal dari database.
       const updatedSchedules = await reloadSchedules();
 
       const savedSubjects = updatedSchedules
-        .filter((item) => item.day_of_week === dayIndex)
+        .filter((item) => item.day_of_week === databaseDay)
+        .sort((a, b) => a.sort_order - b.sort_order)
         .map((item) => item.subject);
 
       setSelectedSubjects(savedSubjects);
 
-      // LANGKAH 5:
-      // Muat ulang rekomendasi untuk hari yang disimpan.
+      // LANGKAH 5: Muat ulang rekomendasi hari yang disimpan.
       await loadRecommendations(dayIndex);
 
       setSuccessMessage(
@@ -980,8 +977,7 @@ export default function StudentLearningSchedulePage() {
 
       setError(`Jadwal gagal disimpan: ${formatError(err)}`);
 
-      // Jika sebagian proses sudah berhasil, sinkronkan ulang
-      // tampilan dari data yang benar-benar ada di database.
+      // Sinkronkan ulang tampilan jika sebagian proses berhasil.
       try {
         await reloadSchedules();
       } catch (reloadError) {
@@ -1236,8 +1232,10 @@ export default function StudentLearningSchedulePage() {
           <div className="grid grid-cols-4 gap-2 sm:grid-cols-7">
             {DAYS.map((day, index) => {
               const active = selectedDay === index;
+              const databaseDay = toDatabaseDay(index);
+
               const hasSchedule = scheduleRows.some(
-                (item) => item.day_of_week === index
+                (item) => item.day_of_week === databaseDay
               );
 
               return (
