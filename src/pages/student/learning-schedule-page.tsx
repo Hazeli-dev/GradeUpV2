@@ -1,5 +1,11 @@
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { useNavigate } from "react-router-dom";
 import {
   BookOpen,
@@ -207,7 +213,15 @@ function isLessonCompleted(value: unknown): boolean {
     return false;
   }
 
-  const progress = value as LearningProgressData;
+  // Beberapa RPC dapat mengembalikan array berisi satu objek.
+  const rawValue = Array.isArray(value) ? value[0] : value;
+
+  if (!rawValue || typeof rawValue !== "object") {
+    return false;
+  }
+
+  const progress = rawValue as LearningProgressData;
+
   const sections = Array.isArray(progress.sections)
     ? progress.sections
     : [];
@@ -239,6 +253,10 @@ export default function StudentLearningSchedulePage() {
 
   const [scheduleRows, setScheduleRows] = useState<ScheduleRow[]>([]);
   const [selectedDay, setSelectedDay] = useState(getTodayIndex());
+
+  // Menyimpan hari aktif tanpa membuat loadPage bergantung pada selectedDay.
+  // Ini mencegah seluruh data dimuat ulang saat siswa mengganti hari.
+  const selectedDayRef = useRef(selectedDay);
 
   const [selectedSubjects, setSelectedSubjects] = useState<string[]>([]);
   const [availableSubjects, setAvailableSubjects] = useState<string[]>([]);
@@ -293,12 +311,11 @@ export default function StudentLearningSchedulePage() {
 
             if (courseLevel !== studentLevel) return false;
 
-            // Jika kelas kursus ditentukan, harus cocok
-            // dengan kelas siswa.
+            // Jika kursus menentukan kelas, kelas harus sesuai.
             if (
               course.grade !== null &&
               studentProfile.grade !== null &&
-              course.grade !== studentProfile.grade
+              Number(course.grade) !== Number(studentProfile.grade)
             ) {
               return false;
             }
@@ -306,6 +323,13 @@ export default function StudentLearningSchedulePage() {
             return true;
           }
         );
+
+        console.info("[GradeUp] Pemeriksaan materi:", {
+          studentLevel,
+          studentGrade: studentProfile.grade,
+          totalCourses: courseData?.length ?? 0,
+          matchingCourses: matchingCourses.length,
+        });
 
         if (matchingCourses.length === 0) {
           setLessons([]);
@@ -325,6 +349,8 @@ export default function StudentLearningSchedulePage() {
         if (moduleError) throw moduleError;
 
         const publishedModules = (moduleData ?? []) as ModuleRow[];
+
+        console.info("[GradeUp] Modul ditemukan:", publishedModules.length);
 
         if (publishedModules.length === 0) {
           setLessons([]);
@@ -347,6 +373,8 @@ export default function StudentLearningSchedulePage() {
         if (lessonErrorResult) throw lessonErrorResult;
 
         const publishedLessons = (lessonData ?? []) as LessonRow[];
+
+        console.info("[GradeUp] Materi ditemukan:", publishedLessons.length);
 
         if (publishedLessons.length === 0) {
           setLessons([]);
@@ -371,7 +399,7 @@ export default function StudentLearningSchedulePage() {
           ])
         );
 
-        // Hanya pelajaran dengan hubungan modul dan kursus valid.
+        // Hanya materi dengan hubungan modul dan kursus yang valid.
         const validLessons = publishedLessons.filter((lesson) => {
           const module = moduleMap.get(lesson.module_id);
 
@@ -385,7 +413,7 @@ export default function StudentLearningSchedulePage() {
           return;
         }
 
-        // 4. Periksa progres dengan batas enam permintaan bersamaan.
+        // 4. Periksa progres dengan maksimal enam permintaan bersamaan.
         const progressMap = new Map<string, boolean>();
         let currentIndex = 0;
 
@@ -454,10 +482,16 @@ export default function StudentLearningSchedulePage() {
           })
           .filter((item): item is LessonInfo => item !== null);
 
-        // Materi yang sudah selesai tidak ditampilkan.
-        setLessons(
-          mappedLessons.filter((lesson) => !lesson.completed)
-        );
+        // PENTING:
+        // Materi selesai tetap ditampilkan.
+        // Status selesai hanya menjadi informasi bagi siswa.
+        setLessons(mappedLessons);
+
+        console.info("[GradeUp] Total materi ditampilkan:", {
+          total: mappedLessons.length,
+          completed: mappedLessons.filter((item) => item.completed).length,
+          unfinished: mappedLessons.filter((item) => !item.completed).length,
+        });
       } catch (err) {
         console.error("Load course materials:", err);
         setLessonError(formatError(err));
@@ -589,15 +623,17 @@ export default function StudentLearningSchedulePage() {
 
       setAvailableSubjects(subjects);
 
+      // Gunakan ref agar hari terakhir yang dipilih tetap digunakan.
+      const activeDay = selectedDayRef.current;
+
       const currentDaySubjects = schedules
-        .filter((item) => item.day_of_week === selectedDay)
+        .filter((item) => item.day_of_week === activeDay)
         .sort((a, b) => a.sort_order - b.sort_order)
         .map((item) => item.subject);
 
       setSelectedSubjects(currentDaySubjects);
 
-      // Materi hanya dimuat ketika halaman pertama kali
-      // dibuka atau pengguna menekan tombol Muat Ulang.
+      // Materi hanya dimuat ketika halaman dibuka atau dimuat ulang.
       await loadCourseMaterials(normalizedProfile);
     } catch (err) {
       console.error("Load schedule page:", err);
@@ -605,7 +641,7 @@ export default function StudentLearningSchedulePage() {
     } finally {
       setLoading(false);
     }
-  }, [navigate, selectedDay, loadCourseMaterials]);
+  }, [navigate, loadCourseMaterials]);
 
   useEffect(() => {
     void loadPage();
@@ -626,6 +662,7 @@ export default function StudentLearningSchedulePage() {
   // ===================================================
 
   const handleSelectDay = (index: number) => {
+    selectedDayRef.current = index;
     setSelectedDay(index);
 
     const daySubjects = scheduleRows
@@ -790,7 +827,18 @@ export default function StudentLearningSchedulePage() {
 
       if (reloadError) throw reloadError;
 
-      setScheduleRows((data ?? []) as ScheduleRow[]);
+      const updatedSchedules = (data ?? []) as ScheduleRow[];
+
+      setScheduleRows(updatedSchedules);
+
+      // Sinkronkan daftar kategori hari yang sedang aktif.
+      setSelectedSubjects(
+        updatedSchedules
+          .filter((item) => item.day_of_week === selectedDay)
+          .sort((a, b) => a.sort_order - b.sort_order)
+          .map((item) => item.subject)
+      );
+
       setSuccessMessage("Jadwal berhasil disimpan.");
 
       // Perbarui rekomendasi tanpa memuat ulang seluruh halaman.
@@ -852,6 +900,10 @@ export default function StudentLearningSchedulePage() {
     (total, item) => total + (item.estimated_minutes || 0),
     0
   );
+
+  const completedLessonsCount = lessons.filter(
+    (lesson) => lesson.completed
+  ).length;
 
   // ===================================================
   // START LEARNING
@@ -936,7 +988,8 @@ export default function StudentLearningSchedulePage() {
 
             <button
               onClick={() => void loadPage()}
-              className="inline-flex shrink-0 items-center justify-center gap-2 rounded-xl border border-border bg-background px-4 py-3 text-sm font-semibold transition hover:bg-muted"
+              disabled={loading}
+              className="inline-flex shrink-0 items-center justify-center gap-2 rounded-xl border border-border bg-background px-4 py-3 text-sm font-semibold transition hover:bg-muted disabled:cursor-not-allowed disabled:opacity-60"
             >
               <RefreshCw className="h-4 w-4" />
               Muat ulang
@@ -980,14 +1033,14 @@ export default function StudentLearningSchedulePage() {
           <div className="rounded-2xl border border-border bg-card p-4 sm:p-5">
             <div className="flex items-center gap-3">
               <div className="rounded-xl bg-emerald-500/10 p-3">
-                <CalendarDays className="h-5 w-5 text-emerald-600" />
+                <CheckCircle2 className="h-5 w-5 text-emerald-600" />
               </div>
               <div>
                 <p className="text-xs text-muted-foreground">
-                  Jadwal hari ini
+                  Materi selesai
                 </p>
                 <p className="text-2xl font-bold tabular-nums">
-                  {selectedSubjects.length}
+                  {completedLessonsCount}
                 </p>
               </div>
             </div>
@@ -1280,8 +1333,18 @@ export default function StudentLearningSchedulePage() {
                         className="flex flex-col gap-4 p-4 sm:flex-row sm:items-center sm:justify-between sm:p-5"
                       >
                         <div className="flex min-w-0 items-start gap-3">
-                          <div className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-600">
-                            <BookMarked className="h-5 w-5" />
+                          <div
+                            className={`mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${
+                              lesson.completed
+                                ? "bg-blue-500/10 text-blue-600"
+                                : "bg-emerald-500/10 text-emerald-600"
+                            }`}
+                          >
+                            {lesson.completed ? (
+                              <CheckCircle2 className="h-5 w-5" />
+                            ) : (
+                              <BookMarked className="h-5 w-5" />
+                            )}
                           </div>
 
                           <div className="min-w-0">
@@ -1305,9 +1368,21 @@ export default function StudentLearningSchedulePage() {
                                 {lesson.estimated_minutes || 0} menit
                               </span>
 
-                              <span className="inline-flex items-center gap-1.5 text-emerald-600 dark:text-emerald-400">
-                                <BookOpen className="h-3.5 w-3.5" />
-                                Belum selesai
+                              <span
+                                className={`inline-flex items-center gap-1.5 ${
+                                  lesson.completed
+                                    ? "font-semibold text-blue-600 dark:text-blue-400"
+                                    : "text-emerald-600 dark:text-emerald-400"
+                                }`}
+                              >
+                                {lesson.completed ? (
+                                  <CheckCircle2 className="h-3.5 w-3.5" />
+                                ) : (
+                                  <BookOpen className="h-3.5 w-3.5" />
+                                )}
+                                {lesson.completed
+                                  ? "Sudah selesai"
+                                  : "Belum selesai"}
                               </span>
                             </div>
                           </div>
@@ -1315,10 +1390,16 @@ export default function StudentLearningSchedulePage() {
 
                         <button
                           onClick={() => handleStartLesson(lesson)}
-                          className="inline-flex w-full shrink-0 items-center justify-center gap-2 rounded-xl bg-emerald-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-emerald-700 sm:w-auto"
+                          className={`inline-flex w-full shrink-0 items-center justify-center gap-2 rounded-xl px-5 py-3 text-sm font-semibold text-white transition sm:w-auto ${
+                            lesson.completed
+                              ? "bg-blue-600 hover:bg-blue-700"
+                              : "bg-emerald-600 hover:bg-emerald-700"
+                          }`}
                         >
                           <Play className="h-4 w-4 fill-current" />
-                          Mulai Belajar
+                          {lesson.completed
+                            ? "Pelajari Lagi"
+                            : "Mulai Belajar"}
                         </button>
                       </div>
                     ))}
@@ -1337,9 +1418,20 @@ export default function StudentLearningSchedulePage() {
               </h3>
 
               <p className="mx-auto mt-2 max-w-md text-sm leading-relaxed text-muted-foreground">
-                Belum ada materi yang sesuai dengan jenjang dan kelasmu,
-                atau semua materi yang tersedia sudah selesai dipelajari.
+                Belum ada materi yang sesuai dengan jenjang dan kelasmu.
+                Pastikan kursus, modul, dan materi sudah dipublikasikan
+                serta sesuai dengan profil siswa.
               </p>
+
+              <button
+                onClick={() => {
+                  if (profile) void loadCourseMaterials(profile);
+                }}
+                className="mt-5 inline-flex items-center justify-center gap-2 rounded-xl border border-border bg-background px-4 py-2.5 text-sm font-semibold transition hover:bg-muted"
+              >
+                <RefreshCw className="h-4 w-4" />
+                Periksa kembali materi
+              </button>
             </div>
           )}
         </section>
@@ -1462,8 +1554,8 @@ export default function StudentLearningSchedulePage() {
               </p>
               <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
                 Progres materi diperiksa menggunakan sistem pembelajaran
-                GradeUp. Materi yang sudah selesai tidak akan muncul lagi
-                pada daftar materi yang perlu dilanjutkan.
+                GradeUp. Materi yang sudah selesai tetap tersedia sehingga
+                siswa dapat mempelajarinya kembali kapan saja.
               </p>
             </div>
           </div>
