@@ -95,7 +95,7 @@ export default function StudentCoursesPage() {
   const [q, setQ] = useState("");
   const [category, setCategory] = useState(ALL);
 
-  // Filter jenjang dan kelas yang mengikuti profil siswa.
+  // Filter jenjang dan kelas mengikuti profil siswa.
   const [profileLevel, setProfileLevel] = useState("");
   const [profileGrade, setProfileGrade] = useState<number | null>(null);
   const [userClass, setUserClass] = useState(
@@ -139,7 +139,11 @@ export default function StudentCoursesPage() {
         console.error("Gagal mengambil profil siswa:", profileError);
       }
 
-      const educationLevel = profile?.education_level || "";
+      const educationLevel =
+        typeof profile?.education_level === "string"
+          ? profile.education_level
+          : "";
+
       const grade =
         profile?.grade != null && Number.isFinite(Number(profile.grade))
           ? Number(profile.grade)
@@ -341,9 +345,15 @@ export default function StudentCoursesPage() {
   );
 
   // Jenjang yang tersedia berdasarkan katalog dan profil.
+  // Nilainya dipastikan selalu string agar aman untuk TypeScript.
   const availableLevels = useMemo(() => {
-    const levels = new Set(
-      courses.map((course) => course.level).filter(Boolean)
+    const levels = new Set<string>(
+      courses
+        .map((course) => course.level)
+        .filter(
+          (level): level is string =>
+            typeof level === "string" && level.trim().length > 0
+        )
     );
 
     if (profileLevel) {
