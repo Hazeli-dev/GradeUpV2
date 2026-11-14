@@ -1,4 +1,3 @@
-
 import {
   useCallback,
   useEffect,
@@ -42,6 +41,7 @@ import {
 } from "lucide-react";
 
 import { supabase } from "@/lib/supabase";
+import { CodePreviewBlock } from "@/components/course/CodePreviewBlock";
 
 // =====================================================
 // TYPES
@@ -775,6 +775,7 @@ export default function LessonLearningPage() {
       TableRow,
       TableHeader,
       TableCell,
+      CodePreviewBlock,
     ],
     content: {
       type: "doc",
