@@ -27,13 +27,19 @@ export const DEFAULT_HTML = `<!DOCTYPE html>
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Contoh Materi</title>
   <style>
+    * {
+      box-sizing: border-box;
+    }
+
     body {
       font-family: Arial, sans-serif;
       padding: 24px;
+      margin: 0;
       background: #f1f5f9;
     }
 
     .card {
+      width: 100%;
       max-width: 500px;
       margin: auto;
       padding: 24px;
@@ -49,6 +55,16 @@ export const DEFAULT_HTML = `<!DOCTYPE html>
     p {
       color: #475569;
       line-height: 1.6;
+    }
+
+    @media (max-width: 480px) {
+      body {
+        padding: 12px;
+      }
+
+      .card {
+        padding: 18px;
+      }
     }
   </style>
 </head>
@@ -137,21 +153,21 @@ function CodePreviewView({
     <NodeViewWrapper className="gu-code-preview-block w-full max-w-none">
       <section
         contentEditable={false}
-        className={`flex flex-col overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm ${
+        className={`flex flex-col border border-slate-200 bg-white ${
           isExpanded
-            ? "fixed inset-3 z-[9999] h-[calc(100dvh-1.5rem)] w-auto max-w-none shadow-2xl"
-            : "my-6 w-full max-w-none"
+            ? "fixed inset-0 z-[99999] h-[100dvh] w-full max-w-none overflow-hidden rounded-none shadow-2xl"
+            : "my-6 w-full max-w-none overflow-hidden rounded-xl shadow-sm"
         }`}
       >
-        {/* Header */}
-        <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-b border-slate-200 bg-slate-50 px-4 py-3">
-          <div className="flex min-w-0 items-center gap-2">
-            <Code2
-              size={18}
-              className="shrink-0 text-blue-600"
-            />
+        {/* Header khusus admin */}
+        {isEditable && (
+          <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-b border-slate-200 bg-slate-50 px-4 py-3">
+            <div className="flex min-w-0 flex-1 items-center gap-2">
+              <Code2
+                size={18}
+                className="shrink-0 text-blue-600"
+              />
 
-            {isEditable ? (
               <input
                 type="text"
                 value={title}
@@ -161,18 +177,12 @@ function CodePreviewView({
                   })
                 }
                 aria-label="Judul blok kode"
-                className="min-w-0 max-w-full border-0 bg-transparent text-sm font-semibold text-slate-800 outline-none focus:ring-0"
+                className="min-w-0 w-full max-w-full border-0 bg-transparent text-sm font-semibold text-slate-800 outline-none focus:ring-0"
                 placeholder="Judul blok kode"
               />
-            ) : (
-              <span className="truncate text-sm font-semibold text-slate-800">
-                {title}
-              </span>
-            )}
-          </div>
+            </div>
 
-          <div className="flex shrink-0 items-center gap-2">
-            {isEditable && (
+            <div className="flex shrink-0 flex-wrap items-center gap-2">
               <div className="flex items-center gap-1 rounded-lg border border-slate-200 bg-white p-1">
                 <button
                   type="button"
@@ -180,7 +190,7 @@ function CodePreviewView({
                     setIsExpanded(false);
                     setActiveView("kode");
                   }}
-                  className={`rounded-md px-3 py-1.5 text-xs font-medium transition ${
+                  className={`rounded-md px-3 py-2 text-xs font-medium transition ${
                     activeView === "kode" && !isExpanded
                       ? "bg-blue-600 text-white"
                       : "text-slate-600 hover:bg-slate-100"
@@ -198,7 +208,7 @@ function CodePreviewView({
                     setActiveView("preview");
                     setIsExpanded(false);
                   }}
-                  className={`rounded-md px-3 py-1.5 text-xs font-medium transition ${
+                  className={`rounded-md px-3 py-2 text-xs font-medium transition ${
                     activeView === "preview" && !isExpanded
                       ? "bg-blue-600 text-white"
                       : "text-slate-600 hover:bg-slate-100"
@@ -210,39 +220,38 @@ function CodePreviewView({
                   </span>
                 </button>
               </div>
-            )}
 
-            {/* Tombol layar penuh */}
-            {!isExpanded ? (
-              <button
-                type="button"
-                onClick={openFullPreview}
-                title="Buka preview layar penuh"
-                aria-label="Buka preview layar penuh"
-                className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-700 transition hover:border-blue-300 hover:bg-blue-50 hover:text-blue-700"
-              >
-                <Maximize2 size={15} />
-                <span className="hidden sm:inline">
-                  Layar Penuh
-                </span>
-              </button>
-            ) : (
-              <button
-                type="button"
-                onClick={closeFullPreview}
-                title="Tutup layar penuh"
-                aria-label="Tutup layar penuh"
-                className="flex items-center gap-1.5 rounded-lg bg-slate-900 px-3 py-2 text-xs font-medium text-white transition hover:bg-slate-700"
-              >
-                <Minimize2 size={15} />
-                <span className="hidden sm:inline">
-                  Kecilkan
-                </span>
-                <X size={15} />
-              </button>
-            )}
+              {!isExpanded ? (
+                <button
+                  type="button"
+                  onClick={openFullPreview}
+                  title="Buka preview layar penuh"
+                  aria-label="Buka preview layar penuh"
+                  className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-700 transition hover:border-blue-300 hover:bg-blue-50 hover:text-blue-700"
+                >
+                  <Maximize2 size={15} />
+                  <span className="hidden sm:inline">
+                    Layar Penuh
+                  </span>
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={closeFullPreview}
+                  title="Tutup layar penuh"
+                  aria-label="Tutup layar penuh"
+                  className="flex items-center gap-1.5 rounded-lg bg-slate-900 px-3 py-2 text-xs font-medium text-white transition hover:bg-slate-700"
+                >
+                  <Minimize2 size={15} />
+                  <span className="hidden sm:inline">
+                    Kecilkan
+                  </span>
+                  <X size={15} />
+                </button>
+              )}
+            </div>
           </div>
-        </div>
+        )}
 
         {/* Editor Kode */}
         {isEditable && activeView === "kode" && !isExpanded ? (
@@ -274,7 +283,7 @@ function CodePreviewView({
           /* Area Preview */
           <div
             className={`min-h-0 w-full bg-white ${
-              isExpanded ? "flex-1" : "w-full"
+              isExpanded ? "flex-1 overflow-auto" : "w-full"
             }`}
           >
             <iframe
@@ -292,7 +301,7 @@ function CodePreviewView({
           </div>
         )}
 
-        {/* Footer */}
+        {/* Footer khusus admin */}
         {isEditable && !isExpanded && (
           <div className="flex shrink-0 flex-wrap items-center justify-between gap-2 border-t border-slate-200 bg-slate-50 px-4 py-2">
             <span className="text-xs text-slate-500">
