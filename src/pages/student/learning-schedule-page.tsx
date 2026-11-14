@@ -71,6 +71,7 @@ type Recommendation = {
 type CourseInfo = {
   id: string;
   title: string;
+  category: string | null;
   premium: boolean;
 };
 
@@ -103,6 +104,7 @@ type LearningProgressData = {
 type CourseRow = {
   id: string;
   title: string;
+  category: string | null;
   premium: boolean | null;
   level: string | null;
   grade: number | null;
@@ -146,13 +148,22 @@ const DAYS: DayInfo[] = [
 function formatError(error: unknown): string {
   if (error instanceof Error) return error.message;
 
-  if (
-    error &&
-    typeof error === "object" &&
-    "message" in error &&
-    typeof error.message === "string"
-  ) {
-    return error.message;
+  if (error && typeof error === "object") {
+    const err = error as {
+      message?: string;
+      details?: string;
+      hint?: string;
+      code?: string;
+    };
+
+    return [
+      err.message,
+      err.details,
+      err.hint ? `Petunjuk: ${err.hint}` : "",
+      err.code ? `Kode: ${err.code}` : "",
+    ]
+      .filter(Boolean)
+      .join(" | ");
   }
 
   return "Terjadi kesalahan. Silakan coba kembali.";
@@ -208,12 +219,33 @@ function inferLevelFromGrade(grade: number | null): string {
   return "";
 }
 
+function normalizeSubject(value: string | null | undefined): string {
+  return (value ?? "")
+    .trim()
+    .toLocaleLowerCase("id-ID")
+    .replace(/\s+/g, " ");
+}
+
+function categoryMatchesSubject(
+  category: string | null | undefined,
+  subject: string
+): boolean {
+  const normalizedCategory = normalizeSubject(category);
+  const normalizedSubject = normalizeSubject(subject);
+
+  if (!normalizedCategory || !normalizedSubject) return false;
+
+  return (
+    normalizedCategory === normalizedSubject ||
+    normalizedCategory.startsWith(`${normalizedSubject} `)
+  );
+}
+
 function isLessonCompleted(value: unknown): boolean {
   if (!value || typeof value !== "object") {
     return false;
   }
 
-  // Beberapa RPC dapat mengembalikan array berisi satu objek.
   const rawValue = Array.isArray(value) ? value[0] : value;
 
   if (!rawValue || typeof rawValue !== "object") {
@@ -254,8 +286,6 @@ export default function StudentLearningSchedulePage() {
   const [scheduleRows, setScheduleRows] = useState<ScheduleRow[]>([]);
   const [selectedDay, setSelectedDay] = useState(getTodayIndex());
 
-  // Menyimpan hari aktif tanpa membuat loadPage bergantung pada selectedDay.
-  // Ini mencegah seluruh data dimuat ulang saat siswa mengganti hari.
   const selectedDayRef = useRef(selectedDay);
 
   const [selectedSubjects, setSelectedSubjects] = useState<string[]>([]);
@@ -263,11 +293,13 @@ export default function StudentLearningSchedulePage() {
   const [subjectToAdd, setSubjectToAdd] = useState("");
 
   const [recommendations, setRecommendations] = useState<Recommendation[]>([]);
-  const [lessons, setLessons] = useState<LessonInfo[]>([]);
+
+  // Menyimpan seluruh materi yang sesuai profil siswa.
+  // Filter mata pelajaran dilakukan terpisah menggunakan useMemo.
+  const [allLessons, setAllLessons] = useState<LessonInfo[]>([]);
 
   const [loading, setLoading] = useState(true);
-  const [loadingRecommendations, setLoadingRecommendations] =
-    useState(false);
+  const [loadingRecommendations, setLoadingRecommendations] = useState(false);
   const [loadingLessons, setLoadingLessons] = useState(false);
 
   const [saving, setSaving] = useState(false);
@@ -290,7 +322,7 @@ export default function StudentLearningSchedulePage() {
           inferLevelFromGrade(studentProfile.grade);
 
         if (!studentLevel) {
-          setLessons([]);
+          setAllLessons([]);
           setLessonError(
             "Jenjang pendidikan pada profil belum dapat dikenali. Periksa kembali profil siswa."
           );
@@ -311,7 +343,6 @@ export default function StudentLearningSchedulePage() {
 
             if (courseLevel !== studentLevel) return false;
 
-            // Jika kursus menentukan kelas, kelas harus sesuai.
             if (
               course.grade !== null &&
               studentProfile.grade !== null &&
@@ -324,7 +355,7 @@ export default function StudentLearningSchedulePage() {
           }
         );
 
-        console.info("[GradeUp] Pemeriksaan materi:", {
+        console.info("[GradeUp] Pemeriksaan kursus:", {
           studentLevel,
           studentGrade: studentProfile.grade,
           totalCourses: courseData?.length ?? 0,
@@ -332,7 +363,7 @@ export default function StudentLearningSchedulePage() {
         });
 
         if (matchingCourses.length === 0) {
-          setLessons([]);
+          setAllLessons([]);
           return;
         }
 
@@ -353,19 +384,17 @@ export default function StudentLearningSchedulePage() {
         console.info("[GradeUp] Modul ditemukan:", publishedModules.length);
 
         if (publishedModules.length === 0) {
-          setLessons([]);
+          setAllLessons([]);
           return;
         }
 
         const moduleIds = publishedModules.map((module) => module.id);
 
-        // 3. Ambil pelajaran yang sudah dipublikasikan.
+        // 3. Ambil materi yang sudah dipublikasikan.
         const { data: lessonData, error: lessonErrorResult } =
           await supabase
             .from("course_lessons")
-            .select(
-              "id,title,description,estimated_minutes,module_id"
-            )
+            .select("id,title,description,estimated_minutes,module_id")
             .in("module_id", moduleIds)
             .eq("is_published", true)
             .order("sort_order", { ascending: true });
@@ -377,43 +406,39 @@ export default function StudentLearningSchedulePage() {
         console.info("[GradeUp] Materi ditemukan:", publishedLessons.length);
 
         if (publishedLessons.length === 0) {
-          setLessons([]);
+          setAllLessons([]);
           return;
         }
 
+        // 4. Hubungkan kursus dengan kategori.
         const courseMap = new Map(
           matchingCourses.map((course) => [
             course.id,
             {
               id: course.id,
               title: course.title,
+              category: course.category ?? null,
               premium: course.premium === true,
             },
           ])
         );
 
         const moduleMap = new Map(
-          publishedModules.map((module) => [
-            module.id,
-            module,
-          ])
+          publishedModules.map((module) => [module.id, module])
         );
 
-        // Hanya materi dengan hubungan modul dan kursus yang valid.
         const validLessons = publishedLessons.filter((lesson) => {
           const module = moduleMap.get(lesson.module_id);
 
-          return Boolean(
-            module && courseMap.has(module.course_id)
-          );
+          return Boolean(module && courseMap.has(module.course_id));
         });
 
         if (validLessons.length === 0) {
-          setLessons([]);
+          setAllLessons([]);
           return;
         }
 
-        // 4. Periksa progres dengan maksimal enam permintaan bersamaan.
+        // 5. Periksa progres dengan maksimal enam permintaan bersamaan.
         const progressMap = new Map<string, boolean>();
         let currentIndex = 0;
 
@@ -456,8 +481,7 @@ export default function StudentLearningSchedulePage() {
           Array.from({ length: workerCount }, () => worker())
         );
 
-        // 5. Bentuk data untuk tampilan.
-
+        // 6. Bentuk data materi.
         const mappedLessons: LessonInfo[] = validLessons
           .map((lesson) => {
             const module = moduleMap.get(lesson.module_id);
@@ -483,44 +507,12 @@ export default function StudentLearningSchedulePage() {
           })
           .filter((item): item is LessonInfo => item !== null);
 
-        // Tampilkan materi sesuai mata pelajaran hari yang dipilih.
-        const selectedCategories = selectedSubjects.map((subject) =>
-          subject.trim().toLowerCase()
-        );
+        // Simpan seluruh materi.
+        // Tidak memfilter berdasarkan selectedSubjects di sini,
+        // karena fungsi ini tidak perlu bergantung pada hari aktif.
+        setAllLessons(mappedLessons);
 
-        const filteredLessons = mappedLessons.filter((lesson) => {
-          const courseTitle = lesson.module.course.title
-            .trim()
-            .toLowerCase();
-
-          // Cari kategori kursus dari data kursus.
-          const matchingCourse = matchingCourses.find(
-            (course) => course.id === lesson.module.course.id
-          );
-
-          const category = (
-            (matchingCourse as (CourseRow & { category?: string }) | undefined)
-              ?.category ?? ""
-          )
-            .trim()
-            .toLowerCase();
-
-          return selectedCategories.some(
-            (subject) =>
-              category === subject ||
-              courseTitle.includes(subject)
-          );
-        });
-
-        setLessons(filteredLessons);
-
-        console.info("[GradeUp] Materi berdasarkan jadwal:", {
-          selectedCategories,
-          total: filteredLessons.length,
-        });
-
-
-        console.info("[GradeUp] Total materi ditampilkan:", {
+        console.info("[GradeUp] Semua materi berhasil dimuat:", {
           total: mappedLessons.length,
           completed: mappedLessons.filter((item) => item.completed).length,
           unfinished: mappedLessons.filter((item) => !item.completed).length,
@@ -539,36 +531,33 @@ export default function StudentLearningSchedulePage() {
   // LOAD RECOMMENDATIONS
   // ===================================================
 
-  const loadRecommendations = useCallback(
-    async (dayIndex: number) => {
-      setLoadingRecommendations(true);
+  const loadRecommendations = useCallback(async (dayIndex: number) => {
+    setLoadingRecommendations(true);
 
-      try {
-        const { data, error: rpcError } = await supabase.rpc(
-          "get_daily_learning_recommendations",
-          {
-            p_day_of_week: dayIndex,
-          }
-        );
+    try {
+      const { data, error: rpcError } = await supabase.rpc(
+        "get_daily_learning_recommendations",
+        {
+          p_day_of_week: dayIndex,
+        }
+      );
 
-        if (rpcError) throw rpcError;
+      if (rpcError) throw rpcError;
 
-        const result = Array.isArray(data)
-          ? (data as Recommendation[])
-          : [];
+      const result = Array.isArray(data)
+        ? (data as Recommendation[])
+        : [];
 
-        setRecommendations(
-          result.sort((a, b) => a.sort_order - b.sort_order)
-        );
-      } catch (err) {
-        console.error("Load recommendations:", err);
-        setRecommendations([]);
-      } finally {
-        setLoadingRecommendations(false);
-      }
-    },
-    []
-  );
+      setRecommendations(
+        result.sort((a, b) => a.sort_order - b.sort_order)
+      );
+    } catch (err) {
+      console.error("Load recommendations:", err);
+      setRecommendations([]);
+    } finally {
+      setLoadingRecommendations(false);
+    }
+  }, []);
 
   // ===================================================
   // LOAD PAGE
@@ -656,7 +645,6 @@ export default function StudentLearningSchedulePage() {
 
       setAvailableSubjects(subjects);
 
-      // Gunakan ref agar hari terakhir yang dipilih tetap digunakan.
       const activeDay = selectedDayRef.current;
 
       const currentDaySubjects = schedules
@@ -666,7 +654,6 @@ export default function StudentLearningSchedulePage() {
 
       setSelectedSubjects(currentDaySubjects);
 
-      // Materi hanya dimuat ketika halaman dibuka atau dimuat ulang.
       await loadCourseMaterials(normalizedProfile);
     } catch (err) {
       console.error("Load schedule page:", err);
@@ -691,6 +678,24 @@ export default function StudentLearningSchedulePage() {
   }, [userId, selectedDay, loadRecommendations]);
 
   // ===================================================
+  // FILTER MATERIALS BASED ON SELECTED DAY
+  // ===================================================
+
+  const lessons = useMemo(() => {
+    if (selectedSubjects.length === 0) {
+      return [];
+    }
+
+    return allLessons.filter((lesson) => {
+      const category = lesson.module.course.category;
+
+      return selectedSubjects.some((subject) =>
+        categoryMatchesSubject(category, subject)
+      );
+    });
+  }, [allLessons, selectedSubjects]);
+
+  // ===================================================
   // SELECT DAY
   // ===================================================
 
@@ -706,6 +711,7 @@ export default function StudentLearningSchedulePage() {
     setSelectedSubjects(daySubjects);
     setSubjectToAdd("");
     setSuccessMessage("");
+    setError("");
   };
 
   // ===================================================
@@ -727,6 +733,7 @@ export default function StudentLearningSchedulePage() {
 
     setSubjectToAdd("");
     setSuccessMessage("");
+    setError("");
   };
 
   // ===================================================
@@ -766,6 +773,8 @@ export default function StudentLearningSchedulePage() {
 
       return next;
     });
+
+    setSuccessMessage("");
   };
 
   // ===================================================
@@ -796,7 +805,7 @@ export default function StudentLearningSchedulePage() {
         (subject) => !currentSubjects.includes(subject)
       );
 
-      // Hapus kategori yang tidak dipilih.
+      // 1. Hapus mata pelajaran yang sudah tidak dipilih.
       if (removedRows.length > 0) {
         const { error: deleteError } = await supabase
           .from("student_learning_schedules")
@@ -810,7 +819,7 @@ export default function StudentLearningSchedulePage() {
         if (deleteError) throw deleteError;
       }
 
-      // Perbarui urutan kategori yang sudah ada.
+      // 2. Perbarui urutan mata pelajaran yang sudah tersimpan.
       for (let index = 0; index < selectedSubjects.length; index++) {
         const subject = selectedSubjects[index];
 
@@ -832,7 +841,7 @@ export default function StudentLearningSchedulePage() {
         }
       }
 
-      // Tambahkan kategori baru.
+      // 3. Tambahkan mata pelajaran baru.
       for (const subject of newSubjects) {
         const index = selectedSubjects.indexOf(subject);
 
@@ -849,6 +858,7 @@ export default function StudentLearningSchedulePage() {
         if (insertError) throw insertError;
       }
 
+      // 4. Ambil ulang data dari database untuk memastikan tersimpan.
       const { data, error: reloadError } = await supabase
         .from("student_learning_schedules")
         .select(
@@ -864,21 +874,49 @@ export default function StudentLearningSchedulePage() {
 
       setScheduleRows(updatedSchedules);
 
-      // Sinkronkan daftar kategori hari yang sedang aktif.
-      setSelectedSubjects(
-        updatedSchedules
-          .filter((item) => item.day_of_week === selectedDay)
-          .sort((a, b) => a.sort_order - b.sort_order)
-          .map((item) => item.subject)
-      );
+      const savedSubjects = updatedSchedules
+        .filter((item) => item.day_of_week === selectedDay)
+        .sort((a, b) => a.sort_order - b.sort_order)
+        .map((item) => item.subject);
+
+      setSelectedSubjects(savedSubjects);
 
       setSuccessMessage("Jadwal berhasil disimpan.");
 
-      // Perbarui rekomendasi tanpa memuat ulang seluruh halaman.
       await loadRecommendations(selectedDay);
     } catch (err) {
       console.error("Save schedule:", err);
-      setError(formatError(err));
+
+      setError(
+        `Jadwal gagal disimpan: ${formatError(err)}`
+      );
+
+      // Sinkronkan ulang data jika sebagian operasi sudah terlanjur berhasil.
+      try {
+        const { data, error: reloadError } = await supabase
+          .from("student_learning_schedules")
+          .select(
+            "id,user_id,day_of_week,subject,sort_order,is_active"
+          )
+          .eq("user_id", userId)
+          .eq("is_active", true)
+          .order("sort_order", { ascending: true });
+
+        if (!reloadError && data) {
+          const refreshed = data as ScheduleRow[];
+
+          setScheduleRows(refreshed);
+
+          setSelectedSubjects(
+            refreshed
+              .filter((item) => item.day_of_week === selectedDay)
+              .sort((a, b) => a.sort_order - b.sort_order)
+              .map((item) => item.subject)
+          );
+        }
+      } catch (reloadError) {
+        console.error("Reload schedule after save failure:", reloadError);
+      }
     } finally {
       setSaving(false);
     }
@@ -1170,7 +1208,7 @@ export default function StudentLearningSchedulePage() {
 
             <button
               onClick={() => void saveSchedule()}
-              disabled={saving}
+              disabled={saving || !userId}
               className="inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60"
             >
               {saving ? (
@@ -1298,7 +1336,7 @@ export default function StudentLearningSchedulePage() {
               </h2>
 
               <p className="mt-1 text-sm text-muted-foreground">
-                Materi disesuaikan dengan jenjang dan kelas pada profilmu.
+                Menampilkan materi sesuai mata pelajaran {currentDayName} pada jadwal belajarmu.
               </p>
             </div>
 
@@ -1349,6 +1387,11 @@ export default function StudentLearningSchedulePage() {
                         <h3 className="mt-1 break-words font-bold">
                           {group.course.title}
                         </h3>
+                        {group.course.category && (
+                          <p className="mt-1 text-xs text-muted-foreground">
+                            {group.course.category}
+                          </p>
+                        )}
                       </div>
                     </div>
 
@@ -1447,13 +1490,15 @@ export default function StudentLearningSchedulePage() {
               </div>
 
               <h3 className="mt-4 text-lg font-bold">
-                Belum ada materi yang tersedia
+                {selectedSubjects.length === 0
+                  ? "Belum ada jadwal mata pelajaran"
+                  : "Belum ada materi untuk mata pelajaran ini"}
               </h3>
 
               <p className="mx-auto mt-2 max-w-md text-sm leading-relaxed text-muted-foreground">
-                Belum ada materi yang sesuai dengan jenjang dan kelasmu.
-                Pastikan kursus, modul, dan materi sudah dipublikasikan
-                serta sesuai dengan profil siswa.
+                {selectedSubjects.length === 0
+                  ? `Belum ada mata pelajaran yang dijadwalkan untuk hari ${currentDayName}. Tambahkan mata pelajaran dan simpan jadwal terlebih dahulu.`
+                  : `Belum ada materi kursus untuk ${selectedSubjects.join(", ")}. Pastikan kategori kursus, modul, dan materi sudah dipublikasikan serta sesuai dengan profil siswa.`}
               </p>
 
               <button
