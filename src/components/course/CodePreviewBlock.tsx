@@ -1,6 +1,13 @@
 
 import { useState } from "react";
-import { Code, Code2, Eye } from "lucide-react";
+import {
+  Code,
+  Code2,
+  Eye,
+  Maximize2,
+  Minimize2,
+  X,
+} from "lucide-react";
 
 import {
   Node,
@@ -110,18 +117,34 @@ function CodePreviewView({
     "kode" | "preview"
   >("preview");
 
+  const [isExpanded, setIsExpanded] = useState(false);
+
   const code = String(node.attrs.code ?? "");
   const title = String(node.attrs.title ?? "Contoh Kode");
 
   const isEditable = editor.isEditable;
 
+  const openFullPreview = () => {
+    setActiveView("preview");
+    setIsExpanded(true);
+  };
+
+  const closeFullPreview = () => {
+    setIsExpanded(false);
+  };
+
   return (
-    <NodeViewWrapper className="gu-code-preview-block">
+    <NodeViewWrapper className="gu-code-preview-block w-full max-w-none">
       <section
         contentEditable={false}
-        className="my-6 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm"
+        className={`flex flex-col overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm ${
+          isExpanded
+            ? "fixed inset-3 z-[9999] h-[calc(100dvh-1.5rem)] w-auto max-w-none shadow-2xl"
+            : "my-6 w-full max-w-none"
+        }`}
       >
-        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 bg-slate-50 px-4 py-3">
+        {/* Header */}
+        <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-b border-slate-200 bg-slate-50 px-4 py-3">
           <div className="flex min-w-0 items-center gap-2">
             <Code2
               size={18}
@@ -148,44 +171,83 @@ function CodePreviewView({
             )}
           </div>
 
-          {isEditable && (
-            <div className="flex shrink-0 items-center gap-1 rounded-lg border border-slate-200 bg-white p-1">
-              <button
-                type="button"
-                onClick={() => setActiveView("kode")}
-                className={`rounded-md px-3 py-1.5 text-xs font-medium transition ${
-                  activeView === "kode"
-                    ? "bg-blue-600 text-white"
-                    : "text-slate-600 hover:bg-slate-100"
-                }`}
-              >
-                <span className="flex items-center gap-1.5">
-                  <Code size={14} />
-                  Kode
-                </span>
-              </button>
+          <div className="flex shrink-0 items-center gap-2">
+            {isEditable && (
+              <div className="flex items-center gap-1 rounded-lg border border-slate-200 bg-white p-1">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsExpanded(false);
+                    setActiveView("kode");
+                  }}
+                  className={`rounded-md px-3 py-1.5 text-xs font-medium transition ${
+                    activeView === "kode" && !isExpanded
+                      ? "bg-blue-600 text-white"
+                      : "text-slate-600 hover:bg-slate-100"
+                  }`}
+                >
+                  <span className="flex items-center gap-1.5">
+                    <Code size={14} />
+                    Kode
+                  </span>
+                </button>
 
+                <button
+                  type="button"
+                  onClick={() => {
+                    setActiveView("preview");
+                    setIsExpanded(false);
+                  }}
+                  className={`rounded-md px-3 py-1.5 text-xs font-medium transition ${
+                    activeView === "preview" && !isExpanded
+                      ? "bg-blue-600 text-white"
+                      : "text-slate-600 hover:bg-slate-100"
+                  }`}
+                >
+                  <span className="flex items-center gap-1.5">
+                    <Eye size={14} />
+                    Preview
+                  </span>
+                </button>
+              </div>
+            )}
+
+            {/* Tombol layar penuh */}
+            {!isExpanded ? (
               <button
                 type="button"
-                onClick={() => setActiveView("preview")}
-                className={`rounded-md px-3 py-1.5 text-xs font-medium transition ${
-                  activeView === "preview"
-                    ? "bg-blue-600 text-white"
-                    : "text-slate-600 hover:bg-slate-100"
-                }`}
+                onClick={openFullPreview}
+                title="Buka preview layar penuh"
+                aria-label="Buka preview layar penuh"
+                className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-700 transition hover:border-blue-300 hover:bg-blue-50 hover:text-blue-700"
               >
-                <span className="flex items-center gap-1.5">
-                  <Eye size={14} />
-                  Preview
+                <Maximize2 size={15} />
+                <span className="hidden sm:inline">
+                  Layar Penuh
                 </span>
               </button>
-            </div>
-          )}
+            ) : (
+              <button
+                type="button"
+                onClick={closeFullPreview}
+                title="Tutup layar penuh"
+                aria-label="Tutup layar penuh"
+                className="flex items-center gap-1.5 rounded-lg bg-slate-900 px-3 py-2 text-xs font-medium text-white transition hover:bg-slate-700"
+              >
+                <Minimize2 size={15} />
+                <span className="hidden sm:inline">
+                  Kecilkan
+                </span>
+                <X size={15} />
+              </button>
+            )}
+          </div>
         </div>
 
-        {isEditable && activeView === "kode" ? (
-          <div className="bg-slate-950 p-3">
-            <div className="mb-2 flex items-center justify-between gap-2">
+        {/* Editor Kode */}
+        {isEditable && activeView === "kode" && !isExpanded ? (
+          <div className="min-h-0 bg-slate-950 p-3">
+            <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
               <span className="text-xs text-slate-400">
                 HTML / CSS
               </span>
@@ -209,30 +271,40 @@ function CodePreviewView({
             />
           </div>
         ) : (
-          <div className="bg-white">
+          /* Area Preview */
+          <div
+            className={`min-h-0 w-full bg-white ${
+              isExpanded ? "flex-1" : "w-full"
+            }`}
+          >
             <iframe
               title={title || "Preview materi"}
               srcDoc={createPreviewDocument(code)}
               sandbox=""
               referrerPolicy="no-referrer"
-              className="block min-h-[300px] w-full border-0 bg-white"
+              className={`block w-full border-0 bg-white ${
+                isExpanded
+                  ? "h-full min-h-0"
+                  : "h-[min(75vh,760px)] min-h-[420px]"
+              }`}
               loading="lazy"
             />
           </div>
         )}
 
-        {isEditable && (
-          <div className="flex flex-wrap items-center justify-between gap-2 border-t border-slate-200 bg-slate-50 px-4 py-2">
+        {/* Footer */}
+        {isEditable && !isExpanded && (
+          <div className="flex shrink-0 flex-wrap items-center justify-between gap-2 border-t border-slate-200 bg-slate-50 px-4 py-2">
             <span className="text-xs text-slate-500">
               Preview HTML/CSS terisolasi
             </span>
 
             <button
               type="button"
-              onClick={() => setActiveView("preview")}
+              onClick={openFullPreview}
               className="text-xs font-semibold text-blue-600 hover:text-blue-700"
             >
-              Lihat hasil desain
+              Lihat hasil desain layar penuh
             </button>
           </div>
         )}
