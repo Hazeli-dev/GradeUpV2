@@ -1930,7 +1930,7 @@ export default function AdminCoursesPage() {
 
                   <TableCell>
                     {c.grade !== null ? (
-                      <Badge variant="secondary">
+                      <Badge variant="muted">
                         Kelas {c.grade}
                       </Badge>
                     ) : (
