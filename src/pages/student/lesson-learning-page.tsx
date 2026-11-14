@@ -1602,7 +1602,7 @@ export default function LessonLearningPage() {
     <div className="gu-learning-page min-h-screen bg-background text-foreground">
       {/* TOP BAR */}
       <header className="sticky top-0 z-30 border-b border-border bg-background/90 backdrop-blur-xl">
-        <div className="mx-auto flex max-w-7xl items-center justify-between gap-3 px-4 py-3">
+        <div className="mx-auto flex w-full max-w-[1720px] items-center justify-between gap-3 px-4 py-3 xl:px-6">
           <button
             onClick={() => navigate(`/dashboard/courses/${courseId}`)}
             className="inline-flex items-center gap-2 rounded-lg text-sm font-semibold text-muted-foreground transition hover:text-emerald-600"
@@ -1642,7 +1642,7 @@ export default function LessonLearningPage() {
         </div>
       </header>
 
-      <div className="mx-auto max-w-7xl px-4 py-6 md:py-8">
+      <div className="mx-auto w-full max-w-[1720px] px-3 py-6 sm:px-4 md:py-8 xl:px-6">
         {/* BREADCRUMB */}
         <nav className="mb-6 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
           <span>{lesson.module.course.title}</span>
@@ -1654,7 +1654,7 @@ export default function LessonLearningPage() {
           </span>
         </nav>
 
-        <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-[280px_minmax(0,1fr)]">
+        <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-[250px_minmax(0,1fr)] xl:gap-5 2xl:grid-cols-[270px_minmax(0,1fr)]">
           {/* SIDEBAR */}
           <aside className="overflow-hidden rounded-2xl border border-border bg-card shadow-sm lg:sticky lg:top-24">
             <button
@@ -1780,7 +1780,7 @@ export default function LessonLearningPage() {
           <main className="min-w-0">
             <section className="overflow-hidden rounded-2xl border border-border bg-card shadow-sm">
               {/* LESSON HEADER */}
-              <div className="border-b border-border p-5 md:p-8">
+              <div className="border-b border-border p-5 md:p-7 xl:p-8">
                 <div className="mb-4 flex flex-wrap items-center gap-2">
                   <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/10 px-3 py-1.5 text-xs font-semibold text-emerald-700 dark:text-emerald-300">
                     <BookOpen className="h-3.5 w-3.5" />
@@ -1855,7 +1855,7 @@ export default function LessonLearningPage() {
               {selectedSection ? (
                 <>
                   {/* SECTION TITLE */}
-                  <div className="px-5 pt-7 md:px-8">
+                  <div className="px-5 pt-7 md:px-7 xl:px-8">
                     <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400">
                       <FileText className="h-4 w-4" />
                       Bagian {selectedSectionIndex + 1}
@@ -1867,7 +1867,7 @@ export default function LessonLearningPage() {
                   </div>
 
                   {/* LESSON CONTENT */}
-                  <div className="px-5 py-7 md:px-8">
+                  <div className="px-5 py-7 md:px-7 xl:px-8">
                     <div className="gu-student-content min-w-0 text-foreground">
                       <EditorContent editor={editor} />
                     </div>
