@@ -1,4 +1,4 @@
-
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -1110,3 +1110,533 @@ a {
     transition-duration: 0.01ms !important;
   }
 }
+
+
+/* =====================================================
+   GRADEUP COMPLETE TYPOGRAPHY & READABILITY REFINEMENT
+   Version: 2.0
+   Font: Inter
+   Preserve Original Green Theme
+   Safe CSS Override
+===================================================== */
+
+
+/* =====================================================
+   1. GLOBAL DESIGN TOKENS
+===================================================== */
+
+@layer base {
+  :root {
+    /* Main text */
+    --foreground: 222 47% 11%;
+    --card-foreground: 222 47% 11%;
+    --popover-foreground: 222 47% 11%;
+
+    /* Secondary text */
+    --muted-foreground: 215 20% 40%;
+
+    /* Preserve green identity */
+    --primary: 174 77% 26%;
+    --ring: 174 77% 26%;
+  }
+
+  .dark {
+    /* Dark mode main text */
+    --foreground: 150 20% 96%;
+    --card-foreground: 150 20% 96%;
+    --popover-foreground: 150 20% 96%;
+
+    /* Dark mode secondary text */
+    --muted-foreground: 160 10% 72%;
+
+    /* Preserve green identity */
+    --primary: 160 84% 39%;
+    --ring: 160 84% 39%;
+  }
+}
+
+
+/* =====================================================
+   2. GLOBAL FONT SYSTEM
+===================================================== */
+
+html,
+body,
+body.font-sans {
+  font-family: 'Inter', Arial, sans-serif;
+  font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+  text-rendering: optimizeLegibility;
+}
+
+body {
+  font-size: 15px;
+  line-height: 1.6;
+  letter-spacing: -0.01em;
+}
+
+/* Tailwind font utility override */
+body .font-sans {
+  font-family: 'Inter', Arial, sans-serif;
+}
+
+/* Form controls */
+body button,
+body input,
+body textarea,
+body select {
+  font-family: 'Inter', Arial, sans-serif;
+}
+
+
+/* =====================================================
+   3. GLOBAL TEXT COLOR
+===================================================== */
+
+.text-muted-foreground {
+  color: hsl(var(--muted-foreground));
+}
+
+/* Light mode */
+:root {
+  --gu-text-primary: #172033;
+  --gu-text-secondary: #52647C;
+  --gu-text-muted: #64748B;
+  --gu-text-disabled: #94A3B8;
+}
+
+/* Dark mode */
+.dark {
+  --gu-text-primary: #F1F5F3;
+  --gu-text-secondary: #C1CEC9;
+  --gu-text-muted: #A0B1AA;
+  --gu-text-disabled: #84958E;
+}
+
+
+/* =====================================================
+   4. GRADEUP STUDIO HEADER
+===================================================== */
+
+.gu-studio {
+  font-family: 'Inter', Arial, sans-serif;
+  color: var(--gu-text-primary);
+}
+
+.gu-studio-header h1 {
+  font-family: inherit;
+  font-size: 25px;
+  font-weight: 700;
+  line-height: 1.35;
+  letter-spacing: -0.6px;
+}
+
+.gu-studio-header p {
+  color: var(--gu-text-secondary);
+  font-size: 14px;
+  font-weight: 400;
+  line-height: 1.65;
+}
+
+.gu-studio-eyebrow {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 1.2px;
+}
+
+
+/* =====================================================
+   5. EDITOR RIBBON & TOOLBAR
+===================================================== */
+
+.gu-ribbon,
+.gu-ribbon-tools {
+  font-family: 'Inter', Arial, sans-serif;
+}
+
+.gu-ribbon-tab {
+  font-size: 14px;
+  font-weight: 600;
+  color: #52647C;
+  letter-spacing: 0;
+}
+
+.gu-ribbon-tab.is-active {
+  font-weight: 700;
+}
+
+.gu-tool-button {
+  font-size: 13px;
+  font-weight: 500;
+  letter-spacing: 0;
+  color: #405450;
+}
+
+.gu-tool-button:disabled {
+  color: #94A3B8;
+}
+
+.gu-layout-setting {
+  font-size: 13px;
+  color: #52647C;
+}
+
+.gu-layout-setting select {
+  font-size: 13px;
+  font-weight: 500;
+}
+
+
+/* =====================================================
+   6. DOCUMENT WORKSPACE
+===================================================== */
+
+.gu-document-page {
+  font-family: 'Inter', Arial, sans-serif;
+  color: #263936;
+}
+
+.gu-document-label {
+  color: #64756F;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 1.2px;
+}
+
+.gu-document-page--preview {
+  font-family: 'Inter', Arial, sans-serif;
+}
+
+
+/* =====================================================
+   7. EDITOR TYPOGRAPHY
+===================================================== */
+
+.gu-prose {
+  font-family: 'Inter', Arial, sans-serif;
+  font-size: 16px;
+  font-weight: 400;
+  line-height: 1.85;
+  letter-spacing: 0;
+  color: #263936;
+}
+
+.gu-prose p {
+  font-size: 16px;
+  line-height: 1.85;
+  margin-bottom: 17px;
+}
+
+.gu-prose h1 {
+  font-family: inherit;
+  font-size: 30px;
+  font-weight: 700;
+  line-height: 1.35;
+  letter-spacing: -0.6px;
+}
+
+.gu-prose h2 {
+  font-family: inherit;
+  font-size: 24px;
+  font-weight: 700;
+  line-height: 1.4;
+}
+
+.gu-prose h3 {
+  font-family: inherit;
+  font-size: 20px;
+  font-weight: 650;
+  line-height: 1.45;
+}
+
+.gu-prose li {
+  font-size: 16px;
+  line-height: 1.8;
+}
+
+.gu-prose blockquote {
+  font-size: 15px;
+  line-height: 1.8;
+}
+
+.gu-prose th {
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.gu-prose td {
+  font-size: 14px;
+  line-height: 1.7;
+}
+
+
+/* =====================================================
+   8. STUDENT LEARNING CONTENT
+===================================================== */
+
+.gu-student-content {
+  font-family: 'Inter', Arial, sans-serif;
+  font-size: 16px;
+  font-weight: 400;
+  line-height: 1.85;
+  letter-spacing: 0;
+  color: hsl(var(--foreground));
+}
+
+.gu-student-content p {
+  font-size: inherit;
+  line-height: inherit;
+  color: inherit;
+}
+
+.gu-student-content li {
+  font-size: inherit;
+  line-height: 1.8;
+}
+
+.gu-student-content h1 {
+  font-size: 29px;
+  font-weight: 700;
+  line-height: 1.35;
+}
+
+.gu-student-content h2 {
+  font-size: 24px;
+  font-weight: 700;
+  line-height: 1.4;
+}
+
+.gu-student-content h3 {
+  font-size: 20px;
+  font-weight: 700;
+  line-height: 1.45;
+}
+
+.gu-student-content a {
+  font-weight: 600;
+  text-underline-offset: 4px;
+}
+
+.gu-student-content th {
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.gu-student-content td {
+  font-size: 14px;
+  line-height: 1.7;
+}
+
+
+/* =====================================================
+   9. RULER & STATUS BAR
+===================================================== */
+
+.gu-ruler-heading {
+  font-size: 13px;
+  font-weight: 600;
+  color: #52647C;
+}
+
+.gu-ruler-tick {
+  font-size: 11px;
+  color: #52647C;
+}
+
+.gu-ruler-controls label {
+  font-size: 13px;
+  font-weight: 500;
+  color: #52647C;
+}
+
+.gu-ruler-controls strong {
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.gu-editor-statusbar {
+  font-size: 12px;
+  color: #64756F;
+  line-height: 1.5;
+}
+
+
+/* =====================================================
+   10. PREVIEW & LOADING
+===================================================== */
+
+.gu-preview-header {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.gu-preview-close {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.gu-editor-loading {
+  font-size: 14px;
+  color: #52647C;
+}
+
+
+/* =====================================================
+   11. DARK MODE REFINEMENT
+===================================================== */
+
+/* Editor document intentionally stays white */
+.dark .gu-document-page {
+  background: #FFFFFF;
+  color: #263936;
+}
+
+.dark .gu-prose {
+  color: #263936;
+}
+
+/* Studio descriptions */
+.dark .gu-studio-header p {
+  color: #C1CEC9;
+}
+
+.dark .gu-document-label {
+  color: #64756F;
+}
+
+/* Student content follows theme */
+.dark .gu-student-content {
+  color: hsl(var(--foreground));
+}
+
+.dark .gu-student-content h1,
+.dark .gu-student-content h2,
+.dark .gu-student-content h3 {
+  color: hsl(var(--foreground));
+}
+
+.dark .gu-student-content th {
+  color: hsl(var(--foreground));
+}
+
+
+/* =====================================================
+   12. RESPONSIVE TYPOGRAPHY
+===================================================== */
+
+@media (max-width: 768px) {
+  body {
+    font-size: 14px;
+  }
+
+  .gu-studio-header h1 {
+    font-size: 22px;
+  }
+
+  .gu-studio-header p {
+    font-size: 14px;
+  }
+
+  .gu-prose {
+    font-size: 15px;
+    line-height: 1.8;
+  }
+
+  .gu-prose p,
+  .gu-prose li {
+    font-size: 15px;
+  }
+
+  .gu-prose h1 {
+    font-size: 26px;
+  }
+
+  .gu-prose h2 {
+    font-size: 22px;
+  }
+
+  .gu-prose h3 {
+    font-size: 19px;
+  }
+
+  .gu-student-content {
+    font-size: 15px;
+    line-height: 1.8;
+  }
+
+  .gu-student-content h1 {
+    font-size: 25px;
+  }
+
+  .gu-student-content h2 {
+    font-size: 21px;
+  }
+
+  .gu-student-content h3 {
+    font-size: 18px;
+  }
+}
+
+@media (max-width: 480px) {
+  body {
+    font-size: 14px;
+  }
+
+  .gu-studio-header h1 {
+    font-size: 20px;
+  }
+
+  .gu-ribbon-tab {
+    font-size: 13px;
+  }
+
+  .gu-tool-button {
+    font-size: 12px;
+  }
+
+  .gu-prose,
+  .gu-prose p,
+  .gu-prose li {
+    font-size: 15px;
+  }
+
+  .gu-student-content {
+    font-size: 15px;
+  }
+}
+
+
+/* =====================================================
+   13. ACCESSIBILITY
+===================================================== */
+
+/* Keyboard navigation */
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline: 2px solid #0f766e;
+  outline-offset: 3px;
+}
+
+/* Text selection */
+.gu-prose ::selection,
+.gu-student-content ::selection {
+  background: rgba(16, 185, 129, 0.22);
+  color: inherit;
+}
+
+/* Reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* =====================================================
+   END GRADEUP TYPOGRAPHY REFINEMENT
+===================================================== */
