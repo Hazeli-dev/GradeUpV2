@@ -1,5 +1,5 @@
 
-import { useEffect, useId, useRef, useState } from "react";
+import { useState } from "react";
 
 import {
   Code,
@@ -78,13 +78,10 @@ export const DEFAULT_HTML = `<!DOCTYPE html>
 </html>`;
 
 /**
- * Membuat dokumen preview terisolasi.
- * Skrip hanya digunakan untuk mengirimkan tinggi dokumen
- * kepada halaman utama.
+ * Membungkus kode dalam dokumen preview terisolasi.
+ * JavaScript dan koneksi jaringan tidak diizinkan.
  */
-function createPreviewDocument(code: string, previewId: string) {
-  const nonce = "gradeup-preview-resize";
-
+function createPreviewDocument(code: string) {
   const securityPolicy = `
     <meta
       http-equiv="Content-Security-Policy"
@@ -94,87 +91,25 @@ function createPreviewDocument(code: string, previewId: string) {
         img-src data:;
         font-src data:;
         connect-src 'none';
-        script-src 'nonce-${nonce}';
+        script-src 'none';
         form-action 'none';
         base-uri 'none';
       "
     />
   `;
 
-  const resizeScript = `
-    <script nonce="${nonce}">
-      (() => {
-        const sendHeight = () => {
-          const body = document.body;
-          const html = document.documentElement;
-
-          const height = Math.max(
-            body?.scrollHeight || 0,
-            body?.offsetHeight || 0,
-            html.scrollHeight,
-            html.offsetHeight,
-            html.clientHeight
-          );
-
-          parent.postMessage({
-            type: "GRADEUP_PREVIEW_HEIGHT",
-            id: "${previewId}",
-            height
-          }, "*");
-        };
-
-        window.addEventListener("load", sendHeight);
-        window.addEventListener("resize", sendHeight);
-
-        if (document.body && window.ResizeObserver) {
-          new ResizeObserver(sendHeight).observe(document.body);
-        }
-
-        if (window.MutationObserver) {
-          new MutationObserver(sendHeight).observe(
-            document.documentElement,
-            {
-              childList: true,
-              subtree: true,
-              attributes: true,
-              characterData: true
-            }
-          );
-        }
-
-        setTimeout(sendHeight, 100);
-        setTimeout(sendHeight, 500);
-        setTimeout(sendHeight, 1000);
-        setTimeout(sendHeight, 2000);
-      })();
-    </script>
-  `;
-
-  let documentHtml = code;
-
-  if (/<html[\s>]/i.test(documentHtml)) {
-    if (/<head[\s>]/i.test(documentHtml)) {
-      documentHtml = documentHtml.replace(
+  if (/<html[\s>]/i.test(code)) {
+    if (/<head[\s>]/i.test(code)) {
+      return code.replace(
         /<head([^>]*)>/i,
         `<head$1>${securityPolicy}`
       );
-    } else {
-      documentHtml = documentHtml.replace(
-        /<html([^>]*)>/i,
-        `<html$1><head>${securityPolicy}</head>`
-      );
     }
 
-    if (/<\/body>/i.test(documentHtml)) {
-      documentHtml = documentHtml.replace(
-        /<\/body>/i,
-        `${resizeScript}</body>`
-      );
-    } else {
-      documentHtml += resizeScript;
-    }
-
-    return documentHtml;
+    return code.replace(
+      /<html([^>]*)>/i,
+      `<html$1><head>${securityPolicy}</head>`
+    );
   }
 
   return `<!DOCTYPE html>
@@ -185,8 +120,7 @@ function createPreviewDocument(code: string, previewId: string) {
   ${securityPolicy}
 </head>
 <body>
-${documentHtml}
-${resizeScript}
+${code}
 </body>
 </html>`;
 }
@@ -201,61 +135,11 @@ function CodePreviewView({
   >("preview");
 
   const [isExpanded, setIsExpanded] = useState(false);
-  const [previewHeight, setPreviewHeight] = useState(600);
-
-  const iframeRef = useRef<HTMLIFrameElement>(null);
-
-  const previewId = useId().replace(/:/g, "");
 
   const code = String(node.attrs.code ?? "");
   const title = String(node.attrs.title ?? "Contoh Kode");
 
   const isEditable = editor.isEditable;
-
-  /**
-   * Menerima informasi tinggi dari iframe milik komponen ini saja.
-   */
-  useEffect(() => {
-    const handlePreviewMessage = (event: MessageEvent) => {
-      if (event.source !== iframeRef.current?.contentWindow) {
-        return;
-      }
-
-      if (
-        event.data?.type !== "GRADEUP_PREVIEW_HEIGHT" ||
-        event.data?.id !== previewId
-      ) {
-        return;
-      }
-
-      const height = Number(event.data.height);
-
-      if (!Number.isFinite(height) || height <= 0) {
-        return;
-      }
-
-      setPreviewHeight((previousHeight) => {
-        const nextHeight = Math.max(300, Math.ceil(height + 8));
-
-        return Math.abs(previousHeight - nextHeight) > 2
-          ? nextHeight
-          : previousHeight;
-      });
-    };
-
-    window.addEventListener("message", handlePreviewMessage);
-
-    return () => {
-      window.removeEventListener("message", handlePreviewMessage);
-    };
-  }, [previewId]);
-
-  /**
-   * Mengirim ulang pengukuran saat kode berubah.
-   */
-  useEffect(() => {
-    setPreviewHeight(600);
-  }, [code]);
 
   const openFullPreview = () => {
     setActiveView("preview");
@@ -272,7 +156,7 @@ function CodePreviewView({
         contentEditable={false}
         className={`flex w-full min-w-0 flex-col border border-slate-200 bg-white ${
           isExpanded
-            ? "fixed inset-0 z-[99999] h-[100dvh] max-h-[100dvh] overflow-hidden rounded-none shadow-2xl"
+            ? "fixed inset-0 z-[99999] h-[100dvh] w-full max-w-none overflow-hidden rounded-none shadow-2xl"
             : "max-w-none overflow-hidden rounded-xl shadow-sm"
         }`}
       >
@@ -370,7 +254,7 @@ function CodePreviewView({
           </div>
         )}
 
-        {/* Editor kode khusus admin */}
+        {/* Editor Kode */}
         {isEditable && activeView === "kode" && !isExpanded ? (
           <div className="min-h-0 w-full bg-slate-950 p-3">
             <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
@@ -397,31 +281,25 @@ function CodePreviewView({
             />
           </div>
         ) : (
-          /* Area preview */
+          /* Area Preview */
           <div
             className={`w-full min-w-0 bg-white ${
               isExpanded
                 ? "min-h-0 flex-1 overflow-auto"
-                : "overflow-hidden"
+                : "h-[min(850px,80vh)] min-h-[300px] overflow-hidden"
             }`}
           >
             <iframe
-              ref={iframeRef}
               title={title || "Preview materi"}
-              srcDoc={createPreviewDocument(code, previewId)}
-              sandbox="allow-scripts"
+              srcDoc={createPreviewDocument(code)}
+              sandbox=""
               referrerPolicy="no-referrer"
-              scrolling="no"
-              onLoad={() => {
-                setPreviewHeight(600);
-              }}
-              style={{
-                height: isExpanded
-                  ? "100%"
-                  : `${previewHeight}px`,
-                minHeight: isExpanded ? "100%" : "300px",
-              }}
-              className="block w-full border-0 bg-white"
+              scrolling="auto"
+              className={`block w-full border-0 bg-white ${
+                isExpanded
+                  ? "h-full min-h-0"
+                  : "h-full min-h-0"
+              }`}
               loading="lazy"
             />
           </div>
