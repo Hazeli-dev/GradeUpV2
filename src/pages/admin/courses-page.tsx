@@ -7,6 +7,8 @@ import {
   useState,
 } from "react";
 
+import * as XLSX from "xlsx";
+
 import {
   MoreHorizontal,
   Pencil,
@@ -23,6 +25,10 @@ import {
   FileText,
   Image as ImageIcon,
   Archive,
+  Download,
+  FileSpreadsheet,
+  Upload,
+  X,
 } from "lucide-react";
 
 import { toast } from "sonner";
@@ -95,8 +101,11 @@ import { supabase } from "@/lib/supabase";
 import type { Level } from "@/types";
 
 /* =========================================
-   TYPES
+   CONSTANTS
 ========================================= */
+
+const MAX_BULK_COURSES = 500;
+const MAX_EXCEL_SIZE = 10 * 1024 * 1024;
 
 const gradients = [
   "from-teal-600 to-emerald-400",
@@ -126,6 +135,331 @@ const getGradeOptions = (level: Level): number[] => {
       return [];
   }
 };
+
+/* =========================================
+   EXCEL HELPERS
+========================================= */
+
+type BulkCourse = {
+  rowNumber: number;
+  title: string;
+  description: string;
+  category: string;
+  level: Level;
+  grade: number;
+  instructor: string;
+  premium: boolean;
+  thumbnail: string | null;
+  errors: string[];
+};
+
+const normalizeExcelText = (value: unknown): string => {
+  if (value === null || value === undefined) return "";
+  return String(value).trim();
+};
+
+const parseExcelBoolean = (value: unknown): boolean => {
+  if (typeof value === "boolean") return value;
+
+  const normalized = normalizeExcelText(value).toLowerCase();
+
+  return [
+    "true",
+    "1",
+    "ya",
+    "yes",
+    "y",
+    "premium",
+    "aktif",
+  ].includes(normalized);
+};
+
+const getExcelValue = (
+  row: Record<string, unknown>,
+  ...keys: string[]
+): unknown => {
+  for (const key of keys) {
+    const value = row[key.toLowerCase().trim()];
+
+    if (
+      value !== undefined &&
+      value !== null &&
+      String(value).trim() !== ""
+    ) {
+      return value;
+    }
+  }
+
+  return "";
+};
+
+const downloadCourseTemplate = () => {
+  const headers = [
+    "title",
+    "description",
+    "category",
+    "level",
+    "grade",
+    "instructor",
+    "premium",
+    "thumbnail",
+  ];
+
+  const sampleData = [
+    [
+      "Matematika Dasar Kelas 6",
+      "Materi pembelajaran matematika dasar untuk siswa kelas 6.",
+      "Matematika",
+      "SD",
+      6,
+      "Tim Pengajar GradeUp",
+      false,
+      "https://contoh.com/thumbnail.jpg",
+    ],
+    [
+      "Bahasa Indonesia Kelas 7",
+      "Materi pembelajaran Bahasa Indonesia.",
+      "Bahasa Indonesia",
+      "SMP",
+      7,
+      "Tim Pengajar GradeUp",
+      true,
+      "",
+    ],
+  ];
+
+  const worksheet = XLSX.utils.aoa_to_sheet([
+    headers,
+    ...sampleData,
+  ]);
+
+  worksheet["!cols"] = [
+    { wch: 35 },
+    { wch: 55 },
+    { wch: 25 },
+    { wch: 12 },
+    { wch: 10 },
+    { wch: 28 },
+    { wch: 12 },
+    { wch: 55 },
+  ];
+
+  const instructionRows = [
+    ["PETUNJUK IMPOR KURSUS GRADEUP"],
+    [""],
+    ["Kolom", "Keterangan"],
+    ["title", "Wajib. Judul kursus minimal 5 karakter."],
+    ["description", "Opsional. Deskripsi kursus."],
+    ["category", "Wajib. Nama kategori yang tersedia di GradeUp."],
+    ["level", "Wajib. Isi SD, SMP, atau SMA."],
+    ["grade", "Wajib. SD: 1-6, SMP: 7-9, SMA: 10-12."],
+    ["instructor", "Wajib. Nama pengajar atau lembaga."],
+    ["premium", "Opsional. Isi TRUE/FALSE, YA/TIDAK, atau 1/0."],
+    ["thumbnail", "Opsional. URL gambar yang diawali http:// atau https://."],
+    [""],
+    ["PENTING"],
+    ["1. Jangan mengubah nama kolom pada baris pertama."],
+    ["2. Hapus contoh data sebelum memasukkan data milik sendiri."],
+    ["3. Maksimal 500 kursus dalam satu file."],
+    ["4. Ukuran file maksimal 10 MB."],
+    ["5. Semua kursus hasil impor otomatis berstatus Draft."],
+    ["6. Periksa kategori agar sesuai dengan kategori yang tersedia."],
+    ["7. Simpan file dalam format .xlsx atau .xls."],
+  ];
+
+  const instructionSheet =
+    XLSX.utils.aoa_to_sheet(instructionRows);
+
+  instructionSheet["!cols"] = [
+    { wch: 28 },
+    { wch: 75 },
+  ];
+
+  const workbook = XLSX.utils.book_new();
+
+  XLSX.utils.book_append_sheet(
+    workbook,
+    worksheet,
+    "Data Kursus"
+  );
+
+  XLSX.utils.book_append_sheet(
+    workbook,
+    instructionSheet,
+    "Petunjuk"
+  );
+
+  XLSX.writeFile(
+    workbook,
+    "Template_Impor_Kursus_GradeUp.xlsx"
+  );
+};
+
+const parseCourseExcel = async (
+  file: File,
+  availableCategories: { id: string; name: string }[]
+): Promise<BulkCourse[]> => {
+  const buffer = await file.arrayBuffer();
+
+  const workbook = XLSX.read(buffer, {
+    type: "array",
+    cellDates: true,
+  });
+
+  const firstSheetName = workbook.SheetNames[0];
+
+  if (!firstSheetName) {
+    throw new Error("File Excel tidak memiliki lembar data.");
+  }
+
+  const worksheet = workbook.Sheets[firstSheetName];
+
+  const rawRows = XLSX.utils.sheet_to_json<
+    Record<string, unknown>
+  >(worksheet, {
+    defval: "",
+    raw: false,
+  });
+
+  if (rawRows.length === 0) {
+    throw new Error("Tidak ada data kursus di dalam file.");
+  }
+
+  if (rawRows.length > MAX_BULK_COURSES) {
+    throw new Error(
+      `Maksimal ${MAX_BULK_COURSES} kursus dalam satu kali impor. File ini berisi ${rawRows.length} baris data.`
+    );
+  }
+
+  const categoryNames = new Set(
+    availableCategories.map((item) =>
+      item.name.trim().toLowerCase()
+    )
+  );
+
+  const normalizedRows = rawRows.map((row, index) => {
+    const normalized: Record<string, unknown> = {};
+
+    Object.entries(row).forEach(([key, value]) => {
+      normalized[key.toLowerCase().trim()] = value;
+    });
+
+    const title = normalizeExcelText(
+      getExcelValue(normalized, "title", "judul", "nama kursus")
+    );
+
+    const description = normalizeExcelText(
+      getExcelValue(normalized, "description", "deskripsi")
+    );
+
+    const category = normalizeExcelText(
+      getExcelValue(normalized, "category", "kategori")
+    );
+
+    const rawLevel = normalizeExcelText(
+      getExcelValue(normalized, "level", "jenjang")
+    ).toUpperCase();
+
+    const rawGrade = normalizeExcelText(
+      getExcelValue(normalized, "grade", "kelas")
+    );
+
+    const instructor = normalizeExcelText(
+      getExcelValue(
+        normalized,
+        "instructor",
+        "pengajar",
+        "nama pengajar"
+      )
+    );
+
+    const rawPremium = getExcelValue(
+      normalized,
+      "premium",
+      "akses premium"
+    );
+
+    const thumbnailValue = normalizeExcelText(
+      getExcelValue(
+        normalized,
+        "thumbnail",
+        "thumbnail_url",
+        "gambar",
+        "url gambar"
+      )
+    );
+
+    const errors: string[] = [];
+
+    if (title.length < 5) {
+      errors.push("Judul wajib diisi minimal 5 karakter.");
+    }
+
+    if (!category) {
+      errors.push("Kategori wajib diisi.");
+    } else if (
+      categoryNames.size > 0 &&
+      !categoryNames.has(category.toLowerCase())
+    ) {
+      errors.push(
+        `Kategori "${category}" tidak ditemukan di GradeUp.`
+      );
+    }
+
+    const validLevel = LEVELS.find(
+      (item) => item.toUpperCase() === rawLevel
+    );
+
+    if (!validLevel) {
+      errors.push("Jenjang harus SD, SMP, atau SMA.");
+    }
+
+    const parsedGrade = Number(rawGrade);
+
+    if (!rawGrade || !Number.isInteger(parsedGrade)) {
+      errors.push("Kelas wajib diisi dengan angka yang valid.");
+    } else if (
+      validLevel &&
+      !getGradeOptions(validLevel as Level).includes(parsedGrade)
+    ) {
+      errors.push(
+        `Kelas ${parsedGrade} tidak sesuai dengan jenjang ${validLevel}.`
+      );
+    }
+
+    if (!instructor) {
+      errors.push("Nama pengajar wajib diisi.");
+    }
+
+    if (
+      thumbnailValue &&
+      !/^https?:\/\/.+/i.test(thumbnailValue)
+    ) {
+      errors.push(
+        "URL thumbnail harus diawali http:// atau https://."
+      );
+    }
+
+    return {
+      rowNumber: index + 2,
+      title,
+      description,
+      category,
+      level: (validLevel || "SD") as Level,
+      grade: Number.isInteger(parsedGrade) ? parsedGrade : 0,
+      instructor,
+      premium: parseExcelBoolean(rawPremium),
+      thumbnail: thumbnailValue || null,
+      errors,
+    };
+  });
+
+  return normalizedRows;
+};
+
+/* =========================================
+   TYPES
+========================================= */
 
 interface CourseItem {
   id: string;
@@ -219,6 +553,16 @@ export default function AdminCoursesPage() {
 
   const [thumbnailPreviewError, setThumbnailPreviewError] =
     useState(false);
+
+  /* =========================================
+     BULK IMPORT STATE
+  ========================================= */
+
+  const [bulkOpen, setBulkOpen] = useState(false);
+  const [bulkFile, setBulkFile] = useState<File | null>(null);
+  const [bulkRows, setBulkRows] = useState<BulkCourse[]>([]);
+  const [bulkParsing, setBulkParsing] = useState(false);
+  const [bulkSaving, setBulkSaving] = useState(false);
 
   /* =========================================
      STUDIO STATE
@@ -328,6 +672,151 @@ export default function AdminCoursesPage() {
   }, [fetchData]);
 
   /* =========================================
+     BULK IMPORT HANDLERS
+  ========================================= */
+
+  const resetBulkImport = () => {
+    setBulkFile(null);
+    setBulkRows([]);
+    setBulkParsing(false);
+    setBulkSaving(false);
+  };
+
+  const handleBulkFile = async (
+    event: React.ChangeEvent<HTMLInputElement>
+  ) => {
+    const file = event.target.files?.[0];
+
+    event.target.value = "";
+
+    if (!file) return;
+
+    const extension = file.name
+      .split(".")
+      .pop()
+      ?.toLowerCase();
+
+    if (!["xlsx", "xls"].includes(extension || "")) {
+      toast.error("Gunakan file Excel dengan format .xlsx atau .xls.");
+      return;
+    }
+
+    if (file.size > MAX_EXCEL_SIZE) {
+      toast.error("Ukuran file maksimal 10 MB.");
+      return;
+    }
+
+    if (categories.length === 0) {
+      toast.error(
+        "Kategori belum tersedia. Pastikan kategori kursus sudah dimuat."
+      );
+      return;
+    }
+
+    setBulkFile(file);
+    setBulkRows([]);
+    setBulkParsing(true);
+
+    try {
+      const rows = await parseCourseExcel(file, categories);
+
+      setBulkRows(rows);
+
+      const validCount = rows.filter(
+        (row) => row.errors.length === 0
+      ).length;
+
+      const invalidCount = rows.length - validCount;
+
+      if (invalidCount > 0) {
+        toast.warning(
+          `File dibaca: ${validCount} valid dan ${invalidCount} perlu diperbaiki.`
+        );
+      } else {
+        toast.success(
+          `${validCount} data kursus siap diimpor.`
+        );
+      }
+    } catch (err: unknown) {
+      console.error("Parse course Excel error:", err);
+
+      toast.error(
+        err instanceof Error
+          ? err.message
+          : "Gagal membaca file Excel."
+      );
+
+      setBulkFile(null);
+      setBulkRows([]);
+    } finally {
+      setBulkParsing(false);
+    }
+  };
+
+  const validBulkRows = useMemo(
+    () => bulkRows.filter((row) => row.errors.length === 0),
+    [bulkRows]
+  );
+
+  const invalidBulkRows = useMemo(
+    () => bulkRows.filter((row) => row.errors.length > 0),
+    [bulkRows]
+  );
+
+  const saveBulkCourses = async () => {
+    if (bulkSaving || validBulkRows.length === 0) return;
+
+    setBulkSaving(true);
+
+    try {
+      const payload = validBulkRows.map((row) => ({
+        title: row.title.trim(),
+        description:
+          row.description.trim() || "Belum ada deskripsi.",
+        category: row.category,
+        level: row.level,
+        grade: row.grade,
+        instructor: row.instructor.trim(),
+        premium: row.premium,
+        thumbnail: row.thumbnail,
+        status: "Draft",
+      }));
+
+      const { error: insertError } = await supabase
+        .from("courses")
+        .insert(payload);
+
+      if (insertError) throw insertError;
+
+      toast.success(
+        `${payload.length} kursus berhasil diimpor sebagai Draft.`
+      );
+
+      setBulkOpen(false);
+      resetBulkImport();
+
+      setStatus("Draft");
+      setCategory("all");
+      setLevelFilter("all");
+      setGradeFilter("all");
+      setQ("");
+
+      await fetchData();
+    } catch (err: unknown) {
+      console.error("Bulk course import error:", err);
+
+      toast.error(
+        "Gagal mengimpor kursus: " +
+          (err instanceof Error
+            ? err.message
+            : "Terjadi kesalahan.")
+      );
+    } finally {
+      setBulkSaving(false);
+    }
+  };
+
+  /* =========================================
      FILTER COURSES
   ========================================= */
 
@@ -406,15 +895,11 @@ export default function AdminCoursesPage() {
       grade: draft.grade,
       instructor: draft.instructor.trim(),
       premium: draft.premium,
-
-      // Status Archived tidak boleh berubah menjadi Draft
-      // hanya karena admin mengedit informasi kursus.
       status: draft.archived
         ? "Archived"
         : draft.published
           ? "Published"
           : "Draft",
-
       thumbnail: thumbnailUrl || null,
     };
 
@@ -1815,8 +2300,6 @@ export default function AdminCoursesPage() {
                   </Button>
                 </div>
 
-                {/* CHECKPOINT DAN EVALUASI AKHIR */}
-
                 <div className="pt-2">
                   <LessonAssessmentPanel
                     key={`${activeLessonId}-${activeSectionId}`}
@@ -1843,7 +2326,7 @@ export default function AdminCoursesPage() {
         title="Manajemen Materi"
         description="Tambah, ubah, dan kelola kursus serta materi pembelajaran GradeUp."
         actions={
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             <Button
               variant="outline"
               onClick={() => void fetchData()}
@@ -1856,6 +2339,33 @@ export default function AdminCoursesPage() {
                 }`}
               />
               Refresh
+            </Button>
+
+            <Button
+              variant="outline"
+              onClick={downloadCourseTemplate}
+              disabled={studioLoading || lifecycleLoading}
+              className="gap-2"
+            >
+              <Download className="h-4 w-4" />
+              Download Template
+            </Button>
+
+            <Button
+              variant="outline"
+              onClick={() => {
+                resetBulkImport();
+                setBulkOpen(true);
+              }}
+              disabled={
+                studioLoading ||
+                lifecycleLoading ||
+                categories.length === 0
+              }
+              className="gap-2"
+            >
+              <Upload className="h-4 w-4" />
+              Impor Massal
             </Button>
 
             <Button
@@ -2111,6 +2621,285 @@ export default function AdminCoursesPage() {
       </Card>
 
       {/* =========================================
+          BULK IMPORT DIALOG
+      ========================================= */}
+
+      <Dialog
+        open={bulkOpen}
+        onOpenChange={(open) => {
+          if (!open && !bulkSaving) {
+            setBulkOpen(false);
+            resetBulkImport();
+          }
+        }}
+      >
+        <DialogContent className="max-h-[90vh] max-w-4xl overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <FileSpreadsheet className="h-5 w-5 text-primary" />
+              Impor Massal Kursus
+            </DialogTitle>
+
+            <DialogDescription>
+              Unggah file Excel untuk menambahkan banyak kursus
+              sekaligus ke GradeUp.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-5">
+            <div className="rounded-xl border border-dashed bg-muted/20 p-5">
+              <div className="flex flex-col items-center gap-3 text-center">
+                <div className="rounded-full bg-primary/10 p-3">
+                  <Upload className="h-7 w-7 text-primary" />
+                </div>
+
+                <div>
+                  <p className="font-semibold">
+                    Pilih File Excel
+                  </p>
+
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    Format .xlsx atau .xls, maksimal 10 MB dan
+                    500 kursus.
+                  </p>
+                </div>
+
+                <Input
+                  type="file"
+                  accept=".xlsx,.xls"
+                  onChange={handleBulkFile}
+                  disabled={bulkParsing || bulkSaving}
+                  className="max-w-sm cursor-pointer"
+                />
+
+                {bulkFile && (
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <FileSpreadsheet className="h-4 w-4" />
+                    <span className="max-w-[220px] truncate">
+                      {bulkFile.name}
+                    </span>
+
+                    <Button
+                      type="button"
+                      size="icon"
+                      variant="ghost"
+                      onClick={resetBulkImport}
+                      disabled={bulkParsing || bulkSaving}
+                      aria-label="Hapus file"
+                    >
+                      <X className="h-4 w-4" />
+                    </Button>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={downloadCourseTemplate}
+                className="gap-2"
+              >
+                <Download className="h-4 w-4" />
+                Download Template
+              </Button>
+
+              <p className="text-xs text-muted-foreground">
+                Pastikan nama kategori sama dengan kategori di GradeUp.
+              </p>
+            </div>
+
+            {bulkParsing && (
+              <div className="flex items-center justify-center gap-3 rounded-lg border p-6">
+                <Loader2 className="h-5 w-5 animate-spin text-primary" />
+
+                <p className="text-sm text-muted-foreground">
+                  Membaca dan memvalidasi file Excel...
+                </p>
+              </div>
+            )}
+
+            {bulkRows.length > 0 && !bulkParsing && (
+              <>
+                <div className="grid gap-3 sm:grid-cols-3">
+                  <Card className="p-3">
+                    <p className="text-xs text-muted-foreground">
+                      Total Data
+                    </p>
+
+                    <p className="mt-1 text-2xl font-bold tabular-nums">
+                      {bulkRows.length}
+                    </p>
+                  </Card>
+
+                  <Card className="p-3">
+                    <p className="text-xs text-muted-foreground">
+                      Data Valid
+                    </p>
+
+                    <p className="mt-1 text-2xl font-bold text-emerald-600 tabular-nums">
+                      {validBulkRows.length}
+                    </p>
+                  </Card>
+
+                  <Card className="p-3">
+                    <p className="text-xs text-muted-foreground">
+                      Perlu Diperbaiki
+                    </p>
+
+                    <p className="mt-1 text-2xl font-bold text-destructive tabular-nums">
+                      {invalidBulkRows.length}
+                    </p>
+                  </Card>
+                </div>
+
+                <div className="rounded-lg border">
+                  <div className="flex flex-wrap items-center justify-between gap-2 border-b p-3">
+                    <div>
+                      <p className="text-sm font-semibold">
+                        Pratinjau Data
+                      </p>
+
+                      <p className="text-xs text-muted-foreground">
+                        Periksa data sebelum menyimpan ke database.
+                      </p>
+                    </div>
+
+                    <Badge variant="outline">
+                      {bulkRows.length} baris
+                    </Badge>
+                  </div>
+
+                  <div className="max-h-[320px] overflow-auto">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Baris</TableHead>
+                          <TableHead>Judul Kursus</TableHead>
+                          <TableHead>Jenjang</TableHead>
+                          <TableHead>Kelas</TableHead>
+                          <TableHead>Kategori</TableHead>
+                          <TableHead>Status Validasi</TableHead>
+                        </TableRow>
+                      </TableHeader>
+
+                      <TableBody>
+                        {bulkRows.map((row) => (
+                          <TableRow key={row.rowNumber}>
+                            <TableCell className="tabular-nums">
+                              {row.rowNumber}
+                            </TableCell>
+
+                            <TableCell className="min-w-[180px]">
+                              <p className="font-medium">
+                                {row.title || "-"}
+                              </p>
+
+                              {row.errors.length > 0 && (
+                                <ul className="mt-1 space-y-1">
+                                  {row.errors.map((message, index) => (
+                                    <li
+                                      key={`${row.rowNumber}-${index}`}
+                                      className="text-xs text-destructive"
+                                    >
+                                      • {message}
+                                    </li>
+                                  ))}
+                                </ul>
+                              )}
+                            </TableCell>
+
+                            <TableCell>{row.level}</TableCell>
+
+                            <TableCell>
+                              {row.grade || "-"}
+                            </TableCell>
+
+                            <TableCell>
+                              {row.category || "-"}
+                            </TableCell>
+
+                            <TableCell>
+                              {row.errors.length === 0 ? (
+                                <Badge className="bg-emerald-600 text-white">
+                                  Valid
+                                </Badge>
+                              ) : (
+                                <Badge variant="destructive">
+                                  Periksa
+                                </Badge>
+                              )}
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                </div>
+
+                <div className="rounded-lg border border-amber-500/30 bg-amber-500/5 p-3">
+                  <div className="flex items-start gap-2">
+                    <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
+
+                    <div className="text-sm">
+                      <p className="font-semibold">
+                        Semua kursus akan disimpan sebagai Draft.
+                      </p>
+
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        Kursus tidak langsung ditampilkan kepada siswa.
+                        Admin dapat memeriksa dan menerbitkannya setelah
+                        proses impor selesai.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </>
+            )}
+          </div>
+
+          <DialogFooter className="gap-2 sm:gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => {
+                setBulkOpen(false);
+                resetBulkImport();
+              }}
+              disabled={bulkSaving}
+            >
+              Batal
+            </Button>
+
+            <Button
+              type="button"
+              onClick={() => void saveBulkCourses()}
+              disabled={
+                bulkSaving ||
+                bulkParsing ||
+                validBulkRows.length === 0
+              }
+              className="gap-2"
+            >
+              {bulkSaving ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Mengimpor...
+                </>
+              ) : (
+                <>
+                  <Upload className="h-4 w-4" />
+                  Impor {validBulkRows.length} Kursus
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* =========================================
           COURSE FORM DIALOG
       ========================================= */}
 
@@ -2139,8 +2928,6 @@ export default function AdminCoursesPage() {
               </DialogHeader>
 
               <div className="space-y-5 py-2">
-                {/* JUDUL */}
-
                 <div className="space-y-2">
                   <Label htmlFor="c-title">
                     Judul Kursus
@@ -2161,8 +2948,6 @@ export default function AdminCoursesPage() {
                   <FieldError message={errs.title} />
                 </div>
 
-                {/* DESKRIPSI */}
-
                 <div className="space-y-2">
                   <Label htmlFor="c-desc">
                     Deskripsi
@@ -2181,8 +2966,6 @@ export default function AdminCoursesPage() {
                     placeholder="Jelaskan gambaran umum kursus..."
                   />
                 </div>
-
-                {/* KATEGORI, JENJANG, DAN KELAS */}
 
                 <div className="grid gap-4 sm:grid-cols-2">
                   <div className="space-y-2">
@@ -2309,8 +3092,6 @@ export default function AdminCoursesPage() {
                   </div>
                 </div>
 
-                {/* PENGAJAR */}
-
                 <div className="space-y-2">
                   <Label htmlFor="c-ins">
                     Nama Pengajar
@@ -2330,8 +3111,6 @@ export default function AdminCoursesPage() {
 
                   <FieldError message={errs.instructor} />
                 </div>
-
-                {/* THUMBNAIL */}
 
                 <div className="space-y-3 rounded-xl border bg-muted/20 p-4">
                   <div className="flex items-center gap-2">
@@ -2429,8 +3208,6 @@ export default function AdminCoursesPage() {
                     </div>
                   )}
                 </div>
-
-                {/* PREMIUM DAN PUBLISH */}
 
                 <div className="flex flex-wrap gap-6 border-t pt-4">
                   <div className="flex items-center gap-3">
