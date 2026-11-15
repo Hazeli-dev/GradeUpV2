@@ -2827,7 +2827,7 @@ export default function AdminCoursesPage() {
                                   Valid
                                 </Badge>
                               ) : (
-                                <Badge variant="destructive">
+                                <Badge variant="danger">
                                   Periksa
                                 </Badge>
                               )}
