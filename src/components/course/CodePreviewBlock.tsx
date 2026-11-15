@@ -1,5 +1,10 @@
 
-import { useState } from "react";
+import {
+  useEffect,
+  useId,
+  useRef,
+  useState,
+} from "react";
 
 import {
   Code,
@@ -78,38 +83,203 @@ export const DEFAULT_HTML = `<!DOCTYPE html>
 </html>`;
 
 /**
- * Membungkus kode dalam dokumen preview terisolasi.
- * JavaScript dan koneksi jaringan tidak diizinkan.
+ * Membuat script pengukur tinggi konten aktual.
+ * Tidak menggunakan tinggi viewport atau scrollHeight body/html.
  */
-function createPreviewDocument(code: string) {
+function createResizeScript(previewId: string) {
+  return `
+<script nonce="gradeup-preview-resize">
+(() => {
+  const previewId = ${JSON.stringify(previewId)};
+
+  let observer;
+  let mutationObserver;
+  let frameRequested = false;
+
+  function measureContent() {
+    frameRequested = false;
+
+    const body = document.body;
+
+    if (!body) return;
+
+    let contentBottom = 0;
+
+    Array.from(body.children).forEach((element) => {
+      if (!(element instanceof HTMLElement)) return;
+
+      const style = window.getComputedStyle(element);
+
+      if (style.display === "none" || style.position === "fixed") {
+        return;
+      }
+
+      const rect = element.getBoundingClientRect();
+
+      const marginBottom =
+        parseFloat(style.marginBottom) || 0;
+
+      contentBottom = Math.max(
+        contentBottom,
+        rect.bottom + window.scrollY + marginBottom
+      );
+    });
+
+    const bodyStyle = window.getComputedStyle(body);
+
+    const paddingBottom =
+      parseFloat(bodyStyle.paddingBottom) || 0;
+
+    const paddingTop =
+      parseFloat(bodyStyle.paddingTop) || 0;
+
+    const height = Math.ceil(
+      Math.max(
+        100,
+        contentBottom + paddingBottom,
+        paddingTop + paddingBottom + 100
+      )
+    );
+
+    window.parent.postMessage(
+      {
+        type: "GRADEUP_PREVIEW_HEIGHT",
+        id: previewId,
+        height
+      },
+      "*"
+    );
+  }
+
+  function scheduleMeasure() {
+    if (frameRequested) return;
+
+    frameRequested = true;
+
+    requestAnimationFrame(measureContent);
+  }
+
+  function observeChildren() {
+    if (!observer || !document.body) return;
+
+    observer.disconnect();
+
+    Array.from(document.body.children).forEach((element) => {
+      if (element instanceof HTMLElement) {
+        observer.observe(element);
+      }
+    });
+  }
+
+  function initialize() {
+    if (!document.body) return;
+
+    observer = new ResizeObserver(() => {
+      scheduleMeasure();
+    });
+
+    mutationObserver = new MutationObserver(() => {
+      observeChildren();
+      scheduleMeasure();
+    });
+
+    mutationObserver.observe(document.body, {
+      childList: true,
+      subtree: true,
+      attributes: true,
+      characterData: true
+    });
+
+    observeChildren();
+
+    scheduleMeasure();
+
+    window.addEventListener("resize", scheduleMeasure);
+    window.addEventListener("load", scheduleMeasure);
+
+    if (document.fonts && document.fonts.ready) {
+      document.fonts.ready.then(scheduleMeasure);
+    }
+
+    // Mengukur ulang setelah gambar selesai dimuat.
+    document.querySelectorAll("img").forEach((img) => {
+      if (!img.complete) {
+        img.addEventListener("load", scheduleMeasure);
+        img.addEventListener("error", scheduleMeasure);
+      }
+    });
+  }
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", initialize);
+  } else {
+    initialize();
+  }
+})();
+</script>
+`;
+}
+
+/**
+ * Membungkus kode dalam dokumen preview terisolasi.
+ */
+function createPreviewDocument(
+  code: string,
+  previewId: string
+) {
   const securityPolicy = `
     <meta
       http-equiv="Content-Security-Policy"
       content="
         default-src 'none';
         style-src 'unsafe-inline';
-        img-src data:;
+        img-src data: blob:;
         font-src data:;
         connect-src 'none';
-        script-src 'none';
+        script-src 'nonce-gradeup-preview-resize';
         form-action 'none';
         base-uri 'none';
       "
     />
+    <style>
+      html,
+      body {
+        height: auto !important;
+        min-height: 0 !important;
+      }
+    </style>
   `;
 
+  const resizeScript = createResizeScript(previewId);
+
   if (/<html[\s>]/i.test(code)) {
-    if (/<head[\s>]/i.test(code)) {
-      return code.replace(
+    let documentCode = code;
+
+    if (/<head[\s>]/i.test(documentCode)) {
+      documentCode = documentCode.replace(
         /<head([^>]*)>/i,
         `<head$1>${securityPolicy}`
       );
+    } else {
+      documentCode = documentCode.replace(
+        /<html([^>]*)>/i,
+        `<html$1><head>${securityPolicy}</head>`
+      );
     }
 
-    return code.replace(
-      /<html([^>]*)>/i,
-      `<html$1><head>${securityPolicy}</head>`
-    );
+    if (/<\/body>/i.test(documentCode)) {
+      documentCode = documentCode.replace(
+        /<\/body>/i,
+        `${resizeScript}</body>`
+      );
+    } else {
+      documentCode = documentCode.replace(
+        /<\/html>/i,
+        `${resizeScript}</html>`
+      );
+    }
+
+    return documentCode;
   }
 
   return `<!DOCTYPE html>
@@ -121,6 +291,7 @@ function createPreviewDocument(code: string) {
 </head>
 <body>
 ${code}
+${resizeScript}
 </body>
 </html>`;
 }
@@ -136,10 +307,59 @@ function CodePreviewView({
 
   const [isExpanded, setIsExpanded] = useState(false);
 
+  const [previewHeight, setPreviewHeight] = useState(300);
+
+  const iframeRef = useRef<HTMLIFrameElement>(null);
+
+  const generatedId = useId();
+
+  const previewId = generatedId.replace(/:/g, "");
+
   const code = String(node.attrs.code ?? "");
   const title = String(node.attrs.title ?? "Contoh Kode");
 
   const isEditable = editor.isEditable;
+
+  useEffect(() => {
+    const handleMessage = (event: MessageEvent) => {
+      if (event.source !== iframeRef.current?.contentWindow) {
+        return;
+      }
+
+      const data = event.data;
+
+      if (
+        !data ||
+        data.type !== "GRADEUP_PREVIEW_HEIGHT" ||
+        data.id !== previewId
+      ) {
+        return;
+      }
+
+      const nextHeight = Number(data.height);
+
+      if (!Number.isFinite(nextHeight) || nextHeight < 0) {
+        return;
+      }
+
+      setPreviewHeight((currentHeight) => {
+        const safeHeight = Math.max(
+          100,
+          Math.ceil(nextHeight)
+        );
+
+        return currentHeight === safeHeight
+          ? currentHeight
+          : safeHeight;
+      });
+    };
+
+    window.addEventListener("message", handleMessage);
+
+    return () => {
+      window.removeEventListener("message", handleMessage);
+    };
+  }, [previewId]);
 
   const openFullPreview = () => {
     setActiveView("preview");
@@ -157,7 +377,7 @@ function CodePreviewView({
         className={`flex w-full min-w-0 flex-col border border-slate-200 bg-white ${
           isExpanded
             ? "fixed inset-0 z-[99999] h-[100dvh] w-full max-w-none overflow-hidden rounded-none shadow-2xl"
-            : "max-w-none overflow-hidden rounded-xl shadow-sm"
+            : "overflow-hidden rounded-xl shadow-sm"
         }`}
       >
         {/* Header khusus admin */}
@@ -286,20 +506,28 @@ function CodePreviewView({
             className={`w-full min-w-0 bg-white ${
               isExpanded
                 ? "min-h-0 flex-1 overflow-auto"
-                : "h-[min(850px,80vh)] min-h-[300px] overflow-hidden"
+                : "overflow-visible"
             }`}
           >
             <iframe
+              ref={iframeRef}
               title={title || "Preview materi"}
-              srcDoc={createPreviewDocument(code)}
-              sandbox=""
+              srcDoc={createPreviewDocument(code, previewId)}
+              sandbox="allow-scripts"
               referrerPolicy="no-referrer"
-              scrolling="auto"
-              className={`block w-full border-0 bg-white ${
+              scrolling={isExpanded ? "auto" : "no"}
+              onLoad={() => {
+                setPreviewHeight(300);
+              }}
+              style={
                 isExpanded
-                  ? "h-full min-h-0"
-                  : "h-full min-h-0"
-              }`}
+                  ? { height: "100%", minHeight: 0 }
+                  : {
+                      height: `${previewHeight}px`,
+                      minHeight: 0,
+                    }
+              }
+              className="block w-full border-0 bg-white"
               loading="lazy"
             />
           </div>
