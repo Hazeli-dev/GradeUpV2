@@ -307,6 +307,20 @@ function inferLevelFromGrade(grade: number | null): string {
 
   return "";
 }
+// Pemetaan kelas khusus untuk pengambilan materi kursus.
+// Latihan dan ujian TIDAK menggunakan fungsi ini.
+function getMaterialGrade(grade: number | null): number | null {
+  if (grade === null) return null;
+
+  if (grade >= 1 && grade <= 2) return 1;
+  if (grade >= 3 && grade <= 4) return 3;
+  if (grade >= 5 && grade <= 6) return 5;
+  if (grade >= 7 && grade <= 9) return 7;
+  if (grade === 10) return 10;
+  if (grade >= 11 && grade <= 12) return 11;
+
+  return grade;
+}
 
 function normalizeSubject(value: string | null | undefined): string {
   return (value ?? "")
@@ -439,23 +453,26 @@ const [startingPackageId, setStartingPackageId] = useState("");
 
         if (courseError) throw courseError;
 
-        const matchingCourses = ((courseData ?? []) as CourseRow[]).filter(
-          (course) => {
-            const courseLevel = normalizeLevel(course.level);
+        // Kelas acuan fase hanya digunakan untuk pengambilan materi.
+const materialGrade = getMaterialGrade(studentProfile.grade);
 
-            if (courseLevel !== studentLevel) return false;
+const matchingCourses = ((courseData ?? []) as CourseRow[]).filter(
+  (course) => {
+    const courseLevel = normalizeLevel(course.level);
 
-            if (
-              course.grade !== null &&
-              studentProfile.grade !== null &&
-              Number(course.grade) !== Number(studentProfile.grade)
-            ) {
-              return false;
-            }
+    if (courseLevel !== studentLevel) return false;
 
-            return true;
-          }
-        );
+    if (
+      course.grade !== null &&
+      materialGrade !== null &&
+      Number(course.grade) !== Number(materialGrade)
+    ) {
+      return false;
+    }
+
+    return true;
+  }
+);
 
         console.info("[GradeUp] Kursus sesuai profil:", {
           studentLevel,
