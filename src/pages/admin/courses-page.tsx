@@ -1613,7 +1613,7 @@ export default function AdminCoursesPage() {
               </p>
 
               {activeCourse.status === "Archived" && (
-                <Badge variant="secondary" className="mt-2">
+                <Badge variant="muted" className="mt-2">
                   Kursus Diarsipkan
                 </Badge>
               )}
@@ -2041,7 +2041,7 @@ export default function AdminCoursesPage() {
 
                   <TableCell>
                     {c.status === "Archived" ? (
-                      <Badge variant="secondary">
+                      <Badge variant="muted">
                         Diarsipkan
                       </Badge>
                     ) : (
