@@ -148,7 +148,7 @@ export default function CourseDetailPage() {
      FETCH COURSE
   ========================================= */
 
-  
+
 const fetchCourse = useCallback(async () => {
   if (!courseId) {
     setError("ID kursus tidak ditemukan.");
@@ -160,54 +160,18 @@ const fetchCourse = useCallback(async () => {
   setError(null);
 
   try {
-    // 1. Ambil user yang sedang login
+    // 1. Ambil session login dari cache Supabase
     const {
-      data: { user },
-      error: authError,
-    } = await supabase.auth.getUser();
+      data: { session },
+      error: sessionError,
+    } = await supabase.auth.getSession();
 
-    if (authError) throw authError;
+    if (sessionError) throw sessionError;
 
-    // 2. Periksa status Premium
-    let isPremiumUser = false;
+    const user = session?.user ?? null;
 
-    if (user) {
-      const { data: profile, error: profileError } =
-        await supabase
-          .from("profiles")
-          .select("is_premium, premium_until")
-          .eq("id", user.id)
-          .maybeSingle();
-
-      if (profileError) throw profileError;
-
-      const studentProfile =
-        profile as StudentProfile | null;
-
-      const hasPremiumFlag =
-        studentProfile?.is_premium === true;
-
-      const hasNoExpiry =
-        !studentProfile?.premium_until;
-
-      const hasValidExpiry =
-        Boolean(
-          studentProfile?.premium_until &&
-          new Date(
-            studentProfile.premium_until
-          ).getTime() > Date.now()
-        );
-
-      isPremiumUser =
-        hasPremiumFlag &&
-        (hasNoExpiry || hasValidExpiry);
-    }
-
-    // 3. Ambil informasi kursus
-    const {
-      data: courseData,
-      error: courseError,
-    } = await supabase
+    // 2. Ambil data kursus dan profil secara bersamaan
+    const coursePromise = supabase
       .from("courses")
       .select(`
         id,
@@ -224,29 +188,72 @@ const fetchCourse = useCallback(async () => {
       .eq("status", "Published")
       .maybeSingle();
 
-    if (courseError) throw courseError;
+    const profilePromise = user
+      ? supabase
+          .from("profiles")
+          .select("is_premium, premium_until")
+          .eq("id", user.id)
+          .maybeSingle()
+      : Promise.resolve({
+          data: null,
+          error: null,
+        });
 
-    if (!courseData) {
+    const [courseResult, profileResult] =
+      await Promise.all([
+        coursePromise,
+        profilePromise,
+      ]);
+
+    if (courseResult.error) {
+      throw courseResult.error;
+    }
+
+    if (profileResult.error) {
+      throw profileResult.error;
+    }
+
+    if (!courseResult.data) {
       setData(null);
       return;
     }
 
-    // 4. Ambil modul yang sudah diterbitkan
-    const {
-      data: moduleRows,
-      error: moduleError,
-    } = await supabase
-      .from("course_modules")
-      .select(`
-        id,
-        title,
-        description,
-        sort_order,
-        is_published
-      `)
-      .eq("course_id", courseId)
-      .eq("is_published", true)
-      .order("sort_order", { ascending: true });
+    // 3. Periksa akses Premium
+    const studentProfile =
+      profileResult.data as StudentProfile | null;
+
+    const hasPremiumFlag =
+      studentProfile?.is_premium === true;
+
+    const hasNoExpiry =
+      !studentProfile?.premium_until;
+
+    const hasValidExpiry =
+      Boolean(
+        studentProfile?.premium_until &&
+        new Date(
+          studentProfile.premium_until
+        ).getTime() > Date.now()
+      );
+
+    const isPremiumUser =
+      hasPremiumFlag &&
+      (hasNoExpiry || hasValidExpiry);
+
+    // 4. Ambil seluruh modul yang diterbitkan
+    const { data: moduleRows, error: moduleError } =
+      await supabase
+        .from("course_modules")
+        .select(`
+          id,
+          title,
+          description,
+          sort_order,
+          is_published
+        `)
+        .eq("course_id", courseId)
+        .eq("is_published", true)
+        .order("sort_order", { ascending: true });
 
     if (moduleError) throw moduleError;
 
@@ -256,33 +263,31 @@ const fetchCourse = useCallback(async () => {
         "course_lessons"
       >[];
 
-    // 5. Ambil sesi dari seluruh modul
-    let lessonRows: (CourseLesson & {
-      module_id: string;
-    })[] = [];
-
+    // 5. Ambil sesi seluruh modul sekaligus
     const moduleIds = publishedModules.map(
       (module) => module.id
     );
 
+    let lessonRows: (CourseLesson & {
+      module_id: string;
+    })[] = [];
+
     if (moduleIds.length > 0) {
-      const {
-        data: lessons,
-        error: lessonError,
-      } = await supabase
-        .from("course_lessons")
-        .select(`
-          id,
-          module_id,
-          title,
-          description,
-          estimated_minutes,
-          sort_order,
-          is_published
-        `)
-        .in("module_id", moduleIds)
-        .eq("is_published", true)
-        .order("sort_order", { ascending: true });
+      const { data: lessons, error: lessonError } =
+        await supabase
+          .from("course_lessons")
+          .select(`
+            id,
+            module_id,
+            title,
+            description,
+            estimated_minutes,
+            sort_order,
+            is_published
+          `)
+          .in("module_id", moduleIds)
+          .eq("is_published", true)
+          .order("sort_order", { ascending: true });
 
       if (lessonError) throw lessonError;
 
@@ -291,20 +296,40 @@ const fetchCourse = useCallback(async () => {
       )[];
     }
 
-    // 6. Gabungkan sesi ke masing-masing modul
+    // 6. Kelompokkan sesi menggunakan Map
+    // Lebih efisien daripada filter seluruh sesi
+    // berulang kali untuk setiap modul.
+    const lessonsByModule = new Map<
+      string,
+      CourseLesson[]
+    >();
+
+    for (const module of publishedModules) {
+      lessonsByModule.set(module.id, []);
+    }
+
+    for (const lesson of lessonRows) {
+      const moduleLessons = lessonsByModule.get(
+        lesson.module_id
+      );
+
+      if (moduleLessons) {
+        const { module_id, ...lessonData } = lesson;
+        moduleLessons.push(lessonData);
+      }
+    }
+
+    // 7. Gabungkan data modul dan sesi
     const modulesWithLessons: CourseModule[] =
       publishedModules.map((module) => ({
         ...module,
-        course_lessons: lessonRows
-          .filter(
-            (lesson) => lesson.module_id === module.id
-          )
-          .map(({ module_id, ...lesson }) => lesson),
+        course_lessons:
+          lessonsByModule.get(module.id) ?? [],
       }));
 
-    // 7. Simpan seluruh data
+    // 8. Simpan hasil
     const course: CourseDetail = {
-      ...courseData,
+      ...courseResult.data,
       course_modules: modulesWithLessons,
     } as CourseDetail;
 
@@ -313,7 +338,7 @@ const fetchCourse = useCallback(async () => {
       isPremiumUser,
     });
 
-    // 8. Buka modul pertama secara otomatis
+    // 9. Buka modul pertama secara otomatis
     setExpandedModules(
       Object.fromEntries(
         modulesWithLessons.map((module, index) => [
@@ -323,7 +348,10 @@ const fetchCourse = useCallback(async () => {
       )
     );
   } catch (err: unknown) {
-    console.error("Fetch course detail error:", err);
+    console.error(
+      "Fetch course detail error:",
+      err
+    );
 
     setError(
       err instanceof Error
@@ -335,7 +363,12 @@ const fetchCourse = useCallback(async () => {
   }
 }, [courseId]);
 
+  
+useEffect(() => {
+  void fetchCourse();
+}, [fetchCourse]);
 
+  
   /* =========================================
      DERIVED DATA
   ========================================= */
