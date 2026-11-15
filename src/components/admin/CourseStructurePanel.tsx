@@ -453,6 +453,54 @@ export default function CourseStructurePanel({
   };
 
   // =========================================================
+// PUBLISH / UNPUBLISH SECTION
+// =========================================================
+
+const toggleSectionPublication = async (section: SectionItem) => {
+  if (working) return;
+
+  const nextStatus = !section.is_published;
+
+  setWorking(true);
+
+  try {
+    const { data, error: updateError } = await supabase
+      .from("lesson_sections")
+      .update({
+        is_published: nextStatus,
+      })
+      .eq("id", section.id)
+      .eq("lesson_id", section.lesson_id)
+      .select("id, is_published")
+      .single();
+
+    if (updateError) throw updateError;
+
+    setSections((current) =>
+      current.map((item) =>
+        item.id === section.id
+          ? { ...item, is_published: data.is_published }
+          : item
+      )
+    );
+
+    toast.success(
+      nextStatus
+        ? "Bagian materi berhasil diterbitkan dan dapat dilihat siswa."
+        : "Bagian materi berhasil dijadikan draft."
+    );
+  } catch (err: unknown) {
+    console.error("Toggle section publication error:", err);
+
+    toast.error(
+      "Gagal mengubah status publikasi: " +
+        (err instanceof Error ? err.message : "Terjadi kesalahan")
+    );
+  } finally {
+    setWorking(false);
+  }
+};
+  // =========================================================
   // UPDATE SECTION TITLE
   // =========================================================
 
@@ -1055,14 +1103,29 @@ export default function CourseStructurePanel({
                                               )}
 
                                               {!isEditing && !isDeleting && (
-                                                <div className="mt-1 pl-6">
-                                                  <span className="text-[10px] text-muted-foreground">
-                                                    {section.is_published
-                                                      ? "Terbit"
-                                                      : "Draft"}
-                                                  </span>
-                                                </div>
-                                              )}
+  <div className="mt-2 flex items-center justify-between gap-2 pl-6">
+    <Badge
+      variant={section.is_published ? "success" : "muted"}
+      className="text-[10px]"
+    >
+      {section.is_published ? "Terbit" : "Draft"}
+    </Badge>
+
+    <Button
+      size="sm"
+      variant={section.is_published ? "outline" : "default"}
+      className="h-7 px-2 text-[10px]"
+      disabled={working}
+      onClick={() => void toggleSectionPublication(section)}
+    >
+      {working ? (
+        <Loader2 className="mr-1 h-3 w-3 animate-spin" />
+      ) : null}
+
+      {section.is_published ? "Jadikan Draft" : "Terbitkan"}
+    </Button>
+  </div>
+)}
                                             </div>
                                           );
                                         }
