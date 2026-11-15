@@ -201,7 +201,57 @@ function formatScheduleDate(value: string | null) {
     minute: "2-digit",
   }).format(date);
 }
+function getRecommendationStatus(item: Recommendation) {
+  if (item.access_status === "completed") {
+    return {
+      label: "Selesai",
+      description: "Kamu sudah mencapai nilai kelulusan.",
+      buttonLabel: "Sudah Selesai",
+      canStart: false,
+      className: "bg-green-100 text-green-700",
+    };
+  }
 
+  if (item.access_status === "upcoming") {
+    return {
+      label: "Akan Datang",
+      description: item.start_time
+        ? `Latihan dibuka pada ${formatScheduleDate(item.start_time)} WIB`
+        : "Latihan belum dibuka.",
+      buttonLabel: "Belum Dibuka",
+      canStart: false,
+      className: "bg-blue-100 text-blue-700",
+    };
+  }
+
+  if (item.access_status === "closed") {
+    return {
+      label: "Ditutup",
+      description: "Waktu pengerjaan latihan sudah berakhir.",
+      buttonLabel: "Sudah Ditutup",
+      canStart: false,
+      className: "bg-gray-100 text-gray-700",
+    };
+  }
+
+  if (item.access_status === "premium_locked") {
+    return {
+      label: "Premium",
+      description: "Latihan ini khusus untuk siswa Premium.",
+      buttonLabel: "Khusus Premium",
+      canStart: false,
+      className: "bg-amber-100 text-amber-700",
+    };
+  }
+
+  return {
+    label: "Tersedia",
+    description: "Latihan siap dikerjakan.",
+    buttonLabel: "Mulai Latihan",
+    canStart: item.can_attempt,
+    className: "bg-green-100 text-green-700",
+  };
+}
 // Frontend: Senin = 0 sampai Minggu = 6.
 // Database: Senin = 1 sampai Minggu = 7.
 function getTodayIndex(): number {
