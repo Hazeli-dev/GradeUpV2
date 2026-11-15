@@ -66,6 +66,17 @@ type Recommendation = {
   total_questions: number | null;
   passing_score: number | null;
   premium: boolean;
+  start_time: string | null;
+  end_time: string | null;
+  has_passed: boolean;
+  student_has_premium: boolean;
+  access_status:
+    | "open"
+    | "upcoming"
+    | "closed"
+    | "premium_locked"
+    | "completed";
+  can_attempt: boolean;
 };
 
 type CourseInfo = {
@@ -172,6 +183,23 @@ function formatError(error: unknown): string {
   }
 
   return "Terjadi kesalahan. Silakan coba kembali.";
+}
+
+function formatScheduleDate(value: string | null) {
+  if (!value) return null;
+
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) return null;
+
+  return new Intl.DateTimeFormat("id-ID", {
+    timeZone: "Asia/Jakarta",
+    day: "2-digit",
+    month: "long",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(date);
 }
 
 // Frontend: Senin = 0 sampai Minggu = 6.
@@ -318,6 +346,8 @@ export default function StudentLearningSchedulePage() {
   const [subjectToAdd, setSubjectToAdd] = useState("");
 
   const [recommendations, setRecommendations] = useState<Recommendation[]>([]);
+const [recommendationError, setRecommendationError] = useState("");
+const [startingPackageId, setStartingPackageId] = useState("");
   const [allLessons, setAllLessons] = useState<LessonInfo[]>([]);
 
   const [loading, setLoading] = useState(true);
@@ -544,42 +574,45 @@ export default function StudentLearningSchedulePage() {
   // ===================================================
 
   const loadRecommendations = useCallback(async (dayIndex: number) => {
-    const requestId = ++recommendationRequestRef.current;
+  const requestId = ++recommendationRequestRef.current;
 
-    setLoadingRecommendations(true);
+  setLoadingRecommendations(true);
+  setRecommendationError("");
 
-    try {
-      const { data, error: rpcError } = await supabase.rpc(
-        "get_daily_learning_recommendations",
-        {
-          // RPC menerima indeks frontend.
-          // Fungsi SQL harus membandingkan dengan p_day_of_week + 1.
-          p_day_of_week: dayIndex,
-        }
-      );
-
-      if (rpcError) throw rpcError;
-
-      if (requestId !== recommendationRequestRef.current) return;
-
-      const result = Array.isArray(data)
-        ? (data as Recommendation[])
-        : [];
-
-      setRecommendations(
-        result.sort((a, b) => a.sort_order - b.sort_order)
-      );
-    } catch (err) {
-      if (requestId !== recommendationRequestRef.current) return;
-
-      console.error("[GradeUp] Load recommendations:", err);
-      setRecommendations([]);
-    } finally {
-      if (requestId === recommendationRequestRef.current) {
-        setLoadingRecommendations(false);
+  try {
+    const { data, error: rpcError } = await supabase.rpc(
+      "get_daily_learning_recommendations_v2",
+      {
+        p_day_of_week: dayIndex,
       }
+    );
+
+    if (rpcError) throw rpcError;
+
+    if (requestId !== recommendationRequestRef.current) return;
+
+    const result = Array.isArray(data)
+      ? (data as Recommendation[])
+      : [];
+
+    setRecommendations(
+      result.sort((a, b) => a.sort_order - b.sort_order)
+    );
+  } catch (err) {
+    if (requestId !== recommendationRequestRef.current) return;
+
+    console.error("[GradeUp] Load recommendations:", err);
+
+    setRecommendations([]);
+    setRecommendationError(
+      `Rekomendasi latihan gagal dimuat: ${formatError(err)}`
+    );
+  } finally {
+    if (requestId === recommendationRequestRef.current) {
+      setLoadingRecommendations(false);
     }
-  }, []);
+  }
+}, []);
 
   // ===================================================
   // LOAD PAGE
@@ -1063,32 +1096,64 @@ export default function StudentLearningSchedulePage() {
   // START PRACTICE
   // ===================================================
 
-  const handleStartPractice = (item: Recommendation) => {
-    navigate(`/dashboard/exams/${item.package_id}/attempt`);
-  };
+  const handleStartPractice = async (item: Recommendation) => {
+  if (startingPackageId) return;
 
-  // ===================================================
-  // LOADING VIEW
-  // ===================================================
-
-  if (loading) {
-    return (
-      <div className="min-h-[60vh] flex flex-col items-center justify-center gap-4">
-        <div className="rounded-2xl bg-emerald-500/10 p-4">
-          <Loader2 className="h-8 w-8 animate-spin text-emerald-600" />
-        </div>
-
-        <div className="text-center">
-          <p className="font-semibold">
-            Menyiapkan jadwal belajar
-          </p>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Mohon tunggu sebentar...
-          </p>
-        </div>
-      </div>
-    );
+  if (!item.can_attempt) {
+    return;
   }
+
+  setStartingPackageId(item.package_id);
+  setRecommendationError("");
+
+  try {
+    const { data, error: rpcError } = await supabase.rpc(
+      "get_daily_learning_recommendations_v2",
+      {
+        p_day_of_week: selectedDay,
+      }
+    );
+
+    if (rpcError) throw rpcError;
+
+    const latestRecommendations = Array.isArray(data)
+      ? (data as Recommendation[])
+      : [];
+
+    const latestPackage = latestRecommendations.find(
+      (recommendation) =>
+        recommendation.package_id === item.package_id
+    );
+
+    if (!latestPackage) {
+      setRecommendationError(
+        "Paket latihan tidak lagi tersedia pada jadwal hari ini. Muat ulang halaman untuk memperbarui data."
+      );
+      return;
+    }
+
+    if (!latestPackage.can_attempt) {
+      setRecommendationError(
+        `Paket tidak dapat dibuka. Status saat ini: ${
+          getRecommendationStatus(latestPackage).label
+        }.`
+      );
+
+      await loadRecommendations(selectedDay);
+      return;
+    }
+
+    navigate(`/dashboard/exams/${item.package_id}/attempt`);
+  } catch (err) {
+    console.error("[GradeUp] Start practice:", err);
+
+    setRecommendationError(
+      `Paket latihan gagal dibuka: ${formatError(err)}`
+    );
+  } finally {
+    setStartingPackageId("");
+  }
+};
 
   // ===================================================
   // MAIN VIEW
@@ -1588,113 +1653,200 @@ export default function StudentLearningSchedulePage() {
           )}
         </section>
 
-        {/* DAILY PRACTICE */}
-        <section className="space-y-4">
-          <div>
-            <div className="mb-2 inline-flex items-center gap-2 rounded-full bg-emerald-500/10 px-3 py-1.5 text-xs font-bold text-emerald-700 dark:text-emerald-300">
-              <Sparkles className="h-4 w-4" />
-              Latihan harian
-            </div>
+        
+{/* DAILY PRACTICE */}
+<section className="space-y-4">
+  <div>
+    <div className="mb-2 inline-flex items-center gap-2 rounded-full bg-emerald-500/10 px-3 py-1.5 text-xs font-bold text-emerald-700 dark:text-emerald-300">
+      <Sparkles className="h-4 w-4" />
+      Latihan harian
+    </div>
 
-            <h2 className="text-xl font-bold sm:text-2xl">
-              Rekomendasi latihan {currentDayName}
-            </h2>
+    <h2 className="text-xl font-bold sm:text-2xl">
+      Rekomendasi latihan {currentDayName}
+    </h2>
 
-            <p className="mt-1 text-sm text-muted-foreground">
-              Paket latihan hanya berasal dari mata pelajaran yang dipilih pada jadwal hari ini.
-            </p>
-          </div>
+    <p className="mt-1 text-sm text-muted-foreground">
+      Paket latihan mengikuti mata pelajaran yang dipilih pada jadwal hari ini.
+    </p>
+  </div>
 
-          {loadingRecommendations ? (
-            <div className="flex items-center justify-center gap-3 rounded-2xl border border-border bg-card p-10 text-sm text-muted-foreground">
-              <Loader2 className="h-5 w-5 animate-spin text-emerald-600" />
-              Menyiapkan rekomendasi latihan...
-            </div>
-          ) : currentRecommendations.length > 0 ? (
-            <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
-              {currentRecommendations.map((item) => (
-                <div
-                  key={item.package_id}
-                  className="rounded-2xl border border-border bg-card p-4 shadow-sm transition hover:border-emerald-500/30 sm:p-5"
-                >
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="flex min-w-0 items-start gap-3">
-                      <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-600">
-                        <GraduationCap className="h-5 w-5" />
-                      </div>
+  {recommendationError && (
+    <div className="flex items-start gap-3 rounded-2xl border border-red-500/20 bg-red-500/10 p-4 text-sm text-red-600 dark:text-red-400">
+      <AlertCircle className="mt-0.5 h-5 w-5 shrink-0" />
+      <div className="min-w-0 flex-1">
+        <p>{recommendationError}</p>
 
-                      <div className="min-w-0">
-                        <p className="text-xs font-semibold text-emerald-600 dark:text-emerald-400">
-                          {item.subject}
-                        </p>
+        <button
+          onClick={() => void loadRecommendations(selectedDay)}
+          className="mt-3 inline-flex items-center gap-2 rounded-lg border border-current/20 px-3 py-2 font-semibold"
+        >
+          <RefreshCw className="h-4 w-4" />
+          Coba lagi
+        </button>
+      </div>
+    </div>
+  )}
 
-                        <h3 className="mt-1 break-words font-bold">
-                          {item.package_title}
-                        </h3>
-                      </div>
-                    </div>
+  {loadingRecommendations ? (
+    <div className="flex items-center justify-center gap-3 rounded-2xl border border-border bg-card p-10 text-sm text-muted-foreground">
+      <Loader2 className="h-5 w-5 animate-spin text-emerald-600" />
+      Menyiapkan rekomendasi latihan...
+    </div>
+  ) : currentRecommendations.length > 0 ? (
+    <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
+      {currentRecommendations.map((item) => {
+        const status = getRecommendationStatus(item);
+        const isStarting = startingPackageId === item.package_id;
+        const canStart = item.can_attempt && !startingPackageId;
 
-                    {item.premium && (
-                      <span className="shrink-0 rounded-full bg-amber-500/10 px-2.5 py-1 text-[11px] font-bold text-amber-700 dark:text-amber-300">
-                        Premium
-                      </span>
-                    )}
-                  </div>
-
-                  {item.description && (
-                    <p className="mt-3 line-clamp-2 text-sm leading-relaxed text-muted-foreground">
-                      {item.description}
-                    </p>
-                  )}
-
-                  <div className="mt-4 flex flex-wrap gap-2">
-                    {item.total_questions != null && (
-                      <span className="rounded-lg bg-muted px-2.5 py-1.5 text-xs font-medium text-muted-foreground">
-                        {item.total_questions} soal
-                      </span>
-                    )}
-
-                    {item.duration_minutes != null && (
-                      <span className="rounded-lg bg-muted px-2.5 py-1.5 text-xs font-medium text-muted-foreground">
-                        {item.duration_minutes} menit
-                      </span>
-                    )}
-
-                    {item.passing_score != null && (
-                      <span className="rounded-lg bg-muted px-2.5 py-1.5 text-xs font-medium text-muted-foreground">
-                        KKM {item.passing_score}
-                      </span>
-                    )}
-                  </div>
-
-                  <button
-                    onClick={() => handleStartPractice(item)}
-                    className="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-xl border border-emerald-600 bg-emerald-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-emerald-700"
-                  >
-                    <Play className="h-4 w-4 fill-current" />
-                    Mulai Latihan
-                  </button>
+        return (
+          <div
+            key={item.package_id}
+            className="rounded-2xl border border-border bg-card p-4 shadow-sm transition hover:border-emerald-500/30 sm:p-5"
+          >
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex min-w-0 items-start gap-3">
+                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-600">
+                  <GraduationCap className="h-5 w-5" />
                 </div>
-              ))}
-            </div>
-          ) : (
-            <div className="rounded-3xl border border-dashed border-border bg-card px-5 py-10 text-center">
-              <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-muted">
-                <Trophy className="h-7 w-7 text-muted-foreground" />
+
+                <div className="min-w-0">
+                  <p className="text-xs font-semibold text-emerald-600 dark:text-emerald-400">
+                    {item.subject}
+                  </p>
+
+                  <h3 className="mt-1 break-words font-bold">
+                    {item.package_title}
+                  </h3>
+                </div>
               </div>
 
-              <h3 className="mt-4 font-bold">
-                Belum ada rekomendasi latihan
-              </h3>
-
-              <p className="mx-auto mt-2 max-w-md text-sm leading-relaxed text-muted-foreground">
-                {selectedSubjects.length === 0
-                  ? `Belum ada mata pelajaran untuk hari ${currentDayName}. Tambahkan dan simpan jadwal terlebih dahulu.`
-                  : `Belum ada paket latihan yang cocok dengan jadwal ${selectedSubjects.join(", ")}. Pastikan paket latihan sudah Published, aktif, dan sesuai jenjang serta kelas siswa.`}
-              </p>
+              {item.premium && (
+                <span className="shrink-0 rounded-full bg-amber-500/10 px-2.5 py-1 text-[11px] font-bold text-amber-700 dark:text-amber-300">
+                  Premium
+                </span>
+              )}
             </div>
-          )}
-        </section>
+
+            <div className="mt-4 flex flex-wrap items-center gap-2">
+              <span
+                className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-bold ${status.className}`}
+              >
+                {item.access_status === "open" && (
+                  <CheckCircle2 className="h-3.5 w-3.5" />
+                )}
+
+                {item.access_status === "upcoming" && (
+                  <Clock3 className="h-3.5 w-3.5" />
+                )}
+
+                {item.access_status === "closed" && (
+                  <Lock className="h-3.5 w-3.5" />
+                )}
+
+                {item.access_status === "premium_locked" && (
+                  <Lock className="h-3.5 w-3.5" />
+                )}
+
+                {item.access_status === "completed" && (
+                  <Trophy className="h-3.5 w-3.5" />
+                )}
+
+                {status.label}
+              </span>
+            </div>
+
+            {item.description && (
+              <p className="mt-3 line-clamp-2 text-sm leading-relaxed text-muted-foreground">
+                {item.description}
+              </p>
+            )}
+
+            <div className="mt-3 rounded-xl bg-muted/50 p-3">
+              <p className="text-xs font-medium text-muted-foreground">
+                {status.description}
+              </p>
+
+              {item.access_status === "open" && item.end_time && (
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Batas pengerjaan: {formatScheduleDate(item.end_time)} WIB
+                </p>
+              )}
+            </div>
+
+            <div className="mt-4 flex flex-wrap gap-2">
+              {item.total_questions != null && (
+                <span className="rounded-lg bg-muted px-2.5 py-1.5 text-xs font-medium text-muted-foreground">
+                  {item.total_questions} soal
+                </span>
+              )}
+
+              {item.duration_minutes != null && (
+                <span className="rounded-lg bg-muted px-2.5 py-1.5 text-xs font-medium text-muted-foreground">
+                  {item.duration_minutes} menit
+                </span>
+              )}
+
+              {item.passing_score != null && (
+                <span className="rounded-lg bg-muted px-2.5 py-1.5 text-xs font-medium text-muted-foreground">
+                  KKM {item.passing_score}
+                </span>
+              )}
+            </div>
+
+            <button
+              onClick={() => void handleStartPractice(item)}
+              disabled={!canStart || isStarting}
+              className={`mt-5 inline-flex w-full items-center justify-center gap-2 rounded-xl border px-4 py-3 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-60 ${
+                item.can_attempt
+                  ? "border-emerald-600 bg-emerald-600 text-white hover:bg-emerald-700"
+                  : "border-border bg-muted text-muted-foreground"
+              }`}
+            >
+              {isStarting ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : item.can_attempt ? (
+                <Play className="h-4 w-4 fill-current" />
+              ) : item.access_status === "completed" ? (
+                <CheckCircle2 className="h-4 w-4" />
+              ) : (
+                <Lock className="h-4 w-4" />
+              )}
+
+              {isStarting ? "Memeriksa akses..." : status.buttonLabel}
+            </button>
+          </div>
+        );
+      })}
+    </div>
+  ) : (
+    <div className="rounded-3xl border border-dashed border-border bg-card px-5 py-10 text-center">
+      <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-muted">
+        <Trophy className="h-7 w-7 text-muted-foreground" />
+      </div>
+
+      <h3 className="mt-4 font-bold">
+        Belum ada rekomendasi latihan
+      </h3>
+
+      <p className="mx-auto mt-2 max-w-md text-sm leading-relaxed text-muted-foreground">
+        {selectedSubjects.length === 0
+          ? `Belum ada mata pelajaran untuk hari ${currentDayName}. Tambahkan dan simpan jadwal terlebih dahulu.`
+          : `Belum ada paket latihan yang cocok dengan jadwal ${selectedSubjects.join(", ")}. Pastikan kategori, jenjang, kelas, dan status publikasi paket sudah sesuai.`}
+      </p>
+
+      <button
+        onClick={() => void loadRecommendations(selectedDay)}
+        className="mt-5 inline-flex items-center justify-center gap-2 rounded-xl border border-border bg-background px-4 py-2.5 text-sm font-semibold transition hover:bg-muted"
+      >
+        <RefreshCw className="h-4 w-4" />
+        Periksa kembali
+      </button>
+    </div>
+  )}
+</section>
+
 
         {/* FOOTER NOTE */}
         <div className="rounded-2xl border border-blue-500/20 bg-blue-500/5 p-4">
