@@ -884,21 +884,32 @@ export default function LessonLearningPage() {
         ? sectionData
         : [];
 
-      const mappedSections: LessonSection[] =
-        progress.sections.map((item) => {
-          const sectionContent = availableSections.find(
-            (section) => section.id === item.section_id
-          );
+      const mappedSections: LessonSection[] = availableSections
+  .map((section) => {
+    // Ambil progres berdasarkan ID bagian materi
+    const sectionProgress = progress.sections.find(
+      (item) => item.section_id === section.id
+    );
 
-          return {
-            ...item,
-            checkpoints: item.checkpoints ?? [],
-            content_json: sectionContent?.content_json || {
-              type: "doc",
-              content: [{ type: "paragraph" }],
-            },
-          };
-        });
+    return {
+      section_id: section.id,
+      title: section.title,
+      sort_order: Number(section.sort_order ?? 0),
+
+      // Progres checkpoint tetap menggunakan data RPC
+      checkpoints: sectionProgress?.checkpoints ?? [],
+
+      checkpoint_completed:
+        sectionProgress?.checkpoint_completed ?? false,
+
+      // Konten materi langsung dari tabel lesson_sections
+      content_json: section.content_json || {
+        type: "doc",
+        content: [{ type: "paragraph" }],
+      },
+    };
+  })
+  .sort((a, b) => a.sort_order - b.sort_order);
 
       const mappedAssessments = Array.isArray(assessmentData)
         ? (assessmentData as AssessmentInfo[])
