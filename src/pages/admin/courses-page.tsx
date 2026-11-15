@@ -22,6 +22,7 @@ import {
   AlertCircle,
   FileText,
   Image as ImageIcon,
+  Archive,
 } from "lucide-react";
 
 import { toast } from "sonner";
@@ -135,7 +136,7 @@ interface CourseItem {
   grade: number | null;
   instructor: string;
   premium: boolean;
-  status: "Published" | "Draft";
+  status: "Published" | "Draft" | "Archived";
   thumbnail?: string | null;
   created_at?: string;
 }
@@ -151,9 +152,12 @@ type Draft = {
   thumbnail: string;
   premium: boolean;
   published: boolean;
+  archived: boolean;
 };
 
 type SaveStatus = "saved" | "dirty" | "saving" | "error";
+
+type LifecycleAction = "archive" | "delete";
 
 interface SectionData {
   id: string;
@@ -178,6 +182,7 @@ const emptyDraft: Draft = {
   thumbnail: "",
   premium: false,
   published: false,
+  archived: false,
 };
 
 /* =========================================
@@ -196,14 +201,21 @@ export default function AdminCoursesPage() {
   const [error, setError] = useState<string | null>(null);
 
   const [q, setQ] = useState("");
-const [category, setCategory] = useState("all");
-const [status, setStatus] = useState("all");
-const [levelFilter, setLevelFilter] = useState("all");
-const [gradeFilter, setGradeFilter] = useState("all");
+  const [category, setCategory] = useState("all");
+  const [status, setStatus] = useState("all");
+  const [levelFilter, setLevelFilter] = useState("all");
+  const [gradeFilter, setGradeFilter] = useState("all");
 
   const [draft, setDraft] = useState<Draft | null>(null);
   const [errs, setErrs] = useState<Record<string, string>>({});
+
   const [removing, setRemoving] = useState<CourseItem | null>(null);
+
+  const [removingAction, setRemovingAction] =
+    useState<LifecycleAction>("delete");
+
+  const [lifecycleLoading, setLifecycleLoading] =
+    useState(false);
 
   const [thumbnailPreviewError, setThumbnailPreviewError] =
     useState(false);
@@ -319,28 +331,28 @@ const [gradeFilter, setGradeFilter] = useState("all");
      FILTER COURSES
   ========================================= */
 
-    const filtered = useMemo(
-  () =>
-    items
-      .filter((c) =>
-        c.title.toLowerCase().includes(q.toLowerCase())
-      )
-      .filter(
-        (c) => category === "all" || c.category === category
-      )
-      .filter(
-        (c) => status === "all" || c.status === status
-      )
-      .filter(
-        (c) => levelFilter === "all" || c.level === levelFilter
-      )
-      .filter(
-        (c) =>
-          gradeFilter === "all" ||
-          c.grade === Number(gradeFilter)
-      ),
-  [items, q, category, status, levelFilter, gradeFilter]
-);
+  const filtered = useMemo(
+    () =>
+      items
+        .filter((c) =>
+          c.title.toLowerCase().includes(q.toLowerCase())
+        )
+        .filter(
+          (c) => category === "all" || c.category === category
+        )
+        .filter(
+          (c) => status === "all" || c.status === status
+        )
+        .filter(
+          (c) => levelFilter === "all" || c.level === levelFilter
+        )
+        .filter(
+          (c) =>
+            gradeFilter === "all" ||
+            c.grade === Number(gradeFilter)
+        ),
+    [items, q, category, status, levelFilter, gradeFilter]
+  );
 
   /* =========================================
      CREATE / UPDATE COURSE
@@ -394,7 +406,15 @@ const [gradeFilter, setGradeFilter] = useState("all");
       grade: draft.grade,
       instructor: draft.instructor.trim(),
       premium: draft.premium,
-      status: draft.published ? "Published" : "Draft",
+
+      // Status Archived tidak boleh berubah menjadi Draft
+      // hanya karena admin mengedit informasi kursus.
+      status: draft.archived
+        ? "Archived"
+        : draft.published
+          ? "Published"
+          : "Draft",
+
       thumbnail: thumbnailUrl || null,
     };
 
@@ -407,7 +427,11 @@ const [gradeFilter, setGradeFilter] = useState("all");
 
         if (updateError) throw updateError;
 
-        toast.success("Kursus berhasil diperbarui.");
+        toast.success(
+          draft.archived
+            ? "Informasi kursus arsip berhasil diperbarui."
+            : "Kursus berhasil diperbarui."
+        );
       } else {
         const { error: insertError } = await supabase
           .from("courses")
@@ -462,53 +486,74 @@ const [gradeFilter, setGradeFilter] = useState("all");
       thumbnail: course.thumbnail ?? "",
       premium: course.premium,
       published: course.status === "Published",
+      archived: course.status === "Archived",
     });
   };
 
   /* =========================================
-     DELETE COURSE SAFELY
+     ARCHIVE / DELETE COURSE
   ========================================= */
 
-  const handleDelete = async () => {
-    if (!removing) return;
+  const handleCourseLifecycle = async () => {
+    if (!removing || lifecycleLoading) return;
+
+    setLifecycleLoading(true);
 
     try {
-      const { data: modules, error: moduleError } =
-        await supabase
-          .from("course_modules")
-          .select("id")
-          .eq("course_id", removing.id)
-          .limit(1);
+      const { data, error: rpcError } = await supabase.rpc(
+        "manage_course_lifecycle",
+        {
+          p_course_id: removing.id,
+          p_action: removingAction,
+        }
+      );
 
-      if (moduleError) throw moduleError;
+      if (rpcError) throw rpcError;
 
-      if (modules && modules.length > 0) {
-        toast.error(
-          "Kursus memiliki modul pembelajaran. Kelola modulnya terlebih dahulu."
+      const result = data as {
+        success?: boolean;
+        message?: string;
+      } | null;
+
+      if (!result?.success) {
+        throw new Error(
+          result?.message ||
+            "Tindakan tidak berhasil dilakukan."
         );
-
-        setRemoving(null);
-        return;
       }
 
-      const { error: deleteError } = await supabase
-        .from("courses")
-        .delete()
-        .eq("id", removing.id);
-
-      if (deleteError) throw deleteError;
-
-      toast.success("Kursus berhasil dihapus.");
+      if (removingAction === "archive") {
+        toast.success(
+          result.message || "Kursus berhasil diarsipkan."
+        );
+      } else {
+        toast.success(
+          result.message || "Kursus berhasil dihapus permanen."
+        );
+      }
 
       setRemoving(null);
+
       await fetchData();
     } catch (err: unknown) {
-      toast.error(
-        "Gagal menghapus: " +
-          (err instanceof Error
-            ? err.message
-            : "Terjadi kesalahan")
-      );
+      console.error("Course lifecycle error:", err);
+
+      const message =
+        err instanceof Error
+          ? err.message
+          : "Terjadi kesalahan.";
+
+      if (message.includes("COURSE_HAS_STUDENT_ACTIVITY")) {
+        toast.error(
+          "Kursus memiliki riwayat belajar siswa. Gunakan Arsipkan Kursus agar data siswa tetap aman."
+        );
+      } else {
+        toast.error(
+          "Gagal memproses kursus: " + message
+        );
+      }
+    } finally {
+      setLifecycleLoading(false);
     }
   };
 
@@ -1566,6 +1611,12 @@ const [gradeFilter, setGradeFilter] = useState("all");
               <p className="text-xs text-muted-foreground">
                 Susun modul, sesi, materi, dan evaluasi pembelajaran
               </p>
+
+              {activeCourse.status === "Archived" && (
+                <Badge variant="secondary" className="mt-2">
+                  Kursus Diarsipkan
+                </Badge>
+              )}
             </div>
           </div>
 
@@ -1764,9 +1815,7 @@ const [gradeFilter, setGradeFilter] = useState("all");
                   </Button>
                 </div>
 
-                {/* =====================================
-                    CHECKPOINT DAN EVALUASI AKHIR
-                ====================================== */}
+                {/* CHECKPOINT DAN EVALUASI AKHIR */}
 
                 <div className="pt-2">
                   <LessonAssessmentPanel
@@ -1798,7 +1847,7 @@ const [gradeFilter, setGradeFilter] = useState("all");
             <Button
               variant="outline"
               onClick={() => void fetchData()}
-              disabled={loading || studioLoading}
+              disabled={loading || studioLoading || lifecycleLoading}
               className="gap-2"
             >
               <RefreshCw
@@ -1811,7 +1860,7 @@ const [gradeFilter, setGradeFilter] = useState("all");
 
             <Button
               onClick={openCreateForm}
-              disabled={studioLoading}
+              disabled={studioLoading || lifecycleLoading}
             >
               <Plus className="mr-1 h-4 w-4" />
               Tambah Materi
@@ -1837,52 +1886,52 @@ const [gradeFilter, setGradeFilter] = useState("all");
       )}
 
       <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap">
-  <SearchInput
-    value={q}
-    onChange={setQ}
-    placeholder="Cari materi..."
-    className="flex-1"
-  />
+        <SearchInput
+          value={q}
+          onChange={setQ}
+          placeholder="Cari materi..."
+          className="flex-1"
+        />
 
-  <FilterSelect
-    value={category}
-    onChange={setCategory}
-    options={categories.map((c) => c.name)}
-    allLabel="Semua kategori"
-  />
+        <FilterSelect
+          value={category}
+          onChange={setCategory}
+          options={categories.map((c) => c.name)}
+          allLabel="Semua kategori"
+        />
 
-  <FilterSelect
-    value={levelFilter}
-    onChange={(value) => {
-      setLevelFilter(value);
-      setGradeFilter("all");
-    }}
-    options={[...LEVELS]}
-    allLabel="Semua jenjang"
-  />
+        <FilterSelect
+          value={levelFilter}
+          onChange={(value) => {
+            setLevelFilter(value);
+            setGradeFilter("all");
+          }}
+          options={[...LEVELS]}
+          allLabel="Semua jenjang"
+        />
 
-  <FilterSelect
-    value={gradeFilter}
-    onChange={setGradeFilter}
-    options={
-      levelFilter === "all"
-        ? []
-        : getGradeOptions(levelFilter as Level).map(String)
-    }
-    allLabel={
-      levelFilter === "all"
-        ? "Pilih jenjang dahulu"
-        : "Semua kelas"
-    }
-  />
+        <FilterSelect
+          value={gradeFilter}
+          onChange={setGradeFilter}
+          options={
+            levelFilter === "all"
+              ? []
+              : getGradeOptions(levelFilter as Level).map(String)
+          }
+          allLabel={
+            levelFilter === "all"
+              ? "Pilih jenjang dahulu"
+              : "Semua kelas"
+          }
+        />
 
-  <FilterSelect
-    value={status}
-    onChange={setStatus}
-    options={["Published", "Draft"]}
-    allLabel="Semua status"
-  />
-</div>
+        <FilterSelect
+          value={status}
+          onChange={setStatus}
+          options={["Published", "Draft", "Archived"]}
+          allLabel="Semua status"
+        />
+      </div>
 
       <Card className="overflow-hidden">
         {loading ? (
@@ -1991,7 +2040,13 @@ const [gradeFilter, setGradeFilter] = useState("all");
                   </TableCell>
 
                   <TableCell>
-                    <PublishBadge status={c.status} />
+                    {c.status === "Archived" ? (
+                      <Badge variant="secondary">
+                        Diarsipkan
+                      </Badge>
+                    ) : (
+                      <PublishBadge status={c.status} />
+                    )}
                   </TableCell>
 
                   <TableCell className="text-right">
@@ -2001,7 +2056,7 @@ const [gradeFilter, setGradeFilter] = useState("all");
                           variant="ghost"
                           size="icon"
                           aria-label={`Aksi untuk ${c.title}`}
-                          disabled={studioLoading}
+                          disabled={studioLoading || lifecycleLoading}
                         >
                           <MoreHorizontal className="h-4 w-4" />
                         </Button>
@@ -2023,12 +2078,27 @@ const [gradeFilter, setGradeFilter] = useState("all");
                           Buka GradeUp Studio
                         </DropdownMenuItem>
 
+                        {c.status !== "Archived" && (
+                          <DropdownMenuItem
+                            onSelect={() => {
+                              setRemovingAction("archive");
+                              setRemoving(c);
+                            }}
+                          >
+                            <Archive className="mr-2 h-4 w-4" />
+                            Arsipkan Kursus
+                          </DropdownMenuItem>
+                        )}
+
                         <DropdownMenuItem
-                          className="text-destructive"
-                          onSelect={() => setRemoving(c)}
+                          className="text-destructive focus:text-destructive"
+                          onSelect={() => {
+                            setRemovingAction("delete");
+                            setRemoving(c);
+                          }}
                         >
                           <Trash2 className="mr-2 h-4 w-4" />
-                          Hapus Kursus
+                          Hapus Permanen
                         </DropdownMenuItem>
                       </DropdownMenuContent>
                     </DropdownMenu>
@@ -2380,23 +2450,39 @@ const [gradeFilter, setGradeFilter] = useState("all");
                     </Label>
                   </div>
 
-                  <div className="flex items-center gap-3">
-                    <Switch
-                      id="c-pub"
-                      checked={draft.published}
-                      onCheckedChange={(value) =>
-                        setDraft({
-                          ...draft,
-                          published: value,
-                        })
-                      }
-                    />
+                  {!draft.archived && (
+                    <div className="flex items-center gap-3">
+                      <Switch
+                        id="c-pub"
+                        checked={draft.published}
+                        onCheckedChange={(value) =>
+                          setDraft({
+                            ...draft,
+                            published: value,
+                          })
+                        }
+                      />
 
-                    <Label htmlFor="c-pub">
-                      Terbitkan Kursus
-                    </Label>
-                  </div>
+                      <Label htmlFor="c-pub">
+                        Terbitkan Kursus
+                      </Label>
+                    </div>
+                  )}
                 </div>
+
+                {draft.archived && (
+                  <div className="rounded-lg border border-muted bg-muted/30 p-3">
+                    <div className="flex items-start gap-2">
+                      <Archive className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
+
+                      <p className="text-sm text-muted-foreground">
+                        Kursus ini sedang diarsipkan. Mengedit
+                        informasi tidak akan mengubah status arsip
+                        atau menampilkannya kembali kepada siswa.
+                      </p>
+                    </div>
+                  </div>
+                )}
               </div>
 
               <DialogFooter>
@@ -2436,17 +2522,35 @@ const [gradeFilter, setGradeFilter] = useState("all");
       </Dialog>
 
       {/* =========================================
-          DELETE CONFIRMATION
+          ARCHIVE / DELETE CONFIRMATION
       ========================================= */}
 
       <ConfirmDialog
         open={!!removing}
-        onOpenChange={(open) => !open && setRemoving(null)}
-        title="Hapus kursus?"
-        description={`Kursus "${removing?.title ?? ""}" akan dihapus jika belum memiliki modul pembelajaran.`}
-        destructive
-        confirmLabel="Hapus Kursus"
-        onConfirm={handleDelete}
+        onOpenChange={(open) => {
+          if (!open && !lifecycleLoading) {
+            setRemoving(null);
+          }
+        }}
+        title={
+          removingAction === "archive"
+            ? "Arsipkan kursus?"
+            : "Hapus kursus secara permanen?"
+        }
+        description={
+          removingAction === "archive"
+            ? `Kursus "${removing?.title ?? ""}" akan disembunyikan dari katalog pembelajaran siswa. Riwayat belajar, XP, dan hasil evaluasi tetap dipertahankan.`
+            : `Kursus "${removing?.title ?? ""}" akan dihapus permanen beserta modul dan materi turunannya jika tidak memiliki riwayat belajar, transaksi XP, atau pengerjaan asesmen siswa.`
+        }
+        destructive={removingAction === "delete"}
+        confirmLabel={
+          lifecycleLoading
+            ? "Memproses..."
+            : removingAction === "archive"
+              ? "Arsipkan Kursus"
+              : "Hapus Permanen"
+        }
+        onConfirm={handleCourseLifecycle}
       />
     </div>
   );
