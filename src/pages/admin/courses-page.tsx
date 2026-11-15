@@ -1857,7 +1857,7 @@ const [gradeFilter, setGradeFilter] = useState("all");
       setLevelFilter(value);
       setGradeFilter("all");
     }}
-    options={LEVELS}
+    options={[...LEVELS]}
     allLabel="Semua jenjang"
   />
 
