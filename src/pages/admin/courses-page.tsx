@@ -196,8 +196,10 @@ export default function AdminCoursesPage() {
   const [error, setError] = useState<string | null>(null);
 
   const [q, setQ] = useState("");
-  const [category, setCategory] = useState("all");
-  const [status, setStatus] = useState("all");
+const [category, setCategory] = useState("all");
+const [status, setStatus] = useState("all");
+const [levelFilter, setLevelFilter] = useState("all");
+const [gradeFilter, setGradeFilter] = useState("all");
 
   const [draft, setDraft] = useState<Draft | null>(null);
   const [errs, setErrs] = useState<Record<string, string>>({});
@@ -317,20 +319,28 @@ export default function AdminCoursesPage() {
      FILTER COURSES
   ========================================= */
 
-  const filtered = useMemo(
-    () =>
-      items
-        .filter((c) =>
-          c.title.toLowerCase().includes(q.toLowerCase())
-        )
-        .filter(
-          (c) => category === "all" || c.category === category
-        )
-        .filter(
-          (c) => status === "all" || c.status === status
-        ),
-    [items, q, category, status]
-  );
+    const filtered = useMemo(
+  () =>
+    items
+      .filter((c) =>
+        c.title.toLowerCase().includes(q.toLowerCase())
+      )
+      .filter(
+        (c) => category === "all" || c.category === category
+      )
+      .filter(
+        (c) => status === "all" || c.status === status
+      )
+      .filter(
+        (c) => levelFilter === "all" || c.level === levelFilter
+      )
+      .filter(
+        (c) =>
+          gradeFilter === "all" ||
+          c.grade === Number(gradeFilter)
+      ),
+  [items, q, category, status, levelFilter, gradeFilter]
+);
 
   /* =========================================
      CREATE / UPDATE COURSE
@@ -1826,28 +1836,53 @@ export default function AdminCoursesPage() {
         </Card>
       )}
 
-      <div className="flex flex-col gap-3 sm:flex-row">
-        <SearchInput
-          value={q}
-          onChange={setQ}
-          placeholder="Cari materi..."
-          className="flex-1"
-        />
+      <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap">
+  <SearchInput
+    value={q}
+    onChange={setQ}
+    placeholder="Cari materi..."
+    className="flex-1"
+  />
 
-        <FilterSelect
-          value={category}
-          onChange={setCategory}
-          options={categories.map((c) => c.name)}
-          allLabel="Semua kategori"
-        />
+  <FilterSelect
+    value={category}
+    onChange={setCategory}
+    options={categories.map((c) => c.name)}
+    allLabel="Semua kategori"
+  />
 
-        <FilterSelect
-          value={status}
-          onChange={setStatus}
-          options={["Published", "Draft"]}
-          allLabel="Semua status"
-        />
-      </div>
+  <FilterSelect
+    value={levelFilter}
+    onChange={(value) => {
+      setLevelFilter(value);
+      setGradeFilter("all");
+    }}
+    options={LEVELS}
+    allLabel="Semua jenjang"
+  />
+
+  <FilterSelect
+    value={gradeFilter}
+    onChange={setGradeFilter}
+    options={
+      levelFilter === "all"
+        ? []
+        : getGradeOptions(levelFilter as Level).map(String)
+    }
+    allLabel={
+      levelFilter === "all"
+        ? "Pilih jenjang dahulu"
+        : "Semua kelas"
+    }
+  />
+
+  <FilterSelect
+    value={status}
+    onChange={setStatus}
+    options={["Published", "Draft"]}
+    allLabel="Semua status"
+  />
+</div>
 
       <Card className="overflow-hidden">
         {loading ? (
