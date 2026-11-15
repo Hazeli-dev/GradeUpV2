@@ -1,5 +1,6 @@
 
-import { useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
+
 import {
   Code,
   Code2,
@@ -77,10 +78,13 @@ export const DEFAULT_HTML = `<!DOCTYPE html>
 </html>`;
 
 /**
- * Membungkus kode dalam dokumen preview terisolasi.
- * JavaScript dan koneksi jaringan tidak diizinkan.
+ * Membuat dokumen preview terisolasi.
+ * Skrip hanya digunakan untuk mengirimkan tinggi dokumen
+ * kepada halaman utama.
  */
-function createPreviewDocument(code: string) {
+function createPreviewDocument(code: string, previewId: string) {
+  const nonce = "gradeup-preview-resize";
+
   const securityPolicy = `
     <meta
       http-equiv="Content-Security-Policy"
@@ -90,25 +94,87 @@ function createPreviewDocument(code: string) {
         img-src data:;
         font-src data:;
         connect-src 'none';
-        script-src 'none';
+        script-src 'nonce-${nonce}';
         form-action 'none';
         base-uri 'none';
       "
     />
   `;
 
-  if (/<html[\s>]/i.test(code)) {
-    if (/<head[\s>]/i.test(code)) {
-      return code.replace(
+  const resizeScript = `
+    <script nonce="${nonce}">
+      (() => {
+        const sendHeight = () => {
+          const body = document.body;
+          const html = document.documentElement;
+
+          const height = Math.max(
+            body?.scrollHeight || 0,
+            body?.offsetHeight || 0,
+            html.scrollHeight,
+            html.offsetHeight,
+            html.clientHeight
+          );
+
+          parent.postMessage({
+            type: "GRADEUP_PREVIEW_HEIGHT",
+            id: "${previewId}",
+            height
+          }, "*");
+        };
+
+        window.addEventListener("load", sendHeight);
+        window.addEventListener("resize", sendHeight);
+
+        if (document.body && window.ResizeObserver) {
+          new ResizeObserver(sendHeight).observe(document.body);
+        }
+
+        if (window.MutationObserver) {
+          new MutationObserver(sendHeight).observe(
+            document.documentElement,
+            {
+              childList: true,
+              subtree: true,
+              attributes: true,
+              characterData: true
+            }
+          );
+        }
+
+        setTimeout(sendHeight, 100);
+        setTimeout(sendHeight, 500);
+        setTimeout(sendHeight, 1000);
+        setTimeout(sendHeight, 2000);
+      })();
+    </script>
+  `;
+
+  let documentHtml = code;
+
+  if (/<html[\s>]/i.test(documentHtml)) {
+    if (/<head[\s>]/i.test(documentHtml)) {
+      documentHtml = documentHtml.replace(
         /<head([^>]*)>/i,
         `<head$1>${securityPolicy}`
       );
+    } else {
+      documentHtml = documentHtml.replace(
+        /<html([^>]*)>/i,
+        `<html$1><head>${securityPolicy}</head>`
+      );
     }
 
-    return code.replace(
-      /<html([^>]*)>/i,
-      `<html$1><head>${securityPolicy}</head>`
-    );
+    if (/<\/body>/i.test(documentHtml)) {
+      documentHtml = documentHtml.replace(
+        /<\/body>/i,
+        `${resizeScript}</body>`
+      );
+    } else {
+      documentHtml += resizeScript;
+    }
+
+    return documentHtml;
   }
 
   return `<!DOCTYPE html>
@@ -119,7 +185,8 @@ function createPreviewDocument(code: string) {
   ${securityPolicy}
 </head>
 <body>
-${code}
+${documentHtml}
+${resizeScript}
 </body>
 </html>`;
 }
@@ -134,11 +201,61 @@ function CodePreviewView({
   >("preview");
 
   const [isExpanded, setIsExpanded] = useState(false);
+  const [previewHeight, setPreviewHeight] = useState(600);
+
+  const iframeRef = useRef<HTMLIFrameElement>(null);
+
+  const previewId = useId().replace(/:/g, "");
 
   const code = String(node.attrs.code ?? "");
   const title = String(node.attrs.title ?? "Contoh Kode");
 
   const isEditable = editor.isEditable;
+
+  /**
+   * Menerima informasi tinggi dari iframe milik komponen ini saja.
+   */
+  useEffect(() => {
+    const handlePreviewMessage = (event: MessageEvent) => {
+      if (event.source !== iframeRef.current?.contentWindow) {
+        return;
+      }
+
+      if (
+        event.data?.type !== "GRADEUP_PREVIEW_HEIGHT" ||
+        event.data?.id !== previewId
+      ) {
+        return;
+      }
+
+      const height = Number(event.data.height);
+
+      if (!Number.isFinite(height) || height <= 0) {
+        return;
+      }
+
+      setPreviewHeight((previousHeight) => {
+        const nextHeight = Math.max(300, Math.ceil(height + 8));
+
+        return Math.abs(previousHeight - nextHeight) > 2
+          ? nextHeight
+          : previousHeight;
+      });
+    };
+
+    window.addEventListener("message", handlePreviewMessage);
+
+    return () => {
+      window.removeEventListener("message", handlePreviewMessage);
+    };
+  }, [previewId]);
+
+  /**
+   * Mengirim ulang pengukuran saat kode berubah.
+   */
+  useEffect(() => {
+    setPreviewHeight(600);
+  }, [code]);
 
   const openFullPreview = () => {
     setActiveView("preview");
@@ -150,13 +267,13 @@ function CodePreviewView({
   };
 
   return (
-    <NodeViewWrapper className="gu-code-preview-block w-full max-w-none">
+    <NodeViewWrapper className="gu-code-preview-block my-6 w-full min-w-0 max-w-none">
       <section
         contentEditable={false}
-        className={`flex flex-col border border-slate-200 bg-white ${
+        className={`flex w-full min-w-0 flex-col border border-slate-200 bg-white ${
           isExpanded
-            ? "fixed inset-0 z-[99999] h-[100dvh] w-full max-w-none overflow-hidden rounded-none shadow-2xl"
-            : "my-6 w-full max-w-none overflow-hidden rounded-xl shadow-sm"
+            ? "fixed inset-0 z-[99999] h-[100dvh] max-h-[100dvh] overflow-hidden rounded-none shadow-2xl"
+            : "max-w-none overflow-hidden rounded-xl shadow-sm"
         }`}
       >
         {/* Header khusus admin */}
@@ -253,9 +370,9 @@ function CodePreviewView({
           </div>
         )}
 
-        {/* Editor Kode */}
+        {/* Editor kode khusus admin */}
         {isEditable && activeView === "kode" && !isExpanded ? (
-          <div className="min-h-0 bg-slate-950 p-3">
+          <div className="min-h-0 w-full bg-slate-950 p-3">
             <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
               <span className="text-xs text-slate-400">
                 HTML / CSS
@@ -280,22 +397,31 @@ function CodePreviewView({
             />
           </div>
         ) : (
-          /* Area Preview */
+          /* Area preview */
           <div
-            className={`min-h-0 w-full bg-white ${
-              isExpanded ? "flex-1 overflow-auto" : "w-full"
+            className={`w-full min-w-0 bg-white ${
+              isExpanded
+                ? "min-h-0 flex-1 overflow-auto"
+                : "overflow-hidden"
             }`}
           >
             <iframe
+              ref={iframeRef}
               title={title || "Preview materi"}
-              srcDoc={createPreviewDocument(code)}
-              sandbox=""
+              srcDoc={createPreviewDocument(code, previewId)}
+              sandbox="allow-scripts"
               referrerPolicy="no-referrer"
-              className={`block w-full border-0 bg-white ${
-                isExpanded
-                  ? "h-full min-h-0"
-                  : "h-[min(75vh,760px)] min-h-[420px]"
-              }`}
+              scrolling="no"
+              onLoad={() => {
+                setPreviewHeight(600);
+              }}
+              style={{
+                height: isExpanded
+                  ? "100%"
+                  : `${previewHeight}px`,
+                minHeight: isExpanded ? "100%" : "300px",
+              }}
+              className="block w-full border-0 bg-white"
               loading="lazy"
             />
           </div>
