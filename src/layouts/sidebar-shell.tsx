@@ -479,7 +479,7 @@ export function SidebarShell({
             ) : (
               <>
                 <ChevronsLeft />
-                Ciutkan
+                Sembunyikan
               </>
             )}
           </Button>
