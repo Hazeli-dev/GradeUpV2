@@ -95,7 +95,7 @@ export const STUDENT_NAV: NavGroup[] = [
         icon: Bookmark,
       },
       {
-        label: "Jadwal Belajar",
+        label: "Pusat Belajar",
         to: "/dashboard/learning-schedule",
         icon: CalendarDays,
       },
