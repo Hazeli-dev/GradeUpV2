@@ -456,7 +456,6 @@ export default function CourseStructurePanel({
 // PUBLISH / UNPUBLISH SECTION
 // =========================================================
 
-
 const toggleSectionPublication = async (section: SectionItem) => {
   if (working) return;
 
@@ -465,81 +464,104 @@ const toggleSectionPublication = async (section: SectionItem) => {
   setWorking(true);
 
   try {
-    // 1. Perbarui status section
-    const { error: sectionError } = await supabase
+    const { error } = await supabase
       .from("lesson_sections")
       .update({ is_published: nextStatus })
       .eq("id", section.id)
       .eq("lesson_id", section.lesson_id);
 
-    if (sectionError) throw sectionError;
+    if (error) throw error;
 
-    // 2. Ambil seluruh section dalam sesi
-    const { data: sectionData, error: sectionsError } = await supabase
-      .from("lesson_sections")
-      .select("id, is_published")
-      .eq("lesson_id", section.lesson_id);
-
-    if (sectionsError) throw sectionsError;
-
-    const allSectionsPublished =
-      !!sectionData?.length &&
-      sectionData.every((item) => item.is_published);
-
-    // 3. Perbarui status sesi berdasarkan seluruh section
-    const { data: lessonData, error: lessonError } = await supabase
-      .from("course_lessons")
-      .update({ is_published: allSectionsPublished })
-      .eq("id", section.lesson_id)
-      .select("id, module_id")
-      .single();
-
-    if (lessonError) throw lessonError;
-
-    // 4. Periksa seluruh sesi dalam modul
-    const { data: lessonList, error: lessonListError } = await supabase
-      .from("course_lessons")
-      .select("id, is_published")
-      .eq("module_id", lessonData.module_id);
-
-    if (lessonListError) throw lessonListError;
-
-    const allLessonsPublished =
-      !!lessonList?.length &&
-      lessonList.every((item) => item.is_published);
-
-    // 5. Perbarui status modul
-    const { error: moduleError } = await supabase
-      .from("course_modules")
-      .update({ is_published: allLessonsPublished })
-      .eq("id", lessonData.module_id);
-
-    if (moduleError) throw moduleError;
-
-    // 6. Refresh seluruh struktur agar status UI sesuai database
-    await Promise.all([
-      fetchStructure(),
-      fetchSections(section.lesson_id),
-    ]);
+    await fetchSections(section.lesson_id);
 
     toast.success(
       nextStatus
-        ? "Materi berhasil diterbitkan. Status sesi dan modul telah disinkronkan."
-        : "Materi dijadikan draft. Status sesi dan modul telah disinkronkan."
+        ? "Bagian materi berhasil diterbitkan."
+        : "Bagian materi dijadikan draft."
     );
   } catch (err: unknown) {
     console.error("Toggle section publication error:", err);
 
     toast.error(
-      "Gagal mengubah status publikasi: " +
+      "Gagal mengubah publikasi bagian materi: " +
         (err instanceof Error ? err.message : "Terjadi kesalahan")
     );
 
-    // Muat ulang untuk menghindari tampilan yang tidak sesuai database
-    await Promise.all([
-      fetchStructure(),
-      fetchSections(section.lesson_id),
-    ]);
+    await fetchSections(section.lesson_id);
+  } finally {
+    setWorking(false);
+  }
+};
+
+  const toggleModulePublication = async (module: ModuleItem) => {
+  if (working) return;
+
+  const nextStatus = !module.is_published;
+
+  setWorking(true);
+
+  try {
+    const { error } = await supabase
+      .from("course_modules")
+      .update({ is_published: nextStatus })
+      .eq("id", module.id)
+      .eq("course_id", courseId);
+
+    if (error) throw error;
+
+    await fetchStructure();
+
+    toast.success(
+      nextStatus
+        ? "Modul berhasil diterbitkan."
+        : "Modul dijadikan draft. Semua sesi dalam modul ini disembunyikan dari siswa."
+    );
+  } catch (err: unknown) {
+    console.error("Toggle module publication error:", err);
+
+    toast.error(
+      "Gagal mengubah publikasi modul: " +
+        (err instanceof Error ? err.message : "Terjadi kesalahan")
+    );
+
+    await fetchStructure();
+  } finally {
+    setWorking(false);
+  }
+};
+
+  const toggleLessonPublication = async (lesson: LessonItem) => {
+  if (working) return;
+
+  const nextStatus = !lesson.is_published;
+
+  setWorking(true);
+
+  try {
+    const { error } = await supabase
+      .from("course_lessons")
+      .update({ is_published: nextStatus })
+      .eq("id", lesson.id)
+      .eq("module_id", lesson.module_id);
+
+    if (error) throw error;
+
+    await fetchStructure();
+
+    toast.success(
+      nextStatus
+        ? "Sesi berhasil diterbitkan."
+        : "Sesi dijadikan draft."
+    );
+  } catch (err: unknown) {
+    console.error("Toggle lesson publication error:", err);
+
+    toast.error(
+      "Gagal mengubah publikasi sesi: " +
+        (err instanceof Error ? err.message : "Terjadi kesalahan")
+    );
+
+    await fetchStructure();
   } finally {
     setWorking(false);
   }
@@ -845,18 +867,32 @@ const toggleSectionPublication = async (section: SectionItem) => {
                   {isActive && (
                     <div className="space-y-2 border-t bg-muted/20 p-2">
                       <div className="flex items-center justify-between gap-2 px-2 py-1">
-                        <span className="text-xs font-medium text-muted-foreground">
-                          Daftar sesi
-                        </span>
+  <span className="text-xs font-medium text-muted-foreground">
+    Daftar sesi
+  </span>
 
-                        <Badge
-                          variant={
-                            module.is_published ? "success" : "muted"
-                          }
-                        >
-                          {module.is_published ? "Terbit" : "Draft"}
-                        </Badge>
-                      </div>
+  <div className="flex items-center gap-2">
+    <Badge
+      variant={module.is_published ? "success" : "muted"}
+    >
+      {module.is_published ? "Terbit" : "Draft"}
+    </Badge>
+
+    <Button
+      size="sm"
+      variant={module.is_published ? "outline" : "default"}
+      className="h-7 px-2 text-[10px]"
+      disabled={working}
+      onClick={() => void toggleModulePublication(module)}
+    >
+      {working ? (
+        <Loader2 className="mr-1 h-3 w-3 animate-spin" />
+      ) : null}
+
+      {module.is_published ? "Jadikan Draft" : "Terbitkan Modul"}
+    </Button>
+  </div>
+</div>
 
                       {moduleLessonItems.length === 0 ? (
                         <p className="px-2 py-3 text-center text-xs text-muted-foreground">
