@@ -101,7 +101,6 @@ export default function CourseStructurePanel({
 
   const sectionFetchRequestRef = useRef(0);
   const structureFetchRequestRef = useRef(0);
-
   const activeLessonIdRef = useRef<string | null>(activeLessonId);
 
   activeLessonIdRef.current = activeLessonId;
@@ -117,12 +116,11 @@ export default function CourseStructurePanel({
     setError(null);
 
     try {
-      const { data: moduleData, error: moduleError } =
-        await supabase
-          .from("course_modules")
-          .select("id, title, description, sort_order, is_published")
-          .eq("course_id", courseId)
-          .order("sort_order", { ascending: true });
+      const { data: moduleData, error: moduleError } = await supabase
+        .from("course_modules")
+        .select("id, title, description, sort_order, is_published")
+        .eq("course_id", courseId)
+        .order("sort_order", { ascending: true });
 
       if (moduleError) throw moduleError;
 
@@ -139,12 +137,11 @@ export default function CourseStructurePanel({
 
       const moduleIds = loadedModules.map((module) => module.id);
 
-      const { data: lessonData, error: lessonError } =
-        await supabase
-          .from("course_lessons")
-          .select("id, module_id, title, sort_order, is_published")
-          .in("module_id", moduleIds)
-          .order("sort_order", { ascending: true });
+      const { data: lessonData, error: lessonError } = await supabase
+        .from("course_lessons")
+        .select("id, module_id, title, sort_order, is_published")
+        .in("module_id", moduleIds)
+        .order("sort_order", { ascending: true });
 
       if (lessonError) throw lessonError;
 
@@ -218,9 +215,7 @@ export default function CourseStructurePanel({
 
         toast.error(
           "Gagal memuat bagian materi: " +
-            (err instanceof Error
-              ? err.message
-              : "Terjadi kesalahan")
+            (err instanceof Error ? err.message : "Terjadi kesalahan")
         );
       } finally {
         if (
@@ -252,10 +247,6 @@ export default function CourseStructurePanel({
   // =========================================================
   // DERIVED DATA
   // =========================================================
-
-  const moduleLessons = lessons.filter(
-    (lesson) => lesson.module_id === activeModuleId
-  );
 
   // =========================================================
   // CREATE MODULE
@@ -306,9 +297,7 @@ export default function CourseStructurePanel({
 
       toast.error(
         "Gagal menambahkan modul: " +
-          (err instanceof Error
-            ? err.message
-            : "Terjadi kesalahan")
+          (err instanceof Error ? err.message : "Terjadi kesalahan")
       );
     } finally {
       setWorking(false);
@@ -376,9 +365,7 @@ export default function CourseStructurePanel({
 
       toast.error(
         "Gagal menambahkan sesi: " +
-          (err instanceof Error
-            ? err.message
-            : "Terjadi kesalahan")
+          (err instanceof Error ? err.message : "Terjadi kesalahan")
       );
     } finally {
       setWorking(false);
@@ -443,9 +430,7 @@ export default function CourseStructurePanel({
 
       toast.error(
         "Gagal menambahkan bagian materi: " +
-          (err instanceof Error
-            ? err.message
-            : "Terjadi kesalahan")
+          (err instanceof Error ? err.message : "Terjadi kesalahan")
       );
     } finally {
       setWorking(false);
@@ -453,119 +438,127 @@ export default function CourseStructurePanel({
   };
 
   // =========================================================
-// PUBLISH / UNPUBLISH SECTION
-// =========================================================
+  // PUBLISH / UNPUBLISH SECTION
+  // =========================================================
 
-const toggleSectionPublication = async (section: SectionItem) => {
-  if (working) return;
+  const toggleSectionPublication = async (section: SectionItem) => {
+    if (working) return;
 
-  const nextStatus = !section.is_published;
+    const nextStatus = !section.is_published;
 
-  setWorking(true);
+    setWorking(true);
 
-  try {
-    const { error } = await supabase
-      .from("lesson_sections")
-      .update({ is_published: nextStatus })
-      .eq("id", section.id)
-      .eq("lesson_id", section.lesson_id);
+    try {
+      const { error } = await supabase
+        .from("lesson_sections")
+        .update({ is_published: nextStatus })
+        .eq("id", section.id)
+        .eq("lesson_id", section.lesson_id);
 
-    if (error) throw error;
+      if (error) throw error;
 
-    await fetchSections(section.lesson_id);
+      await fetchSections(section.lesson_id);
 
-    toast.success(
-      nextStatus
-        ? "Bagian materi berhasil diterbitkan."
-        : "Bagian materi dijadikan draft."
-    );
-  } catch (err: unknown) {
-    console.error("Toggle section publication error:", err);
+      toast.success(
+        nextStatus
+          ? "Bagian materi berhasil diterbitkan."
+          : "Bagian materi dijadikan draft."
+      );
+    } catch (err: unknown) {
+      console.error("Toggle section publication error:", err);
 
-    toast.error(
-      "Gagal mengubah publikasi bagian materi: " +
-        (err instanceof Error ? err.message : "Terjadi kesalahan")
-    );
+      toast.error(
+        "Gagal mengubah publikasi bagian materi: " +
+          (err instanceof Error ? err.message : "Terjadi kesalahan")
+      );
 
-    await fetchSections(section.lesson_id);
-  } finally {
-    setWorking(false);
-  }
-};
+      await fetchSections(section.lesson_id);
+    } finally {
+      setWorking(false);
+    }
+  };
+
+  // =========================================================
+  // PUBLISH / UNPUBLISH MODULE
+  // =========================================================
 
   const toggleModulePublication = async (module: ModuleItem) => {
-  if (working) return;
+    if (working) return;
 
-  const nextStatus = !module.is_published;
+    const nextStatus = !module.is_published;
 
-  setWorking(true);
+    setWorking(true);
 
-  try {
-    const { error } = await supabase
-      .from("course_modules")
-      .update({ is_published: nextStatus })
-      .eq("id", module.id)
-      .eq("course_id", courseId);
+    try {
+      const { error } = await supabase
+        .from("course_modules")
+        .update({ is_published: nextStatus })
+        .eq("id", module.id)
+        .eq("course_id", courseId);
 
-    if (error) throw error;
+      if (error) throw error;
 
-    await fetchStructure();
+      await fetchStructure();
 
-    toast.success(
-      nextStatus
-        ? "Modul berhasil diterbitkan."
-        : "Modul dijadikan draft. Semua sesi dalam modul ini disembunyikan dari siswa."
-    );
-  } catch (err: unknown) {
-    console.error("Toggle module publication error:", err);
+      toast.success(
+        nextStatus
+          ? "Modul berhasil diterbitkan."
+          : "Modul dijadikan draft. Semua sesi dalam modul ini disembunyikan dari siswa."
+      );
+    } catch (err: unknown) {
+      console.error("Toggle module publication error:", err);
 
-    toast.error(
-      "Gagal mengubah publikasi modul: " +
-        (err instanceof Error ? err.message : "Terjadi kesalahan")
-    );
+      toast.error(
+        "Gagal mengubah publikasi modul: " +
+          (err instanceof Error ? err.message : "Terjadi kesalahan")
+      );
 
-    await fetchStructure();
-  } finally {
-    setWorking(false);
-  }
-};
+      await fetchStructure();
+    } finally {
+      setWorking(false);
+    }
+  };
+
+  // =========================================================
+  // PUBLISH / UNPUBLISH LESSON
+  // =========================================================
 
   const toggleLessonPublication = async (lesson: LessonItem) => {
-  if (working) return;
+    if (working) return;
 
-  const nextStatus = !lesson.is_published;
+    const nextStatus = !lesson.is_published;
 
-  setWorking(true);
+    setWorking(true);
 
-  try {
-    const { error } = await supabase
-      .from("course_lessons")
-      .update({ is_published: nextStatus })
-      .eq("id", lesson.id)
-      .eq("module_id", lesson.module_id);
+    try {
+      const { error } = await supabase
+        .from("course_lessons")
+        .update({ is_published: nextStatus })
+        .eq("id", lesson.id)
+        .eq("module_id", lesson.module_id);
 
-    if (error) throw error;
+      if (error) throw error;
 
-    await fetchStructure();
+      await fetchStructure();
 
-    toast.success(
-      nextStatus
-        ? "Sesi berhasil diterbitkan."
-        : "Sesi dijadikan draft."
-    );
-  } catch (err: unknown) {
-    console.error("Toggle lesson publication error:", err);
+      toast.success(
+        nextStatus
+          ? "Sesi berhasil diterbitkan."
+          : "Sesi dijadikan draft."
+      );
+    } catch (err: unknown) {
+      console.error("Toggle lesson publication error:", err);
 
-    toast.error(
-      "Gagal mengubah publikasi sesi: " +
-        (err instanceof Error ? err.message : "Terjadi kesalahan")
-    );
+      toast.error(
+        "Gagal mengubah publikasi sesi: " +
+          (err instanceof Error ? err.message : "Terjadi kesalahan")
+      );
 
-    await fetchStructure();
-  } finally {
-    setWorking(false);
-  }
-};
+      await fetchStructure();
+    } finally {
+      setWorking(false);
+    }
+  };
 
   // =========================================================
   // UPDATE SECTION TITLE
@@ -598,16 +591,13 @@ const toggleSectionPublication = async (section: SectionItem) => {
 
       if (updateError) throw updateError;
 
-      // Sinkronkan judul editor jika bagian yang diubah sedang aktif.
       if (sectionId === activeSectionId) {
         onSectionTitleChange?.(sectionId, title);
       }
 
       setSections((current) =>
         current.map((section) =>
-          section.id === sectionId
-            ? { ...section, title }
-            : section
+          section.id === sectionId ? { ...section, title } : section
         )
       );
 
@@ -620,9 +610,7 @@ const toggleSectionPublication = async (section: SectionItem) => {
 
       toast.error(
         "Gagal mengubah judul: " +
-          (err instanceof Error
-            ? err.message
-            : "Terjadi kesalahan")
+          (err instanceof Error ? err.message : "Terjadi kesalahan")
       );
     } finally {
       setWorking(false);
@@ -849,9 +837,7 @@ const toggleSectionPublication = async (section: SectionItem) => {
 
                     <Folder
                       className={`h-4 w-4 shrink-0 ${
-                        isActive
-                          ? "text-primary"
-                          : "text-muted-foreground"
+                        isActive ? "text-primary" : "text-muted-foreground"
                       }`}
                     />
 
@@ -866,33 +852,40 @@ const toggleSectionPublication = async (section: SectionItem) => {
 
                   {isActive && (
                     <div className="space-y-2 border-t bg-muted/20 p-2">
+                      {/* MODULE PUBLICATION */}
                       <div className="flex items-center justify-between gap-2 px-2 py-1">
-  <span className="text-xs font-medium text-muted-foreground">
-    Daftar sesi
-  </span>
+                        <span className="text-xs font-medium text-muted-foreground">
+                          Daftar sesi
+                        </span>
 
-  <div className="flex items-center gap-2">
-    <Badge
-      variant={module.is_published ? "success" : "muted"}
-    >
-      {module.is_published ? "Terbit" : "Draft"}
-    </Badge>
+                        <div className="flex items-center gap-2">
+                          <Badge
+                            variant={module.is_published ? "success" : "muted"}
+                          >
+                            {module.is_published ? "Terbit" : "Draft"}
+                          </Badge>
 
-    <Button
-      size="sm"
-      variant={module.is_published ? "outline" : "default"}
-      className="h-7 px-2 text-[10px]"
-      disabled={working}
-      onClick={() => void toggleModulePublication(module)}
-    >
-      {working ? (
-        <Loader2 className="mr-1 h-3 w-3 animate-spin" />
-      ) : null}
+                          <Button
+                            size="sm"
+                            variant={
+                              module.is_published ? "outline" : "default"
+                            }
+                            className="h-7 px-2 text-[10px]"
+                            disabled={working}
+                            onClick={() =>
+                              void toggleModulePublication(module)
+                            }
+                          >
+                            {working ? (
+                              <Loader2 className="mr-1 h-3 w-3 animate-spin" />
+                            ) : null}
 
-      {module.is_published ? "Jadikan Draft" : "Terbitkan Modul"}
-    </Button>
-  </div>
-</div>
+                            {module.is_published
+                              ? "Jadikan Draft"
+                              : "Terbitkan Modul"}
+                          </Button>
+                        </div>
+                      </div>
 
                       {moduleLessonItems.length === 0 ? (
                         <p className="px-2 py-3 text-center text-xs text-muted-foreground">
@@ -905,6 +898,7 @@ const toggleSectionPublication = async (section: SectionItem) => {
 
                           return (
                             <div key={lesson.id} className="space-y-1">
+                              {/* LESSON SELECTOR */}
                               <button
                                 type="button"
                                 onClick={() => onLessonSelect(lesson.id)}
@@ -928,18 +922,41 @@ const toggleSectionPublication = async (section: SectionItem) => {
                                     Aktif
                                   </Badge>
                                 )}
-
-                                <span
-                                  className={`shrink-0 text-[10px] ${
-                                    isLessonActive
-                                      ? "text-primary-foreground/80"
-                                      : "text-muted-foreground"
-                                  }`}
-                                >
-                                  {lesson.is_published ? "Terbit" : "Draft"}
-                                </span>
                               </button>
 
+                              {/* LESSON PUBLICATION */}
+                              <div className="flex items-center justify-between gap-2 px-3 pb-2">
+                                <Badge
+                                  variant={
+                                    lesson.is_published ? "success" : "muted"
+                                  }
+                                  className="text-[10px]"
+                                >
+                                  {lesson.is_published ? "Terbit" : "Draft"}
+                                </Badge>
+
+                                <Button
+                                  size="sm"
+                                  variant={
+                                    lesson.is_published ? "outline" : "default"
+                                  }
+                                  className="h-7 px-2 text-[10px]"
+                                  disabled={working}
+                                  onClick={() =>
+                                    void toggleLessonPublication(lesson)
+                                  }
+                                >
+                                  {working ? (
+                                    <Loader2 className="mr-1 h-3 w-3 animate-spin" />
+                                  ) : null}
+
+                                  {lesson.is_published
+                                    ? "Jadikan Draft"
+                                    : "Terbitkan Sesi"}
+                                </Button>
+                              </div>
+
+                              {/* SECTION MANAGEMENT */}
                               {isLessonActive && (
                                 <div className="ml-3 space-y-2 border-l-2 border-primary/20 py-2 pl-3">
                                   <div className="flex items-center justify-between gap-2">
@@ -1045,7 +1062,9 @@ const toggleSectionPublication = async (section: SectionItem) => {
                                                     <Button
                                                       size="sm"
                                                       variant="ghost"
-                                                      onClick={cancelSectionEditing}
+                                                      onClick={
+                                                        cancelSectionEditing
+                                                      }
                                                       disabled={working}
                                                     >
                                                       <X className="mr-1 h-3 w-3" />
@@ -1088,7 +1107,9 @@ const toggleSectionPublication = async (section: SectionItem) => {
                                                       size="sm"
                                                       variant="ghost"
                                                       onClick={() =>
-                                                        setDeletingSectionId(null)
+                                                        setDeletingSectionId(
+                                                          null
+                                                        )
                                                       }
                                                       disabled={working}
                                                     >
@@ -1184,29 +1205,45 @@ const toggleSectionPublication = async (section: SectionItem) => {
                                               )}
 
                                               {!isEditing && !isDeleting && (
-  <div className="mt-2 flex items-center justify-between gap-2 pl-6">
-    <Badge
-      variant={section.is_published ? "success" : "muted"}
-      className="text-[10px]"
-    >
-      {section.is_published ? "Terbit" : "Draft"}
-    </Badge>
+                                                <div className="mt-2 flex items-center justify-between gap-2 pl-6">
+                                                  <Badge
+                                                    variant={
+                                                      section.is_published
+                                                        ? "success"
+                                                        : "muted"
+                                                    }
+                                                    className="text-[10px]"
+                                                  >
+                                                    {section.is_published
+                                                      ? "Terbit"
+                                                      : "Draft"}
+                                                  </Badge>
 
-    <Button
-      size="sm"
-      variant={section.is_published ? "outline" : "default"}
-      className="h-7 px-2 text-[10px]"
-      disabled={working}
-      onClick={() => void toggleSectionPublication(section)}
-    >
-      {working ? (
-        <Loader2 className="mr-1 h-3 w-3 animate-spin" />
-      ) : null}
+                                                  <Button
+                                                    size="sm"
+                                                    variant={
+                                                      section.is_published
+                                                        ? "outline"
+                                                        : "default"
+                                                    }
+                                                    className="h-7 px-2 text-[10px]"
+                                                    disabled={working}
+                                                    onClick={() =>
+                                                      void toggleSectionPublication(
+                                                        section
+                                                      )
+                                                    }
+                                                  >
+                                                    {working ? (
+                                                      <Loader2 className="mr-1 h-3 w-3 animate-spin" />
+                                                    ) : null}
 
-      {section.is_published ? "Jadikan Draft" : "Terbitkan"}
-    </Button>
-  </div>
-)}
+                                                    {section.is_published
+                                                      ? "Jadikan Draft"
+                                                      : "Terbitkan"}
+                                                  </Button>
+                                                </div>
+                                              )}
                                             </div>
                                           );
                                         }
