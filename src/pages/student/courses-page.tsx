@@ -81,10 +81,10 @@ function getLevelLabel(level: string) {
 
 
 function getGradesInSamePhase(
-  level: string,
+  level: string | null | undefined,
   courseGrade: number | null
 ): number[] {
-  if (courseGrade == null) return [];
+  if (!level || courseGrade == null) return [];
 
   if (level === "SD") {
     if ([1, 2].includes(courseGrade)) return [1, 2];
@@ -96,10 +96,7 @@ function getGradesInSamePhase(
     return [7, 8, 9];
   }
 
-  if (
-    ["SMA", "SMK"].includes(level) &&
-    courseGrade === 10
-  ) {
+  if (["SMA", "SMK"].includes(level) && courseGrade === 10) {
     return [10];
   }
 
@@ -109,6 +106,9 @@ function getGradesInSamePhase(
   ) {
     return [11, 12];
   }
+
+  return [courseGrade];
+}
 
   // Jenjang atau kelas lainnya tetap menggunakan kelas persis.
   return [courseGrade];
