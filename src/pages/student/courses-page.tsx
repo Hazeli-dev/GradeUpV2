@@ -79,6 +79,42 @@ function getLevelLabel(level: string) {
   return labels[level] || level || "Semua Jenjang";
 }
 
+
+function getGradesInSamePhase(
+  level: string,
+  courseGrade: number | null
+): number[] {
+  if (courseGrade == null) return [];
+
+  if (level === "SD") {
+    if ([1, 2].includes(courseGrade)) return [1, 2];
+    if ([3, 4].includes(courseGrade)) return [3, 4];
+    if ([5, 6].includes(courseGrade)) return [5, 6];
+  }
+
+  if (level === "SMP" && [7, 8, 9].includes(courseGrade)) {
+    return [7, 8, 9];
+  }
+
+  if (
+    ["SMA", "SMK"].includes(level) &&
+    courseGrade === 10
+  ) {
+    return [10];
+  }
+
+  if (
+    ["SMA", "SMK"].includes(level) &&
+    [11, 12].includes(courseGrade)
+  ) {
+    return [11, 12];
+  }
+
+  // Jenjang atau kelas lainnya tetap menggunakan kelas persis.
+  return [courseGrade];
+}
+
+
 export default function StudentCoursesPage() {
   const navigate = useNavigate();
 
@@ -419,11 +455,19 @@ export default function StudentCoursesPage() {
         (course) =>
           selectedLevel === ALL || course.level === selectedLevel
       )
-      .filter(
-        (course) =>
-          selectedGrade === ALL ||
-          course.grade === Number(selectedGrade)
-      );
+      
+.filter(
+  (course) =>
+    selectedGrade === ALL ||
+    (
+      course.grade != null &&
+      getGradesInSamePhase(
+        course.level,
+        course.grade
+      ).includes(Number(selectedGrade))
+    )
+);
+
   }, [courses, q, category, selectedLevel, selectedGrade]);
 
   // Reset seluruh filter.
