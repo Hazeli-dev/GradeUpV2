@@ -453,40 +453,67 @@ const [startingPackageId, setStartingPackageId] = useState("");
 
         if (courseError) throw courseError;
 
-        // Kelas acuan fase hanya digunakan untuk pengambilan materi.
-const materialGrade = getMaterialGrade(studentProfile.grade);
+        
+// =====================================================
+// PEMETAAN FASE MATERI
+// =====================================================
 
+const grade = studentProfile.grade;
+
+const materialGrade = getMaterialGrade(grade);
+
+// Tentukan fase berdasarkan kelas siswa.
+const studentPhase =
+  grade !== null
+    ? grade >= 1 && grade <= 2
+      ? "A"
+      : grade >= 3 && grade <= 4
+        ? "B"
+        : grade >= 5 && grade <= 6
+          ? "C"
+          : grade >= 7 && grade <= 9
+            ? "D"
+            : grade === 10
+              ? "E"
+              : grade >= 11 && grade <= 12
+                ? "F"
+                : null
+    : null;
+
+// Rentang kelas untuk masing-masing fase.
+const phaseGradeRanges: Record<string, number[]> = {
+  A: [1, 2],
+  B: [3, 4],
+  C: [5, 6],
+  D: [7, 8, 9],
+  E: [10],
+  F: [11, 12],
+};
 
 const matchingCourses = ((courseData ?? []) as CourseRow[]).filter(
   (course) => {
-    const courseLevel = normalizeLevel(course.level);
-
-    const normalizedCourseLevel = (course.level ?? "")
+    const rawLevel = (course.level ?? "")
       .toLowerCase()
       .replace(/\s+/g, " ")
       .trim();
 
-    // Fase D merupakan fase pembelajaran SMP
-    const isPhaseD =
-      /\bfase\s*d\b/i.test(normalizedCourseLevel);
+    // Deteksi apakah level kursus menggunakan nama fase.
+    const phaseMatch = rawLevel.match(/\bfase\s*([a-f])\b/i);
+    const coursePhase = phaseMatch?.[1]?.toUpperCase() ?? null;
 
-    // Validasi jenjang pendidikan
-    const levelMatches =
-      courseLevel === studentLevel ||
-      (studentLevel === "SMP" && isPhaseD);
+    // Jika kursus menggunakan nama fase A-F.
+    if (coursePhase) {
+      // Fase harus sama dengan fase siswa.
+      if (!studentPhase || coursePhase !== studentPhase) {
+        return false;
+      }
 
-    if (!levelMatches) return false;
+      // Jika grade kursus diisi, pastikan masih dalam rentang fase.
+      const allowedGrades = phaseGradeRanges[coursePhase];
 
-    // Kelas 7, 8, dan 9 menggunakan materi Fase D yang sama
-    if (
-      studentLevel === "SMP" &&
-      studentProfile.grade !== null &&
-      studentProfile.grade >= 7 &&
-      studentProfile.grade <= 9
-    ) {
       if (
         course.grade !== null &&
-        ![7, 8, 9].includes(Number(course.grade))
+        !allowedGrades.includes(Number(course.grade))
       ) {
         return false;
       }
@@ -494,7 +521,14 @@ const matchingCourses = ((courseData ?? []) as CourseRow[]).filter(
       return true;
     }
 
-    // Jenjang lainnya tetap menggunakan pemetaan sebelumnya
+    // Jika kursus tidak menggunakan nama fase,
+    // gunakan jenjang dan pemetaan kelas seperti sebelumnya.
+    const courseLevel = normalizeLevel(course.level);
+
+    if (courseLevel !== studentLevel) {
+      return false;
+    }
+
     if (
       course.grade !== null &&
       materialGrade !== null &&
@@ -506,6 +540,21 @@ const matchingCourses = ((courseData ?? []) as CourseRow[]).filter(
     return true;
   }
 );
+
+console.info("[GradeUp] Pemetaan fase materi:", {
+  studentLevel,
+  studentGrade: grade,
+  studentPhase,
+  materialGrade,
+  totalCourses: courseData?.length ?? 0,
+  matchingCourses: matchingCourses.length,
+  matchingCourseDetails: matchingCourses.map((course) => ({
+    title: course.title,
+    level: course.level,
+    grade: course.grade,
+    category: course.category,
+  })),
+});
 
 
         console.info("[GradeUp] Kursus sesuai profil:", {
