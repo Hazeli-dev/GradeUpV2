@@ -79,27 +79,34 @@ function getLevelLabel(level: string) {
   return labels[level] || level || "Semua Jenjang";
 }
 
-
+// Mengembalikan kelas-kelas yang berada dalam fase yang sama.
 function getGradesInSamePhase(
   level: string | null | undefined,
   courseGrade: number | null
 ): number[] {
   if (!level || courseGrade == null) return [];
 
+  // SD: Fase A, B, dan C.
   if (level === "SD") {
     if ([1, 2].includes(courseGrade)) return [1, 2];
     if ([3, 4].includes(courseGrade)) return [3, 4];
     if ([5, 6].includes(courseGrade)) return [5, 6];
   }
 
+  // SMP: Fase D, kelas 7–9.
   if (level === "SMP" && [7, 8, 9].includes(courseGrade)) {
     return [7, 8, 9];
   }
 
-  if (["SMA", "SMK"].includes(level) && courseGrade === 10) {
+  // SMA/SMK: Fase E, kelas 10.
+  if (
+    ["SMA", "SMK"].includes(level) &&
+    courseGrade === 10
+  ) {
     return [10];
   }
 
+  // SMA/SMK: Fase F, kelas 11–12.
   if (
     ["SMA", "SMK"].includes(level) &&
     [11, 12].includes(courseGrade)
@@ -107,13 +114,9 @@ function getGradesInSamePhase(
     return [11, 12];
   }
 
+  // Jenjang atau kelas lainnya menggunakan kelas persis.
   return [courseGrade];
 }
-
-  // Jenjang atau kelas lainnya tetap menggunakan kelas persis.
-  return [courseGrade];
-}
-
 
 export default function StudentCoursesPage() {
   const navigate = useNavigate();
@@ -381,7 +384,6 @@ export default function StudentCoursesPage() {
   );
 
   // Jenjang yang tersedia berdasarkan katalog dan profil.
-  // Nilainya dipastikan selalu string agar aman untuk TypeScript.
   const availableLevels = useMemo(() => {
     const levels = new Set<string>(
       courses
@@ -429,7 +431,7 @@ export default function StudentCoursesPage() {
     [courses]
   );
 
-  // Filter katalog berdasarkan pencarian, kategori, jenjang, dan kelas.
+  // Filter katalog berdasarkan pencarian, kategori, jenjang, dan fase kelas.
   const filtered = useMemo(() => {
     const keyword = q.trim().toLocaleLowerCase("id-ID");
 
@@ -455,19 +457,15 @@ export default function StudentCoursesPage() {
         (course) =>
           selectedLevel === ALL || course.level === selectedLevel
       )
-      
-.filter(
-  (course) =>
-    selectedGrade === ALL ||
-    (
-      course.grade != null &&
-      getGradesInSamePhase(
-        course.level,
-        course.grade
-      ).includes(Number(selectedGrade))
-    )
-);
+      .filter((course) => {
+        if (selectedGrade === ALL) return true;
+        if (course.grade == null) return false;
 
+        return getGradesInSamePhase(
+          course.level,
+          course.grade
+        ).includes(Number(selectedGrade));
+      });
   }, [courses, q, category, selectedLevel, selectedGrade]);
 
   // Reset seluruh filter.
