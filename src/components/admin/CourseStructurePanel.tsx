@@ -456,6 +456,7 @@ export default function CourseStructurePanel({
 // PUBLISH / UNPUBLISH SECTION
 // =========================================================
 
+
 const toggleSectionPublication = async (section: SectionItem) => {
   if (working) return;
 
@@ -464,30 +465,67 @@ const toggleSectionPublication = async (section: SectionItem) => {
   setWorking(true);
 
   try {
-    const { data, error: updateError } = await supabase
+    // 1. Perbarui status section
+    const { error: sectionError } = await supabase
       .from("lesson_sections")
-      .update({
-        is_published: nextStatus,
-      })
+      .update({ is_published: nextStatus })
       .eq("id", section.id)
-      .eq("lesson_id", section.lesson_id)
+      .eq("lesson_id", section.lesson_id);
+
+    if (sectionError) throw sectionError;
+
+    // 2. Ambil seluruh section dalam sesi
+    const { data: sectionData, error: sectionsError } = await supabase
+      .from("lesson_sections")
       .select("id, is_published")
+      .eq("lesson_id", section.lesson_id);
+
+    if (sectionsError) throw sectionsError;
+
+    const allSectionsPublished =
+      !!sectionData?.length &&
+      sectionData.every((item) => item.is_published);
+
+    // 3. Perbarui status sesi berdasarkan seluruh section
+    const { data: lessonData, error: lessonError } = await supabase
+      .from("course_lessons")
+      .update({ is_published: allSectionsPublished })
+      .eq("id", section.lesson_id)
+      .select("id, module_id")
       .single();
 
-    if (updateError) throw updateError;
+    if (lessonError) throw lessonError;
 
-    setSections((current) =>
-      current.map((item) =>
-        item.id === section.id
-          ? { ...item, is_published: data.is_published }
-          : item
-      )
-    );
+    // 4. Periksa seluruh sesi dalam modul
+    const { data: lessonList, error: lessonListError } = await supabase
+      .from("course_lessons")
+      .select("id, is_published")
+      .eq("module_id", lessonData.module_id);
+
+    if (lessonListError) throw lessonListError;
+
+    const allLessonsPublished =
+      !!lessonList?.length &&
+      lessonList.every((item) => item.is_published);
+
+    // 5. Perbarui status modul
+    const { error: moduleError } = await supabase
+      .from("course_modules")
+      .update({ is_published: allLessonsPublished })
+      .eq("id", lessonData.module_id);
+
+    if (moduleError) throw moduleError;
+
+    // 6. Refresh seluruh struktur agar status UI sesuai database
+    await Promise.all([
+      fetchStructure(),
+      fetchSections(section.lesson_id),
+    ]);
 
     toast.success(
       nextStatus
-        ? "Bagian materi berhasil diterbitkan dan dapat dilihat siswa."
-        : "Bagian materi berhasil dijadikan draft."
+        ? "Materi berhasil diterbitkan. Status sesi dan modul telah disinkronkan."
+        : "Materi dijadikan draft. Status sesi dan modul telah disinkronkan."
     );
   } catch (err: unknown) {
     console.error("Toggle section publication error:", err);
@@ -496,10 +534,17 @@ const toggleSectionPublication = async (section: SectionItem) => {
       "Gagal mengubah status publikasi: " +
         (err instanceof Error ? err.message : "Terjadi kesalahan")
     );
+
+    // Muat ulang untuk menghindari tampilan yang tidak sesuai database
+    await Promise.all([
+      fetchStructure(),
+      fetchSections(section.lesson_id),
+    ]);
   } finally {
     setWorking(false);
   }
 };
+
   // =========================================================
   // UPDATE SECTION TITLE
   // =========================================================
