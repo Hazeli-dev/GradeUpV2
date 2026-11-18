@@ -1,5 +1,19 @@
+
 import { supabase } from "@/lib/supabase";
 import { delay } from "./delay";
+
+// =====================================================
+// KONFIGURASI DUITKU
+// =====================================================
+
+// Merchant Code khusus Production GradeUp.
+// Transaksi Sandbox dan transaksi yang tidak diketahui
+// environment-nya tidak akan ditampilkan di halaman admin.
+const DUITKU_PRODUCTION_MERCHANT_CODE = "D25895";
+
+// =====================================================
+// INTERFACE
+// =====================================================
 
 export interface ProfileRecord {
   id: string;
@@ -28,12 +42,16 @@ export interface TransactionRecord {
   status: "Berhasil" | "Menunggu" | "Gagal" | "Refund";
   created_at: string;
   date: string;
-  merchant_order_id: string; // Properti utama Order ID Duitku
-  invoice: string;           // Fallback untuk komponen UI lama
+  merchant_order_id: string;
+  invoice: string;
   method: string;
   payment_url?: string;
   reference?: string;
 }
+
+// =====================================================
+// NORMALISASI STATUS TRANSAKSI
+// =====================================================
 
 function normalizeTransactionStatus(
   status: unknown
@@ -82,7 +100,24 @@ function normalizeTransactionStatus(
   return "Menunggu";
 }
 
-// 1. Daftar pengguna
+// =====================================================
+// VALIDASI TRANSAKSI PRODUCTION DUITKU
+// =====================================================
+
+function isDuitkuProductionTransaction(tx: any): boolean {
+  const merchantCode = String(
+    tx?.raw_response?.merchantCode ?? ""
+  )
+    .trim()
+    .toUpperCase();
+
+  return merchantCode === DUITKU_PRODUCTION_MERCHANT_CODE;
+}
+
+// =====================================================
+// 1. DAFTAR PENGGUNA
+// =====================================================
+
 export async function listUsers(): Promise<ProfileRecord[]> {
   await delay();
 
@@ -110,11 +145,14 @@ export async function listUsers(): Promise<ProfileRecord[]> {
   })) as ProfileRecord[];
 }
 
-// 2. Daftar transaksi Duitku beserta profil pengguna
+// =====================================================
+// 2. DAFTAR TRANSAKSI DUITKU PRODUCTION
+// =====================================================
+
 export async function listTransactions(): Promise<TransactionRecord[]> {
   await delay();
 
-  // Mengambil data dari tabel payment_transactions (Tabel resmi Duitku GradeUp)
+  // Mengambil transaksi dari tabel payment_transactions.
   const { data: transactions, error } = await supabase
     .from("payment_transactions")
     .select(`
@@ -125,6 +163,7 @@ export async function listTransactions(): Promise<TransactionRecord[]> {
 
   if (error) {
     console.error("Gagal mengambil transaksi Duitku:", error.message);
+
     throw new Error(
       `Gagal mengambil data transaksi: ${error.message}`
     );
@@ -134,9 +173,20 @@ export async function listTransactions(): Promise<TransactionRecord[]> {
     return [];
   }
 
+  // Hanya transaksi dengan Merchant Code Production.
+  // Sandbox dan transaksi tanpa identitas merchant disembunyikan.
+  const productionTransactions = transactions.filter(
+    (tx: any) => isDuitkuProductionTransaction(tx)
+  );
+
+  if (!productionTransactions.length) {
+    return [];
+  }
+
+  // Ambil ID pengguna dari transaksi Production saja.
   const userIds = [
     ...new Set(
-      transactions
+      productionTransactions
         .map((tx: any) => tx.user_id)
         .filter((id: string | null) => Boolean(id))
     ),
@@ -144,6 +194,7 @@ export async function listTransactions(): Promise<TransactionRecord[]> {
 
   let profilesById = new Map<string, any>();
 
+  // Ambil profil pengguna.
   if (userIds.length > 0) {
     const { data: profiles, error: profileError } = await supabase
       .from("profiles")
@@ -169,7 +220,8 @@ export async function listTransactions(): Promise<TransactionRecord[]> {
     );
   }
 
-  return transactions.map((tx: any) => {
+  // Format data transaksi untuk halaman Admin.
+  return productionTransactions.map((tx: any) => {
     const profile = tx.user_id
       ? profilesById.get(tx.user_id)
       : null;
@@ -182,11 +234,11 @@ export async function listTransactions(): Promise<TransactionRecord[]> {
       email ||
       "Pengguna tidak diketahui";
 
-    const createdAt = tx.created_at || new Date().toISOString();
+    const createdAt =
+      tx.created_at || new Date().toISOString();
 
     const orderId =
       tx.merchant_order_id ||
-      tx.invoice_number ||
       `INV-${String(tx.id).slice(0, 8).toUpperCase()}`;
 
     const planName =
@@ -207,7 +259,7 @@ export async function listTransactions(): Promise<TransactionRecord[]> {
       created_at: createdAt,
       date: createdAt,
       merchant_order_id: orderId,
-      invoice: orderId, // Kompatibilitas ganda agar tidak merusak UI lama
+      invoice: orderId,
       method: tx.payment_method || "Duitku",
       payment_url: tx.payment_url,
       reference: tx.reference,
@@ -215,7 +267,10 @@ export async function listTransactions(): Promise<TransactionRecord[]> {
   });
 }
 
-// 3. Pembuatan transaksi harus dilakukan melalui backend pembayaran.
+// =====================================================
+// 3. PEMBUATAN TRANSAKSI
+// =====================================================
+
 export async function createTransaction(_payload: {
   user_id: string;
   user_email: string;
@@ -229,7 +284,10 @@ export async function createTransaction(_payload: {
   );
 }
 
-// 4. Status pembayaran hanya boleh diperbarui oleh Edge Function duitku-callback.
+// =====================================================
+// 4. PEMBARUAN STATUS TRANSAKSI
+// =====================================================
+
 export async function updateTransactionStatus(
   _transactionId: string,
   _newStatus: any
@@ -239,7 +297,10 @@ export async function updateTransactionStatus(
   );
 }
 
-// 5. Mengubah role pengguna melalui RPC khusus admin.
+// =====================================================
+// 5. MENGUBAH ROLE PENGGUNA
+// =====================================================
+
 export async function updateUserRole(
   userId: string,
   newRole: "admin" | "student"
@@ -268,6 +329,10 @@ export async function updateUserRole(
   return true;
 }
 
+// =====================================================
+// INTERFACE PAKET UJIAN
+// =====================================================
+
 export interface ExamPackageRecord {
   id: string;
   title: string;
@@ -280,7 +345,10 @@ export interface ExamPackageRecord {
   created_at: string;
 }
 
-// 6. Daftar paket ujian
+// =====================================================
+// 6. DAFTAR PAKET UJIAN
+// =====================================================
+
 export async function listExamPackages(): Promise<ExamPackageRecord[]> {
   await delay();
 
@@ -301,7 +369,10 @@ export async function listExamPackages(): Promise<ExamPackageRecord[]> {
   return (data as ExamPackageRecord[]) || [];
 }
 
-// 7. Membuat paket ujian
+// =====================================================
+// 7. MEMBUAT PAKET UJIAN
+// =====================================================
+
 export async function createExamPackage(payload: {
   title: string;
   description?: string;
@@ -334,7 +405,10 @@ export async function createExamPackage(payload: {
   return data;
 }
 
-// 8. Menghapus paket ujian
+// =====================================================
+// 8. MENGHAPUS PAKET UJIAN
+// =====================================================
+
 export async function deleteExamPackage(packageId: string) {
   const { error } = await supabase
     .from("exam_packages")
