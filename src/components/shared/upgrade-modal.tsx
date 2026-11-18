@@ -7,6 +7,8 @@ import {
   RefreshCw,
   Tag,
   X,
+  CreditCard,
+  Wallet,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -33,6 +35,22 @@ interface PremiumPlan {
   features: string[] | null;
   is_active: boolean;
   sort_order: number;
+}
+
+interface DuitkuPaymentMethod {
+  payment_method: string;
+  payment_name: string;
+  payment_image?: string;
+  total_fee?: number;
+}
+
+interface PaymentMethodsResponse {
+  success?: boolean;
+  environment?: string;
+  amount?: number;
+  total?: number;
+  payment_methods?: DuitkuPaymentMethod[];
+  error?: string;
 }
 
 interface PaymentStatusResponse {
@@ -71,6 +89,16 @@ export function UpgradeModal({
 
   const [loading, setLoading] = useState(false);
   const [loadingError, setLoadingError] = useState("");
+
+  const [paymentMethods, setPaymentMethods] = useState<
+    DuitkuPaymentMethod[]
+  >([]);
+
+  const [selectedPaymentMethod, setSelectedPaymentMethod] =
+    useState("");
+
+  const [methodsLoading, setMethodsLoading] = useState(false);
+  const [methodsError, setMethodsError] = useState("");
 
   const [checkoutLoading, setCheckoutLoading] = useState(false);
   const [invoice, setInvoice] = useState("");
@@ -142,11 +170,125 @@ export function UpgradeModal({
   }, [open]);
 
   // =================================================
+  // LOAD DUITKU PAYMENT METHODS
+  // =================================================
+  // Metode diambil langsung dari Duitku melalui Edge Function.
+  // Tidak ada daftar metode yang di-hardcode.
+  // =================================================
+
+  useEffect(() => {
+    if (!open || !plan) return;
+
+    let active = true;
+
+    async function loadPaymentMethods() {
+      setMethodsLoading(true);
+      setMethodsError("");
+      setPaymentMethods([]);
+      setSelectedPaymentMethod("");
+
+      try {
+        const amount = Math.round(Number(plan.price));
+
+        if (!Number.isSafeInteger(amount) || amount <= 0) {
+          throw new Error("Nominal paket Premium tidak valid.");
+        }
+
+        const { data, error } = await supabase.functions.invoke(
+          "get-payment-methods",
+          {
+            body: {
+              amount,
+            },
+          }
+        );
+
+        if (error) {
+          console.error("Load Duitku payment methods:", error);
+
+          const responseData = error.context
+            ? await error.context.json().catch(() => null)
+            : null;
+
+          throw new Error(
+            responseData?.error ||
+              error.message ||
+              "Gagal memuat metode pembayaran."
+          );
+        }
+
+        const result = data as PaymentMethodsResponse;
+
+        if (!result?.success) {
+          throw new Error(
+            result?.error ||
+              "Daftar metode pembayaran tidak tersedia."
+          );
+        }
+
+        const availableMethods = (
+          Array.isArray(result.payment_methods)
+            ? result.payment_methods
+            : []
+        ).filter(
+          (method) =>
+            typeof method.payment_method === "string" &&
+            method.payment_method.trim() &&
+            typeof method.payment_name === "string" &&
+            method.payment_name.trim()
+        );
+
+        if (!active) return;
+
+        setPaymentMethods(availableMethods);
+
+        // Pilih metode pertama yang tersedia secara otomatis.
+        setSelectedPaymentMethod(
+          availableMethods[0]?.payment_method ?? ""
+        );
+
+        if (availableMethods.length === 0) {
+          setMethodsError(
+            "Belum ada metode pembayaran yang tersedia untuk paket ini."
+          );
+        }
+      } catch (error) {
+        if (!active) return;
+
+        console.error("Payment methods error:", error);
+
+        setMethodsError(
+          error instanceof Error
+            ? error.message
+            : "Gagal memuat metode pembayaran."
+        );
+      } finally {
+        if (active) {
+          setMethodsLoading(false);
+        }
+      }
+    }
+
+    loadPaymentMethods();
+
+    return () => {
+      active = false;
+    };
+  }, [open, plan?.id, plan?.price]);
+
+  // =================================================
   // START DUITKU CHECKOUT + PROMO
   // =================================================
 
   const handleChoosePlan = async () => {
-    if (!plan || checkoutLoading) return;
+    if (
+      !plan ||
+      checkoutLoading ||
+      methodsLoading ||
+      !selectedPaymentMethod
+    ) {
+      return;
+    }
 
     setMessage("");
     setPaymentStatus(null);
@@ -174,7 +316,7 @@ export function UpgradeModal({
         {
           body: {
             plan_id: plan.id,
-            payment_method: "VC",
+            payment_method: selectedPaymentMethod,
             promo_code: normalizedPromoCode || null,
           },
         }
@@ -196,21 +338,19 @@ export function UpgradeModal({
 
       const result = data as CheckoutResponse;
 
-      if (!result?.payment_url) {
+      if (!result?.success || !result?.payment_url) {
         throw new Error(
           result?.error ||
             "URL pembayaran tidak diterima dari Duitku."
         );
       }
 
-      // Simpan ID transaksi dari respons backend.
       const merchantOrderId = result.merchant_order_id;
 
       if (merchantOrderId) {
         setInvoice(merchantOrderId);
       }
 
-      // Simpan ringkasan pembayaran dari hasil kalkulasi database.
       if (
         typeof result.original_amount === "number" &&
         typeof result.discount_amount === "number" &&
@@ -464,7 +604,11 @@ export function UpgradeModal({
                 <button
                   key={item.id}
                   type="button"
-                  onClick={() => setSelected(item.id)}
+                  onClick={() => {
+                    setSelected(item.id);
+                    setMessage("");
+                    setCheckoutSummary(null);
+                  }}
                   className={cn(
                     "relative rounded-2xl border-2 p-4 text-left transition-all",
                     selected === item.id
@@ -535,6 +679,124 @@ export function UpgradeModal({
               </ul>
             )}
 
+            {/* PILIH METODE PEMBAYARAN */}
+            <div className="space-y-3 rounded-xl border bg-card p-4">
+              <div className="flex items-center justify-between gap-2">
+                <div>
+                  <p className="text-sm font-semibold">
+                    Metode Pembayaran
+                  </p>
+
+                  <p className="mt-0.5 text-xs text-muted-foreground">
+                    Pilih metode pembayaran yang tersedia.
+                  </p>
+                </div>
+
+                <Wallet className="h-5 w-5 text-primary" />
+              </div>
+
+              {methodsLoading ? (
+                <div className="flex min-h-24 items-center justify-center gap-2 text-sm text-muted-foreground">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Memuat metode pembayaran...
+                </div>
+              ) : methodsError ? (
+                <div className="space-y-3 rounded-lg border border-destructive/20 bg-destructive/5 p-3">
+                  <p className="text-sm text-destructive">
+                    {methodsError}
+                  </p>
+
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="w-full"
+                    onClick={() => {
+                      // Memicu pemuatan ulang daftar metode.
+                      setSelected("");
+                      window.setTimeout(() => {
+                        setSelected(plan.id);
+                      }, 0);
+                    }}
+                  >
+                    <RefreshCw className="mr-2 h-4 w-4" />
+                    Coba Muat Ulang
+                  </Button>
+                </div>
+              ) : paymentMethods.length === 0 ? (
+                <p className="rounded-lg bg-muted/50 p-3 text-center text-sm text-muted-foreground">
+                  Belum ada metode pembayaran tersedia.
+                </p>
+              ) : (
+                <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+                  {paymentMethods.map((method) => {
+                    const isSelected =
+                      selectedPaymentMethod ===
+                      method.payment_method;
+
+                    return (
+                      <button
+                        key={method.payment_method}
+                        type="button"
+                        onClick={() =>
+                          setSelectedPaymentMethod(
+                            method.payment_method
+                          )
+                        }
+                        aria-pressed={isSelected}
+                        className={cn(
+                          "relative flex min-h-[86px] flex-col items-center justify-center gap-2 rounded-xl border-2 p-3 text-center transition-all",
+                          isSelected
+                            ? "border-primary bg-primary/5"
+                            : "border-border hover:border-primary/40"
+                        )}
+                      >
+                        {isSelected && (
+                          <span className="absolute right-2 top-2">
+                            <Check className="h-4 w-4 text-primary" />
+                          </span>
+                        )}
+
+                        {method.payment_image ? (
+                          <img
+                            src={method.payment_image}
+                            alt={method.payment_name}
+                            loading="lazy"
+                            className="h-8 max-w-[100px] object-contain"
+                            onError={(event) => {
+                              event.currentTarget.style.display =
+                                "none";
+                            }}
+                          />
+                        ) : (
+                          <CreditCard className="h-7 w-7 text-muted-foreground" />
+                        )}
+
+                        <span className="text-xs font-semibold leading-tight">
+                          {method.payment_name}
+                        </span>
+
+                        {typeof method.total_fee === "number" &&
+                          method.total_fee > 0 && (
+                            <span className="text-[10px] text-muted-foreground">
+                              Biaya: {formatRupiah(method.total_fee)}
+                            </span>
+                          )}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+
+              {!methodsLoading &&
+                !methodsError &&
+                paymentMethods.length > 0 && (
+                  <p className="text-xs text-muted-foreground">
+                    {paymentMethods.length} metode pembayaran tersedia dari Duitku.
+                  </p>
+                )}
+            </div>
+
             {/* INPUT KODE PROMO */}
             <div className="space-y-2 rounded-xl border bg-card p-4">
               <div className="flex items-center gap-2">
@@ -552,12 +814,6 @@ export function UpgradeModal({
                   onChange={(event) => {
                     setPromoCode(event.target.value);
                     setMessage("");
-                  }}
-                  onKeyDown={(event) => {
-                    if (event.key === "Enter") {
-                      event.preventDefault();
-                      handleChoosePlan();
-                    }
                   }}
                   placeholder="Masukkan kode promo"
                   maxLength={50}
@@ -631,22 +887,36 @@ export function UpgradeModal({
               size="lg"
               className="w-full"
               onClick={handleChoosePlan}
-              disabled={!plan || checkoutLoading}
+              disabled={
+                !plan ||
+                !selectedPaymentMethod ||
+                methodsLoading ||
+                !!methodsError ||
+                checkoutLoading
+              }
             >
               {checkoutLoading ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                   Menyiapkan pembayaran...
                 </>
+              ) : methodsLoading ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Memuat metode pembayaran...
+                </>
               ) : (
-                `Pilih ${plan?.name ?? "Paket"}`
+                `Lanjutkan dengan ${paymentMethods.find(
+                  (method) =>
+                    method.payment_method === selectedPaymentMethod
+                )?.payment_name ?? "Pembayaran"}`
               )}
             </Button>
           </>
         )}
 
         <p className="text-center text-xs text-muted-foreground">
-          Pembayaran otomatis & aman melalui Duitku Payment Gateway.
+          Pembayaran diproses melalui Duitku Payment Gateway.
         </p>
       </DialogContent>
     </Dialog>
