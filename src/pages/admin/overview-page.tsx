@@ -1,7 +1,7 @@
+
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import {
-  Area,
   AreaChart,
   Bar,
   BarChart,
@@ -51,11 +51,21 @@ import {
 } from "@/utils/format";
 import { CHART_COLORS } from "@/constants";
 
+// =====================================================
+// KONFIGURASI DUITKU PRODUCTION
+// =====================================================
+
+const DUITKU_PRODUCTION_MERCHANT_CODE = "D25895";
+
 const donutColors = [
   CHART_COLORS.primary,
   CHART_COLORS.secondary,
   CHART_COLORS.accent,
 ];
+
+// =====================================================
+// TYPES
+// =====================================================
 
 type ProfileRow = {
   id: string;
@@ -138,6 +148,10 @@ const emptyData: OverviewData = {
   packages: [],
 };
 
+// =====================================================
+// HELPER FUNCTIONS
+// =====================================================
+
 function getTransactionAmount(transaction: TransactionRow) {
   const amount = Number(
     transaction.amount ?? transaction.gross_amount ?? 0
@@ -188,10 +202,18 @@ function getProfileName(profile: ProfileRow) {
   );
 }
 
+// =====================================================
+// HALAMAN OVERVIEW ADMIN
+// =====================================================
+
 export default function AdminOverviewPage() {
   const [data, setData] = useState<OverviewData>(emptyData);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  // ===================================================
+  // MEMUAT DATA DASHBOARD
+  // ===================================================
 
   const loadOverview = useCallback(async () => {
     setLoading(true);
@@ -210,12 +232,13 @@ export default function AdminOverviewPage() {
         now.getTime() - 30 * 24 * 60 * 60 * 1000
       );
 
+      // Mengambil data dasar dan daftar transaksi
+      // yang memiliki Merchant Code Production.
       const [
         profilesResult,
         packagesResult,
         attemptsResult,
-        transactionsResult,
-        recentTransactionsResult,
+        productionPaymentsResult,
       ] = await Promise.all([
         supabase
           .from("profiles")
@@ -235,22 +258,16 @@ export default function AdminOverviewPage() {
           .gte("created_at", thirtyDaysAgo.toISOString()),
 
         supabase
-          .from("transactions")
-          .select(
-            "id, user_id, invoice_number, plan_name, amount, gross_amount, status, payment_method, paid_at, created_at"
-          )
-          .eq("status", "settlement")
-          .gte("created_at", sixMonthsAgo.toISOString()),
-
-        supabase
-          .from("transactions")
-          .select(
-            "id, user_id, invoice_number, plan_name, amount, gross_amount, status, payment_method, paid_at, created_at"
-          )
-          .order("created_at", { ascending: false })
-          .limit(5),
+          .from("payment_transactions")
+          .select("merchant_order_id")
+          .filter(
+            "raw_response->>merchantCode",
+            "eq",
+            DUITKU_PRODUCTION_MERCHANT_CODE
+          ),
       ]);
 
+      // Validasi hasil query dasar.
       if (profilesResult.error) {
         throw new Error(
           `Gagal mengambil data pengguna: ${profilesResult.error.message}`
@@ -269,26 +286,83 @@ export default function AdminOverviewPage() {
         );
       }
 
-      if (transactionsResult.error) {
+      if (productionPaymentsResult.error) {
         throw new Error(
-          `Gagal mengambil pendapatan: ${transactionsResult.error.message}`
+          `Gagal memverifikasi transaksi Production: ${productionPaymentsResult.error.message}`
         );
       }
 
-      if (recentTransactionsResult.error) {
-        throw new Error(
-          `Gagal mengambil transaksi terbaru: ${recentTransactionsResult.error.message}`
-        );
+      // Mengambil Order ID transaksi Production saja.
+      const productionOrderIds = [
+        ...new Set(
+          (productionPaymentsResult.data || [])
+            .map((payment: any) => payment.merchant_order_id)
+            .filter(
+              (orderId: string | null): orderId is string =>
+                Boolean(orderId)
+            )
+        ),
+      ];
+
+      let productionTransactions: TransactionRow[] = [];
+      let recentProductionTransactions: TransactionRow[] = [];
+
+      // Jika belum ada transaksi Production,
+      // dashboard tetap berjalan dengan data transaksi kosong.
+      if (productionOrderIds.length > 0) {
+        const [
+          transactionsResult,
+          recentTransactionsResult,
+        ] = await Promise.all([
+          // Pendapatan: hanya transaksi settlement
+          // dari Merchant Code Production.
+          supabase
+            .from("transactions")
+            .select(
+              "id, user_id, invoice_number, plan_name, amount, gross_amount, status, payment_method, paid_at, created_at"
+            )
+            .in("invoice_number", productionOrderIds)
+            .eq("status", "settlement")
+            .gte("created_at", sixMonthsAgo.toISOString()),
+
+          // Transaksi terbaru: semua status,
+          // tetapi hanya transaksi Production.
+          supabase
+            .from("transactions")
+            .select(
+              "id, user_id, invoice_number, plan_name, amount, gross_amount, status, payment_method, paid_at, created_at"
+            )
+            .in("invoice_number", productionOrderIds)
+            .order("created_at", { ascending: false })
+            .limit(5),
+        ]);
+
+        if (transactionsResult.error) {
+          throw new Error(
+            `Gagal mengambil pendapatan: ${transactionsResult.error.message}`
+          );
+        }
+
+        if (recentTransactionsResult.error) {
+          throw new Error(
+            `Gagal mengambil transaksi terbaru: ${recentTransactionsResult.error.message}`
+          );
+        }
+
+        productionTransactions =
+          (transactionsResult.data || []) as TransactionRow[];
+
+        recentProductionTransactions =
+          (recentTransactionsResult.data || []) as TransactionRow[];
       }
 
+      // Simpan seluruh data dashboard.
       setData({
         profiles: (profilesResult.data || []) as ProfileRow[],
         packages: (packagesResult.data || []) as ExamPackageRow[],
         attempts: (attemptsResult.data || []) as ExamAttemptRow[],
-        transactions: (transactionsResult.data ||
-          []) as TransactionRow[],
-        recentTransactions: (recentTransactionsResult.data ||
-          []) as TransactionRow[],
+        transactions: productionTransactions,
+        recentTransactions: recentProductionTransactions,
       });
     } catch (err) {
       const message =
@@ -296,6 +370,7 @@ export default function AdminOverviewPage() {
           ? err.message
           : "Terjadi kesalahan saat memuat dashboard.";
 
+      console.error("Gagal memuat Overview Admin:", err);
       setError(message);
     } finally {
       setLoading(false);
@@ -305,6 +380,10 @@ export default function AdminOverviewPage() {
   useEffect(() => {
     void loadOverview();
   }, [loadOverview]);
+
+  // ===================================================
+  // STATISTIK UTAMA
+  // ===================================================
 
   const now = new Date();
 
@@ -335,6 +414,10 @@ export default function AdminOverviewPage() {
     [data.packages]
   );
 
+  // ===================================================
+  // PENDAPATAN BULAN INI
+  // ===================================================
+
   const currentMonthRevenue = useMemo(() => {
     return data.transactions.reduce((total, transaction) => {
       const date = getTransactionDate(transaction);
@@ -349,6 +432,10 @@ export default function AdminOverviewPage() {
       return total + getTransactionAmount(transaction);
     }, 0);
   }, [data.transactions]);
+
+  // ===================================================
+  // DATA GRAFIK BULANAN
+  // ===================================================
 
   const monthlyData = useMemo<MonthlyData[]>(() => {
     const result: MonthlyData[] = [];
@@ -417,6 +504,10 @@ export default function AdminOverviewPage() {
     return result;
   }, [data.profiles, data.transactions]);
 
+  // ===================================================
+  // PENDAPATAN BERDASARKAN PAKET
+  // ===================================================
+
   const revenueByPlan = useMemo<PlanRevenue[]>(() => {
     const grouped = new Map<string, number>();
 
@@ -434,6 +525,10 @@ export default function AdminOverviewPage() {
       .map(([name, value]) => ({ name, value }))
       .sort((a, b) => b.value - a.value);
   }, [data.transactions]);
+
+  // ===================================================
+  // REGISTRASI TERBARU
+  // ===================================================
 
   const recentUsers = useMemo<RecentUser[]>(() => {
     return [...data.profiles]
@@ -457,6 +552,10 @@ export default function AdminOverviewPage() {
       }));
   }, [data.profiles]);
 
+  // ===================================================
+  // TRANSAKSI TERBARU
+  // ===================================================
+
   const recentTransactions = useMemo<RecentTransaction[]>(() => {
     const profileMap = new Map(
       data.profiles.map((profile) => [
@@ -479,6 +578,10 @@ export default function AdminOverviewPage() {
     }));
   }, [data.profiles, data.recentTransactions]);
 
+  // ===================================================
+  // LOADING DAN ERROR
+  // ===================================================
+
   if (loading) {
     return <PageSkeleton />;
   }
@@ -491,6 +594,10 @@ export default function AdminOverviewPage() {
       />
     );
   }
+
+  // ===================================================
+  // TAMPILAN OVERVIEW ADMIN
+  // ===================================================
 
   return (
     <div className="space-y-6">
@@ -525,12 +632,15 @@ export default function AdminOverviewPage() {
         </div>
 
         <Badge variant="outline">
-          Diperbarui {now.toLocaleTimeString("id-ID", {
+          Diperbarui{" "}
+          {now.toLocaleTimeString("id-ID", {
             hour: "2-digit",
             minute: "2-digit",
           })}
         </Badge>
       </div>
+
+      {/* STATISTIK UTAMA */}
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard
@@ -558,9 +668,11 @@ export default function AdminOverviewPage() {
           label="Pendapatan"
           value={formatRupiah(currentMonthRevenue)}
           icon={Wallet}
-          hint="Transaksi settlement bulan ini"
+          hint="Transaksi Production settlement bulan ini"
         />
       </div>
+
+      {/* GRAFIK PENDAFTAR DAN PENDAPATAN */}
 
       <div className="grid gap-6 lg:grid-cols-3">
         <ChartCard
@@ -607,7 +719,7 @@ export default function AdminOverviewPage() {
 
         <ChartCard
           title="Pendapatan per Paket"
-          description="Komposisi transaksi berhasil dalam 6 bulan terakhir"
+          description="Komposisi transaksi Production berhasil dalam 6 bulan terakhir"
         >
           {revenueByPlan.length > 0 ? (
             <ResponsiveContainer width="100%" height="100%">
@@ -649,16 +761,18 @@ export default function AdminOverviewPage() {
               <div>
                 <Wallet className="mx-auto h-8 w-8 text-muted-foreground" />
                 <p className="mt-2 text-sm font-medium">
-                  Belum ada transaksi berhasil
+                  Belum ada transaksi Production
                 </p>
                 <p className="mt-1 text-xs text-muted-foreground">
-                  Data pendapatan akan muncul setelah pembayaran settlement.
+                  Data pendapatan akan muncul setelah pembayaran Production berhasil.
                 </p>
               </div>
             </div>
           )}
         </ChartCard>
       </div>
+
+      {/* GRAFIK PERTUMBUHAN PENGGUNA */}
 
       <div className="grid gap-6 lg:grid-cols-3">
         <ChartCard
@@ -726,6 +840,8 @@ export default function AdminOverviewPage() {
           </ResponsiveContainer>
         </ChartCard>
 
+        {/* REGISTRASI TERBARU */}
+
         <Card>
           <CardHeader className="flex-row items-center justify-between space-y-0">
             <CardTitle>Registrasi Terbaru</CardTitle>
@@ -785,6 +901,8 @@ export default function AdminOverviewPage() {
           </CardContent>
         </Card>
 
+        {/* TRANSAKSI TERBARU */}
+
         <Card>
           <CardHeader className="flex-row items-center justify-between space-y-0">
             <CardTitle>Transaksi Terbaru</CardTitle>
@@ -818,16 +936,16 @@ export default function AdminOverviewPage() {
                   </div>
 
                   <PaymentBadge
-  status={
-    transaction.status === "settlement"
-      ? "Berhasil"
-      : transaction.status === "pending"
-        ? "Menunggu"
-        : transaction.status === "refund"
-          ? "Refund"
-          : "Gagal"
-  }
-/>
+                    status={
+                      transaction.status === "settlement"
+                        ? "Berhasil"
+                        : transaction.status === "pending"
+                          ? "Menunggu"
+                          : transaction.status === "refund"
+                            ? "Refund"
+                            : "Gagal"
+                    }
+                  />
                 </div>
               ))
             ) : (
@@ -835,17 +953,19 @@ export default function AdminOverviewPage() {
                 <Wallet className="mx-auto h-8 w-8 text-muted-foreground" />
 
                 <p className="mt-2 text-sm font-medium">
-                  Belum ada transaksi
+                  Belum ada transaksi Production
                 </p>
 
                 <p className="mt-1 text-xs text-muted-foreground">
-                  Transaksi pengguna akan muncul di sini.
+                  Transaksi Production pengguna akan muncul di sini.
                 </p>
               </div>
             )}
           </CardContent>
         </Card>
       </div>
+
+      {/* KETERANGAN STATISTIK */}
 
       <div className="flex items-start gap-3 rounded-xl border bg-muted/20 p-4">
         <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
@@ -856,7 +976,10 @@ export default function AdminOverviewPage() {
           </p>
 
           <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
-            Pendapatan hanya menghitung transaksi settlement.
+            Pendapatan dan grafik transaksi hanya menghitung
+            transaksi Duitku Production dengan Merchant Code D25895
+            yang berstatus settlement. Transaksi Sandbox dan transaksi
+            tanpa identitas Merchant Code Production tidak disertakan.
             Siswa aktif adalah siswa unik yang menyelesaikan ujian
             dalam 30 hari terakhir. Paket ujian dihitung dari seluruh
             data exam_packages, sedangkan jumlah paket dipublikasikan
