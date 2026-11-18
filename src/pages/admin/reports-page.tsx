@@ -302,91 +302,129 @@ export default function AdminReportsPage() {
 
   const monthCount = range === "3 bulan terakhir" ? 3 : 6;
 
-  const loadReports = useCallback(async () => {
-    setLoading(true);
-    setError(null);
 
-    try {
-      const now = new Date();
+const loadReports = useCallback(async () => {
+  setLoading(true);
+  setError(null);
 
-      const firstMonth = new Date(
-        now.getFullYear(),
-        now.getMonth() - monthCount + 1,
-        1
+  try {
+    const now = new Date();
+
+    const firstMonth = new Date(
+      now.getFullYear(),
+      now.getMonth() - monthCount + 1,
+      1
+    );
+
+    const weeklyStart = getMonday(now);
+    weeklyStart.setDate(weeklyStart.getDate() - 6 * 7);
+
+    const activityStart =
+      firstMonth < weeklyStart ? firstMonth : weeklyStart;
+
+    const DUITKU_PRODUCTION_MERCHANT_CODE = "D25895";
+
+    const [
+      profilesResult,
+      paymentTransactionsResult,
+      attemptsResult,
+    ] = await Promise.all([
+      supabase
+        .from("profiles")
+        .select(
+          "id, role, created_at, is_premium, premium_until"
+        )
+        .eq("role", "student"),
+
+      supabase
+        .from("payment_transactions")
+        .select("merchant_order_id")
+        .filter(
+          "raw_response->>merchantCode",
+          "eq",
+          DUITKU_PRODUCTION_MERCHANT_CODE
+        ),
+
+      supabase
+        .from("exam_attempts")
+        .select(
+          "id, user_id, exam_id, score, status, created_at, correct_count, wrong_count, total_questions, is_passed"
+        )
+        .eq("status", "completed")
+        .gte("created_at", activityStart.toISOString()),
+    ]);
+
+    if (profilesResult.error) {
+      throw new Error(
+        `Gagal mengambil data pengguna: ${profilesResult.error.message}`
       );
+    }
 
-      const weeklyStart = getMonday(now);
-      weeklyStart.setDate(weeklyStart.getDate() - 6 * 7);
+    if (paymentTransactionsResult.error) {
+      throw new Error(
+        `Gagal mengambil data pembayaran Duitku: ${paymentTransactionsResult.error.message}`
+      );
+    }
 
-      const activityStart =
-        firstMonth < weeklyStart ? firstMonth : weeklyStart;
+    if (attemptsResult.error) {
+      throw new Error(
+        `Gagal mengambil aktivitas ujian: ${attemptsResult.error.message}`
+      );
+    }
 
-      const [
-        profilesResult,
-        transactionsResult,
-        attemptsResult,
-      ] = await Promise.all([
-        supabase
-          .from("profiles")
-          .select(
-            "id, role, created_at, is_premium, premium_until"
+    const productionOrderIds = [
+      ...new Set(
+        (paymentTransactionsResult.data || [])
+          .map((item) => item.merchant_order_id)
+          .filter(
+            (id): id is string =>
+              typeof id === "string" && id.length > 0
           )
-          .eq("role", "student"),
+      ),
+    ];
 
-        supabase
-          .from("transactions")
-          .select(
-            "id, user_id, invoice_number, plan_name, amount, gross_amount, status, payment_method, paid_at, created_at"
-          )
-          .eq("status", "settlement"),
+    let transactions: TransactionRow[] = [];
 
-        supabase
-          .from("exam_attempts")
-          .select(
-            "id, user_id, exam_id, score, status, created_at, correct_count, wrong_count, total_questions, is_passed"
-          )
-          .eq("status", "completed")
-          .gte("created_at", activityStart.toISOString()),
-      ]);
-
-      if (profilesResult.error) {
-        throw new Error(
-          `Gagal mengambil data pengguna: ${profilesResult.error.message}`
-        );
-      }
+    if (productionOrderIds.length > 0) {
+      const transactionsResult = await supabase
+        .from("transactions")
+        .select(
+          "id, user_id, invoice_number, plan_name, amount, gross_amount, status, payment_method, paid_at, created_at"
+        )
+        .eq("status", "settlement")
+        .in("invoice_number", productionOrderIds);
 
       if (transactionsResult.error) {
         throw new Error(
-          `Gagal mengambil transaksi: ${transactionsResult.error.message}`
+          `Gagal mengambil transaksi Production: ${transactionsResult.error.message}`
         );
       }
 
-      if (attemptsResult.error) {
-        throw new Error(
-          `Gagal mengambil aktivitas ujian: ${attemptsResult.error.message}`
-        );
-      }
-
-      setData({
-        profiles: (profilesResult.data || []) as ProfileRow[],
-        transactions: (transactionsResult.data ||
-          []) as TransactionRow[],
-        attempts: (attemptsResult.data || []) as ExamAttemptRow[],
-      });
-    } catch (err) {
-      const message =
-        err instanceof Error
-          ? err.message
-          : "Terjadi kesalahan saat mengambil laporan.";
-
-      setError(message);
-      toast.error("Gagal memuat laporan", {
-        description: message,
-      });
-    } finally {
-      setLoading(false);
+      transactions = (transactionsResult.data ||
+        []) as TransactionRow[];
     }
-  }, [monthCount]);
+
+    setData({
+      profiles: (profilesResult.data || []) as ProfileRow[],
+      transactions,
+      attempts: (attemptsResult.data ||
+        []) as ExamAttemptRow[],
+    });
+  } catch (err) {
+    const message =
+      err instanceof Error
+        ? err.message
+        : "Terjadi kesalahan saat mengambil laporan.";
+
+    setError(message);
+    toast.error("Gagal memuat laporan", {
+      description: message,
+    });
+  } finally {
+    setLoading(false);
+  }
+}, [monthCount]);
+
 
   useEffect(() => {
     void loadReports();
