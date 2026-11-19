@@ -1912,3 +1912,49 @@ textarea:focus-visible {
     line-height: 1.45;
   }
 }
+
+
+/* =========================================
+   GRADEUP VISUAL REFRESH
+   GLOBAL LIGHT THEME — PHASE 1
+   ========================================= */
+
+:root {
+  /* Main surfaces */
+  --background: 210 30% 98%;
+  --foreground: 222 35% 15%;
+
+  --card: 0 0% 100%;
+  --card-foreground: 222 35% 15%;
+
+  --popover: 0 0% 100%;
+  --popover-foreground: 222 35% 15%;
+
+  /* Brand identity */
+  --primary: 174 65% 29%;
+  --primary-foreground: 0 0% 100%;
+
+  --secondary: 158 55% 42%;
+  --secondary-foreground: 0 0% 100%;
+
+  /* Soft accents */
+  --accent: 158 55% 94%;
+  --accent-foreground: 174 65% 22%;
+
+  --soft: 158 45% 94%;
+
+  /* Secondary surfaces */
+  --muted: 210 25% 96%;
+  --muted-foreground: 215 16% 43%;
+
+  /* Feedback */
+  --destructive: 0 72% 51%;
+  --destructive-foreground: 0 0% 100%;
+
+  /* Borders and focus */
+  --border: 214 25% 91%;
+  --input: 214 25% 91%;
+  --ring: 174 65% 29%;
+
+  --radius: 0.75rem;
+}
