@@ -74,6 +74,34 @@ const EDUCATION_LEVELS = ["SD", "SMP", "SMA", "SMK"];
 const ALL = "Semua";
 const DEFAULT_PASSING_SCORE = 70;
 
+/**
+ * Menyeragamkan penulisan jenjang agar profil dan paket ujian
+ * menggunakan format yang sama.
+ *
+ * Fungsi ini hanya menormalisasi nama jenjang.
+ * Fungsi ini TIDAK mengubah kelas menjadi fase pembelajaran.
+ */
+function normalizeLevel(value: unknown): string {
+  const level = String(value ?? "")
+    .trim()
+    .toUpperCase()
+    .replace(/\s+/g, " ");
+
+  if (!level) return "";
+
+  if (level === "SD" || level === "MI") return "SD";
+
+  if (level === "SMP" || level === "MTS" || level === "MTs".toUpperCase()) {
+    return "SMP";
+  }
+
+  if (level === "SMA" || level === "MA") return "SMA";
+
+  if (level === "SMK") return "SMK";
+
+  return level;
+}
+
 const STATUS_CONFIG: Record<
   ExamStatus,
   {
@@ -250,12 +278,16 @@ export default function StudentExamsPage() {
             "Siswa GradeUp"
         );
 
-        const educationLevel = profile.education_level || "";
-        const grade = profile.grade != null ? Number(profile.grade) : null;
+        const educationLevel = normalizeLevel(profile.education_level);
+        const grade =
+          profile.grade != null && Number.isFinite(Number(profile.grade))
+            ? Number(profile.grade)
+            : null;
 
         setProfileLevel(educationLevel);
         setProfileGrade(grade);
 
+        // Filter awal mengikuti profil siswa.
         setSelectedLevel(educationLevel || ALL);
         setSelectedGrade(grade != null ? String(grade) : ALL);
         setSelectedSubject(ALL);
@@ -272,9 +304,7 @@ export default function StudentExamsPage() {
         const totalXp = Number(profile.total_xp ?? 10);
 
         setCurrentXp(totalXp % maxXp);
-        setLevel(
-          Number(profile.level) || Math.floor(totalXp / maxXp) + 1
-        );
+        setLevel(Number(profile.level) || Math.floor(totalXp / maxXp) + 1);
       } else {
         setStudentName(user.email?.split("@")[0] || "Siswa GradeUp");
         setProfileLevel("");
@@ -287,6 +317,7 @@ export default function StudentExamsPage() {
       }
 
       // 3. Ambil paket ujian yang dipublikasikan.
+      // Paket Draft yang belum dipublikasikan tidak ditampilkan kepada siswa.
       const {
         data: packages,
         error: packagesError,
@@ -332,23 +363,28 @@ export default function StudentExamsPage() {
               if (total > 0) {
                 timeProgress = Math.min(
                   100,
-                  Math.max(
-                    0,
-                    ((now - startDate.getTime()) / total) * 100
-                  )
+                  Math.max(0, ((now - startDate.getTime()) / total) * 100)
                 );
               }
             }
           }
 
-          const packageLevel = pkg.level || "";
-          const packageGrade =
-            pkg.grade != null ? Number(pkg.grade) : null;
+          // Jenjang dan kelas ujian diambil dari kolom exam_packages.
+          // Tidak ada konversi kelas menjadi fase pembelajaran.
+          const packageLevel = normalizeLevel(pkg.level);
 
+          const packageGrade =
+            pkg.grade != null && Number.isFinite(Number(pkg.grade))
+              ? Number(pkg.grade)
+              : null;
+
+          // Berdasarkan skema database GradeUp:
+          // category = nama mata pelajaran
+          // type = jenis paket ujian
           return {
             id: pkg.id,
             title: pkg.title || "Paket Ujian",
-            subject: pkg.subject || "Belum ditentukan",
+            subject: pkg.category || "Belum ditentukan",
             category: pkg.type || "Ujian",
             education_level: packageLevel,
             grade: packageGrade,
@@ -482,9 +518,9 @@ export default function StudentExamsPage() {
       .map((item) => item.grade)
       .filter((grade): grade is number => grade != null);
 
-    return Array.from(
-      new Set([...configuredGrades, ...packageGrades])
-    ).sort((a, b) => a - b);
+    return Array.from(new Set([...configuredGrades, ...packageGrades])).sort(
+      (a, b) => a - b
+    );
   }, [examPackages, selectedLevel]);
 
   const availableSubjects = useMemo(() => {
@@ -502,8 +538,7 @@ export default function StudentExamsPage() {
       })
       .map((item) => item.subject)
       .filter(
-        (subject) =>
-          subject && subject !== "Belum ditentukan"
+        (subject) => subject && subject !== "Belum ditentukan"
       );
 
     return Array.from(new Set(subjects)).sort((a, b) =>
@@ -538,9 +573,7 @@ export default function StudentExamsPage() {
       "Akan Datang": examPackages.filter(
         (item) => item.status === "Akan Datang"
       ).length,
-      Selesai: examPackages.filter(
-        (item) => item.status === "Selesai"
-      ).length,
+      Selesai: examPackages.filter((item) => item.status === "Selesai").length,
     }),
     [examPackages]
   );
@@ -559,9 +592,7 @@ export default function StudentExamsPage() {
 
   const resetToProfile = () => {
     setSelectedLevel(profileLevel || ALL);
-    setSelectedGrade(
-      profileGrade != null ? String(profileGrade) : ALL
-    );
+    setSelectedGrade(profileGrade != null ? String(profileGrade) : ALL);
     setSelectedSubject(ALL);
     setSelectedExamType(ALL);
     setSearchQuery("");
@@ -579,10 +610,12 @@ export default function StudentExamsPage() {
     const query = searchQuery.trim().toLowerCase();
 
     const filtered = examPackages.filter((pkg) => {
+      // Filter jenjang.
       const matchLevel =
         selectedLevel === ALL ||
         pkg.education_level === selectedLevel;
 
+      // Filter kelas individual, bukan fase.
       const matchGrade =
         selectedGrade === ALL ||
         pkg.grade === Number(selectedGrade);
@@ -1194,8 +1227,7 @@ export default function StudentExamsPage() {
                       const examResult = examResults[pkg.id];
                       const isNew = !examResult;
                       const isPassed = examResult?.status === "LULUS";
-                      const isFailed =
-                        examResult?.status === "BELUM LULUS";
+                      const isFailed = examResult?.status === "BELUM LULUS";
 
                       const isUrgent =
                         isAvailable &&
