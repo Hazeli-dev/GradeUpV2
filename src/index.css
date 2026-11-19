@@ -1959,6 +1959,50 @@ textarea:focus-visible {
   --radius: 0.75rem;
 }
 
+
+/* =========================================
+   GRADEUP DARK MODE — GLOBAL THEME FIX
+========================================= */
+
+.dark {
+  --background: 170 25% 7%;
+  --foreground: 150 20% 96%;
+
+  --card: 170 22% 10%;
+  --card-foreground: 150 20% 96%;
+
+  --popover: 170 22% 10%;
+  --popover-foreground: 150 20% 96%;
+
+  --primary: 160 70% 42%;
+  --primary-foreground: 170 40% 6%;
+
+  --secondary: 174 50% 28%;
+  --secondary-foreground: 0 0% 100%;
+
+  --accent: 170 25% 17%;
+  --accent-foreground: 158 55% 85%;
+
+  --soft: 172 40% 16%;
+
+  --muted: 170 18% 14%;
+  --muted-foreground: 160 10% 72%;
+
+  --destructive: 0 62% 55%;
+  --destructive-foreground: 0 0% 100%;
+
+  --border: 170 16% 20%;
+  --input: 170 16% 20%;
+  --ring: 160 70% 42%;
+}
+
+/* Transisi pergantian tema */
+body {
+  transition:
+    background-color 200ms ease,
+    color 200ms ease;
+}
+
 /* =========================================
    GRADEUP VISUAL REFRESH
    GLOBAL SURFACE — PHASE 2
