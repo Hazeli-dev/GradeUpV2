@@ -949,60 +949,59 @@ export default function StudentOverviewPage() {
   // RENDER
   // ====================================================
 
-  return (
-    <div className="space-y-6">
+  
+return (
+  <div className="space-y-6">
 
-      {/* HEADER */}
+    {/* HEADER */}
+    <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex items-center gap-3">
+        <Avatar className="h-12 w-12 border-2 border-primary/20">
+          <AvatarFallback className="bg-primary/10 font-bold text-primary">
+            {initials(studentName)}
+          </AvatarFallback>
+        </Avatar>
 
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex items-center gap-3">
-          <Avatar className="h-12 w-12 border-2 border-primary/20">
-            <AvatarFallback className="bg-primary/10 font-bold text-primary">
-              {initials(studentName)}
-            </AvatarFallback>
-          </Avatar>
+        <div>
+          <h1 className="text-xl font-extrabold tracking-tight sm:text-2xl">
+            Halo, {studentName} 👋
+          </h1>
 
-          <div>
-            <h1 className="text-xl font-extrabold tracking-tight sm:text-2xl">
-              Halo, {studentName} 👋
-            </h1>
-
-            <p className="text-xs text-muted-foreground">
-              {isPremium && profile?.premium_until
-                ? `Member Premium s/d ${new Date(
-                    profile.premium_until
-                  ).toLocaleDateString("id-ID", {
-                    timeZone: TIME_ZONE,
-                    day: "numeric",
-                    month: "short",
-                    year: "numeric",
-                  })}`
-                : "Selamat datang kembali! Pantau ringkasan belajar Anda hari ini."}
-            </p>
-          </div>
+          <p className="text-xs text-muted-foreground">
+            {isPremium && profile?.premium_until
+              ? `Member Premium s/d ${new Date(
+                  profile.premium_until
+                ).toLocaleDateString("id-ID", {
+                  timeZone: TIME_ZONE,
+                  day: "numeric",
+                  month: "short",
+                  year: "numeric",
+                })}`
+              : "Selamat datang kembali! Pantau ringkasan belajar Anda hari ini."}
+          </p>
         </div>
-
-       
-{isPremium ? (
-  <Badge className="gap-1 border border-amber-500/30 bg-amber-500/10 px-3 py-1.5 font-bold text-amber-700 dark:border-amber-400/30 dark:bg-amber-400/15 dark:text-amber-300">
-    <Crown className="h-4 w-4 fill-current" />
-    Premium
-  </Badge>
-) : (
-  <Button
-    variant="outline"
-    size="sm"
-    className="gap-2 border-emerald-500/40 text-emerald-600 hover:bg-emerald-500/10 dark:text-emerald-400"
-    onClick={openUpgrade}
-  >
-    <Sparkles className="h-4 w-4 text-amber-400" />
-    Upgrade Premium
-  </Button>
-)}
-      </div>
       </div>
 
-      {/* NEXT EXAM */}
+      {isPremium ? (
+        <Badge className="gap-1 border border-amber-500/30 bg-amber-500/10 px-3 py-1.5 font-bold text-amber-700 dark:border-amber-400/30 dark:bg-amber-400/15 dark:text-amber-300">
+          <Crown className="h-4 w-4 fill-current" />
+          Premium
+        </Badge>
+      ) : (
+        <Button
+          variant="outline"
+          size="sm"
+          className="gap-2 border-emerald-500/40 text-emerald-600 hover:bg-emerald-500/10 dark:text-emerald-400"
+          onClick={openUpgrade}
+        >
+          <Sparkles className="h-4 w-4 text-amber-400" />
+          Upgrade Premium
+        </Button>
+      )}
+    </div>
+
+    {/* NEXT EXAM */}
+
 
       {nextExam && (
         <Card className="overflow-hidden border-primary/20 bg-gradient-to-r from-primary/10 via-card to-card shadow-sm">
