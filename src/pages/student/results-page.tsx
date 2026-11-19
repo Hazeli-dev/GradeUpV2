@@ -783,14 +783,17 @@ export default function ResultsPage() {
                       </TableCell>
 
                       <TableCell className="text-right">
-                        <Button
-                          size="sm"
-                          variant="soft"
-                          onClick={() => handleOpenDetail(item)}
-                        >
-                          <Eye className="mr-1 h-4 w-4" />
-                          Detail
-                        </Button>
+                        
+<Button
+  size="sm"
+  variant="soft"
+  className="font-semibold text-emerald-700 hover:text-emerald-800 dark:text-emerald-300 dark:hover:text-emerald-200"
+  onClick={() => handleOpenDetail(item)}
+>
+  <Eye className="mr-1 h-4 w-4" />
+  Detail
+</Button>
+
                       </TableCell>
                     </TableRow>
                   ))}
@@ -851,14 +854,17 @@ export default function ResultsPage() {
                   <div className="flex items-center justify-between gap-2 border-t pt-3">
                     {getStatusBadge(item.passed)}
 
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => handleOpenDetail(item)}
-                    >
-                      <Eye className="mr-1 h-4 w-4" />
-                      Lihat Detail
-                    </Button>
+                    
+<Button
+  size="sm"
+  variant="outline"
+  className="border-emerald-500/40 font-semibold text-emerald-700 hover:bg-emerald-50 hover:text-emerald-800 dark:border-emerald-400/40 dark:text-emerald-300 dark:hover:bg-emerald-950/50 dark:hover:text-emerald-200"
+  onClick={() => handleOpenDetail(item)}
+>
+  <Eye className="mr-1 h-4 w-4" />
+  Lihat Detail
+</Button>
+
                   </div>
                 </div>
               ))}
