@@ -999,7 +999,8 @@ export default function StudentOverviewPage() {
     Upgrade Premium
   </Button>
 )}
-
+      </div>
+      </div>
 
       {/* NEXT EXAM */}
 
