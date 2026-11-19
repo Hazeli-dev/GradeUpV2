@@ -542,7 +542,7 @@ export function SidebarShell({
         )}
       >
         {/* Topbar */}
-        <header className="sticky top-0 z-25 flex h-16 items-center gap-3 border-b border-border/70 bg-background/80 px-4 backdrop-blur-xl sm:px-6">
+        <header className="sticky top-0 z-[50] flex h-16 items-center gap-3 border-b border-border bg-background px-4 shadow-sm sm:px-6">
           <Button
             variant="ghost"
             size="icon"
