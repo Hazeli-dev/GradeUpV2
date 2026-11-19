@@ -1958,3 +1958,52 @@ textarea:focus-visible {
 
   --radius: 0.75rem;
 }
+
+/* =========================================
+   GRADEUP VISUAL REFRESH
+   GLOBAL SURFACE — PHASE 2
+   ========================================= */
+
+/* Glass surface */
+.glass {
+  background: hsl(var(--card) / 0.96);
+  border: 1px solid hsl(var(--border));
+  box-shadow:
+    0 2px 8px rgba(15, 23, 42, 0.025),
+    0 8px 24px rgba(15, 23, 42, 0.025);
+  backdrop-filter: blur(12px);
+}
+
+/* Card hover */
+.card-hover {
+  transition:
+    transform 180ms ease,
+    box-shadow 180ms ease,
+    border-color 180ms ease;
+}
+
+.card-hover:hover {
+  border-color: hsl(var(--primary) / 0.20);
+  box-shadow:
+    0 4px 12px rgba(15, 23, 42, 0.035),
+    0 12px 28px rgba(15, 23, 42, 0.045);
+}
+
+/* Selection color */
+::selection {
+  background: hsl(var(--primary) / 0.16);
+  color: hsl(var(--foreground));
+}
+
+/* Smooth focus ring */
+:focus-visible {
+  outline-color: hsl(var(--ring));
+  outline-offset: 2px;
+}
+
+/* Respect reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  .card-hover {
+    transition: none;
+  }
+}
