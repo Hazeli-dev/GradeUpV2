@@ -1,14 +1,28 @@
+
 import { Toaster as Sonner } from "sonner";
 import { useTheme } from "@/hooks/use-theme";
 
 export function Toaster() {
   const { theme } = useTheme();
+
   return (
     <Sonner
       theme={theme}
       position="top-right"
       richColors
-      toastOptions={{ classNames: { toast: "rounded-xl font-sans shadow-soft" } }}
+      closeButton
+      toastOptions={{
+        classNames: {
+          toast:
+            "rounded-xl border border-border/70 bg-card font-sans text-card-foreground shadow-lg",
+          title: "text-sm font-semibold",
+          description: "text-sm text-muted-foreground",
+          actionButton: "rounded-lg font-medium",
+          cancelButton: "rounded-lg",
+          closeButton:
+            "border border-border/70 bg-background text-muted-foreground hover:bg-muted",
+        },
+      }}
     />
   );
 }
