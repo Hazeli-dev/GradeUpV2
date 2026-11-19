@@ -446,8 +446,13 @@ export function SidebarShell({
         {/* Label dashboard */}
         {areaLabel && !collapsed && (
           <div className="px-5 pt-4">
-            <Badge variant="default">{areaLabel}</Badge>
-          </div>
+  <Badge
+    variant="default"
+    className="border border-primary/20 bg-primary/10 text-primary dark:border-primary/30 dark:bg-primary/20 dark:text-primary"
+  >
+    {areaLabel}
+  </Badge>
+</div>
         )}
 
         {/* Navigasi */}
@@ -516,10 +521,15 @@ export function SidebarShell({
             </div>
 
             {areaLabel && (
-              <div className="px-5 pt-4">
-                <Badge variant="default">{areaLabel}</Badge>
-              </div>
-            )}
+  <div className="px-5 pt-4">
+    <Badge
+      variant="default"
+      className="border border-primary/20 bg-primary/10 text-primary dark:border-primary/30 dark:bg-primary/20 dark:text-primary"
+    >
+      {areaLabel}
+    </Badge>
+  </div>
+)}
 
             <div className="flex flex-1 flex-col overflow-hidden pt-2">
               {links(false)}
