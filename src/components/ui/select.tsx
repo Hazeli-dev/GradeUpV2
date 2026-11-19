@@ -1,3 +1,4 @@
+
 import * as React from "react";
 import * as SelectPrimitive from "@radix-ui/react-select";
 import { Check, ChevronDown } from "lucide-react";
@@ -14,14 +15,26 @@ const SelectTrigger = React.forwardRef<
   <SelectPrimitive.Trigger
     ref={ref}
     className={cn(
-      "flex h-11 w-full items-center justify-between gap-2 rounded-xl border border-input bg-card px-4 text-sm transition-colors focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 disabled:cursor-not-allowed disabled:opacity-50 [&>span]:truncate",
+      [
+        "flex h-11 w-full items-center justify-between gap-2",
+        "rounded-xl border border-input",
+        "bg-card px-4 text-sm text-foreground",
+        "shadow-sm shadow-black/[0.02]",
+        "transition-all duration-200 ease-out",
+        "hover:border-primary/30",
+        "focus:border-primary focus:outline-none",
+        "focus:ring-4 focus:ring-primary/10",
+        "disabled:cursor-not-allowed disabled:opacity-50",
+        "[&>span]:truncate",
+      ].join(" "),
       className
     )}
     {...props}
   >
     {children}
+
     <SelectPrimitive.Icon asChild>
-      <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground" />
+      <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground transition-transform duration-200" />
     </SelectPrimitive.Icon>
   </SelectPrimitive.Trigger>
 ));
@@ -36,14 +49,33 @@ const SelectContent = React.forwardRef<
       ref={ref}
       position={position}
       className={cn(
-        "relative z-50 max-h-72 min-w-[8rem] overflow-hidden rounded-xl border bg-popover text-popover-foreground shadow-xl data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95",
-        position === "popper" && "data-[side=bottom]:translate-y-1 data-[side=top]:-translate-y-1",
+        [
+          "relative z-50 max-h-72 min-w-[8rem]",
+          "overflow-hidden rounded-xl",
+          "border border-border/80",
+          "bg-popover text-popover-foreground",
+          "shadow-[0_12px_35px_rgba(15,23,42,0.12)]",
+          "dark:shadow-[0_12px_35px_rgba(0,0,0,0.30)]",
+          "duration-200",
+          "data-[state=open]:animate-in",
+          "data-[state=closed]:animate-out",
+          "data-[state=closed]:fade-out-0",
+          "data-[state=open]:fade-in-0",
+          "data-[state=closed]:zoom-out-95",
+          "data-[state=open]:zoom-in-95",
+        ].join(" "),
+        position === "popper" &&
+          "data-[side=bottom]:translate-y-1 data-[side=top]:-translate-y-1",
         className
       )}
       {...props}
     >
       <SelectPrimitive.Viewport
-        className={cn("p-1", position === "popper" && "w-full min-w-[var(--radix-select-trigger-width)]")}
+        className={cn(
+          "p-1.5",
+          position === "popper" &&
+            "w-full min-w-[var(--radix-select-trigger-width)]"
+        )}
       >
         {children}
       </SelectPrimitive.Viewport>
@@ -59,19 +91,38 @@ const SelectItem = React.forwardRef<
   <SelectPrimitive.Item
     ref={ref}
     className={cn(
-      "relative flex w-full cursor-pointer select-none items-center rounded-lg py-2 pl-8 pr-3 text-sm outline-none focus:bg-soft focus:text-primary data-[disabled]:pointer-events-none data-[disabled]:opacity-50 dark:focus:text-accent",
+      [
+        "relative flex w-full cursor-pointer select-none items-center",
+        "rounded-lg py-2.5 pl-9 pr-3",
+        "text-sm outline-none",
+        "transition-colors duration-150",
+        "focus:bg-soft focus:text-primary",
+        "data-[disabled]:pointer-events-none",
+        "data-[disabled]:opacity-50",
+        "dark:focus:text-accent",
+      ].join(" "),
       className
     )}
     {...props}
   >
-    <span className="absolute left-2.5 flex h-4 w-4 items-center justify-center">
+    <span className="absolute left-3 flex h-4 w-4 items-center justify-center">
       <SelectPrimitive.ItemIndicator>
-        <Check className="h-4 w-4" />
+        <Check className="h-4 w-4 text-primary dark:text-accent" />
       </SelectPrimitive.ItemIndicator>
     </span>
-    <SelectPrimitive.ItemText>{children}</SelectPrimitive.ItemText>
+
+    <SelectPrimitive.ItemText>
+      {children}
+    </SelectPrimitive.ItemText>
   </SelectPrimitive.Item>
 ));
 SelectItem.displayName = "SelectItem";
 
-export { Select, SelectGroup, SelectValue, SelectTrigger, SelectContent, SelectItem };
+export {
+  Select,
+  SelectGroup,
+  SelectValue,
+  SelectTrigger,
+  SelectContent,
+  SelectItem,
+};
