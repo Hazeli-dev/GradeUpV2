@@ -236,13 +236,28 @@ export default function StudentExamsPage() {
   const xpRemaining = Math.max(0, maxXp - currentXp);
   const xpPercentage = Math.min(100, (currentXp / maxXp) * 100);
 
+
   const fetchExamsData = useCallback(async () => {
+    let currentStep = "Memeriksa sesi login";
+
+    const logError = (label: string, error: any) => {
+      console.error(`[GradeUp] ${label}`, {
+        message: error?.message,
+        code: error?.code,
+        details: error?.details,
+        hint: error?.hint,
+        error,
+      });
+    };
+
     try {
       setLoading(true);
       setLoadError(false);
       setErrorMessage("");
 
-      // 1. Periksa sesi autentikasi Supabase.
+      // 1. Periksa sesi login
+      currentStep = "Memeriksa sesi login";
+
       const {
         data: { session },
         error: sessionError,
@@ -256,18 +271,17 @@ export default function StudentExamsPage() {
         throw new Error("Sesi login tidak ditemukan. Silakan login kembali.");
       }
 
-      // 2. Ambil profil siswa.
-      const {
-        data: profile,
-        error: profileError,
-      } = await supabase
+      // 2. Ambil profil siswa
+      currentStep = "Mengambil profil siswa";
+
+      const { data: profile, error: profileError } = await supabase
         .from("profiles")
         .select("full_name, name, total_xp, level, education_level, grade")
         .eq("id", user.id)
         .maybeSingle();
 
       if (profileError) {
-        console.error("Gagal mengambil profil siswa:", profileError);
+        logError("Profil siswa gagal dimuat", profileError);
       }
 
       if (profile) {
@@ -287,7 +301,6 @@ export default function StudentExamsPage() {
         setProfileLevel(educationLevel);
         setProfileGrade(grade);
 
-        // Filter awal mengikuti profil siswa.
         setSelectedLevel(educationLevel || ALL);
         setSelectedGrade(grade != null ? String(grade) : ALL);
         setSelectedSubject(ALL);
@@ -316,22 +329,29 @@ export default function StudentExamsPage() {
         setUserClass("Profil pendidikan belum dilengkapi");
       }
 
-      // 3. Ambil paket ujian yang dipublikasikan.
-      // Paket Draft yang belum dipublikasikan tidak ditampilkan kepada siswa.
-      const {
-        data: packages,
-        error: packagesError,
-      } = await supabase
+      // 3. Ambil paket ujian
+      currentStep = "Mengambil data paket ujian";
+
+      const { data: rawPackages, error: packagesError } = await supabase
         .from("exam_packages")
         .select("*")
-        .or("is_published.eq.true,status.eq.Published")
         .order("created_at", { ascending: false });
 
-      if (packagesError) throw packagesError;
+      if (packagesError) {
+        logError("Paket ujian gagal dimuat", packagesError);
+        throw packagesError;
+      }
+
+      // Pertahankan aturan publikasi:
+      // is_published = true ATAU status = Published.
+      const packages = (rawPackages || []).filter(
+        (pkg: any) =>
+          pkg.is_published === true || pkg.status === "Published"
+      );
 
       const now = Date.now();
 
-      const formattedPackages: ExamPackageItem[] = (packages || []).map(
+      const formattedPackages: ExamPackageItem[] = packages.map(
         (pkg: any) => {
           const startDate = pkg.start_time
             ? new Date(pkg.start_time)
@@ -363,14 +383,15 @@ export default function StudentExamsPage() {
               if (total > 0) {
                 timeProgress = Math.min(
                   100,
-                  Math.max(0, ((now - startDate.getTime()) / total) * 100)
+                  Math.max(
+                    0,
+                    ((now - startDate.getTime()) / total) * 100
+                  )
                 );
               }
             }
           }
 
-          // Jenjang dan kelas ujian diambil dari kolom exam_packages.
-          // Tidak ada konversi kelas menjadi fase pembelajaran.
           const packageLevel = normalizeLevel(pkg.level);
 
           const packageGrade =
@@ -378,9 +399,6 @@ export default function StudentExamsPage() {
               ? Number(pkg.grade)
               : null;
 
-          // Berdasarkan skema database GradeUp:
-          // category = nama mata pelajaran
-          // type = jenis paket ujian
           return {
             id: pkg.id,
             title: pkg.title || "Paket Ujian",
@@ -410,84 +428,100 @@ export default function StudentExamsPage() {
         }
       );
 
-      // 4. Ambil riwayat ujian siswa yang sudah selesai.
-      const packageIds = formattedPackages.map((pkg) => pkg.id);
+      // Tampilkan paket terlebih dahulu.
+      // Riwayat ujian tidak boleh menggagalkan daftar paket.
+      setExamPackages(formattedPackages);
+
+      // 4. Ambil riwayat ujian secara terpisah
       const resultsMap: Record<string, StudentExamResult> = {};
+      const packageIds = formattedPackages.map((pkg) => pkg.id);
 
       if (packageIds.length > 0) {
-        const {
-          data: completedAttempts,
-          error: attemptsError,
-        } = await supabase
-          .from("exam_attempts")
-          .select("exam_id, score, created_at")
-          .eq("user_id", user.id)
-          .eq("status", "completed")
-          .in("exam_id", packageIds)
-          .order("created_at", { ascending: false });
+        currentStep = "Mengambil riwayat ujian";
 
-        if (attemptsError) throw attemptsError;
+        try {
+          const {
+            data: completedAttempts,
+            error: attemptsError,
+          } = await supabase
+            .from("exam_attempts")
+            .select("exam_id, score, created_at")
+            .eq("user_id", user.id)
+            .eq("status", "completed")
+            .in("exam_id", packageIds)
+            .order("created_at", { ascending: false });
 
-        const attemptsByExam: Record<
-          string,
-          { score: number; createdAt: string }[]
-        > = {};
-
-        (completedAttempts || []).forEach((attempt) => {
-          if (!attempt.exam_id) return;
-
-          if (!attemptsByExam[attempt.exam_id]) {
-            attemptsByExam[attempt.exam_id] = [];
-          }
-
-          attemptsByExam[attempt.exam_id].push({
-            score: Number(attempt.score ?? 0),
-            createdAt: attempt.created_at || "",
-          });
-        });
-
-        formattedPackages.forEach((pkg) => {
-          const attempts = attemptsByExam[pkg.id] || [];
-          if (attempts.length === 0) return;
-
-          const passingScore = pkg.passing_score;
-          const latestAttempt = attempts[0];
-
-          const passedAttempt = attempts.find(
-            (attempt) => attempt.score >= passingScore
-          );
-
-          if (passedAttempt) {
-            resultsMap[pkg.id] = {
-              status: "LULUS",
-              score: passedAttempt.score,
-              passingScore,
-            };
+          if (attemptsError) {
+            logError("Riwayat ujian gagal dimuat", attemptsError);
           } else {
-            resultsMap[pkg.id] = {
-              status: "BELUM LULUS",
-              score: latestAttempt.score,
-              passingScore,
-            };
+            const attemptsByExam: Record<
+              string,
+              { score: number; createdAt: string }[]
+            > = {};
+
+            (completedAttempts || []).forEach((attempt) => {
+              if (!attempt.exam_id) return;
+
+              if (!attemptsByExam[attempt.exam_id]) {
+                attemptsByExam[attempt.exam_id] = [];
+              }
+
+              attemptsByExam[attempt.exam_id].push({
+                score: Number(attempt.score ?? 0),
+                createdAt: attempt.created_at || "",
+              });
+            });
+
+            formattedPackages.forEach((pkg) => {
+              const attempts = attemptsByExam[pkg.id] || [];
+
+              if (attempts.length === 0) return;
+
+              const passingScore = pkg.passing_score;
+              const latestAttempt = attempts[0];
+
+              const passedAttempt = attempts.find(
+                (attempt) => attempt.score >= passingScore
+              );
+
+              resultsMap[pkg.id] = passedAttempt
+                ? {
+                    status: "LULUS",
+                    score: passedAttempt.score,
+                    passingScore,
+                  }
+                : {
+                    status: "BELUM LULUS",
+                    score: latestAttempt.score,
+                    passingScore,
+                  };
+            });
           }
-        });
+        } catch (attemptError) {
+          logError("Kesalahan mengambil riwayat ujian", attemptError);
+        }
       }
 
       setExamResults(resultsMap);
-      setExamPackages(formattedPackages);
-    } catch (error) {
-      console.error("Gagal mengambil data paket ujian:", error);
+
+      console.log("[GradeUp] Data ujian berhasil dimuat", {
+        totalPackages: formattedPackages.length,
+        totalResults: Object.keys(resultsMap).length,
+      });
+    } catch (error: any) {
+      logError(`Gagal pada tahap: ${currentStep}`, error);
 
       setLoadError(true);
       setErrorMessage(
-        error instanceof Error
-          ? error.message
-          : "Terjadi kesalahan saat mengambil data paket ujian."
+        `${currentStep}: ${
+          error?.message || "Terjadi kesalahan saat mengambil data."
+        }${error?.code ? ` (Kode: ${error.code})` : ""}`
       );
     } finally {
       setLoading(false);
     }
   }, []);
+
 
   useEffect(() => {
     fetchExamsData();
