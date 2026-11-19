@@ -982,27 +982,24 @@ export default function StudentOverviewPage() {
           </div>
         </div>
 
-        {isPremium ? (
-          
-<Badge className="gap-1 border border-amber-500/30 bg-amber-500/10 px-3 py-1.5 font-bold text-amber-700 dark:border-amber-400/30 dark:bg-amber-400/15 dark:text-amber-300">
-  <Crown className="h-4 w-4 fill-current" />
-  Premium
-</Badge>
-            <Crown className="h-4 w-4 fill-current" />
-            Premium
-          </Badge>
-        ) : (
-          <Button
-            variant="outline"
-            size="sm"
-            className="gap-2 border-emerald-500/40 text-emerald-600 hover:bg-emerald-500/10 dark:text-emerald-400"
-            onClick={openUpgrade}
-          >
-            <Sparkles className="h-4 w-4 text-amber-400" />
-            Upgrade Premium
-          </Button>
-        )}
-      </div>
+       
+{isPremium ? (
+  <Badge className="gap-1 border border-amber-500/30 bg-amber-500/10 px-3 py-1.5 font-bold text-amber-700 dark:border-amber-400/30 dark:bg-amber-400/15 dark:text-amber-300">
+    <Crown className="h-4 w-4 fill-current" />
+    Premium
+  </Badge>
+) : (
+  <Button
+    variant="outline"
+    size="sm"
+    className="gap-2 border-emerald-500/40 text-emerald-600 hover:bg-emerald-500/10 dark:text-emerald-400"
+    onClick={openUpgrade}
+  >
+    <Sparkles className="h-4 w-4 text-amber-400" />
+    Upgrade Premium
+  </Button>
+)}
+
 
       {/* NEXT EXAM */}
 
