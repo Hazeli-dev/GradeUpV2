@@ -2,18 +2,17 @@
 import * as React from "react";
 import { cn } from "@/lib/utils";
 
-const Table = React.forwardRef<
-  HTMLTableElement,
-  React.HTMLAttributes<HTMLTableElement>
->(({ className, ...props }, ref) => (
-  <div className="relative w-full overflow-x-auto rounded-xl border border-border/70">
-    <table
-      ref={ref}
-      className={cn("w-full caption-bottom text-sm", className)}
-      {...props}
-    />
-  </div>
-));
+const Table = React.forwardRef<HTMLTableElement, React.HTMLAttributes<HTMLTableElement>>(
+  ({ className, ...props }, ref) => (
+    <div className="relative w-full overflow-x-auto rounded-xl border border-border/70">
+      <table
+        ref={ref}
+        className={cn("w-full caption-bottom text-sm", className)}
+        {...props}
+      />
+    </div>
+  )
+);
 Table.displayName = "Table";
 
 const TableHeader = React.forwardRef<
@@ -22,10 +21,7 @@ const TableHeader = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <thead
     ref={ref}
-    className={cn(
-      "border-b border-border/70 bg-muted/50 [&_tr]:border-b-0",
-      className
-    )}
+    className={cn("border-b border-border/70 bg-muted/50 [&_tr]:border-b-0", className)}
     {...props}
   />
 ));
@@ -37,10 +33,7 @@ const TableBody = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <tbody
     ref={ref}
-    className={cn(
-      "divide-y divide-border/50 [&_tr:last-child]:border-0",
-      className
-    )}
+    className={cn("divide-y divide-border/50 [&_tr:last-child]:border-0", className)}
     {...props}
   />
 ));
@@ -82,10 +75,7 @@ const TableCell = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <td
     ref={ref}
-    className={cn(
-      "px-4 py-3.5 align-middle text-sm text-foreground",
-      className
-    )}
+    className={cn("px-4 py-3.5 align-middle text-sm text-foreground", className)}
     {...props}
   />
 ));
