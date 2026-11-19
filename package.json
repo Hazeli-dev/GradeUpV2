@@ -58,4 +58,9 @@
     "typescript": "~5.7.3",
     "vite": "^6.1.0"
   }
+    },
+  "overrides": {
+    "prosemirror-schema-list": "1.5.1"
+  }
+}
 }
