@@ -448,6 +448,7 @@ export default function StudentExamsPage() {
             .select("exam_id, score, created_at")
             .eq("user_id", user.id)
             .eq("status", "completed")
+            .not("exam_id", "is", null)
             .in("exam_id", packageIds)
             .order("created_at", { ascending: false });
 
