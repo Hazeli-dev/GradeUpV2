@@ -15,6 +15,21 @@ import {
 
 type EducationLevel = "SD/MI" | "SMP/MTs" | "SMA/MA/SMK";
 
+type AdventureQuestion = {
+  question_order: number;
+  question_text: string;
+  options: { id: string; text: string }[];
+  image_url: string | null;
+  checkpoint: number;
+};
+
+type AdventureSession = {
+  session_id: string;
+  total_questions: number;
+  total_checkpoints: number;
+  question: AdventureQuestion;
+};
+
 const educationLevels: EducationLevel[] = [
   "SD/MI",
   "SMP/MTs",
@@ -44,6 +59,11 @@ export default function GradeUpAdventureGame() {
   const [subjects, setSubjects] = useState<string[]>([]);
   const [loadingSubjects, setLoadingSubjects] = useState(false);
   const [subjectError, setSubjectError] = useState("");
+
+  const [startingGame, setStartingGame] = useState(false);
+  const [gameError, setGameError] = useState("");
+  const [gameSession, setGameSession] =
+    useState<AdventureSession | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -96,12 +116,50 @@ export default function GradeUpAdventureGame() {
   const handleLevelChange = (value: EducationLevel) => {
     setEducationLevel(value);
     setGrade(gradeOptions[value][0]);
+    setGameSession(null);
+    setGameError("");
   };
 
   const getSubjectLabel = (category: string) => {
     return category
       .replace(` ${educationLevel}`, "")
       .trim();
+  };
+
+  const handleStartAdventure = async () => {
+    if (!subject || startingGame) return;
+
+    setStartingGame(true);
+    setGameError("");
+    setGameSession(null);
+
+    try {
+      const { data, error } = await supabase.rpc(
+        "start_adventure_secure",
+        {
+          p_grade: grade,
+          p_category: subject,
+        }
+      );
+
+      if (error) throw error;
+
+      if (!data?.success || !data?.session_id || !data?.question) {
+        throw new Error("Data petualangan tidak valid.");
+      }
+
+      setGameSession(data as AdventureSession);
+    } catch (error) {
+      console.error("Gagal memulai GradeUp Adventure:", error);
+
+      setGameError(
+        error instanceof Error
+          ? error.message
+          : "Petualangan gagal dimulai. Silakan coba lagi."
+      );
+    } finally {
+      setStartingGame(false);
+    }
   };
 
   return (
@@ -155,6 +213,7 @@ export default function GradeUpAdventureGame() {
               Persiapkan Petualanganmu
             </h2>
           </div>
+
           <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">
             Pilih jenjang dan kelas sebelum menentukan mata pelajaran.
           </p>
@@ -165,6 +224,7 @@ export default function GradeUpAdventureGame() {
             <label className="mb-2 block text-sm font-semibold text-gray-700 dark:text-gray-300">
               Jenjang Pendidikan
             </label>
+
             <select
               value={educationLevel}
               onChange={(event) =>
@@ -184,9 +244,14 @@ export default function GradeUpAdventureGame() {
             <label className="mb-2 block text-sm font-semibold text-gray-700 dark:text-gray-300">
               Kelas
             </label>
+
             <select
               value={grade}
-              onChange={(event) => setGrade(Number(event.target.value))}
+              onChange={(event) => {
+                setGrade(Number(event.target.value));
+                setGameSession(null);
+                setGameError("");
+              }}
               className="w-full rounded-xl border border-gray-300 bg-white px-4 py-3 text-gray-900 outline-none focus:border-violet-500 focus:ring-2 focus:ring-violet-100 dark:border-gray-700 dark:bg-gray-950 dark:text-white"
             >
               {gradeOptions[educationLevel].map((item) => (
@@ -205,7 +270,11 @@ export default function GradeUpAdventureGame() {
 
           <select
             value={subject}
-            onChange={(event) => setSubject(event.target.value)}
+            onChange={(event) => {
+              setSubject(event.target.value);
+              setGameSession(null);
+              setGameError("");
+            }}
             disabled={loadingSubjects || subjects.length === 0}
             className="w-full rounded-xl border border-gray-300 bg-white px-4 py-3 text-gray-900 outline-none focus:border-violet-500 focus:ring-2 focus:ring-violet-100 disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-500 dark:border-gray-700 dark:bg-gray-950 dark:text-white dark:disabled:bg-gray-800 dark:disabled:text-gray-400"
           >
@@ -246,23 +315,35 @@ export default function GradeUpAdventureGame() {
         </div>
 
         <button
-  type="button"
-  disabled={!subject}
-  className="mt-6 flex w-full items-center justify-center gap-2 rounded-xl bg-violet-600 px-5 py-3.5 font-bold text-white transition-colors hover:bg-violet-700 disabled:cursor-not-allowed disabled:bg-gray-400 disabled:opacity-60 dark:disabled:bg-gray-700"
->
-  Mulai Petualangan
-  <ArrowRight size={18} />
-</button>
+          type="button"
+          onClick={handleStartAdventure}
+          disabled={!subject || startingGame || loadingSubjects}
+          className="mt-6 flex w-full items-center justify-center gap-2 rounded-xl bg-violet-600 px-5 py-3.5 font-bold text-white transition-colors hover:bg-violet-700 disabled:cursor-not-allowed disabled:bg-gray-400 disabled:opacity-60 dark:disabled:bg-gray-700"
+        >
+          {startingGame
+            ? "Menyiapkan Petualangan..."
+            : "Mulai Petualangan"}
+
+          {!startingGame && <ArrowRight size={18} />}
+        </button>
+
+        {gameError && (
+          <p className="mt-3 text-sm text-red-600 dark:text-red-400">
+            {gameError}
+          </p>
+        )}
       </section>
 
       {/* Checkpoint Map */}
       <section className="rounded-3xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-800 dark:bg-gray-900 md:p-7">
         <div className="mb-6 flex items-center gap-3">
           <Map className="text-violet-600" size={23} />
+
           <div>
             <h2 className="text-xl font-bold text-gray-900 dark:text-white">
               Peta Petualangan
             </h2>
+
             <p className="text-sm text-gray-500 dark:text-gray-400">
               Lima checkpoint menantimu.
             </p>
@@ -298,6 +379,7 @@ export default function GradeUpAdventureGame() {
         <div className="mt-5 rounded-xl bg-gray-50 p-4 text-sm text-gray-600 dark:bg-gray-800/70 dark:text-gray-300">
           <div className="flex items-start gap-3">
             <Trophy className="mt-0.5 shrink-0 text-amber-500" size={19} />
+
             <p>
               Selesaikan seluruh 25 soal untuk menuntaskan
               satu perjalanan petualangan.
