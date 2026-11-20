@@ -55,6 +55,7 @@ import StudentSettingsPage from "@/pages/student/settings-page";
 import StudentGamesPage from "@/pages/student/games-page";
 import CariKataPage from "@/pages/student/games/cari-kata-page";
 import DetektifSainsPage from "@/pages/student/games/detektif-sains-page";
+import GradeUpAdventurePage from "@/pages/student/games/gradeup-adventure-page";
 
 // Halaman Admin
 import AdminOverviewPage from "@/pages/admin/overview-page";
@@ -279,6 +280,10 @@ export function AppRoutes() {
             path="games/detektif-sains"
             element={<DetektifSainsPage />}
           />
+          <Route
+  path="games/gradeup-adventure"
+  element={<GradeUpAdventurePage />}
+/>
 
           {/* Paket Ujian */}
           <Route path="exams" element={<StudentExamsPage />} />
