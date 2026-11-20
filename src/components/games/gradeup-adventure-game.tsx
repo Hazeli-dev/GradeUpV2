@@ -246,13 +246,13 @@ export default function GradeUpAdventureGame() {
         </div>
 
         <button
-          type="button"
-          disabled={!subject}
-          className="mt-6 flex w-full items-center justify-center gap-2 rounded-xl bg-violet-600 px-5 py-3.5 font-bold text-white opacity-50 disabled:cursor-not-allowed enabled:opacity-100 enabled:hover:bg-violet-700"
-        >
-          Mulai Petualangan
-          <ArrowRight size={18} />
-        </button>
+  type="button"
+  disabled={!subject}
+  className="mt-6 flex w-full items-center justify-center gap-2 rounded-xl bg-violet-600 px-5 py-3.5 font-bold text-white transition-colors hover:bg-violet-700 disabled:cursor-not-allowed disabled:bg-gray-400 disabled:opacity-60 dark:disabled:bg-gray-700"
+>
+  Mulai Petualangan
+  <ArrowRight size={18} />
+</button>
       </section>
 
       {/* Checkpoint Map */}
