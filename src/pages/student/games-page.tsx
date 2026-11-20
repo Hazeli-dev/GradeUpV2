@@ -11,6 +11,7 @@ import {
   Zap,
   Play,
   Star,
+  Compass,
 } from "lucide-react";
 
 const games = [
@@ -43,6 +44,21 @@ const games = [
     iconColor: "text-emerald-600 dark:text-emerald-400",
     number: "02",
     highlight: "Eksplorasi Sains",
+  },
+    {
+    id: "gradeup-adventure",
+    title: "GradeUp Adventure",
+    description:
+      "Jelajahi dunia petualangan edukatif, jawab tantangan dari bank soal GradeUp, dan taklukkan lima checkpoint untuk mencapai puncak kemenangan.",
+    category: "Petualangan Edukatif",
+    difficulty: "25 Soal • 5 Checkpoint",
+    icon: Compass,
+    path: "/dashboard/games/gradeup-adventure",
+    color: "from-indigo-500 via-violet-600 to-purple-700",
+    iconBg: "bg-violet-50 dark:bg-violet-900/30",
+    iconColor: "text-violet-600 dark:text-violet-400",
+    number: "03",
+    highlight: "Jelajahi Dunia Ilmu",
   },
 ];
 
