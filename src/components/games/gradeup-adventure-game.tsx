@@ -1,5 +1,6 @@
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { supabase } from "@/lib/supabase";
 import {
   ArrowRight,
   BookOpen,
@@ -40,11 +41,67 @@ export default function GradeUpAdventureGame() {
 
   const [grade, setGrade] = useState<number>(6);
   const [subject, setSubject] = useState("");
+  const [subjects, setSubjects] = useState<string[]>([]);
+  const [loadingSubjects, setLoadingSubjects] = useState(false);
+  const [subjectError, setSubjectError] = useState("");
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadSubjects = async () => {
+      setLoadingSubjects(true);
+      setSubjectError("");
+      setSubjects([]);
+      setSubject("");
+
+      try {
+        const { data, error } = await supabase.rpc(
+          "get_adventure_subjects",
+          {
+            p_grade: grade,
+          }
+        );
+
+        if (error) throw error;
+
+        if (!cancelled) {
+          const availableSubjects = (data ?? [])
+            .map((item: { category: string }) => item.category)
+            .filter((category: string) => Boolean(category));
+
+          setSubjects(availableSubjects);
+        }
+      } catch (error) {
+        console.error("Gagal memuat mata pelajaran Adventure:", error);
+
+        if (!cancelled) {
+          setSubjectError(
+            "Mata pelajaran gagal dimuat. Silakan coba lagi."
+          );
+        }
+      } finally {
+        if (!cancelled) {
+          setLoadingSubjects(false);
+        }
+      }
+    };
+
+    loadSubjects();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [grade]);
 
   const handleLevelChange = (value: EducationLevel) => {
     setEducationLevel(value);
     setGrade(gradeOptions[value][0]);
-    setSubject("");
+  };
+
+  const getSubjectLabel = (category: string) => {
+    return category
+      .replace(` ${educationLevel}`, "")
+      .trim();
   };
 
   return (
@@ -129,10 +186,7 @@ export default function GradeUpAdventureGame() {
             </label>
             <select
               value={grade}
-              onChange={(event) => {
-                setGrade(Number(event.target.value));
-                setSubject("");
-              }}
+              onChange={(event) => setGrade(Number(event.target.value))}
               className="w-full rounded-xl border border-gray-300 bg-white px-4 py-3 text-gray-900 outline-none focus:border-violet-500 focus:ring-2 focus:ring-violet-100 dark:border-gray-700 dark:bg-gray-950 dark:text-white"
             >
               {gradeOptions[educationLevel].map((item) => (
@@ -152,24 +206,49 @@ export default function GradeUpAdventureGame() {
           <select
             value={subject}
             onChange={(event) => setSubject(event.target.value)}
-            disabled
-            className="w-full rounded-xl border border-gray-300 bg-gray-100 px-4 py-3 text-gray-500 outline-none dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400"
+            disabled={loadingSubjects || subjects.length === 0}
+            className="w-full rounded-xl border border-gray-300 bg-white px-4 py-3 text-gray-900 outline-none focus:border-violet-500 focus:ring-2 focus:ring-violet-100 disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-500 dark:border-gray-700 dark:bg-gray-950 dark:text-white dark:disabled:bg-gray-800 dark:disabled:text-gray-400"
           >
             <option value="">
-              Mata pelajaran akan dimuat dari bank soal
+              {loadingSubjects
+                ? "Memuat mata pelajaran..."
+                : subjects.length > 0
+                  ? "Pilih mata pelajaran"
+                  : "Belum ada mata pelajaran tersedia"}
             </option>
+
+            {subjects.map((item) => (
+              <option key={item} value={item}>
+                {getSubjectLabel(item)}
+              </option>
+            ))}
           </select>
 
           <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
-            Pilihan mata pelajaran akan menyesuaikan ketersediaan
-            soal untuk kelas yang dipilih.
+            {loadingSubjects
+              ? "Sedang mengambil data dari bank soal GradeUp..."
+              : subjectError
+                ? subjectError
+                : subjects.length > 0
+                  ? `${subjects.length} mata pelajaran tersedia untuk kelas ${grade}.`
+                  : "Belum ditemukan soal untuk kelas yang dipilih."}
           </p>
+
+          {subjectError && (
+            <button
+              type="button"
+              onClick={() => setGrade((current) => current)}
+              className="mt-2 text-xs font-semibold text-violet-600 hover:underline dark:text-violet-400"
+            >
+              Coba muat ulang halaman
+            </button>
+          )}
         </div>
 
         <button
           type="button"
-          disabled
-          className="mt-6 flex w-full items-center justify-center gap-2 rounded-xl bg-violet-600 px-5 py-3.5 font-bold text-white opacity-50"
+          disabled={!subject}
+          className="mt-6 flex w-full items-center justify-center gap-2 rounded-xl bg-violet-600 px-5 py-3.5 font-bold text-white opacity-50 disabled:cursor-not-allowed enabled:opacity-100 enabled:hover:bg-violet-700"
         >
           Mulai Petualangan
           <ArrowRight size={18} />
