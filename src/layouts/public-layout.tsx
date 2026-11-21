@@ -55,19 +55,35 @@ function Navbar() {
   return (
     <header
       className={cn(
-        "sticky top-0 z-40 w-full border-b transition-all duration-300",
+        "sticky top-0 z-40 isolate w-full border-b transition-all duration-300 motion-reduce:transition-none",
         scrolled || open
-          ? "border-emerald-100/80 bg-background/90 shadow-sm backdrop-blur-xl dark:border-emerald-950"
-          : "border-transparent bg-background/80 backdrop-blur-md"
+          ? "border-emerald-200/60 bg-[#f3faf5]/90 shadow-[0_10px_30px_-18px_rgba(6,78,59,0.35)] backdrop-blur-xl dark:border-emerald-900/50 dark:bg-[#0b2016]/90 dark:shadow-[0_10px_30px_-18px_rgba(16,185,129,0.2)]"
+          : "border-transparent bg-[#f3faf5]/70 backdrop-blur-md dark:bg-[#0b2016]/70"
       )}
     >
+      {/* DEKORASI HEADER (tidak interaktif) */}
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-0 -z-10 overflow-hidden"
+      >
+        <div className="absolute -left-24 -top-28 h-48 w-48 rounded-full bg-emerald-300/30 blur-3xl dark:bg-emerald-500/10" />
+        <div className="absolute -right-24 -top-28 h-48 w-48 rounded-full bg-teal-300/30 blur-3xl dark:bg-teal-500/10" />
+        <div className="absolute inset-x-0 top-0 h-0.5 bg-gradient-to-r from-emerald-200 via-emerald-500 to-teal-400 opacity-80" />
+        <div
+          className={cn(
+            "absolute inset-x-0 bottom-0 h-px bg-gradient-to-r from-transparent via-emerald-400/60 to-transparent transition-opacity duration-300 dark:via-emerald-500/40",
+            scrolled || open ? "opacity-100" : "opacity-0"
+          )}
+        />
+      </div>
+
       <div className="container flex h-16 items-center justify-between gap-4 lg:h-[76px]">
         <div className="shrink-0">
           <Logo />
         </div>
 
         <nav
-          className="hidden items-center gap-1 rounded-2xl border border-border/60 bg-muted/40 p-1 lg:flex"
+          className="hidden items-center gap-1 rounded-2xl border border-emerald-200/60 bg-white/60 p-1 shadow-sm shadow-emerald-900/5 backdrop-blur-md dark:border-slate-700/60 dark:bg-slate-900/50 dark:shadow-none lg:flex"
           aria-label="Navigasi utama"
         >
           {PUBLIC_NAV.map((item) => (
@@ -77,10 +93,10 @@ function Navbar() {
               end={item.to === "/"}
               className={({ isActive }) =>
                 cn(
-                  "relative rounded-xl px-3.5 py-2 text-sm font-semibold transition-all duration-200",
+                  "relative rounded-xl px-3.5 py-2 text-sm font-semibold transition-all duration-300 motion-reduce:transition-none",
                   isActive
-                    ? "bg-emerald-100 text-emerald-800 shadow-sm dark:bg-emerald-950 dark:text-emerald-300"
-                    : "text-muted-foreground hover:bg-background hover:text-foreground"
+                    ? "bg-white text-teal-800 shadow-sm ring-1 ring-emerald-200/70 dark:bg-emerald-950/70 dark:text-emerald-300 dark:ring-emerald-800/50"
+                    : "text-slate-600 hover:bg-white/80 hover:text-teal-800 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-white"
                 )
               }
             >
@@ -96,18 +112,18 @@ function Navbar() {
             <Button
               asChild
               variant="ghost"
-              className="rounded-xl font-semibold"
+              className="rounded-xl font-semibold text-slate-700 transition-colors duration-300 hover:bg-white/80 hover:text-teal-800 dark:text-slate-200 dark:hover:bg-slate-800 dark:hover:text-white"
             >
               <Link to="/login">Masuk</Link>
             </Button>
 
             <Button
               asChild
-              className="rounded-xl bg-emerald-600 px-5 font-bold text-white shadow-sm shadow-emerald-600/20 transition-all hover:bg-emerald-700 hover:shadow-md hover:shadow-emerald-600/25"
+              className="group rounded-xl bg-teal-700 px-5 font-bold text-white shadow-lg shadow-teal-700/20 transition-all duration-300 hover:-translate-y-0.5 hover:bg-teal-800 hover:shadow-xl motion-reduce:transition-none motion-reduce:hover:translate-y-0 dark:bg-emerald-500 dark:text-slate-950 dark:shadow-emerald-500/10 dark:hover:bg-emerald-400"
             >
               <Link to="/register">
                 Daftar Gratis
-                <ArrowRight className="ml-2 h-4 w-4" />
+                <ArrowRight className="ml-2 h-4 w-4 transition-transform duration-300 group-hover:translate-x-0.5 motion-reduce:transition-none motion-reduce:group-hover:translate-x-0" />
               </Link>
             </Button>
           </div>
@@ -115,7 +131,7 @@ function Navbar() {
           <Button
             variant="ghost"
             size="icon"
-            className="rounded-xl lg:hidden"
+            className="rounded-xl border border-emerald-200/70 bg-white/70 text-slate-700 transition-colors duration-300 hover:bg-teal-50 hover:text-teal-800 dark:border-slate-700 dark:bg-slate-900/70 dark:text-slate-200 dark:hover:bg-slate-800 lg:hidden"
             onClick={() => setOpen((previous) => !previous)}
             aria-label={open ? "Tutup menu" : "Buka menu"}
             aria-expanded={open}
@@ -133,7 +149,7 @@ function Navbar() {
       {open && (
         <div
           id="mobile-navigation"
-          className="animate-fade-up border-t border-emerald-100 bg-background shadow-lg shadow-emerald-950/5 dark:border-emerald-950 lg:hidden"
+          className="animate-fade-up border-t border-emerald-200/60 bg-[#f3faf5]/95 shadow-lg shadow-emerald-950/5 backdrop-blur-xl dark:border-emerald-900/50 dark:bg-[#0b2016]/95 lg:hidden"
         >
           <nav
             className="container flex flex-col gap-1 py-4"
@@ -146,10 +162,10 @@ function Navbar() {
                 end={item.to === "/"}
                 className={({ isActive }) =>
                   cn(
-                    "flex items-center rounded-xl px-4 py-3 text-sm font-semibold transition-colors",
+                    "flex items-center rounded-xl px-4 py-3 text-sm font-semibold transition-colors duration-300",
                     isActive
-                      ? "bg-emerald-50 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300"
-                      : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                      ? "bg-white text-teal-800 shadow-sm ring-1 ring-emerald-200/70 dark:bg-emerald-950/70 dark:text-emerald-300 dark:ring-emerald-800/50"
+                      : "text-slate-600 hover:bg-white/70 hover:text-teal-800 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-white"
                   )
                 }
               >
@@ -157,18 +173,18 @@ function Navbar() {
               </NavLink>
             ))}
 
-            <div className="mt-3 grid grid-cols-2 gap-2 border-t border-border/60 pt-4">
+            <div className="mt-3 grid grid-cols-2 gap-2 border-t border-emerald-200/60 pt-4 dark:border-slate-700/60">
               <Button
                 asChild
                 variant="outline"
-                className="rounded-xl font-semibold"
+                className="rounded-xl border-slate-300 bg-white/80 font-semibold text-slate-700 transition-colors duration-300 hover:border-teal-300 hover:bg-teal-50 dark:border-slate-700 dark:bg-slate-900/80 dark:text-slate-100 dark:hover:border-teal-700 dark:hover:bg-slate-800"
               >
                 <Link to="/login">Masuk</Link>
               </Button>
 
               <Button
                 asChild
-                className="rounded-xl bg-emerald-600 font-bold text-white hover:bg-emerald-700"
+                className="rounded-xl bg-teal-700 font-bold text-white shadow-lg shadow-teal-700/20 transition-colors duration-300 hover:bg-teal-800 dark:bg-emerald-500 dark:text-slate-950 dark:shadow-emerald-500/10 dark:hover:bg-emerald-400"
               >
                 <Link to="/register">Daftar Gratis</Link>
               </Button>
