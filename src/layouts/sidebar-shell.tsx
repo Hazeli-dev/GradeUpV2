@@ -82,8 +82,10 @@ function SidebarDecor() {
       aria-hidden="true"
       className="pointer-events-none absolute inset-0 -z-10 overflow-hidden"
     >
-      <div className="absolute -left-16 -top-16 h-56 w-56 rounded-full bg-emerald-400/35 blur-3xl dark:bg-emerald-500/20" />
-      <div className="absolute -bottom-20 -right-20 h-64 w-64 rounded-full bg-teal-300/45 blur-3xl dark:bg-teal-500/20" />
+      {/* Pencahayaan lembut dari sudut kiri atas */}
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_0%,rgba(110,231,183,0.16),transparent_55%)]" />
+      <div className="absolute -left-16 -top-16 h-56 w-56 rounded-full bg-emerald-400/30 blur-3xl dark:bg-emerald-500/20" />
+      <div className="absolute -bottom-20 -right-20 h-64 w-64 rounded-full bg-teal-300/35 blur-3xl dark:bg-teal-500/20" />
       <div className="absolute inset-x-0 bottom-0 h-2/5 bg-[radial-gradient(rgba(5,150,105,0.28)_1px,transparent_1.5px)] [background-size:22px_22px] [mask-image:linear-gradient(to_top,#000,transparent)] dark:bg-[radial-gradient(rgba(110,231,183,0.18)_1px,transparent_1.5px)]" />
       <div className="absolute -right-10 top-1/3 h-32 w-32 rotate-12 rounded-[2rem] border border-emerald-400/30 dark:border-emerald-400/15" />
     </div>
@@ -375,7 +377,7 @@ export function SidebarShell({
             >
               <p
                 className={cn(
-                  "flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.13em] text-teal-800/70 dark:text-emerald-300/70",
+                  "flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.13em] text-teal-800/70 dark:text-emerald-200/80",
                   compactMenu && "text-[9px] tracking-[0.12em]"
                 )}
               >
@@ -401,8 +403,8 @@ export function SidebarShell({
                   compactMenu && "gap-2.5 px-3 py-2 text-xs",
                   isCollapsed && "justify-center px-0",
                   isActive
-                    ? "bg-gradient-to-r from-teal-700 to-emerald-600 text-white shadow-md shadow-black/25 ring-1 ring-inset ring-white/15 dark:from-emerald-500 dark:to-teal-500"
-                    : "text-slate-600 hover:bg-emerald-100/70 hover:text-teal-800 dark:text-slate-300 dark:hover:bg-white/10 dark:hover:text-white"
+                    ? "bg-gradient-to-r from-teal-700 to-emerald-600 text-white shadow-md shadow-black/20 ring-1 ring-inset ring-white/20 dark:from-emerald-600 dark:to-teal-600"
+                    : "text-slate-600 hover:bg-emerald-100/70 hover:text-teal-800 dark:text-slate-200 dark:hover:bg-white/10 dark:hover:text-white"
                 )
               }
             >
@@ -476,12 +478,12 @@ export function SidebarShell({
 
       {/* ========================================
           SIDEBAR DESKTOP
-          Lebih gelap dari isi halaman (deep forest),
-          baik di light mode maupun dark mode.
+          Deep forest green yang lebih hidup, tetap lebih gelap
+          dari isi halaman, baik di light mode maupun dark mode.
       ======================================== */}
       <aside
         className={cn(
-          "fixed inset-y-0 left-0 z-30 isolate hidden flex-col overflow-hidden border-r border-emerald-950/30 bg-gradient-to-b from-[#0f3d2e] via-[#0b3025] to-[#072219] shadow-[4px_0_24px_-12px_rgba(6,40,28,0.45)] transition-[width] duration-300 motion-reduce:transition-none dark:border-emerald-400/10 dark:from-[#081d14] dark:via-[#06160f] dark:to-[#040e09] lg:flex",
+          "fixed inset-y-0 left-0 z-30 isolate hidden flex-col overflow-hidden border-r border-emerald-300/15 bg-gradient-to-b from-[#15553f] via-[#0f4533] to-[#0a3326] shadow-[4px_0_24px_-12px_rgba(6,40,28,0.4)] transition-[width] duration-300 motion-reduce:transition-none dark:border-emerald-400/10 dark:from-[#0e2f22] dark:via-[#0a2419] dark:to-[#071a12] lg:flex",
           collapsed ? "w-[76px]" : "w-56"
         )}
       >
@@ -492,7 +494,7 @@ export function SidebarShell({
           {/* Logo */}
           <div
             className={cn(
-              "relative flex h-16 shrink-0 items-center border-b border-emerald-200/60 bg-white/50 px-4 backdrop-blur-sm dark:border-white/10 dark:bg-white/[0.04]",
+              "relative flex h-16 shrink-0 items-center border-b border-emerald-200/60 bg-white/50 px-4 backdrop-blur-sm dark:border-white/10 dark:bg-white/[0.06]",
               collapsed && "justify-center px-0"
             )}
           >
@@ -531,12 +533,12 @@ export function SidebarShell({
           )}
 
           {/* Tombol collapse */}
-          <div className="shrink-0 border-t border-emerald-200/60 bg-white/40 p-3 backdrop-blur-sm dark:border-white/10 dark:bg-white/[0.03]">
+          <div className="shrink-0 border-t border-emerald-200/60 bg-white/40 p-3 backdrop-blur-sm dark:border-white/10 dark:bg-white/[0.04]">
             <Button
               variant="ghost"
               size="sm"
               className={cn(
-                "w-full text-slate-600 hover:bg-emerald-100/70 hover:text-teal-800 dark:text-slate-300 dark:hover:bg-white/10 dark:hover:text-white",
+                "w-full text-slate-600 hover:bg-emerald-100/70 hover:text-teal-800 dark:text-slate-200 dark:hover:bg-white/10 dark:hover:text-white",
                 collapsed ? "px-0" : "justify-start"
               )}
               onClick={() => setCollapsed((value) => !value)}
@@ -572,11 +574,11 @@ export function SidebarShell({
             onClick={() => setMobileOpen(false)}
           />
 
-          <aside className="absolute inset-y-0 left-0 isolate flex w-72 max-w-[85vw] animate-fade-up flex-col overflow-hidden bg-gradient-to-b from-[#0f3d2e] via-[#0b3025] to-[#072219] shadow-2xl dark:from-[#081d14] dark:via-[#06160f] dark:to-[#040e09]">
+          <aside className="absolute inset-y-0 left-0 isolate flex w-72 max-w-[85vw] animate-fade-up flex-col overflow-hidden bg-gradient-to-b from-[#15553f] via-[#0f4533] to-[#0a3326] shadow-2xl dark:from-[#0e2f22] dark:via-[#0a2419] dark:to-[#071a12]">
             <div className="dark relative flex h-full w-full flex-col">
               <SidebarDecor />
 
-              <div className="relative flex h-16 shrink-0 items-center justify-between border-b border-emerald-200/60 bg-white/50 px-4 backdrop-blur-sm dark:border-white/10 dark:bg-white/[0.04]">
+              <div className="relative flex h-16 shrink-0 items-center justify-between border-b border-emerald-200/60 bg-white/50 px-4 backdrop-blur-sm dark:border-white/10 dark:bg-white/[0.06]">
                 <Logo />
 
                 <Button
