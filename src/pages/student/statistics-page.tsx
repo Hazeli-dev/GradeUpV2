@@ -181,8 +181,8 @@ function StatsStyles() {
           linear-gradient(to right, var(--gu-line) 1px, transparent 1px),
           linear-gradient(to bottom, var(--gu-line) 1px, transparent 1px);
         background-size: 44px 44px;
-        -webkit-mask-image: radial-gradient(ellipse 80% 55% at 50% 0%, #000 20%, transparent 100%);
-        mask-image: radial-gradient(ellipse 80% 55% at 50% 0%, #000 20%, transparent 100%);
+        -webkit-mask-image: radial-gradient(ellipse 60% 80% at 50% 0%, #000 5%, transparent 100%);
+        mask-image: radial-gradient(ellipse 60% 80% at 50% 0%, #000 5%, transparent 100%);
       }
 
       @media (prefers-reduced-motion: reduce) {
@@ -198,15 +198,12 @@ function AmbientBackground() {
   return (
     <div
       aria-hidden="true"
-      className="pointer-events-none absolute inset-0 -z-10 overflow-hidden rounded-3xl"
+      className="pointer-events-none absolute inset-0 -z-10"
     >
-      <div className="absolute inset-0 bg-gradient-to-b from-[#eaf6ef] via-[#f6fbf8] to-[#e2f3ea] dark:from-[#0b1c13] dark:via-[#0b2016] dark:to-[#0a1d14]" />
-      <div
-        className={`gu-grid absolute inset-0 ${patternLine}`}
-      />
-      <div className="gu-drift absolute -right-32 -top-24 h-[26rem] w-[26rem] rounded-full bg-emerald-300/40 blur-[100px] dark:bg-emerald-500/15" />
-      <div className="gu-drift-rev absolute -left-32 top-1/3 h-[24rem] w-[24rem] rounded-full bg-teal-300/35 blur-[100px] dark:bg-teal-600/15" />
-      <div className="absolute -bottom-32 right-1/4 h-[22rem] w-[22rem] rounded-full bg-emerald-300/30 blur-[100px] dark:bg-emerald-700/15" />
+      <div className={`gu-grid absolute inset-x-0 top-0 h-[36rem] ${patternLine}`} />
+      <div className="gu-drift absolute right-0 top-0 h-[26rem] w-[26rem] rounded-full bg-emerald-300/30 blur-[110px] dark:bg-emerald-500/10" />
+      <div className="gu-drift-rev absolute left-0 top-1/3 h-[24rem] w-[24rem] rounded-full bg-teal-300/25 blur-[110px] dark:bg-teal-600/10" />
+      <div className="absolute bottom-0 right-1/4 h-[22rem] w-[22rem] rounded-full bg-emerald-300/20 blur-[110px] dark:bg-emerald-700/10" />
     </div>
   );
 }
