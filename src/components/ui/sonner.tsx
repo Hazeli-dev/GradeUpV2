@@ -1,13 +1,13 @@
 
 import { Toaster as Sonner } from "sonner";
-import { useTheme } from "@/hooks/use-theme";
+import { useTheme } from "@/utils/theme-provider";
 
 export function Toaster() {
   const { theme } = useTheme();
 
   return (
     <Sonner
-      theme={theme}
+      theme={theme === "system" ? "system" : theme}
       position="top-right"
       richColors
       closeButton
