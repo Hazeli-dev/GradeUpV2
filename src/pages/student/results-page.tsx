@@ -1,4 +1,3 @@
-
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Award,
@@ -96,6 +95,35 @@ const periodOptions = [
 ];
 
 const statusOptions = ["Lulus", "Belum lulus"];
+
+// =====================================================
+// DESIGN TOKENS (tampilan saja, tidak terkait logika)
+// =====================================================
+
+// Permukaan kaca lembut untuk card dan panel.
+const GLASS =
+  "border border-emerald-900/10 bg-white/75 backdrop-blur-md shadow-[0_10px_35px_-15px_rgba(6,78,59,0.25)] dark:border-emerald-400/10 dark:bg-slate-900/60 dark:shadow-[0_10px_35px_-15px_rgba(0,0,0,0.55)]";
+
+// Tombol utama emerald.
+const BTN_PRIMARY =
+  "bg-gradient-to-br from-emerald-500 to-teal-600 text-white shadow-md shadow-emerald-700/20 hover:from-emerald-600 hover:to-teal-700 hover:text-white focus-visible:ring-2 focus-visible:ring-emerald-500/50";
+
+// Animasi ringan. Dimatikan otomatis jika prefers-reduced-motion aktif.
+const PAGE_STYLES = `
+@keyframes gu-float {
+  0%, 100% { transform: translate3d(0, 0, 0); }
+  50% { transform: translate3d(0, -14px, 0); }
+}
+@keyframes gu-drift {
+  0%, 100% { transform: translate3d(0, 0, 0) scale(1); }
+  50% { transform: translate3d(16px, 12px, 0) scale(1.05); }
+}
+.gu-float { animation: gu-float 10s ease-in-out infinite; }
+.gu-drift { animation: gu-drift 18s ease-in-out infinite; }
+@media (prefers-reduced-motion: reduce) {
+  .gu-float, .gu-drift { animation: none !important; }
+}
+`;
 
 // =====================================================
 // HELPERS
@@ -524,371 +552,441 @@ export default function ResultsPage() {
   // ===================================================
 
   return (
-    <div className="space-y-6 pb-8">
-      {/* PAGE HEADER */}
-      <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-        <PageHeader
-          title="Hasil Belajar"
-          description="Lihat riwayat ujian, periksa hasil, dan pelajari kembali jawabanmu."
-        />
+    <div className="relative isolate">
+      <style>{PAGE_STYLES}</style>
 
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="mr-1 text-xs font-medium text-muted-foreground">
-            Periode:
-          </span>
+      {/* BACKGROUND DEKORATIF (tidak interaktif) */}
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-0 -z-10 overflow-hidden"
+      >
+        <div className="absolute inset-0 bg-gradient-to-b from-emerald-50/80 via-transparent to-teal-50/60 dark:from-emerald-950/30 dark:via-transparent dark:to-teal-950/20" />
 
-          {periodOptions.map((item) => (
-            <Button
-              key={item.value}
-              size="sm"
-              variant={
-                period === item.value ? "default" : "outline"
-              }
-              className={cn(
-                "rounded-full px-3",
-                period === item.value &&
-                  "bg-emerald-600 text-white hover:bg-emerald-700"
-              )}
-              onClick={() =>
-                setPeriod(item.value as PeriodType)
-              }
-            >
-              {item.label}
-            </Button>
-          ))}
-        </div>
+        <div className="absolute inset-0 opacity-60 [background-image:linear-gradient(to_right,rgba(5,150,105,0.07)_1px,transparent_1px),linear-gradient(to_bottom,rgba(5,150,105,0.07)_1px,transparent_1px)] [background-size:44px_44px] [mask-image:radial-gradient(ellipse_80%_50%_at_50%_0%,black,transparent)] dark:opacity-40" />
+
+        <div className="gu-drift absolute -left-28 top-72 h-[24rem] w-[24rem] rounded-full bg-emerald-400/20 blur-3xl dark:bg-emerald-500/12" />
+        <div className="gu-float absolute -right-24 top-[40rem] h-[22rem] w-[22rem] rounded-full bg-teal-400/20 blur-3xl dark:bg-teal-500/12" />
+        <div className="absolute -left-20 bottom-24 h-[20rem] w-[20rem] rounded-full bg-lime-300/15 blur-3xl dark:bg-emerald-600/10" />
       </div>
 
-      {/* INTRODUCTION */}
-      <Card className="overflow-hidden border-emerald-200/70 bg-gradient-to-r from-emerald-50 via-white to-teal-50 p-5 dark:border-emerald-900/50 dark:from-emerald-950/30 dark:via-card dark:to-teal-950/20">
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex items-start gap-3">
-            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-emerald-100 text-emerald-700 dark:bg-emerald-900/60 dark:text-emerald-400">
-              <FileCheck2 className="h-6 w-6" />
-            </div>
+      <div className="relative space-y-6 pb-8">
+        {/* PAGE HEADER */}
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+          <PageHeader
+            title="Hasil Belajar"
+            description="Lihat riwayat ujian, periksa hasil, dan pelajari kembali jawabanmu."
+          />
 
-            <div>
-              <h2 className="font-bold text-foreground">
-                Evaluasi hasil ujianmu
-              </h2>
-              <p className="mt-1 max-w-2xl text-sm leading-relaxed text-muted-foreground">
-                Semua ujian yang sudah diselesaikan tersimpan di sini.
-                Periksa nilai, status kelulusan, dan pembahasan untuk
-                mengetahui bagian yang perlu dipelajari kembali.
-              </p>
-            </div>
-          </div>
+          <div
+            className={cn(
+              "flex flex-wrap items-center gap-2 rounded-full px-3 py-1.5",
+              GLASS
+            )}
+          >
+            <span className="mr-1 text-xs font-medium text-muted-foreground">
+              Periode:
+            </span>
 
-          <div className="flex items-center gap-2 self-start rounded-full border border-emerald-200 bg-white/80 px-3 py-2 text-xs font-semibold text-emerald-700 dark:border-emerald-900 dark:bg-emerald-950/50 dark:text-emerald-400 sm:self-center">
-            <Trophy className="h-4 w-4" />
-            Terus berkembang
+            {periodOptions.map((item) => (
+              <Button
+                key={item.value}
+                size="sm"
+                variant={
+                  period === item.value ? "default" : "outline"
+                }
+                className={cn(
+                  "rounded-full border-transparent bg-transparent px-3 transition-all hover:bg-emerald-500/10 motion-reduce:transition-none",
+                  period === item.value && BTN_PRIMARY
+                )}
+                onClick={() =>
+                  setPeriod(item.value as PeriodType)
+                }
+              >
+                {item.label}
+              </Button>
+            ))}
           </div>
         </div>
-      </Card>
 
-      {/* SUMMARY CARDS */}
-      <div className="grid gap-4 sm:grid-cols-3">
-        <Card className="p-5">
-          <div className="flex items-center justify-between">
-            <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-blue-50 text-blue-600 dark:bg-blue-950/50 dark:text-blue-400">
-              <CalendarDays className="h-5 w-5" />
+        {/* INTRODUCTION */}
+        <Card className="relative overflow-hidden rounded-3xl border-emerald-400/20 bg-gradient-to-br from-emerald-600 via-emerald-800 to-teal-900 p-5 text-white shadow-[0_20px_50px_-20px_rgba(6,78,59,0.7)] dark:border-emerald-400/20 dark:from-emerald-700 dark:via-emerald-900 dark:to-teal-950 sm:p-6">
+          <div
+            aria-hidden="true"
+            className="pointer-events-none absolute inset-0"
+          >
+            <div className="absolute inset-0 opacity-40 [background-image:radial-gradient(rgba(255,255,255,0.22)_1px,transparent_1px)] [background-size:22px_22px] [mask-image:linear-gradient(to_bottom_left,black,transparent_70%)]" />
+            <div className="gu-drift absolute -right-16 -top-24 h-64 w-64 rounded-full bg-emerald-300/25 blur-3xl" />
+            <div className="absolute -bottom-24 left-1/3 h-52 w-52 rounded-full bg-teal-300/20 blur-3xl" />
+            <div className="absolute -right-10 bottom-2 h-32 w-32 rounded-full border border-white/10" />
+            <div className="absolute -right-24 -bottom-6 h-52 w-52 rounded-full border border-white/10" />
+            <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/40 to-transparent" />
+          </div>
+
+          <div className="relative flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-start gap-3">
+              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border border-white/20 bg-white/10 text-emerald-100 shadow-lg ring-1 ring-inset ring-white/10 backdrop-blur-md">
+                <FileCheck2 className="h-6 w-6" />
+              </div>
+
+              <div>
+                <h2 className="font-bold text-white">
+                  Evaluasi hasil ujianmu
+                </h2>
+                <p className="mt-1 max-w-2xl text-sm leading-relaxed text-emerald-50/80">
+                  Semua ujian yang sudah diselesaikan tersimpan di sini.
+                  Periksa nilai, status kelulusan, dan pembahasan untuk
+                  mengetahui bagian yang perlu dipelajari kembali.
+                </p>
+              </div>
             </div>
-            <Badge variant="outline" className="text-xs">
-              Periode terpilih
+
+            <div className="flex items-center gap-2 self-start rounded-full border border-white/20 bg-white/10 px-3 py-2 text-xs font-semibold text-emerald-50 backdrop-blur-md sm:self-center">
+              <Trophy className="h-4 w-4" />
+              Terus berkembang
+            </div>
+          </div>
+        </Card>
+
+        {/* SUMMARY CARDS */}
+        <div className="grid gap-4 sm:grid-cols-3">
+          <Card
+            className={cn(
+              "group relative overflow-hidden p-5 transition hover:-translate-y-0.5 hover:border-blue-500/30 motion-reduce:transform-none motion-reduce:transition-none",
+              GLASS
+            )}
+          >
+            <div
+              aria-hidden="true"
+              className="pointer-events-none absolute -right-8 -top-8 h-28 w-28 rounded-full bg-blue-500/10 blur-2xl"
+            />
+            <div className="relative flex items-center justify-between">
+              <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-blue-50 text-blue-600 ring-1 ring-blue-500/15 dark:bg-blue-950/50 dark:text-blue-400">
+                <CalendarDays className="h-5 w-5" />
+              </div>
+              <Badge variant="outline" className="text-xs">
+                Periode terpilih
+              </Badge>
+            </div>
+
+            <p className="relative mt-4 text-sm font-medium text-muted-foreground">
+              Total Ujian
+            </p>
+            <p className="relative mt-1 text-3xl font-black tracking-tight text-foreground">
+              {summary.total}
+            </p>
+            <p className="relative mt-1 text-xs text-muted-foreground">
+              Ujian yang telah diselesaikan
+            </p>
+          </Card>
+
+          <Card
+            className={cn(
+              "group relative overflow-hidden p-5 transition hover:-translate-y-0.5 hover:border-emerald-500/40 motion-reduce:transform-none motion-reduce:transition-none",
+              GLASS
+            )}
+          >
+            <div
+              aria-hidden="true"
+              className="pointer-events-none absolute -right-8 -top-8 h-28 w-28 rounded-full bg-emerald-500/15 blur-2xl"
+            />
+            <div className="relative flex items-center justify-between">
+              <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-emerald-50 text-emerald-600 ring-1 ring-emerald-500/15 dark:bg-emerald-950/50 dark:text-emerald-400">
+                <CheckCircle2 className="h-5 w-5" />
+              </div>
+              <Badge variant="success">Lulus</Badge>
+            </div>
+
+            <p className="relative mt-4 text-sm font-medium text-muted-foreground">
+              Ujian Lulus
+            </p>
+            <p className="relative mt-1 text-3xl font-black tracking-tight text-emerald-600 dark:text-emerald-400">
+              {summary.passed}
+            </p>
+            <p className="relative mt-1 text-xs text-muted-foreground">
+              Berhasil mencapai nilai kelulusan
+            </p>
+          </Card>
+
+          <Card
+            className={cn(
+              "group relative overflow-hidden p-5 transition hover:-translate-y-0.5 hover:border-amber-500/40 motion-reduce:transform-none motion-reduce:transition-none",
+              GLASS
+            )}
+          >
+            <div
+              aria-hidden="true"
+              className="pointer-events-none absolute -right-8 -top-8 h-28 w-28 rounded-full bg-amber-500/10 blur-2xl"
+            />
+            <div className="relative flex items-center justify-between">
+              <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-amber-50 text-amber-600 ring-1 ring-amber-500/15 dark:bg-amber-950/50 dark:text-amber-400">
+                <Target className="h-5 w-5" />
+              </div>
+              <Badge variant="warning">Evaluasi</Badge>
+            </div>
+
+            <p className="relative mt-4 text-sm font-medium text-muted-foreground">
+              Belum Lulus
+            </p>
+            <p className="relative mt-1 text-3xl font-black tracking-tight text-amber-600 dark:text-amber-400">
+              {summary.failed}
+            </p>
+            <p className="relative mt-1 text-xs text-muted-foreground">
+              Kesempatan untuk belajar lebih baik
+            </p>
+          </Card>
+        </div>
+
+        {/* EXAM HISTORY */}
+        <Card className={cn("relative overflow-hidden", GLASS)}>
+          <div
+            aria-hidden="true"
+            className="pointer-events-none absolute -right-16 -top-16 h-48 w-48 rounded-full bg-emerald-400/10 blur-3xl"
+          />
+          <div
+            aria-hidden="true"
+            className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-emerald-400/50 to-transparent"
+          />
+
+          <div className="relative flex flex-col gap-3 border-b border-emerald-900/10 p-5 dark:border-emerald-400/10 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-50 text-emerald-600 ring-1 ring-emerald-500/15 dark:bg-emerald-950/50 dark:text-emerald-400">
+                <Award className="h-5 w-5" />
+              </div>
+
+              <div>
+                <h3 className="font-bold text-foreground">
+                  Riwayat Hasil Ujian
+                </h3>
+                <p className="text-xs text-muted-foreground">
+                  Daftar ujian yang telah kamu kerjakan.
+                </p>
+              </div>
+            </div>
+
+            <Badge variant="outline">
+              {filtered.length} hasil ditemukan
             </Badge>
           </div>
 
-          <p className="mt-4 text-sm font-medium text-muted-foreground">
-            Total Ujian
-          </p>
-          <p className="mt-1 text-3xl font-black tracking-tight text-foreground">
-            {summary.total}
-          </p>
-          <p className="mt-1 text-xs text-muted-foreground">
-            Ujian yang telah diselesaikan
-          </p>
-        </Card>
+          {/* FILTERS */}
+          <div className="relative flex flex-col gap-3 border-b border-emerald-900/10 p-4 dark:border-emerald-400/10 sm:flex-row">
+            <SearchInput
+              value={q}
+              onChange={setQ}
+              placeholder="Cari nama paket atau kategori..."
+              className="flex-1"
+            />
 
-        <Card className="p-5">
-          <div className="flex items-center justify-between">
-            <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-emerald-50 text-emerald-600 dark:bg-emerald-950/50 dark:text-emerald-400">
-              <CheckCircle2 className="h-5 w-5" />
-            </div>
-            <Badge variant="success">Lulus</Badge>
+            <FilterSelect
+              value={status}
+              onChange={(value) =>
+                setStatus(value as StatusType)
+              }
+              options={statusOptions}
+              allLabel="Semua status"
+            />
           </div>
 
-          <p className="mt-4 text-sm font-medium text-muted-foreground">
-            Ujian Lulus
-          </p>
-          <p className="mt-1 text-3xl font-black tracking-tight text-emerald-600 dark:text-emerald-400">
-            {summary.passed}
-          </p>
-          <p className="mt-1 text-xs text-muted-foreground">
-            Berhasil mencapai nilai kelulusan
-          </p>
-        </Card>
-
-        <Card className="p-5">
-          <div className="flex items-center justify-between">
-            <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-amber-50 text-amber-600 dark:bg-amber-950/50 dark:text-amber-400">
-              <Target className="h-5 w-5" />
+          {/* EMPTY STATE */}
+          {filtered.length === 0 ? (
+            <div className="relative px-4 py-8">
+              {data.length === 0 ? (
+                <EmptyState
+                  title="Belum ada hasil ujian"
+                  description="Hasil ujian yang sudah kamu selesaikan akan muncul di halaman ini."
+                />
+              ) : (
+                <EmptyState
+                  title="Hasil tidak ditemukan"
+                  description="Coba ubah kata pencarian, status kelulusan, atau periode yang dipilih."
+                />
+              )}
             </div>
-            <Badge variant="warning">Evaluasi</Badge>
-          </div>
+          ) : (
+            <>
+              {/* DESKTOP TABLE */}
+              <div className="relative hidden overflow-x-auto md:block">
+                <Table>
+                  <TableHeader>
+                    <TableRow className="bg-emerald-500/[0.06] hover:bg-emerald-500/[0.06]">
+                      <TableHead className="w-12">No.</TableHead>
+                      <TableHead>Paket Ujian</TableHead>
+                      <TableHead>Tanggal</TableHead>
+                      <TableHead>Benar / Salah</TableHead>
+                      <TableHead>Nilai</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead className="text-right">
+                        Aksi
+                      </TableHead>
+                    </TableRow>
+                  </TableHeader>
 
-          <p className="mt-4 text-sm font-medium text-muted-foreground">
-            Belum Lulus
-          </p>
-          <p className="mt-1 text-3xl font-black tracking-tight text-amber-600 dark:text-amber-400">
-            {summary.failed}
-          </p>
-          <p className="mt-1 text-xs text-muted-foreground">
-            Kesempatan untuk belajar lebih baik
-          </p>
-        </Card>
-      </div>
+                  <TableBody>
+                    {filtered.map((item, index) => (
+                      <TableRow
+                        key={item.id}
+                        className="transition-colors hover:bg-emerald-500/[0.05] motion-reduce:transition-none"
+                      >
+                        <TableCell className="text-muted-foreground">
+                          {index + 1}
+                        </TableCell>
 
-      {/* EXAM HISTORY */}
-      <Card className="overflow-hidden">
-        <div className="flex flex-col gap-3 border-b p-5 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-50 text-emerald-600 dark:bg-emerald-950/50 dark:text-emerald-400">
-              <Award className="h-5 w-5" />
-            </div>
+                        <TableCell className="min-w-[190px]">
+                          <p className="font-semibold text-foreground">
+                            {item.examTitle}
+                          </p>
+                          <p className="mt-0.5 text-xs capitalize text-muted-foreground">
+                            {item.category}
+                          </p>
+                        </TableCell>
 
-            <div>
-              <h3 className="font-bold text-foreground">
-                Riwayat Hasil Ujian
-              </h3>
-              <p className="text-xs text-muted-foreground">
-                Daftar ujian yang telah kamu kerjakan.
-              </p>
-            </div>
-          </div>
+                        <TableCell className="whitespace-nowrap text-xs text-muted-foreground">
+                          {formatDate(item.date)}
+                        </TableCell>
 
-          <Badge variant="outline">
-            {filtered.length} hasil ditemukan
-          </Badge>
-        </div>
+                        <TableCell className="whitespace-nowrap font-mono text-sm font-bold">
+                          <span className="text-emerald-600 dark:text-emerald-400">
+                            {item.correct}
+                          </span>
+                          <span className="px-1 text-muted-foreground">
+                            /
+                          </span>
+                          <span className="text-rose-500">
+                            {item.incorrect}
+                          </span>
+                          {item.totalQuestions > 0 && (
+                            <span className="ml-1 text-xs font-normal text-muted-foreground">
+                              / {item.totalQuestions}
+                            </span>
+                          )}
+                        </TableCell>
 
-        {/* FILTERS */}
-        <div className="flex flex-col gap-3 border-b p-4 sm:flex-row">
-          <SearchInput
-            value={q}
-            onChange={setQ}
-            placeholder="Cari nama paket atau kategori..."
-            className="flex-1"
-          />
+                        <TableCell>
+                          <span
+                            className={cn(
+                              "text-base font-black",
+                              getScoreColor(item.score)
+                            )}
+                          >
+                            {item.score}
+                          </span>
+                          <span className="ml-0.5 text-xs text-muted-foreground">
+                            /100
+                          </span>
+                        </TableCell>
 
-          <FilterSelect
-            value={status}
-            onChange={(value) =>
-              setStatus(value as StatusType)
-            }
-            options={statusOptions}
-            allLabel="Semua status"
-          />
-        </div>
+                        <TableCell>
+                          {getStatusBadge(item.passed)}
+                        </TableCell>
 
-        {/* EMPTY STATE */}
-        {filtered.length === 0 ? (
-          <div className="px-4 py-8">
-            {data.length === 0 ? (
-              <EmptyState
-                title="Belum ada hasil ujian"
-                description="Hasil ujian yang sudah kamu selesaikan akan muncul di halaman ini."
-              />
-            ) : (
-              <EmptyState
-                title="Hasil tidak ditemukan"
-                description="Coba ubah kata pencarian, status kelulusan, atau periode yang dipilih."
-              />
-            )}
-          </div>
-        ) : (
-          <>
-            {/* DESKTOP TABLE */}
-            <div className="hidden overflow-x-auto md:block">
-              <Table>
-                <TableHeader>
-                  <TableRow className="bg-muted/40">
-                    <TableHead className="w-12">No.</TableHead>
-                    <TableHead>Paket Ujian</TableHead>
-                    <TableHead>Tanggal</TableHead>
-                    <TableHead>Benar / Salah</TableHead>
-                    <TableHead>Nilai</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead className="text-right">
-                      Aksi
-                    </TableHead>
-                  </TableRow>
-                </TableHeader>
+                        <TableCell className="text-right">
+                          <Button
+                            size="sm"
+                            variant="soft"
+                            className="font-semibold text-emerald-700 hover:text-emerald-800 dark:text-emerald-300 dark:hover:text-emerald-200"
+                            onClick={() => handleOpenDetail(item)}
+                          >
+                            <Eye className="mr-1 h-4 w-4" />
+                            Detail
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
 
-                <TableBody>
-                  {filtered.map((item, index) => (
-                    <TableRow
-                      key={item.id}
-                      className="transition-colors hover:bg-muted/30"
-                    >
-                      <TableCell className="text-muted-foreground">
-                        {index + 1}
-                      </TableCell>
-
-                      <TableCell className="min-w-[190px]">
-                        <p className="font-semibold text-foreground">
+              {/* MOBILE HISTORY */}
+              <div className="relative space-y-3 p-4 md:hidden">
+                {filtered.map((item) => (
+                  <div
+                    key={item.id}
+                    className="rounded-xl border border-emerald-900/10 bg-white/70 p-4 dark:border-emerald-400/10 dark:bg-slate-950/40"
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="font-semibold leading-snug text-foreground">
                           {item.examTitle}
                         </p>
-                        <p className="mt-0.5 text-xs capitalize text-muted-foreground">
+                        <p className="mt-1 text-xs capitalize text-muted-foreground">
                           {item.category}
                         </p>
-                      </TableCell>
+                      </div>
 
-                      <TableCell className="whitespace-nowrap text-xs text-muted-foreground">
-                        {formatDate(item.date)}
-                      </TableCell>
-
-                      <TableCell className="whitespace-nowrap font-mono text-sm font-bold">
-                        <span className="text-emerald-600 dark:text-emerald-400">
-                          {item.correct}
-                        </span>
-                        <span className="px-1 text-muted-foreground">
-                          /
-                        </span>
-                        <span className="text-rose-500">
-                          {item.incorrect}
-                        </span>
-                        {item.totalQuestions > 0 && (
-                          <span className="ml-1 text-xs font-normal text-muted-foreground">
-                            / {item.totalQuestions}
-                          </span>
-                        )}
-                      </TableCell>
-
-                      <TableCell>
-                        <span
+                      <div className="shrink-0 text-right">
+                        <p
                           className={cn(
-                            "text-base font-black",
+                            "text-2xl font-black",
                             getScoreColor(item.score)
                           )}
                         >
                           {item.score}
-                        </span>
-                        <span className="ml-0.5 text-xs text-muted-foreground">
-                          /100
-                        </span>
-                      </TableCell>
-
-                      <TableCell>
-                        {getStatusBadge(item.passed)}
-                      </TableCell>
-
-                      <TableCell className="text-right">
-                        
-<Button
-  size="sm"
-  variant="soft"
-  className="font-semibold text-emerald-700 hover:text-emerald-800 dark:text-emerald-300 dark:hover:text-emerald-200"
-  onClick={() => handleOpenDetail(item)}
->
-  <Eye className="mr-1 h-4 w-4" />
-  Detail
-</Button>
-
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
-
-            {/* MOBILE HISTORY */}
-            <div className="space-y-3 p-4 md:hidden">
-              {filtered.map((item) => (
-                <div
-                  key={item.id}
-                  className="rounded-xl border bg-card p-4"
-                >
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0">
-                      <p className="font-semibold leading-snug text-foreground">
-                        {item.examTitle}
-                      </p>
-                      <p className="mt-1 text-xs capitalize text-muted-foreground">
-                        {item.category}
-                      </p>
+                        </p>
+                        <p className="text-[10px] text-muted-foreground">
+                          dari 100
+                        </p>
+                      </div>
                     </div>
 
-                    <div className="shrink-0 text-right">
-                      <p
-                        className={cn(
-                          "text-2xl font-black",
-                          getScoreColor(item.score)
-                        )}
+                    <div className="my-3 flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
+                      <span className="flex items-center gap-1">
+                        <CalendarDays className="h-3.5 w-3.5" />
+                        {formatDate(item.date)}
+                      </span>
+
+                      <span>
+                        <span className="font-bold text-emerald-600">
+                          {item.correct}
+                        </span>
+                        {" benar "}
+                        <span className="font-bold text-rose-500">
+                          {item.incorrect}
+                        </span>
+                        {" salah"}
+                      </span>
+                    </div>
+
+                    <div className="flex items-center justify-between gap-2 border-t border-emerald-900/10 pt-3 dark:border-emerald-400/10">
+                      {getStatusBadge(item.passed)}
+
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="border-emerald-500/40 font-semibold text-emerald-700 hover:bg-emerald-50 hover:text-emerald-800 dark:border-emerald-400/40 dark:text-emerald-300 dark:hover:bg-emerald-950/50 dark:hover:text-emerald-200"
+                        onClick={() => handleOpenDetail(item)}
                       >
-                        {item.score}
-                      </p>
-                      <p className="text-[10px] text-muted-foreground">
-                        dari 100
-                      </p>
+                        <Eye className="mr-1 h-4 w-4" />
+                        Lihat Detail
+                      </Button>
                     </div>
                   </div>
+                ))}
+              </div>
+            </>
+          )}
+        </Card>
 
-                  <div className="my-3 flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
-                    <span className="flex items-center gap-1">
-                      <CalendarDays className="h-3.5 w-3.5" />
-                      {formatDate(item.date)}
-                    </span>
-
-                    <span>
-                      <span className="font-bold text-emerald-600">
-                        {item.correct}
-                      </span>
-                      {" benar "}
-                      <span className="font-bold text-rose-500">
-                        {item.incorrect}
-                      </span>
-                      {" salah"}
-                    </span>
-                  </div>
-
-                  <div className="flex items-center justify-between gap-2 border-t pt-3">
-                    {getStatusBadge(item.passed)}
-
-                    
-<Button
-  size="sm"
-  variant="outline"
-  className="border-emerald-500/40 font-semibold text-emerald-700 hover:bg-emerald-50 hover:text-emerald-800 dark:border-emerald-400/40 dark:text-emerald-300 dark:hover:bg-emerald-950/50 dark:hover:text-emerald-200"
-  onClick={() => handleOpenDetail(item)}
->
-  <Eye className="mr-1 h-4 w-4" />
-  Lihat Detail
-</Button>
-
-                  </div>
-                </div>
-              ))}
+        {/* LEARNING GUIDANCE */}
+        <div className="relative overflow-hidden rounded-2xl border border-blue-500/20 bg-gradient-to-r from-blue-500/[0.08] via-sky-500/[0.04] to-emerald-500/[0.07] p-4 backdrop-blur-md sm:p-5">
+          <div
+            aria-hidden="true"
+            className="pointer-events-none absolute -right-10 -top-12 h-36 w-36 rounded-full bg-blue-400/15 blur-3xl"
+          />
+          <div className="relative flex items-start gap-3">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-blue-100 text-blue-700 ring-1 ring-blue-500/15 dark:bg-blue-900/60 dark:text-blue-400">
+              <Lightbulb className="h-5 w-5" />
             </div>
-          </>
-        )}
-      </Card>
 
-      {/* LEARNING GUIDANCE */}
-      <div className="rounded-2xl border border-blue-200/70 bg-blue-50/70 p-4 dark:border-blue-900/50 dark:bg-blue-950/20 sm:p-5">
-        <div className="flex items-start gap-3">
-          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-blue-100 text-blue-700 dark:bg-blue-900/60 dark:text-blue-400">
-            <Lightbulb className="h-5 w-5" />
-          </div>
-
-          <div>
-            <h3 className="font-bold text-blue-900 dark:text-blue-300">
-              Jadikan hasil ujian sebagai bahan belajar
-            </h3>
-            <p className="mt-1 text-sm leading-relaxed text-blue-800 dark:text-blue-200">
-              Periksa jawaban yang salah, baca pembahasannya, lalu
-              pelajari kembali materi terkait. Setiap hasil ujian
-              adalah kesempatan untuk meningkatkan pemahamanmu.
-            </p>
+            <div>
+              <h3 className="font-bold text-blue-900 dark:text-blue-300">
+                Jadikan hasil ujian sebagai bahan belajar
+              </h3>
+              <p className="mt-1 text-sm leading-relaxed text-blue-800 dark:text-blue-200">
+                Periksa jawaban yang salah, baca pembahasannya, lalu
+                pelajari kembali materi terkait. Setiap hasil ujian
+                adalah kesempatan untuk meningkatkan pemahamanmu.
+              </p>
+            </div>
           </div>
         </div>
       </div>
@@ -908,7 +1006,7 @@ export default function ResultsPage() {
         }}
       >
         {selectedResult && (
-          <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-3xl">
+          <DialogContent className="max-h-[90vh] overflow-y-auto border-emerald-900/10 bg-gradient-to-b from-white to-emerald-50/70 dark:border-emerald-400/10 dark:from-slate-900 dark:to-[#0a1f1b] sm:max-w-3xl">
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2 text-lg font-black">
                 <Award className="h-5 w-5 text-emerald-600" />
@@ -921,8 +1019,12 @@ export default function ResultsPage() {
             </DialogHeader>
 
             {/* SCORE SUMMARY */}
-            <div className="grid grid-cols-3 gap-2 rounded-xl border bg-muted/30 p-3 text-center sm:gap-3 sm:p-4">
-              <div>
+            <div className="relative grid grid-cols-3 gap-2 overflow-hidden rounded-xl border border-emerald-500/20 bg-gradient-to-br from-emerald-500/10 via-white/50 to-teal-500/10 p-3 text-center dark:via-slate-900/40 sm:gap-3 sm:p-4">
+              <div
+                aria-hidden="true"
+                className="pointer-events-none absolute -right-8 -top-8 h-24 w-24 rounded-full bg-emerald-400/15 blur-2xl"
+              />
+              <div className="relative">
                 <p className="text-[10px] font-bold uppercase text-muted-foreground">
                   Skor Akhir
                 </p>
@@ -936,7 +1038,7 @@ export default function ResultsPage() {
                 </p>
               </div>
 
-              <div>
+              <div className="relative">
                 <p className="text-[10px] font-bold uppercase text-muted-foreground">
                   Jawaban Benar
                 </p>
@@ -945,7 +1047,7 @@ export default function ResultsPage() {
                 </p>
               </div>
 
-              <div>
+              <div className="relative">
                 <p className="text-[10px] font-bold uppercase text-muted-foreground">
                   Jawaban Salah
                 </p>
@@ -955,7 +1057,7 @@ export default function ResultsPage() {
               </div>
             </div>
 
-            <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-muted/40 px-3 py-2 text-xs">
+            <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-emerald-500/[0.06] px-3 py-2 text-xs">
               <span className="text-muted-foreground">
                 Tanggal pengerjaan
               </span>
@@ -1010,7 +1112,7 @@ export default function ResultsPage() {
                   >
                     {reviewLoading ? (
                       <div className="flex items-center justify-center gap-2 py-10 text-sm text-muted-foreground">
-                        <Clock className="h-4 w-4 animate-pulse" />
+                        <Clock className="h-4 w-4 animate-pulse motion-reduce:animate-none" />
                         Memuat lembar jawaban...
                       </div>
                     ) : reviewError ? (
@@ -1034,7 +1136,7 @@ export default function ResultsPage() {
                         </Button>
                       </div>
                     ) : reviewQuestions.length === 0 ? (
-                      <div className="rounded-xl border border-dashed p-6 text-center">
+                      <div className="rounded-xl border border-dashed border-emerald-600/25 p-6 text-center">
                         <CircleHelp className="mx-auto mb-2 h-8 w-8 text-muted-foreground/40" />
                         <p className="text-sm font-semibold text-foreground">
                           Detail soal belum tersedia
@@ -1125,7 +1227,7 @@ export default function ResultsPage() {
                                 )}
                               </div>
 
-                              <div className="space-y-1.5 border-l-2 border-border/80 pl-2">
+                              <div className="space-y-1.5 border-l-2 border-emerald-500/20 pl-2">
                                 {question.options.map(
                                   (option, optionIndex) => {
                                     const isUserChoice =
@@ -1171,7 +1273,7 @@ export default function ResultsPage() {
                                 )}
                               </div>
 
-                              <div className="grid gap-2 border-t pt-3 sm:grid-cols-2">
+                              <div className="grid gap-2 border-t border-emerald-900/10 pt-3 dark:border-emerald-400/10 sm:grid-cols-2">
                                 <div className="rounded-lg bg-muted/50 p-2">
                                   <p className="text-[10px] text-muted-foreground">
                                     Jawabanmu
@@ -1209,7 +1311,7 @@ export default function ResultsPage() {
                   >
                     {reviewLoading ? (
                       <div className="flex items-center justify-center gap-2 py-10 text-sm text-muted-foreground">
-                        <Clock className="h-4 w-4 animate-pulse" />
+                        <Clock className="h-4 w-4 animate-pulse motion-reduce:animate-none" />
                         Memuat pembahasan...
                       </div>
                     ) : reviewError ? (
@@ -1223,7 +1325,7 @@ export default function ResultsPage() {
                         </p>
                       </div>
                     ) : reviewQuestions.length === 0 ? (
-                      <div className="rounded-xl border border-dashed p-6 text-center">
+                      <div className="rounded-xl border border-dashed border-emerald-600/25 p-6 text-center">
                         <BookOpen className="mx-auto mb-2 h-8 w-8 text-muted-foreground/40" />
                         <p className="text-sm font-semibold text-foreground">
                           Pembahasan belum tersedia
@@ -1254,7 +1356,7 @@ export default function ResultsPage() {
                         return (
                           <div
                             key={question.id}
-                            className="space-y-3 rounded-xl border bg-card p-4"
+                            className="space-y-3 rounded-xl border border-emerald-900/10 bg-white/70 p-4 dark:border-emerald-400/10 dark:bg-slate-950/40"
                           >
                             <div className="flex items-start justify-between gap-3">
                               <p className="text-xs font-bold leading-relaxed text-foreground">
