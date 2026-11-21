@@ -84,11 +84,11 @@ const smooth = "transition-colors duration-300 ease-in-out";
 /* ------------------------------------------------------------------ */
 
 const patternLine =
-  "[--gu-line:rgba(15,118,110,0.07)] dark:[--gu-line:rgba(52,211,153,0.07)]";
-const patternLineInverse = "[--gu-line:rgba(167,243,208,0.08)]";
+  "[--gu-line:rgba(15,118,110,0.16)] dark:[--gu-line:rgba(52,211,153,0.13)]";
+const patternLineInverse = "[--gu-line:rgba(167,243,208,0.13)]";
 const patternDot =
-  "[--gu-dot:rgba(5,150,105,0.24)] dark:[--gu-dot:rgba(110,231,183,0.16)]";
-const patternDotInverse = "[--gu-dot:rgba(167,243,208,0.18)]";
+  "[--gu-dot:rgba(5,150,105,0.42)] dark:[--gu-dot:rgba(110,231,183,0.28)]";
+const patternDotInverse = "[--gu-dot:rgba(167,243,208,0.3)]";
 
 function HomeStyles() {
   return (
@@ -355,17 +355,17 @@ export default function HomePage() {
 
       {/* HERO */}
       <section
-        className={`relative isolate overflow-hidden bg-gradient-to-br from-[#eaf7ef] via-[#f5faf6] to-[#e3f3ea] dark:from-[#0a1810] dark:via-[#0d1f15] dark:to-[#0b2418] ${smooth}`}
+        className={`relative isolate overflow-hidden bg-gradient-to-br from-[#c9ecd8] via-[#e6f5ec] to-[#b9e4cc] dark:from-[#0b2418] dark:via-[#0e2b1c] dark:to-[#0a2a20] ${smooth}`}
       >
         <DecorLayer>
-          <div className="gu-drift absolute -left-40 -top-40 h-[480px] w-[480px] rounded-full bg-emerald-300/35 blur-[100px] dark:bg-emerald-600/15" />
-          <div className="gu-drift-rev absolute -right-32 top-10 h-[430px] w-[430px] rounded-full bg-teal-300/40 blur-[110px] dark:bg-teal-600/15" />
-          <div className="absolute -bottom-32 left-1/3 h-[320px] w-[320px] rounded-full bg-emerald-200/50 blur-[90px] dark:bg-emerald-700/10" />
+          <div className="gu-drift absolute -left-40 -top-40 h-[480px] w-[480px] rounded-full bg-emerald-400/55 blur-[100px] dark:bg-emerald-500/25" />
+          <div className="gu-drift-rev absolute -right-32 top-10 h-[430px] w-[430px] rounded-full bg-teal-400/50 blur-[110px] dark:bg-teal-500/25" />
+          <div className="absolute -bottom-32 left-1/3 h-[320px] w-[320px] rounded-full bg-emerald-400/45 blur-[90px] dark:bg-emerald-600/20" />
           <GridPattern />
-          <div className="absolute right-[6%] top-16 h-72 w-72 rounded-full border border-emerald-400/20 dark:border-emerald-400/10" />
-          <div className="absolute right-[10%] top-24 h-48 w-48 rounded-full border border-teal-400/15 dark:border-teal-400/10" />
-          <div className="absolute -left-10 bottom-24 h-40 w-40 rotate-12 rounded-[2rem] border border-teal-400/25 bg-gradient-to-br from-white/50 to-transparent dark:border-teal-400/10 dark:from-white/5" />
-          <div className="absolute bottom-16 right-[32%] h-14 w-14 -rotate-12 rounded-2xl bg-emerald-400/10 dark:bg-emerald-400/5" />
+          <div className="absolute right-[6%] top-16 h-72 w-72 rounded-full border border-emerald-400/45 dark:border-emerald-400/10" />
+          <div className="absolute right-[10%] top-24 h-48 w-48 rounded-full border border-teal-400/45 dark:border-teal-400/10" />
+          <div className="absolute -left-10 bottom-24 h-40 w-40 rotate-12 rounded-[2rem] border border-teal-400/45 bg-gradient-to-br from-white/70 to-emerald-200/30 dark:border-teal-400/20 dark:from-white/8" />
+          <div className="absolute bottom-16 right-[32%] h-14 w-14 -rotate-12 rounded-2xl bg-emerald-500/25 dark:bg-emerald-400/10" />
           <div className="absolute bottom-0 left-1/2 h-px w-3/4 -translate-x-1/2 bg-gradient-to-r from-transparent via-emerald-300/60 to-transparent dark:via-emerald-700/50" />
         </DecorLayer>
 
@@ -449,8 +449,8 @@ export default function HomePage() {
                     aria-hidden="true"
                     className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_85%_0%,rgba(52,211,153,0.22),transparent_55%),radial-gradient(circle_at_0%_100%,rgba(20,184,166,0.14),transparent_50%)]"
                   />
-                  <div className="absolute -right-16 -top-20 h-64 w-64 rounded-full border border-emerald-300/15" />
-                  <div className="absolute -right-6 -top-10 h-44 w-44 rounded-full border border-emerald-300/20" />
+                  <div className="absolute -right-16 -top-20 h-64 w-64 rounded-full border border-emerald-300/45" />
+                  <div className="absolute -right-6 -top-10 h-44 w-44 rounded-full border border-emerald-300/45" />
                   <div className="absolute bottom-0 right-0 h-40 w-40 rounded-full bg-emerald-400/10 blur-3xl" />
 
                   <div className="relative flex items-center justify-between gap-3">
@@ -585,11 +585,11 @@ export default function HomePage() {
 
       {/* VALUE STRIP */}
       <section
-        className={`relative isolate overflow-hidden border-b border-emerald-100/70 bg-gradient-to-b from-[#e3f3ea] via-[#f4faf6] to-[#f7fbf8] dark:border-emerald-900/30 dark:from-[#0b2418] dark:via-[#0d2017] dark:to-[#0d1f15] ${smooth}`}
+        className={`relative isolate overflow-hidden border-b border-emerald-100/70 bg-gradient-to-b from-[#b9e4cc] via-[#dff3e8] to-[#eaf6ef] dark:border-emerald-900/30 dark:from-[#0a2a20] dark:via-[#0d2519] dark:to-[#0d2116] ${smooth}`}
       >
         <DecorLayer>
           <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-emerald-400/50 to-transparent dark:via-emerald-500/30" />
-          <div className="absolute -top-10 left-1/2 h-24 w-2/3 -translate-x-1/2 rounded-full bg-emerald-300/25 blur-3xl dark:bg-emerald-500/10" />
+          <div className="absolute -top-10 left-1/2 h-24 w-2/3 -translate-x-1/2 rounded-full bg-emerald-400/45 blur-3xl dark:bg-emerald-500/20" />
           <div className="absolute inset-x-0 bottom-0 h-px bg-gradient-to-r from-transparent via-teal-300/40 to-transparent dark:via-teal-700/30" />
         </DecorLayer>
 
@@ -641,14 +641,14 @@ export default function HomePage() {
 
       {/* FEATURES */}
       <section
-        className={`relative isolate overflow-hidden bg-gradient-to-b from-[#f7fbf8] via-white to-[#eaf6ef] dark:from-[#0d1f15] dark:via-[#0b1a12] dark:to-[#0c2217] ${smooth}`}
+        className={`relative isolate overflow-hidden bg-gradient-to-b from-[#eaf6ef] via-[#f6fbf8] to-[#d3eddf] dark:from-[#0d2116] dark:via-[#0b1c13] dark:to-[#0c2418] ${smooth}`}
       >
         <DecorLayer>
           <GridPattern />
-          <div className="gu-drift absolute -right-40 top-20 h-[26rem] w-[26rem] rounded-full bg-teal-200/30 blur-3xl dark:bg-teal-700/10" />
-          <div className="gu-drift-rev absolute -left-40 bottom-10 h-[24rem] w-[24rem] rounded-full bg-emerald-200/35 blur-3xl dark:bg-emerald-700/10" />
-          <div className="absolute right-[8%] top-10 h-40 w-40 rotate-12 rounded-[2.5rem] border border-emerald-300/25 dark:border-emerald-500/10" />
-          <div className="absolute bottom-16 left-[6%] h-24 w-24 -rotate-12 rounded-3xl border border-teal-300/25 bg-gradient-to-br from-white/40 to-transparent dark:border-teal-500/10 dark:from-white/5" />
+          <div className="gu-drift absolute -right-40 top-20 h-[26rem] w-[26rem] rounded-full bg-teal-300/55 blur-3xl dark:bg-teal-600/20" />
+          <div className="gu-drift-rev absolute -left-40 bottom-10 h-[24rem] w-[24rem] rounded-full bg-emerald-300/55 blur-3xl dark:bg-emerald-600/20" />
+          <div className="absolute right-[8%] top-10 h-40 w-40 rotate-12 rounded-[2.5rem] border border-emerald-300/45 dark:border-emerald-500/10" />
+          <div className="absolute bottom-16 left-[6%] h-24 w-24 -rotate-12 rounded-3xl border border-teal-300/45 bg-gradient-to-br from-white/40 to-transparent dark:border-teal-500/10 dark:from-white/5" />
         </DecorLayer>
 
         <div className="container py-20 sm:py-28">
@@ -712,14 +712,14 @@ export default function HomePage() {
 
       {/* COURSES */}
       <section
-        className={`relative isolate overflow-hidden border-y border-emerald-100/60 bg-gradient-to-b from-[#e6f5ec] via-[#f1f9f4] to-[#f7fbf8] py-20 dark:border-emerald-900/30 dark:from-[#0c2217] dark:via-[#0d2116] dark:to-[#0b1d14] sm:py-28 ${smooth}`}
+        className={`relative isolate overflow-hidden border-y border-emerald-300/40 bg-gradient-to-b from-[#d3eddf] via-[#c3e8d3] to-[#d8f0e2] py-20 dark:border-emerald-900/30 dark:from-[#0c2418] dark:via-[#0e2a1b] dark:to-[#0b2016] sm:py-28 ${smooth}`}
       >
         <DecorLayer>
           <GridPattern dots />
-          <div className="gu-drift absolute left-1/2 -top-32 h-[30rem] w-[44rem] -translate-x-1/2 rounded-full bg-emerald-300/30 blur-[110px] dark:bg-emerald-600/10" />
-          <div className="gu-drift-rev absolute -right-32 bottom-0 h-96 w-96 rounded-full bg-teal-200/40 blur-3xl dark:bg-teal-700/10" />
-          <div className="absolute -left-32 bottom-20 h-80 w-80 rounded-full bg-emerald-200/40 blur-3xl dark:bg-emerald-800/10" />
-          <div className="absolute -right-16 top-24 h-64 w-64 rounded-full border border-emerald-400/20 dark:border-emerald-500/10" />
+          <div className="gu-drift absolute left-1/2 -top-32 h-[30rem] w-[44rem] -translate-x-1/2 rounded-full bg-emerald-400/50 blur-[110px] dark:bg-emerald-500/20" />
+          <div className="gu-drift-rev absolute -right-32 bottom-0 h-96 w-96 rounded-full bg-teal-300/60 blur-3xl dark:bg-teal-600/20" />
+          <div className="absolute -left-32 bottom-20 h-80 w-80 rounded-full bg-emerald-300/55 blur-3xl dark:bg-emerald-700/20" />
+          <div className="absolute -right-16 top-24 h-64 w-64 rounded-full border border-emerald-400/45 dark:border-emerald-500/10" />
         </DecorLayer>
 
         <div className="container">
@@ -846,14 +846,14 @@ export default function HomePage() {
 
       {/* EXAMS */}
       <section
-        className={`relative isolate overflow-hidden bg-gradient-to-b from-[#f7fbf8] via-[#f1f8f7] to-[#f0f8f4] dark:from-[#0b1d14] dark:via-[#0c1d1b] dark:to-[#0b1d14] ${smooth}`}
+        className={`relative isolate overflow-hidden bg-gradient-to-b from-[#d8f0e2] via-[#e2f3f0] to-[#cfeae3] dark:from-[#0b2016] dark:via-[#0c2220] dark:to-[#0b1f19] ${smooth}`}
       >
         <DecorLayer>
           <GridPattern />
-          <div className="gu-drift-rev absolute -left-32 top-24 h-96 w-96 rounded-full bg-teal-200/35 blur-3xl dark:bg-teal-700/10" />
-          <div className="gu-drift absolute -right-32 bottom-24 h-[26rem] w-[26rem] rounded-full bg-emerald-200/40 blur-3xl dark:bg-emerald-700/10" />
-          <div className="absolute right-[5%] top-16 h-44 w-44 rotate-45 rounded-[2.5rem] border border-teal-300/30 dark:border-teal-500/10" />
-          <div className="absolute left-[4%] bottom-24 h-28 w-28 rotate-12 rounded-3xl border border-emerald-300/30 bg-gradient-to-br from-white/50 to-transparent dark:border-emerald-500/10 dark:from-white/5" />
+          <div className="gu-drift-rev absolute -left-32 top-24 h-96 w-96 rounded-full bg-teal-300/60 blur-3xl dark:bg-teal-600/20" />
+          <div className="gu-drift absolute -right-32 bottom-24 h-[26rem] w-[26rem] rounded-full bg-emerald-300/55 blur-3xl dark:bg-emerald-600/20" />
+          <div className="absolute right-[5%] top-16 h-44 w-44 rotate-45 rounded-[2.5rem] border border-teal-300/45 dark:border-teal-500/10" />
+          <div className="absolute left-[4%] bottom-24 h-28 w-28 rotate-12 rounded-3xl border border-emerald-300/45 bg-gradient-to-br from-white/50 to-transparent dark:border-emerald-500/10 dark:from-white/5" />
           <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-teal-300/50 to-transparent dark:via-teal-700/30" />
         </DecorLayer>
 
@@ -893,7 +893,7 @@ export default function HomePage() {
                   className={`group flex flex-col overflow-hidden rounded-3xl shadow-[0_14px_40px_-26px_rgba(15,118,110,0.4)] ring-1 ring-teal-900/[0.04] transition-all duration-300 hover:-translate-y-1 hover:border-teal-300/80 hover:shadow-[0_28px_64px_-28px_rgba(15,118,110,0.5)] motion-reduce:transition-none motion-reduce:hover:translate-y-0 dark:ring-white/5 dark:hover:border-emerald-700/70 ${cardSurface}`}
                 >
                   <div className="relative overflow-hidden bg-[#123b29] px-6 pb-7 pt-6 text-white">
-                    <div className="absolute -right-8 -top-12 h-40 w-40 rounded-full border border-emerald-300/20" />
+                    <div className="absolute -right-8 -top-12 h-40 w-40 rounded-full border border-emerald-300/45" />
                     <div className="absolute -right-2 -top-7 h-28 w-28 rounded-full bg-emerald-400/10 blur-xl" />
 
                     <div className="relative flex items-start justify-between gap-3">
@@ -1018,14 +1018,14 @@ export default function HomePage() {
       >
         <DecorLayer>
           <GridPattern inverse />
-          <div className="gu-drift absolute -right-40 -top-20 h-[30rem] w-[30rem] rounded-full bg-emerald-400/20 blur-[110px] dark:bg-emerald-500/12" />
-          <div className="gu-drift-rev absolute -left-40 bottom-0 h-[28rem] w-[28rem] rounded-full bg-teal-400/20 blur-[110px] dark:bg-teal-500/10" />
+          <div className="gu-drift absolute -right-40 -top-20 h-[30rem] w-[30rem] rounded-full bg-emerald-400/30 blur-[110px] dark:bg-emerald-500/20" />
+          <div className="gu-drift-rev absolute -left-40 bottom-0 h-[28rem] w-[28rem] rounded-full bg-teal-400/30 blur-[110px] dark:bg-teal-500/18" />
           <div className="absolute left-1/2 top-1/3 h-[22rem] w-[40rem] -translate-x-1/2 rounded-full bg-emerald-300/10 blur-[100px]" />
-          <div className="absolute -right-24 top-28 h-80 w-80 rounded-full border border-emerald-300/15" />
-          <div className="absolute -right-8 top-44 h-48 w-48 rounded-full border border-emerald-300/10" />
-          <div className="absolute -left-16 top-32 h-44 w-44 rotate-12 rounded-[2.5rem] border border-emerald-300/15 bg-gradient-to-br from-white/10 to-transparent" />
-          <div className="absolute inset-x-0 top-0 h-20 bg-gradient-to-b from-[#f0f8f4] to-transparent dark:from-[#0b1d14]" />
-          <div className="absolute inset-x-0 bottom-0 h-20 bg-gradient-to-b from-transparent to-[#f4faf6] dark:to-[#0d1f15]" />
+          <div className="absolute -right-24 top-28 h-80 w-80 rounded-full border border-emerald-300/45" />
+          <div className="absolute -right-8 top-44 h-48 w-48 rounded-full border border-emerald-300/45" />
+          <div className="absolute -left-16 top-32 h-44 w-44 rotate-12 rounded-[2.5rem] border border-emerald-300/45 bg-gradient-to-br from-white/10 to-transparent" />
+          <div className="absolute inset-x-0 top-0 h-20 bg-gradient-to-b from-[#cfeae3] to-transparent dark:from-[#0b1f19]" />
+          <div className="absolute inset-x-0 bottom-0 h-20 bg-gradient-to-b from-transparent to-[#d9f0e3] dark:to-[#0d2116]" />
         </DecorLayer>
 
         <div className="container">
@@ -1060,14 +1060,14 @@ export default function HomePage() {
 
       {/* FAQ */}
       <section
-        className={`relative isolate overflow-hidden bg-gradient-to-b from-[#f4faf6] via-[#eaf6ef] to-[#f5faf6] dark:from-[#0d1f15] dark:via-[#0c2217] dark:to-[#0d1f15] ${smooth}`}
+        className={`relative isolate overflow-hidden bg-gradient-to-b from-[#d9f0e3] via-[#c9ebd8] to-[#d3eddf] dark:from-[#0d2116] dark:via-[#0d2a1b] dark:to-[#0d2116] ${smooth}`}
       >
         <DecorLayer>
           <GridPattern dots />
-          <div className="gu-drift absolute -left-32 top-10 h-96 w-96 rounded-full bg-emerald-200/45 blur-3xl dark:bg-emerald-700/10" />
-          <div className="gu-drift-rev absolute -right-32 bottom-10 h-96 w-96 rounded-full bg-teal-200/40 blur-3xl dark:bg-teal-700/10" />
-          <div className="absolute right-[6%] top-12 h-40 w-40 rounded-full border border-emerald-400/20 dark:border-emerald-500/10" />
-          <div className="absolute bottom-16 left-[5%] h-24 w-24 rotate-12 rounded-3xl border border-teal-300/30 dark:border-teal-500/10" />
+          <div className="gu-drift absolute -left-32 top-10 h-96 w-96 rounded-full bg-emerald-300/60 blur-3xl dark:bg-emerald-600/20" />
+          <div className="gu-drift-rev absolute -right-32 bottom-10 h-96 w-96 rounded-full bg-teal-300/60 blur-3xl dark:bg-teal-600/20" />
+          <div className="absolute right-[6%] top-12 h-40 w-40 rounded-full border border-emerald-400/45 dark:border-emerald-500/10" />
+          <div className="absolute bottom-16 left-[5%] h-24 w-24 rotate-12 rounded-3xl border border-teal-300/45 dark:border-teal-500/10" />
         </DecorLayer>
 
         <div className="container py-20 sm:py-28">
@@ -1104,15 +1104,15 @@ export default function HomePage() {
 
       {/* FINAL CTA */}
       <section
-        className={`relative isolate overflow-hidden bg-gradient-to-b from-[#f5faf6] to-[#e8f5ed] pb-20 dark:from-[#0d1f15] dark:to-[#0a1810] sm:pb-28 ${smooth}`}
+        className={`relative isolate overflow-hidden bg-gradient-to-b from-[#d3eddf] to-[#b9e4cc] pb-20 dark:from-[#0d2116] dark:to-[#0a1d14] sm:pb-28 ${smooth}`}
       >
         <DecorLayer>
-          <div className="absolute inset-x-0 bottom-0 h-2/3 bg-gradient-to-t from-emerald-200/40 to-transparent dark:from-emerald-900/20" />
-          <div className="absolute left-1/2 bottom-0 h-72 w-2/3 -translate-x-1/2 rounded-full bg-emerald-300/30 blur-[100px] dark:bg-emerald-600/10" />
+          <div className="absolute inset-x-0 bottom-0 h-2/3 bg-gradient-to-t from-emerald-400/45 to-transparent dark:from-emerald-800/30" />
+          <div className="absolute left-1/2 bottom-0 h-72 w-2/3 -translate-x-1/2 rounded-full bg-emerald-400/55 blur-[100px] dark:bg-emerald-500/20" />
         </DecorLayer>
 
         <div className="container">
-          <div className="relative isolate overflow-hidden rounded-[2rem] border border-emerald-300/20 bg-gradient-to-br from-[#0f3324] via-[#174b34] to-[#1e6842] px-6 py-16 text-center text-white shadow-[0_40px_100px_-40px_rgba(6,78,59,0.65)] ring-1 ring-inset ring-white/10 sm:px-12 sm:py-20">
+          <div className="relative isolate overflow-hidden rounded-[2rem] border border-emerald-300/45 bg-gradient-to-br from-[#0f3324] via-[#174b34] to-[#1e6842] px-6 py-16 text-center text-white shadow-[0_40px_100px_-40px_rgba(6,78,59,0.65)] ring-1 ring-inset ring-white/10 sm:px-12 sm:py-20">
             <div
               aria-hidden="true"
               className="pointer-events-none absolute inset-0 -z-10 bg-[radial-gradient(circle_at_20%_0%,rgba(52,211,153,0.24),transparent_50%),radial-gradient(circle_at_95%_100%,rgba(20,184,166,0.22),transparent_45%)]"
@@ -1127,7 +1127,7 @@ export default function HomePage() {
               aria-hidden="true"
             />
             <div
-              className="pointer-events-none absolute -right-20 -top-28 -z-10 h-80 w-80 rounded-full border border-emerald-300/15"
+              className="pointer-events-none absolute -right-20 -top-28 -z-10 h-80 w-80 rounded-full border border-emerald-300/45"
               aria-hidden="true"
             />
             <div
@@ -1139,7 +1139,7 @@ export default function HomePage() {
               aria-hidden="true"
             />
             <div
-              className="pointer-events-none absolute -bottom-20 -left-10 -z-10 h-64 w-64 rounded-full border border-emerald-300/10"
+              className="pointer-events-none absolute -bottom-20 -left-10 -z-10 h-64 w-64 rounded-full border border-emerald-300/45"
               aria-hidden="true"
             />
             <div
