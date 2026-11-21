@@ -142,6 +142,24 @@ const RARITY_THEME: Record<
   },
 };
 
+/* Token gaya (disamakan dengan HomePage dan dashboard) */
+
+const headingText = "text-slate-950 dark:text-white";
+
+const mutedText = "text-slate-600 dark:text-slate-300";
+
+const cardSurface =
+  "border border-slate-200/80 bg-white/90 backdrop-blur-sm dark:border-slate-700/70 dark:bg-slate-900/85";
+
+const tileSurface =
+  "border border-emerald-100/80 bg-white/70 dark:border-slate-700/70 dark:bg-slate-900/60";
+
+const tabTrigger =
+  "gap-1.5 rounded-lg py-2.5 text-xs font-bold text-slate-600 transition-all duration-300 data-[state=active]:bg-white data-[state=active]:text-teal-800 data-[state=active]:shadow-sm dark:text-slate-300 dark:data-[state=active]:bg-slate-800 dark:data-[state=active]:text-emerald-300 sm:gap-2";
+
+const progressBar =
+  "[&>div]:bg-gradient-to-r [&>div]:from-teal-600 [&>div]:to-emerald-400";
+
 /* =========================================================
    HELPERS
 ========================================================= */
@@ -549,24 +567,29 @@ export default function StudentAchievementsPage() {
   if (loadError) {
     return (
       <div className="mx-auto flex min-h-[55vh] w-full max-w-xl items-center justify-center px-4">
-        <Card className="w-full rounded-3xl border-border/70">
+        <Card
+          className={cn(
+            "w-full rounded-3xl shadow-[0_24px_60px_-34px_rgba(6,78,59,0.4)]",
+            cardSurface
+          )}
+        >
           <CardContent className="flex flex-col items-center gap-4 p-8 text-center">
             <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-destructive/10 text-destructive">
               <AlertCircle className="h-7 w-7" />
             </div>
 
             <div>
-              <h2 className="font-bold text-foreground">
+              <h2 className={cn("font-bold", headingText)}>
                 Pencapaian belum tersedia
               </h2>
-              <p className="mt-1 text-sm text-muted-foreground">
+              <p className={cn("mt-1 text-sm", mutedText)}>
                 {loadError}
               </p>
             </div>
 
             <Button
               onClick={() => window.location.reload()}
-              className="gap-2 rounded-xl"
+              className="gap-2 rounded-xl bg-teal-700 font-bold text-white shadow-lg shadow-teal-700/20 transition-all duration-300 hover:-translate-y-0.5 hover:bg-teal-800 motion-reduce:transition-none motion-reduce:hover:translate-y-0 dark:bg-emerald-500 dark:text-slate-950 dark:hover:bg-emerald-400"
             >
               <RefreshCw className="h-4 w-4" />
               Muat ulang
@@ -646,33 +669,35 @@ export default function StudentAchievementsPage() {
 
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <div className="mb-2 flex items-center gap-2">
-            <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
-              <Trophy className="h-4 w-4" />
-            </div>
-
-            <span className="text-xs font-bold uppercase tracking-[0.16em] text-emerald-600 dark:text-emerald-400">
-              Student Achievement
-            </span>
+          <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-teal-200/80 bg-teal-50 px-3.5 py-2 text-[10px] font-bold uppercase tracking-[0.16em] text-teal-800 dark:border-teal-800/70 dark:bg-teal-950/60 dark:text-teal-200 sm:text-[11px]">
+            <Trophy className="h-3.5 w-3.5 text-emerald-500" />
+            Student Achievement
           </div>
 
-          <h1 className="text-2xl font-extrabold tracking-tight text-foreground sm:text-3xl">
+          <h1
+            className={cn(
+              "text-2xl font-black tracking-[-0.04em] sm:text-3xl",
+              headingText
+            )}
+          >
             Pencapaian Saya
           </h1>
 
-          <p className="mt-1 text-sm text-muted-foreground">
+          <p className={cn("mt-1 text-sm", mutedText)}>
             Terus belajar, kumpulkan XP, dan buka pencapaian baru.
           </p>
         </div>
 
         <div
-          className="inline-flex items-center gap-2.5 self-start rounded-full border border-border bg-card px-4 py-2.5 text-xs font-semibold text-muted-foreground shadow-sm sm:self-auto"
+          className="inline-flex items-center gap-2.5 self-start rounded-full border border-emerald-200/70 bg-white/80 px-4 py-2.5 text-xs font-semibold text-slate-600 shadow-sm backdrop-blur-sm dark:border-slate-700/70 dark:bg-slate-900/80 dark:text-slate-300 sm:self-auto"
           role="status"
         >
           <Timer className="h-4 w-4 text-emerald-500" />
           <span>
             {seasonName} berakhir dalam{" "}
-            <strong className="text-sm tabular-nums text-foreground">
+            <strong
+              className={cn("text-sm tabular-nums", headingText)}
+            >
               {seasonDaysLeft} hari
             </strong>
           </span>
@@ -681,13 +706,23 @@ export default function StudentAchievementsPage() {
 
       {/* XP HERO */}
 
-      <Card className="relative overflow-hidden rounded-3xl border border-emerald-500/20 bg-gradient-to-br from-emerald-500/[0.10] via-card to-card shadow-sm">
-        <div className="pointer-events-none absolute -right-16 -top-20 h-56 w-56 rounded-full bg-emerald-500/[0.07] blur-3xl" />
+      <Card className="relative isolate overflow-hidden rounded-3xl border border-emerald-200/70 bg-gradient-to-br from-emerald-50 via-white to-teal-50/70 shadow-[0_24px_60px_-34px_rgba(6,78,59,0.45)] dark:border-emerald-900/50 dark:from-emerald-950/50 dark:via-slate-900 dark:to-slate-900">
+        {/* Dekorasi hero (tidak interaktif) */}
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-0 -z-10 overflow-hidden"
+        >
+          <div className="absolute -right-20 -top-24 h-64 w-64 rounded-full bg-emerald-400/30 blur-3xl dark:bg-emerald-500/15" />
+          <div className="absolute -bottom-28 -left-16 h-64 w-64 rounded-full bg-teal-300/30 blur-3xl dark:bg-teal-600/15" />
+          <div className="absolute inset-0 bg-[radial-gradient(rgba(5,150,105,0.18)_1px,transparent_1.5px)] [background-size:24px_24px] [mask-image:radial-gradient(ellipse_70%_60%_at_80%_0%,#000_20%,transparent_100%)] [-webkit-mask-image:radial-gradient(ellipse_70%_60%_at_80%_0%,#000_20%,transparent_100%)] dark:bg-[radial-gradient(rgba(110,231,183,0.14)_1px,transparent_1.5px)]" />
+          <div className="absolute -right-10 top-8 h-44 w-44 rounded-full border border-emerald-400/40 dark:border-emerald-400/10" />
+          <div className="absolute inset-x-8 top-0 h-px bg-gradient-to-r from-transparent via-emerald-400/60 to-transparent dark:via-emerald-500/40" />
+        </div>
 
         <CardContent className="relative space-y-6 p-5 sm:p-7">
           <div className="flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
             <div className="flex items-center gap-4">
-              <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl border border-emerald-500/20 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 sm:h-20 sm:w-20">
+              <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-teal-700 to-emerald-600 text-white shadow-lg shadow-teal-700/25 ring-4 ring-emerald-100/80 dark:from-emerald-400 dark:to-teal-400 dark:text-[#123b29] dark:shadow-emerald-500/20 dark:ring-emerald-900/40 sm:h-20 sm:w-20">
                 <Trophy className="h-9 w-9 sm:h-10 sm:w-10" />
               </div>
 
@@ -704,7 +739,7 @@ export default function StudentAchievementsPage() {
                   {myRank && (
                     <Badge
                       variant="outline"
-                      className="border-border bg-background/70"
+                      className="border-slate-200 bg-white/70 text-slate-700 dark:border-slate-700 dark:bg-slate-900/70 dark:text-slate-200"
                     >
                       <Medal className="mr-1 h-3 w-3 text-amber-500" />
                       Peringkat #{myRank}
@@ -712,53 +747,71 @@ export default function StudentAchievementsPage() {
                   )}
                 </div>
 
-                <p className="text-xs font-semibold text-muted-foreground">
+                <p className="text-xs font-semibold text-slate-600 dark:text-slate-300">
                   Total XP kamu
                 </p>
 
-                <p className="text-3xl font-black tabular-nums tracking-tight text-foreground sm:text-4xl">
+                <p
+                  className={cn(
+                    "text-3xl font-black tabular-nums tracking-tight sm:text-4xl",
+                    headingText
+                  )}
+                >
                   {formatNumber(totalXp)}
-                  <span className="ml-2 text-lg font-extrabold text-emerald-500">
+                  <span className="ml-2 text-lg font-extrabold text-emerald-600 dark:text-emerald-400">
                     XP
                   </span>
                 </p>
               </div>
             </div>
 
-            <div className="w-full space-y-3 rounded-2xl border border-border/70 bg-background/70 p-4 md:max-w-xs">
+            <div
+              className={cn(
+                "w-full space-y-3 rounded-2xl p-4 shadow-sm md:max-w-xs",
+                tileSurface
+              )}
+            >
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                  <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-600 dark:text-slate-300">
                     Level saat ini
                   </p>
-                  <p className="text-2xl font-black text-foreground">
+                  <p
+                    className={cn(
+                      "text-2xl font-black",
+                      headingText
+                    )}
+                  >
                     Level {currentLevel}
                   </p>
                 </div>
 
-                <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
+                <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-emerald-50 text-teal-700 dark:bg-emerald-950 dark:text-emerald-300">
                   <Medal className="h-6 w-6" />
                 </div>
               </div>
 
               <Progress
                 value={levelProgress}
-                className="h-2.5 rounded-full bg-muted"
+                className={cn(
+                  "h-2.5 rounded-full bg-emerald-100 dark:bg-slate-800",
+                  progressBar
+                )}
                 aria-label="Progres level"
               />
 
               <div className="flex justify-between gap-2 text-[11px]">
-                <span className="font-semibold text-muted-foreground">
+                <span className="font-semibold text-slate-600 dark:text-slate-300">
                   {formatNumber(totalXp % XP_PER_LEVEL)} /{" "}
                   {formatNumber(XP_PER_LEVEL)} XP
                 </span>
 
-                <span className="font-bold text-emerald-600 dark:text-emerald-400">
+                <span className="font-bold text-teal-700 dark:text-emerald-400">
                   {formatNumber(xpToNextLevel)} XP lagi
                 </span>
               </div>
 
-              <p className="text-[11px] text-muted-foreground">
+              <p className="text-[11px] text-slate-600 dark:text-slate-300">
                 Menuju Level {currentLevel + 1}
               </p>
             </div>
@@ -766,42 +819,62 @@ export default function StudentAchievementsPage() {
 
           {/* SUMMARY STATS */}
 
-          <div className="grid grid-cols-2 gap-3 border-t border-emerald-500/15 pt-5 sm:grid-cols-3">
-            <div className="rounded-2xl border border-border/70 bg-background/60 p-3.5">
-              <div className="mb-2 flex items-center gap-2 text-emerald-600 dark:text-emerald-400">
+          <div className="grid grid-cols-2 gap-3 border-t border-emerald-200/60 pt-5 dark:border-emerald-900/40 sm:grid-cols-3">
+            <div className={cn("rounded-2xl p-3.5", tileSurface)}>
+              <div className="mb-2 flex items-center gap-2 text-teal-700 dark:text-emerald-400">
                 <Award className="h-4 w-4" />
-                <span className="text-[11px] font-semibold text-muted-foreground">
+                <span className="text-[11px] font-semibold text-slate-600 dark:text-slate-300">
                   Badge terbuka
                 </span>
               </div>
-              <p className="text-xl font-black tabular-nums text-foreground">
+              <p
+                className={cn(
+                  "text-xl font-black tabular-nums",
+                  headingText
+                )}
+              >
                 {unlockedCount}
-                <span className="ml-1 text-xs font-semibold text-muted-foreground">
+                <span className="ml-1 text-xs font-semibold text-slate-600 dark:text-slate-300">
                   / {totalBadges}
                 </span>
               </p>
             </div>
 
-            <div className="rounded-2xl border border-border/70 bg-background/60 p-3.5">
+            <div className={cn("rounded-2xl p-3.5", tileSurface)}>
               <div className="mb-2 flex items-center gap-2 text-blue-500">
                 <TrendingUp className="h-4 w-4" />
-                <span className="text-[11px] font-semibold text-muted-foreground">
+                <span className="text-[11px] font-semibold text-slate-600 dark:text-slate-300">
                   XP sepanjang waktu
                 </span>
               </div>
-              <p className="text-xl font-black tabular-nums text-foreground">
+              <p
+                className={cn(
+                  "text-xl font-black tabular-nums",
+                  headingText
+                )}
+              >
                 {formatNumber(allTimeXp)}
               </p>
             </div>
 
-            <div className="col-span-2 rounded-2xl border border-border/70 bg-background/60 p-3.5 sm:col-span-1">
+            <div
+              className={cn(
+                "col-span-2 rounded-2xl p-3.5 sm:col-span-1",
+                tileSurface
+              )}
+            >
               <div className="mb-2 flex items-center gap-2 text-amber-500">
                 <Crown className="h-4 w-4" />
-                <span className="text-[11px] font-semibold text-muted-foreground">
+                <span className="text-[11px] font-semibold text-slate-600 dark:text-slate-300">
                   Peringkat
                 </span>
               </div>
-              <p className="text-xl font-black tabular-nums text-foreground">
+              <p
+                className={cn(
+                  "text-xl font-black tabular-nums",
+                  headingText
+                )}
+              >
                 {myRank ? `#${myRank}` : "-"}
               </p>
             </div>
@@ -810,10 +883,10 @@ export default function StudentAchievementsPage() {
           {/* NEXT BADGE TARGETS */}
 
           {nextTargets.length > 0 && (
-            <div className="space-y-3 border-t border-emerald-500/15 pt-5">
+            <div className="space-y-3 border-t border-emerald-200/60 pt-5 dark:border-emerald-900/40">
               <div className="flex items-center gap-2">
                 <Target className="h-4 w-4 text-emerald-500" />
-                <p className="text-sm font-bold text-foreground">
+                <p className={cn("text-sm font-bold", headingText)}>
                   Target pencapaian berikutnya
                 </p>
               </div>
@@ -830,7 +903,7 @@ export default function StudentAchievementsPage() {
                         setSelectedBadge(badge);
                         setDetailOpen(true);
                       }}
-                      className="flex items-center gap-3 rounded-2xl border border-border/80 bg-background/80 p-3.5 text-left shadow-sm transition-all hover:-translate-y-0.5 hover:border-emerald-500/50 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/60"
+                      className="flex items-center gap-3 rounded-2xl border border-emerald-100/80 bg-white/80 p-3.5 text-left shadow-sm backdrop-blur-sm transition-all duration-300 hover:-translate-y-0.5 hover:border-emerald-400/70 hover:shadow-[0_18px_40px_-24px_rgba(15,118,110,0.45)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/60 motion-reduce:transition-none motion-reduce:hover:translate-y-0 dark:border-slate-700/70 dark:bg-slate-900/70 dark:hover:border-emerald-700/70"
                     >
                       <div
                         className={cn(
@@ -849,11 +922,16 @@ export default function StudentAchievementsPage() {
 
                       <div className="min-w-0 flex-1 space-y-2">
                         <div className="flex items-baseline justify-between gap-2">
-                          <span className="truncate text-sm font-bold text-foreground">
+                          <span
+                            className={cn(
+                              "truncate text-sm font-bold",
+                              headingText
+                            )}
+                          >
                             {badge.title}
                           </span>
 
-                          <span className="shrink-0 text-xs font-semibold tabular-nums text-muted-foreground">
+                          <span className="shrink-0 text-xs font-semibold tabular-nums text-slate-600 dark:text-slate-300">
                             {badge.currentCount}/{badge.targetCount}
                           </span>
                         </div>
@@ -864,7 +942,10 @@ export default function StudentAchievementsPage() {
                               badge.targetCount) *
                             100
                           }
-                          className="h-1.5"
+                          className={cn(
+                            "h-1.5 bg-emerald-100 dark:bg-slate-800",
+                            progressBar
+                          )}
                         />
                       </div>
                     </button>
@@ -879,11 +960,8 @@ export default function StudentAchievementsPage() {
       {/* MAIN TABS */}
 
       <Tabs defaultValue="badges" className="space-y-5">
-        <TabsList className="grid h-auto w-full grid-cols-3 rounded-xl border border-border/70 bg-muted/50 p-1">
-          <TabsTrigger
-            value="badges"
-            className="gap-1.5 rounded-lg py-2.5 text-xs font-bold data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm sm:gap-2"
-          >
+        <TabsList className="grid h-auto w-full grid-cols-3 rounded-xl border border-emerald-200/60 bg-white/60 p-1 shadow-sm shadow-emerald-900/5 backdrop-blur-md dark:border-slate-700/60 dark:bg-slate-900/50 dark:shadow-none">
+          <TabsTrigger value="badges" className={tabTrigger}>
             <Award className="h-4 w-4" />
             <span>Badge</span>
             <span className="hidden sm:inline">
@@ -891,18 +969,12 @@ export default function StudentAchievementsPage() {
             </span>
           </TabsTrigger>
 
-          <TabsTrigger
-            value="history"
-            className="gap-1.5 rounded-lg py-2.5 text-xs font-bold data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm sm:gap-2"
-          >
+          <TabsTrigger value="history" className={tabTrigger}>
             <History className="h-4 w-4" />
             Riwayat XP
           </TabsTrigger>
 
-          <TabsTrigger
-            value="leaderboard"
-            className="gap-1.5 rounded-lg py-2.5 text-xs font-bold data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm sm:gap-2"
-          >
+          <TabsTrigger value="leaderboard" className={tabTrigger}>
             <Crown className="h-4 w-4" />
             Peringkat
           </TabsTrigger>
@@ -915,7 +987,7 @@ export default function StudentAchievementsPage() {
         <TabsContent value="badges" className="space-y-4">
           <div className="space-y-3">
             <div className="relative w-full sm:max-w-sm">
-              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500 dark:text-slate-400" />
 
               <Input
                 placeholder="Cari level atau badge..."
@@ -925,7 +997,7 @@ export default function StudentAchievementsPage() {
                   setSearchQuery(event.target.value);
                   setVisibleCount(PAGE_SIZE);
                 }}
-                className="h-11 rounded-xl border-border/80 bg-background pl-10 text-sm shadow-sm"
+                className="h-11 rounded-xl border-slate-200 bg-white/80 pl-10 text-sm text-slate-900 shadow-sm transition-all duration-300 placeholder:text-slate-400 hover:border-teal-300 focus-visible:border-emerald-500 focus-visible:ring-emerald-500/30 dark:border-slate-700 dark:bg-slate-900/80 dark:text-white dark:placeholder:text-slate-500 dark:hover:border-teal-700 dark:focus-visible:border-emerald-400 dark:focus-visible:ring-emerald-400/25"
               />
             </div>
 
@@ -953,9 +1025,10 @@ export default function StudentAchievementsPage() {
                       setVisibleCount(PAGE_SIZE);
                     }}
                     className={cn(
-                      "h-8 shrink-0 rounded-full px-3.5 text-xs font-bold",
-                      statusFilter === status &&
-                        "bg-emerald-600 text-white hover:bg-emerald-700"
+                      "h-8 shrink-0 rounded-full px-3.5 text-xs font-bold transition-colors duration-300",
+                      statusFilter === status
+                        ? "bg-teal-700 text-white hover:bg-teal-800 dark:bg-emerald-500 dark:text-slate-950 dark:hover:bg-emerald-400"
+                        : "border-slate-300 bg-white/80 text-slate-700 hover:border-teal-300 hover:bg-teal-50 dark:border-slate-700 dark:bg-slate-900/80 dark:text-slate-200 dark:hover:border-teal-700 dark:hover:bg-slate-800"
                     )}
                   >
                     {status}
@@ -975,7 +1048,7 @@ export default function StudentAchievementsPage() {
                 ))}
               </div>
 
-              <span className="hidden h-5 w-px bg-border sm:block" />
+              <span className="hidden h-5 w-px bg-slate-200 dark:bg-slate-700 sm:block" />
 
               <div
                 role="group"
@@ -1004,9 +1077,10 @@ export default function StudentAchievementsPage() {
                       setVisibleCount(PAGE_SIZE);
                     }}
                     className={cn(
-                      "h-8 shrink-0 rounded-full px-3.5 text-xs font-bold",
-                      categoryFilter === category &&
-                        "border border-emerald-500/40 text-foreground"
+                      "h-8 shrink-0 rounded-full px-3.5 text-xs font-bold transition-colors duration-300",
+                      categoryFilter === category
+                        ? "border border-teal-400/60 bg-teal-50 text-teal-900 dark:border-teal-700 dark:bg-teal-950 dark:text-teal-100"
+                        : "border-slate-300 bg-white/80 text-slate-700 hover:border-teal-300 hover:bg-teal-50 dark:border-slate-700 dark:bg-slate-900/80 dark:text-slate-200 dark:hover:border-teal-700 dark:hover:bg-slate-800"
                     )}
                   >
                     {category}
@@ -1017,14 +1091,14 @@ export default function StudentAchievementsPage() {
           </div>
 
           {filteredBadges.length === 0 ? (
-            <div className="rounded-2xl border border-dashed border-border p-10 text-center">
-              <Search className="mx-auto mb-3 h-8 w-8 text-muted-foreground/50" />
+            <div className="rounded-2xl border border-dashed border-slate-300 bg-white/50 p-10 text-center backdrop-blur-sm dark:border-slate-700 dark:bg-slate-900/40">
+              <Search className="mx-auto mb-3 h-8 w-8 text-slate-400" />
 
-              <p className="text-sm font-semibold text-foreground">
+              <p className={cn("text-sm font-semibold", headingText)}>
                 Badge tidak ditemukan
               </p>
 
-              <p className="mt-1 text-xs text-muted-foreground">
+              <p className={cn("mt-1 text-xs", mutedText)}>
                 Coba kata kunci atau filter yang lain.
               </p>
 
@@ -1033,7 +1107,7 @@ export default function StudentAchievementsPage() {
                   type="button"
                   variant="outline"
                   size="sm"
-                  className="mt-4 rounded-xl"
+                  className="mt-4 rounded-xl border-slate-300 bg-white/80 font-semibold text-slate-700 hover:border-teal-300 hover:bg-teal-50 dark:border-slate-700 dark:bg-slate-900/80 dark:text-slate-200 dark:hover:border-teal-700 dark:hover:bg-slate-800"
                   onClick={resetFilters}
                 >
                   Reset filter
@@ -1044,14 +1118,14 @@ export default function StudentAchievementsPage() {
             <>
               <div className="flex items-center justify-between gap-3">
                 <p
-                  className="text-xs text-muted-foreground"
+                  className={cn("text-xs", mutedText)}
                   aria-live="polite"
                 >
                   Menampilkan {shownBadges.length} dari{" "}
                   {filteredBadges.length} badge
                 </p>
 
-                <span className="text-xs font-semibold text-emerald-600 dark:text-emerald-400">
+                <span className="text-xs font-semibold text-teal-700 dark:text-emerald-400">
                   {unlockedCount} terbuka
                 </span>
               </div>
@@ -1078,10 +1152,10 @@ export default function StudentAchievementsPage() {
                             : "terkunci"
                         }. Lihat detail`}
                         className={cn(
-                          "flex h-full w-full flex-col gap-4 rounded-2xl border p-4 text-left shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/60 sm:p-5",
+                          "flex h-full w-full flex-col gap-4 rounded-2xl border p-4 text-left shadow-sm transition-all duration-300 hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/60 motion-reduce:transition-none motion-reduce:hover:translate-y-0 sm:p-5",
                           badge.isUnlocked
-                            ? "border-emerald-500/30 bg-card hover:border-emerald-500/70"
-                            : "border-dashed border-border bg-muted/20 hover:border-muted-foreground/50 hover:bg-muted/35"
+                            ? "border-emerald-300/60 bg-gradient-to-br from-white to-emerald-50/60 hover:border-emerald-500/70 hover:shadow-[0_18px_40px_-24px_rgba(15,118,110,0.45)] dark:border-emerald-700/50 dark:from-slate-900 dark:to-emerald-950/30"
+                            : "border-dashed border-slate-300 bg-slate-50/60 hover:border-slate-400 hover:bg-slate-50 hover:shadow-md dark:border-slate-700 dark:bg-slate-900/40 dark:hover:border-slate-500 dark:hover:bg-slate-900/60"
                         )}
                       >
                         <div className="flex items-start gap-3">
@@ -1090,7 +1164,7 @@ export default function StudentAchievementsPage() {
                               "relative flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border",
                               badge.isUnlocked
                                 ? theme.iconBox
-                                : "border-muted-foreground/20 bg-muted"
+                                : "border-slate-300/60 bg-slate-100 dark:border-slate-700 dark:bg-slate-800"
                             )}
                           >
                             <CategoryIcon
@@ -1099,13 +1173,13 @@ export default function StudentAchievementsPage() {
                                 "h-6 w-6",
                                 badge.isUnlocked
                                   ? theme.icon
-                                  : "text-muted-foreground/60"
+                                  : "text-slate-400 dark:text-slate-500"
                               )}
                             />
 
                             {!badge.isUnlocked && (
-                              <span className="absolute -bottom-1.5 -right-1.5 flex h-5 w-5 items-center justify-center rounded-full border border-border bg-background">
-                                <Lock className="h-3 w-3 text-muted-foreground" />
+                              <span className="absolute -bottom-1.5 -right-1.5 flex h-5 w-5 items-center justify-center rounded-full border border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-900">
+                                <Lock className="h-3 w-3 text-slate-500 dark:text-slate-400" />
                               </span>
                             )}
                           </div>
@@ -1114,9 +1188,10 @@ export default function StudentAchievementsPage() {
                             <div className="flex items-start justify-between gap-2">
                               <h4
                                 className={cn(
-                                  "text-sm font-bold leading-snug tracking-tight text-foreground",
-                                  !badge.isUnlocked &&
-                                    "text-muted-foreground"
+                                  "text-sm font-bold leading-snug tracking-tight",
+                                  badge.isUnlocked
+                                    ? headingText
+                                    : "text-slate-500 dark:text-slate-400"
                                 )}
                               >
                                 {badge.title}
@@ -1125,7 +1200,12 @@ export default function StudentAchievementsPage() {
                               <RarityTag rarity={badge.rarity} />
                             </div>
 
-                            <p className="line-clamp-2 text-xs leading-relaxed text-muted-foreground">
+                            <p
+                              className={cn(
+                                "line-clamp-2 text-xs leading-relaxed",
+                                mutedText
+                              )}
+                            >
                               {badge.description}
                             </p>
                           </div>
@@ -1134,7 +1214,7 @@ export default function StudentAchievementsPage() {
                         <div className="mt-auto space-y-3">
                           {!badge.isUnlocked && (
                             <div className="space-y-1.5">
-                              <div className="flex justify-between text-[11px] font-medium text-muted-foreground">
+                              <div className="flex justify-between text-[11px] font-medium text-slate-600 dark:text-slate-300">
                                 <span>Progres</span>
 
                                 <span className="tabular-nums">
@@ -1143,7 +1223,7 @@ export default function StudentAchievementsPage() {
                                 </span>
                               </div>
 
-                              <div className="h-1.5 overflow-hidden rounded-full bg-muted">
+                              <div className="h-1.5 overflow-hidden rounded-full bg-slate-200 dark:bg-slate-800">
                                 <div
                                   className={cn(
                                     "h-full rounded-full transition-all",
@@ -1157,13 +1237,13 @@ export default function StudentAchievementsPage() {
                             </div>
                           )}
 
-                          <div className="flex items-center justify-between border-t border-border/60 pt-3 text-[11px]">
+                          <div className="flex items-center justify-between border-t border-slate-200/70 pt-3 text-[11px] dark:border-slate-700/60">
                             <span
                               className={cn(
                                 "flex items-center gap-1 font-bold",
                                 badge.isUnlocked
-                                  ? "text-emerald-600 dark:text-emerald-400"
-                                  : "text-muted-foreground"
+                                  ? "text-teal-700 dark:text-emerald-400"
+                                  : "text-slate-500 dark:text-slate-400"
                               )}
                             >
                               <CategoryIcon
@@ -1174,12 +1254,12 @@ export default function StudentAchievementsPage() {
                             </span>
 
                             {badge.isUnlocked ? (
-                              <span className="flex items-center gap-1 rounded-full border border-emerald-500/20 bg-emerald-500/10 px-2 py-0.5 text-[10px] font-semibold text-emerald-600 dark:text-emerald-400">
+                              <span className="flex items-center gap-1 rounded-full border border-emerald-500/20 bg-emerald-500/10 px-2 py-0.5 text-[10px] font-semibold text-emerald-700 dark:text-emerald-400">
                                 <CheckCircle2 className="h-3 w-3" />
                                 Terbuka
                               </span>
                             ) : (
-                              <span className="flex items-center gap-1 text-muted-foreground">
+                              <span className="flex items-center gap-1 text-slate-500 dark:text-slate-400">
                                 <Lock className="h-3 w-3" />
                                 Belum terbuka
                               </span>
@@ -1202,7 +1282,7 @@ export default function StudentAchievementsPage() {
                         (count) => count + PAGE_SIZE
                       )
                     }
-                    className="gap-1.5 rounded-xl text-xs font-bold"
+                    className="gap-1.5 rounded-xl border-slate-300 bg-white/80 text-xs font-bold text-slate-700 transition-colors duration-300 hover:border-teal-300 hover:bg-teal-50 dark:border-slate-700 dark:bg-slate-900/80 dark:text-slate-200 dark:hover:border-teal-700 dark:hover:bg-slate-800"
                   >
                     Tampilkan lebih banyak
                     <ChevronDown className="h-4 w-4" />
@@ -1218,19 +1298,26 @@ export default function StudentAchievementsPage() {
         ================================================= */}
 
         <TabsContent value="history" className="space-y-4">
-          <Card className="overflow-hidden rounded-2xl border-border/80 shadow-sm">
+          <Card
+            className={cn(
+              "overflow-hidden rounded-2xl shadow-[0_20px_50px_-34px_rgba(15,118,110,0.4)]",
+              cardSurface
+            )}
+          >
             <CardContent className="space-y-5 p-4 sm:p-6">
-              <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border/70 pb-4">
+              <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200/70 pb-4 dark:border-slate-700/60">
                 <div className="flex items-center gap-2.5">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-50 text-teal-700 dark:bg-emerald-950 dark:text-emerald-300">
                     <History className="h-5 w-5" />
                   </div>
 
                   <div>
-                    <CardTitle className="text-base font-bold">
+                    <CardTitle
+                      className={cn("text-base font-bold", headingText)}
+                    >
                       Riwayat XP
                     </CardTitle>
-                    <p className="mt-0.5 text-xs text-muted-foreground">
+                    <p className={cn("mt-0.5 text-xs", mutedText)}>
                       Aktivitas perolehan XP terbaru
                     </p>
                   </div>
@@ -1238,23 +1325,28 @@ export default function StudentAchievementsPage() {
 
                 <Badge
                   variant="outline"
-                  className="text-[10px]"
+                  className="border-teal-200/80 bg-teal-50 text-[10px] text-teal-800 dark:border-teal-800/70 dark:bg-teal-950/60 dark:text-teal-200"
                 >
                   10 transaksi terbaru
                 </Badge>
               </div>
 
               {xpHistory.length === 0 ? (
-                <div className="rounded-2xl border border-dashed border-border px-5 py-12 text-center">
-                  <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-muted text-muted-foreground">
+                <div className="rounded-2xl border border-dashed border-slate-300 px-5 py-12 text-center dark:border-slate-700">
+                  <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald-50 text-teal-700 dark:bg-emerald-950 dark:text-emerald-300">
                     <Zap className="h-6 w-6" />
                   </div>
 
-                  <p className="text-sm font-bold text-foreground">
+                  <p className={cn("text-sm font-bold", headingText)}>
                     Belum ada riwayat XP
                   </p>
 
-                  <p className="mx-auto mt-1 max-w-sm text-xs leading-relaxed text-muted-foreground">
+                  <p
+                    className={cn(
+                      "mx-auto mt-1 max-w-sm text-xs leading-relaxed",
+                      mutedText
+                    )}
+                  >
                     XP yang diperoleh dari aktivitas pembelajaran
                     berikutnya akan muncul di sini. Total XP lama
                     tetap tersimpan di profil.
@@ -1265,19 +1357,24 @@ export default function StudentAchievementsPage() {
                   {xpHistory.map((transaction) => (
                     <div
                       key={transaction.id}
-                      className="flex items-center gap-3 rounded-xl border border-border/70 bg-card p-3.5 transition-colors hover:bg-muted/30 sm:p-4"
+                      className="flex items-center gap-3 rounded-xl border border-slate-200/80 bg-white/80 p-3.5 transition-colors duration-300 hover:border-emerald-300/70 hover:bg-emerald-50/50 dark:border-slate-700/70 dark:bg-slate-900/60 dark:hover:border-emerald-800/70 dark:hover:bg-slate-800/60 sm:p-4"
                     >
-                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-emerald-500/20 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
+                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-emerald-500/20 bg-emerald-500/10 text-teal-700 dark:text-emerald-400">
                         <Zap className="h-5 w-5 fill-current" />
                       </div>
 
                       <div className="min-w-0 flex-1">
-                        <p className="truncate text-sm font-bold text-foreground">
+                        <p
+                          className={cn(
+                            "truncate text-sm font-bold",
+                            headingText
+                          )}
+                        >
                           {transaction.description ||
                             getXpSourceLabel(transaction.source)}
                         </p>
 
-                        <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-muted-foreground">
+                        <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-slate-600 dark:text-slate-300">
                           <span>
                             {getXpSourceLabel(transaction.source)}
                           </span>
@@ -1292,10 +1389,10 @@ export default function StudentAchievementsPage() {
                       </div>
 
                       <div className="shrink-0 text-right">
-                        <p className="text-sm font-black tabular-nums text-emerald-600 dark:text-emerald-400">
+                        <p className="text-sm font-black tabular-nums text-teal-700 dark:text-emerald-400">
                           +{formatNumber(transaction.amount)}
                         </p>
-                        <p className="text-[10px] font-semibold text-muted-foreground">
+                        <p className="text-[10px] font-semibold text-slate-600 dark:text-slate-300">
                           XP
                         </p>
                       </div>
@@ -1304,11 +1401,11 @@ export default function StudentAchievementsPage() {
                 </div>
               )}
 
-              <div className="rounded-xl border border-border/70 bg-muted/30 p-3.5">
+              <div className="rounded-xl border border-emerald-100/80 bg-emerald-50/50 p-3.5 dark:border-slate-700/70 dark:bg-slate-900/50">
                 <div className="flex items-start gap-2.5">
-                  <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
+                  <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-teal-600 dark:text-emerald-400" />
 
-                  <p className="text-xs leading-relaxed text-muted-foreground">
+                  <p className={cn("text-xs leading-relaxed", mutedText)}>
                     Riwayat ini menampilkan transaksi yang tercatat
                     di sistem XP GradeUp. Total XP sebelumnya tetap
                     dihitung dari profil dan tidak dihapus ketika
@@ -1325,17 +1422,24 @@ export default function StudentAchievementsPage() {
         ================================================= */}
 
         <TabsContent value="leaderboard">
-          <Card className="overflow-hidden rounded-2xl border-border/80 shadow-sm">
+          <Card
+            className={cn(
+              "overflow-hidden rounded-2xl shadow-[0_20px_50px_-34px_rgba(15,118,110,0.4)]",
+              cardSurface
+            )}
+          >
             <CardContent className="space-y-6 p-4 sm:p-7">
-              <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border/70 pb-4">
+              <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200/70 pb-4 dark:border-slate-700/60">
                 <div className="flex items-center gap-2">
                   <Medal className="h-5 w-5 text-amber-500" />
 
                   <div>
-                    <CardTitle className="text-base font-bold">
+                    <CardTitle
+                      className={cn("text-base font-bold", headingText)}
+                    >
                       Peringkat 10 Besar Siswa
                     </CardTitle>
-                    <p className="mt-0.5 text-xs text-muted-foreground">
+                    <p className={cn("mt-0.5 text-xs", mutedText)}>
                       Berdasarkan total XP
                     </p>
                   </div>
@@ -1343,20 +1447,20 @@ export default function StudentAchievementsPage() {
 
                 <Badge
                   variant="outline"
-                  className="text-[10px] font-semibold"
+                  className="border-teal-200/80 bg-teal-50 text-[10px] font-semibold text-teal-800 dark:border-teal-800/70 dark:bg-teal-950/60 dark:text-teal-200"
                 >
                   Total XP
                 </Badge>
               </div>
 
               {leaderboard.length === 0 ? (
-                <div className="p-8 text-center text-sm text-muted-foreground">
+                <div className={cn("p-8 text-center text-sm", mutedText)}>
                   Belum ada data peringkat siswa.
                 </div>
               ) : (
                 <>
                   {podiumOrder.length === 3 && (
-                    <div className="mx-auto grid w-full max-w-xl grid-cols-3 items-end gap-3 rounded-2xl bg-muted/25 px-2 pt-5 sm:gap-5 sm:px-5">
+                    <div className="mx-auto grid w-full max-w-xl grid-cols-3 items-end gap-3 rounded-2xl bg-gradient-to-b from-emerald-50/80 to-transparent px-2 pt-5 dark:from-emerald-950/30 sm:gap-5 sm:px-5">
                       {podiumOrder.map((item) => {
                         const style = podiumStyle[item.rank];
 
@@ -1388,24 +1492,29 @@ export default function StudentAchievementsPage() {
                             </Avatar>
 
                             <div className="w-full min-w-0">
-                              <p className="truncate text-xs font-bold sm:text-sm">
+                              <p
+                                className={cn(
+                                  "truncate text-xs font-bold sm:text-sm",
+                                  headingText
+                                )}
+                              >
                                 {item.full_name}
 
                                 {item.is_current_user && (
-                                  <span className="ml-1 text-[10px] font-normal text-emerald-500">
+                                  <span className="ml-1 text-[10px] font-normal text-teal-700 dark:text-emerald-400">
                                     (Anda)
                                   </span>
                                 )}
                               </p>
 
-                              <p className="text-xs font-black tabular-nums text-emerald-600 dark:text-emerald-400">
+                              <p className="text-xs font-black tabular-nums text-teal-700 dark:text-emerald-400">
                                 {formatNumber(item.total_xp)} XP
                               </p>
                             </div>
 
                             <div
                               className={cn(
-                                "flex w-full items-start justify-center rounded-t-xl border border-b-0 pt-2 text-sm font-extrabold text-muted-foreground",
+                                "flex w-full items-start justify-center rounded-t-xl border border-b-0 pt-2 text-sm font-extrabold text-slate-600 dark:text-slate-300",
                                 style.height,
                                 style.ring
                               )}
@@ -1425,14 +1534,14 @@ export default function StudentAchievementsPage() {
                         <li
                           key={item.id}
                           className={cn(
-                            "flex items-center justify-between gap-3 rounded-xl border p-3.5 transition-colors",
+                            "flex items-center justify-between gap-3 rounded-xl border p-3.5 transition-colors duration-300",
                             item.is_current_user
-                              ? "border-emerald-500/40 bg-emerald-500/10"
-                              : "border-border bg-card hover:bg-muted/30"
+                              ? "border-emerald-400/50 bg-emerald-50 dark:border-emerald-700/50 dark:bg-emerald-950/40"
+                              : "border-slate-200/80 bg-white/80 hover:border-emerald-300/70 hover:bg-emerald-50/50 dark:border-slate-700/70 dark:bg-slate-900/60 dark:hover:border-emerald-800/70 dark:hover:bg-slate-800/60"
                           )}
                         >
                           <div className="flex min-w-0 items-center gap-3">
-                            <span className="w-8 shrink-0 text-center text-xs font-black text-muted-foreground">
+                            <span className="w-8 shrink-0 text-center text-xs font-black text-slate-600 dark:text-slate-300">
                               #{item.rank}
                             </span>
 
@@ -1442,18 +1551,23 @@ export default function StudentAchievementsPage() {
                               </AvatarFallback>
                             </Avatar>
 
-                            <p className="truncate text-sm font-bold text-foreground">
+                            <p
+                              className={cn(
+                                "truncate text-sm font-bold",
+                                headingText
+                              )}
+                            >
                               {item.full_name}
 
                               {item.is_current_user && (
-                                <span className="ml-1.5 text-[10px] font-normal text-emerald-500">
+                                <span className="ml-1.5 text-[10px] font-normal text-teal-700 dark:text-emerald-400">
                                   (Anda)
                                 </span>
                               )}
                             </p>
                           </div>
 
-                          <span className="shrink-0 pl-2 text-xs font-black tabular-nums text-emerald-600 dark:text-emerald-400">
+                          <span className="shrink-0 pl-2 text-xs font-black tabular-nums text-teal-700 dark:text-emerald-400">
                             {formatNumber(item.total_xp)} XP
                           </span>
                         </li>
@@ -1476,14 +1590,19 @@ export default function StudentAchievementsPage() {
         onOpenChange={setDetailOpen}
       >
         {selectedBadge && (
-          <DialogContent className="max-h-[90vh] overflow-y-auto rounded-2xl border border-emerald-500/20 p-5 sm:max-w-md sm:p-6">
+          <DialogContent className="max-h-[90vh] overflow-y-auto rounded-2xl border border-emerald-200/70 p-5 shadow-[0_30px_80px_-40px_rgba(6,78,59,0.5)] dark:border-emerald-900/50 sm:max-w-md sm:p-6">
+            <span
+              aria-hidden="true"
+              className="pointer-events-none absolute inset-x-6 top-0 h-px bg-gradient-to-r from-transparent via-emerald-400/70 to-transparent"
+            />
+
             <DialogHeader className="items-center text-center">
               <div
                 className={cn(
                   "mb-2 flex h-20 w-20 items-center justify-center rounded-3xl border-2 shadow-lg",
                   selectedBadge.isUnlocked
                     ? RARITY_THEME[selectedBadge.rarity].iconBox
-                    : "border-border bg-muted"
+                    : "border-slate-300 bg-slate-100 dark:border-slate-700 dark:bg-slate-800"
                 )}
               >
                 {selectedBadge.isUnlocked ? (
@@ -1495,36 +1614,45 @@ export default function StudentAchievementsPage() {
                     )}
                   />
                 ) : (
-                  <Lock className="h-10 w-10 text-muted-foreground" />
+                  <Lock className="h-10 w-10 text-slate-400 dark:text-slate-500" />
                 )}
               </div>
 
               <div className="mb-1 flex items-center gap-2">
                 <RarityTag rarity={selectedBadge.rarity} />
 
-                <span className="text-[11px] font-bold text-muted-foreground">
+                <span className="text-[11px] font-bold text-slate-600 dark:text-slate-300">
                   Level {selectedBadge.tier}
                 </span>
               </div>
 
-              <DialogTitle className="text-xl font-black text-foreground">
+              <DialogTitle
+                className={cn("text-xl font-black", headingText)}
+              >
                 {selectedBadge.title}
               </DialogTitle>
 
-              <DialogDescription className="pt-1 text-sm text-muted-foreground">
+              <DialogDescription
+                className={cn("pt-1 text-sm", mutedText)}
+              >
                 {selectedBadge.description}
               </DialogDescription>
             </DialogHeader>
 
-            <div className="my-2 space-y-3 border-y border-border/70 py-4 text-xs">
-              <div className="space-y-2 rounded-xl border border-border bg-muted/30 p-3">
+            <div className="my-2 space-y-3 border-y border-slate-200/70 py-4 text-xs dark:border-slate-700/60">
+              <div className="space-y-2 rounded-xl border border-emerald-100/80 bg-emerald-50/50 p-3 dark:border-slate-700/70 dark:bg-slate-900/50">
                 <div className="flex items-center justify-between text-xs font-bold">
-                  <span className="flex items-center gap-1.5 text-foreground">
+                  <span
+                    className={cn(
+                      "flex items-center gap-1.5",
+                      headingText
+                    )}
+                  >
                     <HelpCircle className="h-4 w-4 text-emerald-500" />
                     Progres pencapaian
                   </span>
 
-                  <span className="tabular-nums text-emerald-600 dark:text-emerald-400">
+                  <span className="tabular-nums text-teal-700 dark:text-emerald-400">
                     {selectedBadge.currentCount} /{" "}
                     {selectedBadge.targetCount}
                   </span>
@@ -1536,11 +1664,14 @@ export default function StudentAchievementsPage() {
                       selectedBadge.targetCount) *
                     100
                   }
-                  className="h-2.5 rounded-full"
+                  className={cn(
+                    "h-2.5 rounded-full bg-emerald-100 dark:bg-slate-800",
+                    progressBar
+                  )}
                 />
 
                 {!selectedBadge.isUnlocked && (
-                  <p className="pt-0.5 text-[11px] font-medium text-amber-600 dark:text-amber-400">
+                  <p className="pt-0.5 text-[11px] font-medium text-amber-700 dark:text-amber-400">
                     Tinggal{" "}
                     {selectedBadge.targetCount -
                       selectedBadge.currentCount}{" "}
@@ -1549,7 +1680,7 @@ export default function StudentAchievementsPage() {
                 )}
 
                 {selectedBadge.isUnlocked && (
-                  <p className="pt-0.5 text-[11px] font-semibold text-emerald-600 dark:text-emerald-400">
+                  <p className="pt-0.5 text-[11px] font-semibold text-teal-700 dark:text-emerald-400">
                     <CheckCircle2 className="mr-1 inline h-3.5 w-3.5" />
                     Badge berhasil dibuka.
                   </p>
@@ -1557,21 +1688,21 @@ export default function StudentAchievementsPage() {
               </div>
 
               <div className="flex items-center justify-between px-1 text-[11px]">
-                <span className="font-semibold text-muted-foreground">
+                <span className="font-semibold text-slate-600 dark:text-slate-300">
                   Kategori
                 </span>
 
-                <span className="font-bold text-foreground">
+                <span className={cn("font-bold", headingText)}>
                   {selectedBadge.category}
                 </span>
               </div>
 
               <div className="flex items-center justify-between px-1 text-[11px]">
-                <span className="font-semibold text-muted-foreground">
+                <span className="font-semibold text-slate-600 dark:text-slate-300">
                   Tingkat badge
                 </span>
 
-                <span className="font-bold text-foreground">
+                <span className={cn("font-bold", headingText)}>
                   Level {selectedBadge.tier} dari 50
                 </span>
               </div>
@@ -1582,7 +1713,7 @@ export default function StudentAchievementsPage() {
                 variant="outline"
                 size="sm"
                 onClick={() => setDetailOpen(false)}
-                className="w-full rounded-xl text-xs sm:w-auto"
+                className="w-full rounded-xl border-slate-300 bg-white/80 text-xs font-semibold text-slate-700 transition-colors duration-300 hover:border-teal-300 hover:bg-teal-50 dark:border-slate-700 dark:bg-slate-900/80 dark:text-slate-100 dark:hover:border-teal-700 dark:hover:bg-slate-800 sm:w-auto"
               >
                 Tutup
               </Button>
@@ -1600,7 +1731,7 @@ export default function StudentAchievementsPage() {
                         : "/dashboard/exams"
                     );
                   }}
-                  className="w-full gap-1 rounded-xl bg-emerald-600 text-xs font-bold text-white shadow-sm hover:bg-emerald-700 sm:w-auto"
+                  className="w-full gap-1 rounded-xl bg-teal-700 text-xs font-bold text-white shadow-lg shadow-teal-700/20 transition-all duration-300 hover:-translate-y-0.5 hover:bg-teal-800 motion-reduce:transition-none motion-reduce:hover:translate-y-0 dark:bg-emerald-500 dark:text-slate-950 dark:hover:bg-emerald-400 sm:w-auto"
                 >
                   {selectedBadge.category ===
                   "Membaca Materi"
