@@ -1,5 +1,5 @@
-
 import { useEffect, useMemo, useState } from "react";
+import type { ReactNode } from "react";
 import {
   Award,
   BarChart3,
@@ -137,6 +137,96 @@ const emptyProfileStatistics: ProfileStatistics = {
   level: 1,
   totalArticlesRead: 0,
 };
+
+/* ------------------------------------------------------------------ */
+/* Gaya visual (murni tampilan, tidak mengubah logika)                 */
+/* ------------------------------------------------------------------ */
+
+const glassCard =
+  "rounded-2xl border border-emerald-900/10 bg-white/80 shadow-[0_12px_36px_-24px_rgba(15,118,110,0.35)] backdrop-blur-sm transition-all duration-300 hover:border-emerald-400/50 hover:shadow-[0_24px_56px_-28px_rgba(15,118,110,0.45)] motion-reduce:transition-none dark:border-emerald-400/10 dark:bg-slate-900/70 dark:shadow-[0_12px_36px_-24px_rgba(16,185,129,0.25)] dark:hover:border-emerald-500/30";
+
+const glassCardStatic =
+  "rounded-2xl border border-emerald-900/10 bg-white/80 shadow-[0_12px_36px_-24px_rgba(15,118,110,0.35)] backdrop-blur-sm dark:border-emerald-400/10 dark:bg-slate-900/70 dark:shadow-[0_12px_36px_-24px_rgba(16,185,129,0.25)]";
+
+const cardHeaderTone =
+  "border-b border-emerald-900/10 bg-gradient-to-r from-emerald-50/80 via-transparent to-transparent px-4 py-4 dark:border-emerald-400/10 dark:from-emerald-500/10 sm:px-6";
+
+const innerTile =
+  "rounded-xl border border-emerald-900/10 bg-emerald-50/50 dark:border-emerald-400/10 dark:bg-slate-800/50";
+
+const patternLine =
+  "[--gu-line:rgba(15,118,110,0.10)] dark:[--gu-line:rgba(52,211,153,0.08)]";
+
+function StatsStyles() {
+  return (
+    <style>{`
+      @keyframes gu-drift {
+        0%, 100% { transform: translate3d(0, 0, 0) scale(1); }
+        50% { transform: translate3d(18px, -14px, 0) scale(1.06); }
+      }
+      @keyframes gu-drift-rev {
+        0%, 100% { transform: translate3d(0, 0, 0) scale(1); }
+        50% { transform: translate3d(-16px, 12px, 0) scale(1.05); }
+      }
+      @keyframes gu-reveal {
+        from { opacity: 0; transform: translate3d(0, 12px, 0); }
+        to { opacity: 1; transform: translate3d(0, 0, 0); }
+      }
+      .gu-drift { animation: gu-drift 22s ease-in-out infinite; }
+      .gu-drift-rev { animation: gu-drift-rev 26s ease-in-out infinite; }
+      .gu-reveal { animation: gu-reveal 0.7s cubic-bezier(0.22, 1, 0.36, 1) both; }
+
+      .gu-grid {
+        background-image:
+          linear-gradient(to right, var(--gu-line) 1px, transparent 1px),
+          linear-gradient(to bottom, var(--gu-line) 1px, transparent 1px);
+        background-size: 44px 44px;
+        -webkit-mask-image: radial-gradient(ellipse 80% 55% at 50% 0%, #000 20%, transparent 100%);
+        mask-image: radial-gradient(ellipse 80% 55% at 50% 0%, #000 20%, transparent 100%);
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        .gu-drift, .gu-drift-rev, .gu-reveal {
+          animation: none !important;
+        }
+      }
+    `}</style>
+  );
+}
+
+function AmbientBackground() {
+  return (
+    <div
+      aria-hidden="true"
+      className="pointer-events-none absolute inset-0 -z-10 overflow-hidden rounded-3xl"
+    >
+      <div className="absolute inset-0 bg-gradient-to-b from-[#eaf6ef] via-[#f6fbf8] to-[#e2f3ea] dark:from-[#0b1c13] dark:via-[#0b2016] dark:to-[#0a1d14]" />
+      <div
+        className={`gu-grid absolute inset-0 ${patternLine}`}
+      />
+      <div className="gu-drift absolute -right-32 -top-24 h-[26rem] w-[26rem] rounded-full bg-emerald-300/40 blur-[100px] dark:bg-emerald-500/15" />
+      <div className="gu-drift-rev absolute -left-32 top-1/3 h-[24rem] w-[24rem] rounded-full bg-teal-300/35 blur-[100px] dark:bg-teal-600/15" />
+      <div className="absolute -bottom-32 right-1/4 h-[22rem] w-[22rem] rounded-full bg-emerald-300/30 blur-[100px] dark:bg-emerald-700/15" />
+    </div>
+  );
+}
+
+function SectionHeading({
+  icon,
+  children,
+}: {
+  icon: ReactNode;
+  children: ReactNode;
+}) {
+  return (
+    <div className="flex items-center gap-2.5">
+      <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-700 dark:bg-emerald-400/10 dark:text-emerald-300">
+        {icon}
+      </span>
+      <h2 className="text-base font-extrabold text-foreground">{children}</h2>
+    </div>
+  );
+}
 
 function safeNumber(value: unknown, fallback = 0): number {
   const number = Number(value);
@@ -656,7 +746,9 @@ export default function StatisticsPage() {
 
   if (errorMessage) {
     return (
-      <div className="space-y-6">
+      <div className="relative isolate space-y-6">
+        <StatsStyles />
+        <AmbientBackground />
         <PageHeader
           title="Statistik Belajar"
           description="Laporan perkembangan aktivitas dan hasil belajarmu di GradeUp."
@@ -681,17 +773,28 @@ export default function StatisticsPage() {
     : 0;
 
   return (
-    <div className="mx-auto w-full max-w-7xl space-y-6 pb-10">
-      <PageHeader
-        title="Statistik Belajar"
-        description="Pantau perkembangan akademik, aktivitas kursus, dan pencapaianmu di GradeUp."
-      />
+    <div className="relative isolate mx-auto w-full max-w-7xl space-y-6 pb-10">
+      <StatsStyles />
+      <AmbientBackground />
+
+      <div className="gu-reveal">
+        <PageHeader
+          title="Statistik Belajar"
+          description="Pantau perkembangan akademik, aktivitas kursus, dan pencapaianmu di GradeUp."
+        />
+      </div>
 
       {/* GAMIFIKASI */}
       <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
-        <Card className="overflow-hidden rounded-2xl border-border/70 bg-gradient-to-br from-emerald-500/10 via-card to-card">
-          <CardContent className="flex items-center gap-4 p-5">
-            <div className="rounded-2xl bg-emerald-500/15 p-3 text-emerald-600 dark:text-emerald-400">
+        <Card
+          className={`group relative overflow-hidden bg-gradient-to-br from-emerald-500/15 via-white/80 to-white/80 dark:from-emerald-500/15 dark:via-slate-900/70 dark:to-slate-900/70 ${glassCard}`}
+        >
+          <span
+            aria-hidden="true"
+            className="pointer-events-none absolute -right-10 -top-10 h-32 w-32 rounded-full bg-emerald-400/25 blur-3xl dark:bg-emerald-500/15"
+          />
+          <CardContent className="relative flex items-center gap-4 p-5">
+            <div className="rounded-2xl bg-emerald-500/15 p-3 text-emerald-600 ring-1 ring-inset ring-emerald-500/20 dark:text-emerald-400">
               <Zap className="h-6 w-6" />
             </div>
             <div className="min-w-0">
@@ -708,9 +811,13 @@ export default function StatisticsPage() {
           </CardContent>
         </Card>
 
-        <Card className="rounded-2xl border-border/70">
-          <CardContent className="flex items-center gap-4 p-5">
-            <div className="rounded-2xl bg-violet-500/10 p-3 text-violet-600 dark:text-violet-400">
+        <Card className={`relative overflow-hidden ${glassCard}`}>
+          <span
+            aria-hidden="true"
+            className="pointer-events-none absolute -right-10 -top-10 h-32 w-32 rounded-full bg-violet-400/15 blur-3xl"
+          />
+          <CardContent className="relative flex items-center gap-4 p-5">
+            <div className="rounded-2xl bg-violet-500/10 p-3 text-violet-600 ring-1 ring-inset ring-violet-500/15 dark:text-violet-400">
               <Trophy className="h-6 w-6" />
             </div>
             <div className="min-w-0">
@@ -727,9 +834,13 @@ export default function StatisticsPage() {
           </CardContent>
         </Card>
 
-        <Card className="rounded-2xl border-border/70">
-          <CardContent className="flex items-center gap-4 p-5">
-            <div className="rounded-2xl bg-amber-500/10 p-3 text-amber-600 dark:text-amber-400">
+        <Card className={`relative overflow-hidden ${glassCard}`}>
+          <span
+            aria-hidden="true"
+            className="pointer-events-none absolute -right-10 -top-10 h-32 w-32 rounded-full bg-amber-400/15 blur-3xl"
+          />
+          <CardContent className="relative flex items-center gap-4 p-5">
+            <div className="rounded-2xl bg-amber-500/10 p-3 text-amber-600 ring-1 ring-inset ring-amber-500/15 dark:text-amber-400">
               <Medal className="h-6 w-6" />
             </div>
             <div className="min-w-0">
@@ -749,12 +860,9 @@ export default function StatisticsPage() {
 
       {/* RINGKASAN UJIAN */}
       <section className="space-y-3">
-        <div className="flex items-center gap-2">
-          <BarChart3 className="h-5 w-5 text-primary" />
-          <h2 className="text-base font-extrabold text-foreground">
-            Ringkasan Akademik
-          </h2>
-        </div>
+        <SectionHeading icon={<BarChart3 className="h-4 w-4" />}>
+          Ringkasan Akademik
+        </SectionHeading>
 
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
           <StatCard
@@ -785,10 +893,10 @@ export default function StatisticsPage() {
       </section>
 
       {/* ANALISIS SOAL */}
-      <Card className="rounded-2xl border-border/70">
-        <CardHeader className="border-b border-border/60 bg-muted/20 px-4 py-4 sm:px-6">
+      <Card className={`overflow-hidden ${glassCardStatic}`}>
+        <CardHeader className={cardHeaderTone}>
           <CardTitle className="flex items-center gap-2 text-base font-extrabold">
-            <BrainCircuit className="h-5 w-5 text-primary" />
+            <BrainCircuit className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
             Analisis Pengerjaan Soal
           </CardTitle>
         </CardHeader>
@@ -825,7 +933,7 @@ export default function StatisticsPage() {
           ].map((item) => (
             <div
               key={item.label}
-              className="rounded-xl border border-border/60 bg-card p-3 sm:p-4"
+              className="rounded-xl border border-emerald-900/10 bg-white/70 p-3 transition-all duration-300 hover:-translate-y-0.5 hover:border-emerald-400/50 motion-reduce:transition-none motion-reduce:hover:translate-y-0 dark:border-emerald-400/10 dark:bg-slate-900/60 dark:hover:border-emerald-500/30 sm:p-4"
             >
               <div
                 className={`mb-3 inline-flex rounded-xl p-2 ${item.bg} ${item.color}`}
@@ -844,16 +952,16 @@ export default function StatisticsPage() {
       </Card>
 
       {/* PROGRES KURSUS */}
-      <Card className="rounded-2xl border-border/70">
-        <CardHeader className="border-b border-border/60 bg-muted/20 px-4 py-4 sm:px-6">
+      <Card className={`overflow-hidden ${glassCardStatic}`}>
+        <CardHeader className={cardHeaderTone}>
           <CardTitle className="flex items-center gap-2 text-base font-extrabold">
-            <GraduationCap className="h-5 w-5 text-primary" />
+            <GraduationCap className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
             Aktivitas Pembelajaran Kursus
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-5 p-4 sm:p-6">
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-            <div className="rounded-xl bg-muted/50 p-3">
+            <div className={`${innerTile} p-3`}>
               <p className="text-xl font-black text-foreground">
                 {courseStats.courseCount}
               </p>
@@ -861,7 +969,7 @@ export default function StatisticsPage() {
                 Kursus tersedia
               </p>
             </div>
-            <div className="rounded-xl bg-muted/50 p-3">
+            <div className={`${innerTile} p-3`}>
               <p className="text-xl font-black text-foreground">
                 {courseStats.completedLessons}
               </p>
@@ -869,7 +977,7 @@ export default function StatisticsPage() {
                 Materi selesai
               </p>
             </div>
-            <div className="rounded-xl bg-muted/50 p-3">
+            <div className={`${innerTile} p-3`}>
               <p className="text-xl font-black text-foreground">
                 {courseStats.totalLessons}
               </p>
@@ -877,7 +985,7 @@ export default function StatisticsPage() {
                 Total materi
               </p>
             </div>
-            <div className="rounded-xl bg-muted/50 p-3">
+            <div className={`${innerTile} p-3`}>
               <p className="text-xl font-black text-foreground">
                 {courseStats.completedCourses}
               </p>
@@ -902,8 +1010,8 @@ export default function StatisticsPage() {
             </p>
           </div>
 
-          <div className="flex items-start gap-3 rounded-xl border border-border/60 bg-muted/30 p-3">
-            <BookOpen className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
+          <div className="flex items-start gap-3 rounded-xl border border-emerald-900/10 bg-emerald-50/60 p-3 dark:border-emerald-400/10 dark:bg-emerald-500/5">
+            <BookOpen className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600 dark:text-emerald-400" />
             <p className="text-xs leading-relaxed text-muted-foreground">
               Statistik ini menghitung penyelesaian materi kursus.
               Aktivitas membaca artikel ditampilkan terpisah pada data profil.
@@ -914,9 +1022,9 @@ export default function StatisticsPage() {
 
       {/* AKTIVITAS TAMBAHAN */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-        <Card className="rounded-2xl border-border/70">
+        <Card className={glassCard}>
           <CardContent className="flex items-center gap-4 p-5">
-            <div className="rounded-xl bg-sky-500/10 p-3 text-sky-600 dark:text-sky-400">
+            <div className="rounded-xl bg-sky-500/10 p-3 text-sky-600 ring-1 ring-inset ring-sky-500/15 dark:text-sky-400">
               <BookOpen className="h-5 w-5" />
             </div>
             <div>
@@ -933,9 +1041,9 @@ export default function StatisticsPage() {
           </CardContent>
         </Card>
 
-        <Card className="rounded-2xl border-border/70">
+        <Card className={glassCard}>
           <CardContent className="flex items-center gap-4 p-5">
-            <div className="rounded-xl bg-amber-500/10 p-3 text-amber-600 dark:text-amber-400">
+            <div className="rounded-xl bg-amber-500/10 p-3 text-amber-600 ring-1 ring-inset ring-amber-500/15 dark:text-amber-400">
               <Award className="h-5 w-5" />
             </div>
             <div>
@@ -954,10 +1062,19 @@ export default function StatisticsPage() {
       </div>
 
       {/* INSIGHT */}
-      <Card className="overflow-hidden rounded-2xl border-emerald-500/20 bg-gradient-to-br from-emerald-500/[0.08] via-card to-card">
+      <Card className="relative isolate overflow-hidden rounded-2xl border border-emerald-400/30 bg-gradient-to-br from-emerald-100/80 via-white/80 to-teal-50/70 shadow-[0_24px_60px_-34px_rgba(15,118,110,0.45)] backdrop-blur-sm dark:border-emerald-500/20 dark:from-emerald-500/10 dark:via-slate-900/70 dark:to-teal-900/20">
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-0 -z-10 overflow-hidden"
+        >
+          <div className="gu-drift absolute -right-16 -top-20 h-56 w-56 rounded-full bg-emerald-400/30 blur-3xl dark:bg-emerald-500/15" />
+          <div className="gu-drift-rev absolute -bottom-24 -left-16 h-56 w-56 rounded-full bg-teal-300/30 blur-3xl dark:bg-teal-600/15" />
+          <div className="absolute -right-10 -top-10 h-40 w-40 rounded-full border border-emerald-400/30 dark:border-emerald-400/10" />
+        </div>
+
         <CardContent className="space-y-5 p-4 sm:p-6">
           <div className="flex items-start gap-4">
-            <div className="shrink-0 rounded-2xl bg-emerald-500/10 p-3 text-emerald-600 dark:text-emerald-400">
+            <div className="shrink-0 rounded-2xl bg-emerald-500/15 p-3 text-emerald-600 ring-1 ring-inset ring-emerald-500/20 dark:text-emerald-400">
               <BrainCircuit className="h-6 w-6" />
             </div>
             <div className="min-w-0 flex-1 space-y-2">
@@ -979,7 +1096,7 @@ export default function StatisticsPage() {
             </div>
           </div>
 
-          <div className="space-y-3 rounded-xl border border-border/60 bg-muted/30 p-4">
+          <div className="space-y-3 rounded-xl border border-emerald-900/10 bg-white/60 p-4 dark:border-emerald-400/10 dark:bg-slate-900/50">
             <h4 className="flex items-center gap-2 text-xs font-bold uppercase tracking-wide text-emerald-700 dark:text-emerald-400">
               <Lightbulb className="h-4 w-4" />
               Rekomendasi Belajar
@@ -990,7 +1107,7 @@ export default function StatisticsPage() {
                   key={index}
                   className="flex items-start gap-3 text-sm text-foreground/90"
                 >
-                  <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-emerald-500/10 text-xs font-bold text-emerald-600 dark:text-emerald-400">
+                  <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-emerald-500/15 text-xs font-bold text-emerald-700 dark:text-emerald-400">
                     {index + 1}
                   </span>
                   <span className="leading-relaxed">{action}</span>
@@ -1002,8 +1119,8 @@ export default function StatisticsPage() {
       </Card>
 
       {/* PETA PENGUASAAN */}
-      <Card className="overflow-hidden rounded-2xl border-border/70">
-        <CardHeader className="border-b border-border/60 bg-muted/20 px-4 py-4 sm:px-6">
+      <Card className={`overflow-hidden ${glassCardStatic}`}>
+        <CardHeader className={cardHeaderTone}>
           <CardTitle className="flex items-center gap-2 text-base font-extrabold">
             <Award className="h-5 w-5 text-emerald-500" />
             Peta Penguasaan Kategori Ujian
@@ -1018,7 +1135,7 @@ export default function StatisticsPage() {
             categoryPerformance.map((item) => (
               <div
                 key={item.kategori}
-                className="space-y-3 rounded-xl border border-border/60 bg-muted/20 p-4"
+                className={`space-y-3 p-4 transition-all duration-300 hover:border-emerald-400/50 motion-reduce:transition-none ${innerTile}`}
               >
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <div>
@@ -1050,7 +1167,7 @@ export default function StatisticsPage() {
       {/* GRAFIK */}
       {hasExamData ? (
         <>
-          <div className="min-w-0 overflow-hidden rounded-2xl">
+          <div className="min-w-0 overflow-hidden rounded-2xl shadow-[0_16px_44px_-30px_rgba(15,118,110,0.4)] ring-1 ring-emerald-900/5 dark:ring-emerald-400/10">
             <ChartCard
               title="Perkembangan Nilai Ujian"
               description="Perubahan skor dari setiap ujian yang telah diselesaikan"
@@ -1103,7 +1220,7 @@ export default function StatisticsPage() {
           </div>
 
           <div className="grid min-w-0 gap-5 xl:grid-cols-2">
-            <div className="min-w-0 overflow-hidden rounded-2xl">
+            <div className="min-w-0 overflow-hidden rounded-2xl shadow-[0_16px_44px_-30px_rgba(15,118,110,0.4)] ring-1 ring-emerald-900/5 dark:ring-emerald-400/10">
               <ChartCard
                 title="Perbandingan Skor per Kategori"
                 description="Rata-rata nilai pada setiap kategori ujian"
@@ -1148,7 +1265,7 @@ export default function StatisticsPage() {
               </ChartCard>
             </div>
 
-            <div className="min-w-0 overflow-hidden rounded-2xl">
+            <div className="min-w-0 overflow-hidden rounded-2xl shadow-[0_16px_44px_-30px_rgba(15,118,110,0.4)] ring-1 ring-emerald-900/5 dark:ring-emerald-400/10">
               <ChartCard
                 title="Distribusi Jawaban"
                 description="Perbandingan jawaban benar, salah, dan belum dijawab"
@@ -1183,9 +1300,9 @@ export default function StatisticsPage() {
           </div>
         </>
       ) : (
-        <Card className="rounded-2xl border-dashed border-border/70">
+        <Card className="rounded-2xl border-dashed border-emerald-500/30 bg-white/60 backdrop-blur-sm dark:bg-slate-900/50">
           <CardContent className="flex flex-col items-center justify-center gap-3 py-10 text-center">
-            <div className="rounded-2xl bg-muted p-4 text-muted-foreground">
+            <div className="rounded-2xl bg-emerald-500/10 p-4 text-emerald-600 dark:text-emerald-400">
               <BarChart3 className="h-7 w-7" />
             </div>
             <h3 className="font-bold text-foreground">
@@ -1201,3 +1318,4 @@ export default function StatisticsPage() {
     </div>
   );
 }
+</file_text>
