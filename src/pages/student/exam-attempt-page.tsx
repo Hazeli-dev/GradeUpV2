@@ -823,9 +823,13 @@ export default function ExamAttemptPage() {
 
             <CardContent className="space-y-6 px-5 py-6 sm:px-7 sm:py-8">
               <div className="text-base font-semibold leading-[1.85] text-foreground sm:text-lg [&_p]:mb-3 [&_p:last-child]:mb-0 [&_em]:italic [&_strong]:font-bold">
-  <ReactMarkdown>
-    {currentQuestion.question_text}
-  </ReactMarkdown>
+  <ReactMarkdown
+  components={{
+    code: ({ children }) => <>{children}</>,
+  }}
+>
+  {currentQuestion.question_text}
+</ReactMarkdown>
 </div>
 
               {/* Gambar soal */}
@@ -880,7 +884,13 @@ export default function ExamAttemptPage() {
       : "font-medium text-foreground/85"
   )}
 >
-  <ReactMarkdown>{option.text}</ReactMarkdown>
+  <ReactMarkdown
+  components={{
+    code: ({ children }) => <>{children}</>,
+  }}
+>
+  {option.text}
+</ReactMarkdown>
 </div>
 
                       {selected && (
