@@ -120,6 +120,49 @@ const DAY_LABELS = [
 const TIME_ZONE = "Asia/Jakarta";
 
 // ======================================================
+// TAMPILAN (murni visual, tidak memengaruhi logika)
+// ======================================================
+
+const cardGlass =
+  "relative overflow-hidden rounded-3xl border border-slate-200/80 bg-white/85 shadow-[0_12px_36px_-24px_rgba(15,118,110,0.35)] backdrop-blur-sm dark:border-slate-700/70 dark:bg-slate-900/80";
+
+const headingText = "text-slate-950 dark:text-white";
+
+const listItem =
+  "rounded-2xl border border-slate-200/80 bg-white/70 transition-colors duration-300 hover:border-emerald-300/80 hover:bg-emerald-50/70 dark:border-slate-700/70 dark:bg-slate-900/60 dark:hover:border-emerald-700/70 dark:hover:bg-emerald-950/40";
+
+const outlineBtn =
+  "rounded-xl border-slate-300 text-slate-700 transition-colors duration-300 hover:border-teal-300 hover:bg-teal-50 dark:border-slate-700 dark:text-slate-200 dark:hover:border-teal-700 dark:hover:bg-slate-800";
+
+const ghostLink =
+  "rounded-xl text-xs font-semibold text-teal-700 hover:bg-emerald-50 hover:text-teal-800 dark:text-emerald-300 dark:hover:bg-emerald-950/50 dark:hover:text-emerald-200";
+
+const primaryBtn =
+  "rounded-xl bg-teal-700 font-bold text-white shadow-md shadow-teal-700/20 transition-all duration-300 hover:-translate-y-0.5 hover:bg-teal-800 motion-reduce:transition-none motion-reduce:hover:translate-y-0 dark:bg-emerald-500 dark:text-slate-950 dark:hover:bg-emerald-400";
+
+const accentTones = {
+  emerald: "via-emerald-400/70",
+  teal: "via-teal-400/70",
+  amber: "via-amber-400/70",
+  blue: "via-blue-400/60",
+  slate: "via-slate-400/50",
+} as const;
+
+/** Garis aksen tipis di tepi atas kartu, warna berbeda per kartu. */
+function CardAccent({
+  tone = "emerald",
+}: {
+  tone?: keyof typeof accentTones;
+}) {
+  return (
+    <span
+      aria-hidden="true"
+      className={`pointer-events-none absolute inset-x-6 top-0 h-px bg-gradient-to-r from-transparent ${accentTones[tone]} to-transparent`}
+    />
+  );
+}
+
+// ======================================================
 // HELPERS
 // ======================================================
 
@@ -683,7 +726,6 @@ export default function StudentOverviewPage() {
             )
         );
 
-       
         // ----------------------------------------------
         // WEEKLY PERIOD (WIB)
         // ----------------------------------------------
@@ -788,7 +830,7 @@ export default function StudentOverviewPage() {
             ),
           }))
         );
-              } catch (error) {
+      } catch (error) {
         console.error(
           "Gagal memuat dashboard siswa:",
           error
@@ -944,65 +986,106 @@ export default function StudentOverviewPage() {
   // RENDER
   // ====================================================
 
-  
-return (
-  <div className="space-y-6">
+  return (
+    <div className="space-y-6">
+      {/* HEADER */}
+      <div className="relative isolate overflow-hidden rounded-3xl border border-emerald-300/30 bg-gradient-to-br from-[#0f3324] via-[#174b34] to-[#1e6842] p-5 text-white shadow-[0_30px_80px_-40px_rgba(6,78,59,0.7)] ring-1 ring-inset ring-white/10 sm:p-7">
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-0 -z-10 bg-[radial-gradient(circle_at_15%_0%,rgba(52,211,153,0.25),transparent_50%),radial-gradient(circle_at_100%_100%,rgba(20,184,166,0.22),transparent_45%)]"
+        />
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-0 -z-10 bg-[linear-gradient(to_right,rgba(167,243,208,0.08)_1px,transparent_1px),linear-gradient(to_bottom,rgba(167,243,208,0.08)_1px,transparent_1px)] [background-size:40px_40px] [mask-image:radial-gradient(ellipse_at_top_right,#000,transparent_70%)]"
+        />
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute -right-16 -top-24 -z-10 h-64 w-64 rounded-full border border-emerald-300/30"
+        />
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute -right-2 -top-10 -z-10 h-40 w-40 rounded-full bg-emerald-400/10 blur-2xl"
+        />
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-x-8 top-0 -z-10 h-px bg-gradient-to-r from-transparent via-emerald-200/60 to-transparent"
+        />
 
-    {/* HEADER */}
-    <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-      <div className="flex items-center gap-3">
-        <Avatar className="h-12 w-12 border-2 border-primary/20">
-          <AvatarFallback className="bg-primary/10 font-bold text-primary">
-            {initials(studentName)}
-          </AvatarFallback>
-        </Avatar>
+        <div className="relative flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-center gap-4">
+            <Avatar className="h-14 w-14 border-2 border-emerald-300/60 shadow-lg shadow-emerald-950/30">
+              <AvatarFallback className="bg-emerald-400 font-bold text-[#123b29]">
+                {initials(studentName)}
+              </AvatarFallback>
+            </Avatar>
 
-        <div>
-          <h1 className="text-xl font-extrabold tracking-tight sm:text-2xl">
-            Halo, {studentName} 👋
-          </h1>
+            <div className="min-w-0">
+              <h1 className="text-xl font-extrabold tracking-tight sm:text-2xl">
+                Halo, {studentName} 👋
+              </h1>
 
-          <p className="text-xs text-muted-foreground">
-            {isPremium && profile?.premium_until
-              ? `Member Premium s/d ${new Date(
-                  profile.premium_until
-                ).toLocaleDateString("id-ID", {
-                  timeZone: TIME_ZONE,
-                  day: "numeric",
-                  month: "short",
-                  year: "numeric",
-                })}`
-              : "Selamat datang kembali! Pantau ringkasan belajar Anda hari ini."}
-          </p>
+              <p className="mt-1 text-xs leading-5 text-emerald-100/80 sm:text-sm">
+                {isPremium && profile?.premium_until
+                  ? `Member Premium s/d ${new Date(
+                      profile.premium_until
+                    ).toLocaleDateString("id-ID", {
+                      timeZone: TIME_ZONE,
+                      day: "numeric",
+                      month: "short",
+                      year: "numeric",
+                    })}`
+                  : "Selamat datang kembali! Pantau ringkasan belajar Anda hari ini."}
+              </p>
+
+              <div className="mt-3 flex flex-wrap gap-2">
+                <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-200/20 bg-white/10 px-3 py-1 text-[11px] font-bold text-emerald-100">
+                  <Zap className="h-3 w-3 fill-current text-amber-300" />
+                  +{totalXp} XP
+                </span>
+
+                <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-200/20 bg-white/10 px-3 py-1 text-[11px] font-bold text-emerald-100">
+                  <CheckCircle2 className="h-3 w-3 text-emerald-300" />
+                  {completedCount} / {currentTargetExams} ujian minggu ini
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {isPremium ? (
+            <Badge className="shrink-0 gap-1 self-start border border-amber-300/40 bg-amber-400/15 px-3 py-1.5 font-bold text-amber-200 sm:self-center">
+              <Crown className="h-4 w-4 fill-current" />
+              Premium
+            </Badge>
+          ) : (
+            <Button
+              variant="outline"
+              size="sm"
+              className="shrink-0 gap-2 self-start rounded-xl border-emerald-300/40 bg-white/10 font-bold text-white transition-colors duration-300 hover:border-emerald-200/60 hover:bg-white/20 hover:text-white sm:self-center"
+              onClick={openUpgrade}
+            >
+              <Sparkles className="h-4 w-4 text-amber-300" />
+              Upgrade Premium
+            </Button>
+          )}
         </div>
       </div>
 
-      {isPremium ? (
-        <Badge className="gap-1 border border-amber-500/30 bg-amber-500/10 px-3 py-1.5 font-bold text-amber-700 dark:border-amber-400/30 dark:bg-amber-400/15 dark:text-amber-300">
-          <Crown className="h-4 w-4 fill-current" />
-          Premium
-        </Badge>
-      ) : (
-        <Button
-          variant="outline"
-          size="sm"
-          className="gap-2 border-emerald-500/40 text-emerald-600 hover:bg-emerald-500/10 dark:text-emerald-400"
-          onClick={openUpgrade}
-        >
-          <Sparkles className="h-4 w-4 text-amber-400" />
-          Upgrade Premium
-        </Button>
-      )}
-    </div>
-
-    {/* NEXT EXAM */}
-
+      {/* NEXT EXAM */}
 
       {nextExam && (
-        <Card className="overflow-hidden border-primary/20 bg-gradient-to-r from-primary/10 via-card to-card shadow-sm">
-          <CardContent className="flex flex-col gap-4 p-4 sm:flex-row sm:items-center sm:justify-between sm:p-5">
+        <Card className="relative overflow-hidden rounded-3xl border border-emerald-300/60 bg-gradient-to-r from-emerald-100/80 via-white/90 to-white/90 shadow-[0_14px_40px_-26px_rgba(15,118,110,0.45)] backdrop-blur-sm dark:border-emerald-800/50 dark:from-emerald-950/60 dark:via-slate-900/85 dark:to-slate-900/85">
+          <span
+            aria-hidden="true"
+            className="pointer-events-none absolute inset-y-4 left-0 w-1 rounded-r-full bg-gradient-to-b from-teal-600 to-emerald-400"
+          />
+          <span
+            aria-hidden="true"
+            className="pointer-events-none absolute -right-10 -top-10 h-40 w-40 rounded-full bg-emerald-300/30 blur-3xl dark:bg-emerald-500/10"
+          />
+
+          <CardContent className="relative flex flex-col gap-4 p-4 sm:flex-row sm:items-center sm:justify-between sm:p-5">
             <div className="flex items-start gap-3">
-              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
+              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-teal-700 to-emerald-500 text-white shadow-md shadow-teal-700/25 dark:from-emerald-500 dark:to-teal-400 dark:text-slate-950">
                 {nextExam.status === "active" ? (
                   <PlayCircle className="h-6 w-6" />
                 ) : (
@@ -1012,7 +1095,7 @@ return (
 
               <div className="min-w-0">
                 <div className="mb-1 flex flex-wrap items-center gap-2">
-                  <p className="text-xs font-bold uppercase tracking-wide text-primary">
+                  <p className="text-xs font-bold uppercase tracking-wide text-teal-700 dark:text-emerald-300">
                     {nextExam.status === "active"
                       ? "Ujian Sedang Berlangsung"
                       : "Ujian Berikutnya"}
@@ -1028,21 +1111,23 @@ return (
                   </Badge>
                 </div>
 
-                <h2 className="text-base font-extrabold sm:text-lg">
+                <h2
+                  className={`text-base font-extrabold sm:text-lg ${headingText}`}
+                >
                   {nextExam.title}
                 </h2>
 
-                <p className="mt-1 text-xs text-muted-foreground">
+                <p className="mt-1 text-xs text-slate-600 dark:text-slate-300">
                   {nextExam.category} · {nextExam.level}
                 </p>
 
-                <p className="mt-1 flex items-center gap-1.5 text-xs text-muted-foreground">
-                  <Clock className="h-3.5 w-3.5" />
+                <p className="mt-1 flex items-center gap-1.5 text-xs text-slate-600 dark:text-slate-300">
+                  <Clock className="h-3.5 w-3.5 text-teal-600 dark:text-emerald-400" />
                   {formatDate(nextExam.start_time)} ·{" "}
                   {formatTime(nextExam.start_time)} WIB
                 </p>
 
-                <p className="mt-2 text-sm font-bold text-primary">
+                <p className="mt-2 text-sm font-bold text-teal-700 dark:text-emerald-300">
                   {nextExam.status === "upcoming"
                     ? formatCountdown(
                         nextExam.start_time,
@@ -1057,7 +1142,7 @@ return (
               onClick={() =>
                 navigate("/dashboard/exams")
               }
-              className="shrink-0 gap-2"
+              className={`shrink-0 gap-2 ${primaryBtn}`}
             >
               Lihat Ujian
               <ChevronRight className="h-4 w-4" />
@@ -1069,131 +1154,139 @@ return (
       {/* MAIN GRID */}
 
       <div className="grid gap-6 lg:grid-cols-3">
-
         {/* LEFT CONTENT */}
 
         <div className="space-y-6 lg:col-span-2">
-
           {/* WEEKLY ACTIVITY */}
 
-          <Card className="border shadow-sm">
+          <Card className={cardGlass}>
+            <CardAccent tone="emerald" />
+
             <CardHeader className="flex flex-row items-center justify-between pb-2">
               <div>
-                <CardTitle className="text-base font-bold">
+                <CardTitle
+                  className={`text-base font-bold ${headingText}`}
+                >
                   Aktivitas Belajar Saya
                 </CardTitle>
 
-                <p className="text-xs text-muted-foreground">
+                <p className="text-xs text-slate-500 dark:text-slate-400">
                   Akumulasi durasi pengerjaan ujian minggu ini
                 </p>
               </div>
 
               <Badge
                 variant="outline"
-                className="text-xs font-semibold"
+                className="border-teal-200/80 bg-teal-50 text-xs font-semibold text-teal-800 dark:border-teal-800/70 dark:bg-teal-950/60 dark:text-teal-200"
               >
                 Mingguan
               </Badge>
             </CardHeader>
 
             <CardContent>
-              <div className="h-52 w-full pt-2">
-                <ResponsiveContainer
-                  width="100%"
-                  height="100%"
-                >
-                  <AreaChart
-                    data={weeklyData}
-                    margin={{
-                      top: 10,
-                      right: 10,
-                      left: -25,
-                      bottom: 0,
-                    }}
+              <div className="rounded-2xl border border-emerald-100/70 bg-emerald-50/40 p-2 dark:border-slate-800 dark:bg-slate-950/30">
+                <div className="h-52 w-full pt-2">
+                  <ResponsiveContainer
+                    width="100%"
+                    height="100%"
                   >
-                    <defs>
-                      <linearGradient
-                        id="gradeUpActivityFill"
-                        x1="0"
-                        y1="0"
-                        x2="0"
-                        y2="1"
-                      >
-                        <stop
-                          offset="0%"
-                          stopColor={CHART_COLORS.secondary}
-                          stopOpacity={0.35}
-                        />
-
-                        <stop
-                          offset="100%"
-                          stopColor={CHART_COLORS.secondary}
-                          stopOpacity={0}
-                        />
-                      </linearGradient>
-                    </defs>
-
-                    <CartesianGrid
-                      strokeDasharray="3 3"
-                      vertical={false}
-                      stroke="hsl(var(--border))"
-                    />
-
-                    <XAxis
-                      dataKey="day"
-                      tickLine={false}
-                      axisLine={false}
-                      tick={{
-                        fill: "hsl(var(--muted-foreground))",
-                        fontSize: 11,
+                    <AreaChart
+                      data={weeklyData}
+                      margin={{
+                        top: 10,
+                        right: 10,
+                        left: -25,
+                        bottom: 0,
                       }}
-                    />
+                    >
+                      <defs>
+                        <linearGradient
+                          id="gradeUpActivityFill"
+                          x1="0"
+                          y1="0"
+                          x2="0"
+                          y2="1"
+                        >
+                          <stop
+                            offset="0%"
+                            stopColor={CHART_COLORS.secondary}
+                            stopOpacity={0.35}
+                          />
 
-                    <YAxis
-                      tickLine={false}
-                      axisLine={false}
-                      tick={{
-                        fill: "hsl(var(--muted-foreground))",
-                        fontSize: 11,
-                      }}
-                      tickFormatter={(value) =>
-                        `${value}j`
-                      }
-                    />
+                          <stop
+                            offset="100%"
+                            stopColor={CHART_COLORS.secondary}
+                            stopOpacity={0}
+                          />
+                        </linearGradient>
+                      </defs>
 
-                    <Tooltip
-                      contentStyle={{
-                        backgroundColor:
-                          "hsl(var(--card))",
-                        borderColor:
-                          "hsl(var(--border))",
-                        borderRadius: "12px",
-                        fontSize: "12px",
-                      }}
-                      formatter={(value) => [
-                        `${Number(value).toFixed(2)} jam`,
-                        "Durasi Ujian",
-                      ]}
-                    />
+                      <CartesianGrid
+                        strokeDasharray="3 3"
+                        vertical={false}
+                        stroke="hsl(var(--border))"
+                      />
 
-                    <Area
-                      type="monotone"
-                      dataKey="jam"
-                      stroke={CHART_COLORS.primary}
-                      strokeWidth={3}
-                      fill="url(#gradeUpActivityFill)"
-                    />
-                  </AreaChart>
-                </ResponsiveContainer>
+                      <XAxis
+                        dataKey="day"
+                        tickLine={false}
+                        axisLine={false}
+                        tick={{
+                          fill: "hsl(var(--muted-foreground))",
+                          fontSize: 11,
+                        }}
+                      />
+
+                      <YAxis
+                        tickLine={false}
+                        axisLine={false}
+                        tick={{
+                          fill: "hsl(var(--muted-foreground))",
+                          fontSize: 11,
+                        }}
+                        tickFormatter={(value) =>
+                          `${value}j`
+                        }
+                      />
+
+                      <Tooltip
+                        contentStyle={{
+                          backgroundColor:
+                            "hsl(var(--card))",
+                          borderColor:
+                            "hsl(var(--border))",
+                          borderRadius: "12px",
+                          fontSize: "12px",
+                        }}
+                        formatter={(value) => [
+                          `${Number(value).toFixed(2)} jam`,
+                          "Durasi Ujian",
+                        ]}
+                      />
+
+                      <Area
+                        type="monotone"
+                        dataKey="jam"
+                        stroke={CHART_COLORS.primary}
+                        strokeWidth={3}
+                        fill="url(#gradeUpActivityFill)"
+                      />
+                    </AreaChart>
+                  </ResponsiveContainer>
+                </div>
               </div>
             </CardContent>
           </Card>
 
           {/* STATISTICS */}
 
-          <Card className="border shadow-sm">
+          <Card className={cardGlass}>
+            <CardAccent tone="teal" />
+
             <CardHeader className="pb-2">
-              <CardTitle className="text-base font-bold">
+              <CardTitle
+                className={`text-base font-bold ${headingText}`}
+              >
                 Statistik Progres
               </CardTitle>
             </CardHeader>
@@ -1201,12 +1294,13 @@ return (
             <CardContent className="space-y-4">
               <div className="flex items-end justify-between gap-3">
                 <div>
-                  <p className="text-xs font-medium text-muted-foreground">
-                    Target Mingguan (
-{completedCount} / {currentTargetExams} Ujian)
+                  <p className="text-xs font-medium text-slate-500 dark:text-slate-400">
+                    Target Mingguan ({completedCount} / {currentTargetExams} Ujian)
                   </p>
 
-                  <p className="text-2xl font-black tracking-tight">
+                  <p
+                    className={`text-2xl font-black tracking-tight ${headingText}`}
+                  >
                     {completionPercentage}%
                   </p>
                 </div>
@@ -1219,14 +1313,13 @@ return (
 
               <Progress
                 value={completionPercentage}
-                className="h-2.5"
+                className="h-2.5 bg-emerald-100 dark:bg-slate-800 [&>div]:bg-gradient-to-r [&>div]:from-teal-600 [&>div]:to-emerald-400"
               />
 
               <div className="grid gap-3 pt-2 sm:grid-cols-2">
-
-                <div className="flex items-center justify-between rounded-xl border border-blue-500/20 bg-blue-500/10 p-3.5">
+                <div className="flex items-center justify-between rounded-2xl border border-blue-500/20 bg-gradient-to-br from-blue-500/10 to-blue-500/[0.03] p-3.5">
                   <div className="flex items-center gap-3">
-                    <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-blue-500 text-white">
+                    <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-blue-500 text-white shadow-md shadow-blue-500/25">
                       <Clock className="h-5 w-5" />
                     </div>
 
@@ -1235,7 +1328,7 @@ return (
                         {inProgressCount}
                       </p>
 
-                      <p className="text-xs font-semibold text-muted-foreground">
+                      <p className="text-xs font-semibold text-slate-500 dark:text-slate-400">
                         Sedang Berjalan
                       </p>
                     </div>
@@ -1243,15 +1336,15 @@ return (
 
                   <Badge
                     variant="outline"
-                    className="bg-background text-[10px]"
+                    className="bg-background/70 text-[10px]"
                   >
                     In Progress
                   </Badge>
                 </div>
 
-                <div className="flex items-center justify-between rounded-xl border border-emerald-500/20 bg-emerald-500/10 p-3.5">
+                <div className="flex items-center justify-between rounded-2xl border border-emerald-500/20 bg-gradient-to-br from-emerald-500/10 to-emerald-500/[0.03] p-3.5">
                   <div className="flex items-center gap-3">
-                    <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-emerald-500 text-white">
+                    <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-emerald-500 text-white shadow-md shadow-emerald-500/25">
                       <CheckCircle2 className="h-5 w-5" />
                     </div>
 
@@ -1260,7 +1353,7 @@ return (
                         {completedCount}
                       </p>
 
-                      <p className="text-xs font-semibold text-muted-foreground">
+                      <p className="text-xs font-semibold text-slate-500 dark:text-slate-400">
                         Ujian Selesai Minggu Ini
                       </p>
                     </div>
@@ -1268,21 +1361,24 @@ return (
 
                   <Badge
                     variant="outline"
-                    className="bg-background text-[10px]"
+                    className="bg-background/70 text-[10px]"
                   >
                     Completed
                   </Badge>
                 </div>
-
               </div>
             </CardContent>
           </Card>
 
           {/* AVAILABLE COURSES */}
 
-          <Card className="border shadow-sm">
+          <Card className={cardGlass}>
+            <CardAccent tone="emerald" />
+
             <CardHeader className="flex flex-row items-center justify-between pb-3">
-              <CardTitle className="text-base font-bold">
+              <CardTitle
+                className={`text-base font-bold ${headingText}`}
+              >
                 Materi Tersedia
               </CardTitle>
 
@@ -1290,7 +1386,7 @@ return (
                 variant="ghost"
                 size="sm"
                 asChild
-                className="text-xs text-muted-foreground"
+                className={ghostLink}
               >
                 <Link to="/dashboard/courses">
                   Lihat Semua
@@ -1300,8 +1396,8 @@ return (
 
             <CardContent className="space-y-3">
               {courses.length === 0 ? (
-                <div className="rounded-xl border border-dashed p-4 text-center">
-                  <p className="text-xs text-muted-foreground">
+                <div className="rounded-2xl border border-dashed border-teal-300/70 bg-white/50 p-4 text-center dark:border-slate-700 dark:bg-slate-900/50">
+                  <p className="text-xs text-slate-500 dark:text-slate-400">
                     Belum ada materi yang tersedia.
                   </p>
                 </div>
@@ -1309,19 +1405,21 @@ return (
                 courses.map((course) => (
                   <div
                     key={course.id}
-                    className="flex flex-col gap-3 rounded-xl border p-3.5 transition-colors hover:bg-muted/30 sm:flex-row sm:items-center sm:justify-between"
+                    className={`flex flex-col gap-3 p-3.5 sm:flex-row sm:items-center sm:justify-between ${listItem}`}
                   >
                     <div className="flex items-center gap-3">
-                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
+                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-50 text-teal-700 dark:bg-emerald-950 dark:text-emerald-300">
                         <BookOpen className="h-5 w-5" />
                       </div>
 
                       <div>
-                        <h4 className="text-sm font-bold leading-none">
+                        <h4
+                          className={`text-sm font-bold leading-none ${headingText}`}
+                        >
                           {course.title}
                         </h4>
 
-                        <p className="mt-1 text-xs text-muted-foreground">
+                        <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
                           {course.category}
                         </p>
                       </div>
@@ -1338,7 +1436,7 @@ return (
                       <Button
                         size="sm"
                         variant="outline"
-                        className="shrink-0 text-xs font-semibold"
+                        className={`shrink-0 text-xs font-semibold ${outlineBtn}`}
                         onClick={() =>
                           navigate(
                             `/dashboard/courses/${course.id}`
@@ -1356,9 +1454,17 @@ return (
 
           {/* BADGES */}
 
-          <Card className="border-2 border-emerald-500/20 bg-gradient-to-b from-emerald-950/10 to-transparent shadow-sm">
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="flex items-center gap-2 text-base font-extrabold">
+          <Card className="relative overflow-hidden rounded-3xl border border-emerald-300/50 bg-gradient-to-b from-emerald-100/70 via-white/85 to-white/85 shadow-[0_14px_40px_-26px_rgba(15,118,110,0.4)] backdrop-blur-sm dark:border-emerald-800/50 dark:from-emerald-950/50 dark:via-slate-900/80 dark:to-slate-900/80">
+            <CardAccent tone="amber" />
+            <span
+              aria-hidden="true"
+              className="pointer-events-none absolute -right-12 -top-12 h-44 w-44 rounded-full bg-amber-300/25 blur-3xl dark:bg-amber-400/10"
+            />
+
+            <CardHeader className="relative flex flex-row items-center justify-between pb-2">
+              <CardTitle
+                className={`flex items-center gap-2 text-base font-extrabold ${headingText}`}
+              >
                 <Trophy className="h-5 w-5 text-amber-400" />
                 Badge & Gamifikasi
               </CardTitle>
@@ -1367,7 +1473,7 @@ return (
                 variant="ghost"
                 size="sm"
                 asChild
-                className="text-xs text-muted-foreground"
+                className={ghostLink}
               >
                 <Link to="/dashboard/achievements">
                   Lihat Semua
@@ -1375,15 +1481,15 @@ return (
               </Button>
             </CardHeader>
 
-            <CardContent className="space-y-4">
-              <div className="flex items-center justify-between rounded-xl border bg-muted/40 p-3.5">
+            <CardContent className="relative space-y-4">
+              <div className="flex items-center justify-between rounded-2xl border border-slate-200/80 bg-white/70 p-3.5 dark:border-slate-700/70 dark:bg-slate-900/60">
                 <div className="flex items-center gap-3">
                   <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-amber-500/20 bg-amber-500/15 text-amber-500">
                     <Zap className="h-5 w-5 fill-current" />
                   </div>
 
                   <div>
-                    <p className="text-xs font-medium text-muted-foreground">
+                    <p className="text-xs font-medium text-slate-500 dark:text-slate-400">
                       Total Akumulasi XP
                     </p>
 
@@ -1394,14 +1500,16 @@ return (
                 </div>
 
                 <div className="text-right">
-                  <p className="text-xs font-medium text-muted-foreground">
+                  <p className="text-xs font-medium text-slate-500 dark:text-slate-400">
                     Badge Terbuka
                   </p>
 
-                  <p className="text-base font-extrabold">
+                  <p
+                    className={`text-base font-extrabold ${headingText}`}
+                  >
                     {unlockedBadges.length}
 
-                    <span className="text-xs font-normal text-muted-foreground">
+                    <span className="text-xs font-normal text-slate-500 dark:text-slate-400">
                       {" "}
                       / {totalBadgesCount}
                     </span>
@@ -1410,8 +1518,8 @@ return (
               </div>
 
               {unlockedBadges.length === 0 ? (
-                <div className="rounded-xl border border-dashed p-4 text-center">
-                  <p className="text-xs text-muted-foreground">
+                <div className="rounded-2xl border border-dashed border-teal-300/70 bg-white/50 p-4 text-center dark:border-slate-700 dark:bg-slate-900/50">
+                  <p className="text-xs text-slate-500 dark:text-slate-400">
                     Belum ada badge yang terbuka.
                     Selesaikan tantangan untuk memperoleh badge!
                   </p>
@@ -1429,7 +1537,7 @@ return (
                             "/dashboard/achievements"
                           )
                         }
-                        className="flex items-center gap-3 rounded-xl border border-emerald-500/40 bg-card p-3.5 text-left shadow-sm transition-all hover:scale-[1.01] hover:border-emerald-500/80"
+                        className="flex items-center gap-3 rounded-2xl border border-emerald-500/40 bg-white/80 p-3.5 text-left shadow-sm transition-all duration-300 hover:-translate-y-0.5 hover:border-emerald-500/80 hover:shadow-lg hover:shadow-emerald-900/10 motion-reduce:transition-none motion-reduce:hover:translate-y-0 dark:bg-slate-900/70"
                       >
                         <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-emerald-500/30 bg-emerald-500/20 text-emerald-500">
                           {getBadgeIcon(
@@ -1440,7 +1548,9 @@ return (
 
                         <div className="min-w-0 flex-1">
                           <div className="flex items-center justify-between gap-1">
-                            <h5 className="truncate text-xs font-bold leading-snug">
+                            <h5
+                              className={`truncate text-xs font-bold leading-snug ${headingText}`}
+                            >
                               {badge.title}
                             </h5>
 
@@ -1458,19 +1568,21 @@ return (
               )}
             </CardContent>
           </Card>
-
         </div>
 
         {/* RIGHT CONTENT */}
 
         <div className="space-y-6">
-
           {/* CALENDAR */}
 
-          <Card className="border shadow-sm">
+          <Card className={cardGlass}>
+            <CardAccent tone="teal" />
+
             <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="flex items-center gap-2 text-sm font-bold">
-                <CalendarIcon className="h-4 w-4 text-primary" />
+              <CardTitle
+                className={`flex items-center gap-2 text-sm font-bold ${headingText}`}
+              >
+                <CalendarIcon className="h-4 w-4 text-teal-600 dark:text-emerald-400" />
 
                 {currentMonth.toLocaleDateString(
                   "id-ID",
@@ -1486,7 +1598,7 @@ return (
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="h-7 w-7"
+                  className="h-7 w-7 rounded-lg hover:bg-emerald-50 dark:hover:bg-emerald-950/50"
                   onClick={() => changeMonth(-1)}
                   aria-label="Bulan sebelumnya"
                 >
@@ -1496,7 +1608,7 @@ return (
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="h-7 w-7"
+                  className="h-7 w-7 rounded-lg hover:bg-emerald-50 dark:hover:bg-emerald-950/50"
                   onClick={() => changeMonth(1)}
                   aria-label="Bulan berikutnya"
                 >
@@ -1506,7 +1618,7 @@ return (
             </CardHeader>
 
             <CardContent>
-              <div className="mb-2 grid grid-cols-7 text-center text-[11px] font-bold text-muted-foreground">
+              <div className="mb-2 grid grid-cols-7 text-center text-[11px] font-bold text-slate-500 dark:text-slate-400">
                 {DAY_LABELS.map((day) => (
                   <span key={day}>{day}</span>
                 ))}
@@ -1569,10 +1681,10 @@ return (
                       }`}
                       className={`relative flex h-8 w-full items-center justify-center rounded-lg transition-all ${
                         isSelected
-                          ? "scale-105 bg-primary font-black text-primary-foreground shadow-md"
+                          ? "scale-105 bg-gradient-to-br from-teal-700 to-emerald-500 font-black text-white shadow-md shadow-teal-700/30 dark:from-emerald-500 dark:to-teal-400 dark:text-slate-950"
                           : isToday
-                            ? "border border-primary/40 bg-primary/20 font-bold text-primary"
-                            : "text-foreground hover:bg-muted/70"
+                            ? "border border-teal-400/50 bg-teal-100/70 font-bold text-teal-800 dark:border-emerald-500/40 dark:bg-emerald-950/60 dark:text-emerald-200"
+                            : "text-foreground hover:bg-emerald-100/70 dark:hover:bg-emerald-950/50"
                       }`}
                     >
                       {day}
@@ -1591,10 +1703,10 @@ return (
                 })}
               </div>
 
-              <div className="mt-3 flex items-center gap-2 border-t pt-3">
+              <div className="mt-3 flex items-center gap-2 border-t border-slate-200/70 pt-3 dark:border-slate-800">
                 <span className="h-2 w-2 rounded-full bg-emerald-500" />
 
-                <p className="text-[11px] text-muted-foreground">
+                <p className="text-[11px] text-slate-500 dark:text-slate-400">
                   Terdapat jadwal ujian
                 </p>
               </div>
@@ -1603,14 +1715,18 @@ return (
 
           {/* EXAM SCHEDULE */}
 
-          <Card className="border shadow-sm">
+          <Card className={cardGlass}>
+            <CardAccent tone="blue" />
+
             <CardHeader className="flex flex-row items-center justify-between pb-3">
               <div>
-                <CardTitle className="text-base font-bold">
+                <CardTitle
+                  className={`text-base font-bold ${headingText}`}
+                >
                   Jadwal Ujian
                 </CardTitle>
 
-                <p className="text-xs text-muted-foreground">
+                <p className="text-xs text-slate-500 dark:text-slate-400">
                   {selectedDate.toLocaleDateString(
                     "id-ID",
                     {
@@ -1627,7 +1743,7 @@ return (
                 variant="ghost"
                 size="sm"
                 asChild
-                className="text-xs text-muted-foreground"
+                className={ghostLink}
               >
                 <Link to="/dashboard/exams">
                   Semua
@@ -1637,10 +1753,10 @@ return (
 
             <CardContent className="space-y-3">
               {selectedSchedules.length === 0 ? (
-                <div className="rounded-xl border border-dashed p-4 text-center">
-                  <CalendarIcon className="mx-auto mb-2 h-6 w-6 text-muted-foreground/50" />
+                <div className="rounded-2xl border border-dashed border-teal-300/70 bg-white/50 p-4 text-center dark:border-slate-700 dark:bg-slate-900/50">
+                  <CalendarIcon className="mx-auto mb-2 h-6 w-6 text-slate-400 dark:text-slate-500" />
 
-                  <p className="text-xs text-muted-foreground">
+                  <p className="text-xs text-slate-500 dark:text-slate-400">
                     Tidak ada agenda ujian pada tanggal ini.
                   </p>
                 </div>
@@ -1648,10 +1764,12 @@ return (
                 selectedSchedules.map((schedule) => (
                   <div
                     key={schedule.id}
-                    className="space-y-2 rounded-xl border p-3.5 transition-colors hover:bg-muted/20"
+                    className={`space-y-2 p-3.5 ${listItem}`}
                   >
                     <div className="flex items-start justify-between gap-2">
-                      <h5 className="text-sm font-bold leading-snug">
+                      <h5
+                        className={`text-sm font-bold leading-snug ${headingText}`}
+                      >
                         {schedule.title}
                       </h5>
 
@@ -1667,7 +1785,7 @@ return (
                       </Badge>
                     </div>
 
-                    <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                    <p className="flex items-center gap-1.5 text-xs text-slate-600 dark:text-slate-300">
                       <Clock className="h-3.5 w-3.5 text-emerald-500" />
 
                       {formatTime(schedule.start_time)} WIB
@@ -1679,16 +1797,16 @@ return (
                         : " - Waktu akhir belum ditentukan"}
                     </p>
 
-                    <p className="text-[11px] font-medium text-muted-foreground">
+                    <p className="text-[11px] font-medium text-slate-500 dark:text-slate-400">
                       {schedule.category} · {schedule.level}
                     </p>
 
-                    <p className="text-[11px] text-muted-foreground">
+                    <p className="text-[11px] text-slate-500 dark:text-slate-400">
                       Pengajar: {schedule.instructor}
                     </p>
 
                     {schedule.status === "upcoming" && (
-                      <p className="text-xs font-bold text-primary">
+                      <p className="text-xs font-bold text-teal-700 dark:text-emerald-300">
                         {formatCountdown(
                           schedule.start_time,
                           clockNow
@@ -1703,54 +1821,53 @@ return (
 
           {/* SCHEDULE COUNTS */}
 
-          <Card className="border shadow-sm">
-            <CardContent className="space-y-3 p-4">
+          <Card className={cardGlass}>
+            <CardAccent tone="slate" />
 
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <CalendarClock className="h-4 w-4 text-blue-500" />
+            <CardContent className="grid grid-cols-3 gap-2 p-4 text-center">
+              <div className="rounded-2xl border border-blue-500/15 bg-blue-500/10 px-2 py-3">
+                <CalendarClock className="mx-auto h-4 w-4 text-blue-500" />
 
-                  <span className="text-xs font-medium text-muted-foreground">
-                    Akan Datang
-                  </span>
-                </div>
-
-                <span className="text-sm font-extrabold">
+                <p
+                  className={`mt-1.5 text-lg font-extrabold ${headingText}`}
+                >
                   {upcomingCount}
+                </p>
+
+                <span className="text-[10px] font-medium text-slate-500 dark:text-slate-400">
+                  Akan Datang
                 </span>
               </div>
 
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <PlayCircle className="h-4 w-4 text-emerald-500" />
+              <div className="rounded-2xl border border-emerald-500/15 bg-emerald-500/10 px-2 py-3">
+                <PlayCircle className="mx-auto h-4 w-4 text-emerald-500" />
 
-                  <span className="text-xs font-medium text-muted-foreground">
-                    Sedang Aktif
-                  </span>
-                </div>
-
-                <span className="text-sm font-extrabold">
+                <p
+                  className={`mt-1.5 text-lg font-extrabold ${headingText}`}
+                >
                   {activeCount}
+                </p>
+
+                <span className="text-[10px] font-medium text-slate-500 dark:text-slate-400">
+                  Sedang Aktif
                 </span>
               </div>
 
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <CheckCircle2 className="h-4 w-4 text-muted-foreground" />
+              <div className="rounded-2xl border border-slate-400/15 bg-slate-500/10 px-2 py-3">
+                <CheckCircle2 className="mx-auto h-4 w-4 text-slate-500 dark:text-slate-400" />
 
-                  <span className="text-xs font-medium text-muted-foreground">
-                    Selesai
-                  </span>
-                </div>
-
-                <span className="text-sm font-extrabold">
+                <p
+                  className={`mt-1.5 text-lg font-extrabold ${headingText}`}
+                >
                   {finishedCount}
+                </p>
+
+                <span className="text-[10px] font-medium text-slate-500 dark:text-slate-400">
+                  Selesai
                 </span>
               </div>
-
             </CardContent>
           </Card>
-
         </div>
       </div>
     </div>
