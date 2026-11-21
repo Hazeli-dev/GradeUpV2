@@ -5,7 +5,6 @@ import {
   Zap,
   Lock,
   Medal,
-  Crown,
   Sparkles,
   Award,
   Search,
@@ -16,11 +15,7 @@ import {
   BookOpen,
   Target,
   ChevronDown,
-  History,
   TrendingUp,
-  CalendarDays,
-  BookMarked,
-  GraduationCap,
   RefreshCw,
   AlertCircle,
 } from "lucide-react";
@@ -28,19 +23,11 @@ import {
 import {
   Card,
   CardContent,
-  CardTitle,
 } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import {
-  Tabs,
-  TabsContent,
-  TabsList,
-  TabsTrigger,
-} from "@/components/ui/tabs";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
   Dialog,
   DialogContent,
@@ -51,7 +38,6 @@ import {
 } from "@/components/ui/dialog";
 
 import { PageSkeleton } from "@/components/shared/states";
-import { initials } from "@/utils/format";
 import { supabase } from "@/lib/supabase";
 import { cn } from "@/lib/utils";
 
@@ -72,21 +58,6 @@ interface BadgeItem {
   isUnlocked: boolean;
 }
 
-interface LeaderboardUser {
-  id: string;
-  full_name: string;
-  total_xp: number;
-  rank: number;
-  is_current_user: boolean;
-}
-
-interface XpTransaction {
-  id: string;
-  amount: number;
-  source: string;
-  description: string | null;
-  created_at: string;
-}
 
 type StatusFilter = "Semua" | "Terbuka" | "Terkunci";
 type CategoryFilter = "Semua" | BadgeItem["category"];
@@ -154,8 +125,6 @@ const cardSurface =
 const tileSurface =
   "border border-emerald-100/80 bg-white/70 dark:border-slate-700/70 dark:bg-slate-900/60";
 
-const tabTrigger =
-  "gap-1.5 rounded-lg py-2.5 text-xs font-bold text-slate-600 transition-all duration-300 data-[state=active]:bg-white data-[state=active]:text-teal-800 data-[state=active]:shadow-sm dark:text-slate-300 dark:data-[state=active]:bg-slate-800 dark:data-[state=active]:text-emerald-300 sm:gap-2";
 
 const progressBar =
   "[&>div]:bg-gradient-to-r [&>div]:from-teal-600 [&>div]:to-emerald-400";
@@ -225,31 +194,6 @@ function formatNumber(value: number) {
   return value.toLocaleString("id-ID");
 }
 
-function formatDate(value: string) {
-  const date = new Date(value);
-
-  if (Number.isNaN(date.getTime())) return "-";
-
-  return new Intl.DateTimeFormat("id-ID", {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  }).format(date);
-}
-
-function getXpSourceLabel(source: string) {
-  const labels: Record<string, string> = {
-    lesson_completion: "Menyelesaikan sesi belajar",
-    exam_completion: "Menyelesaikan ujian",
-    badge_reward: "Hadiah badge",
-    achievement: "Pencapaian",
-    bonus: "Bonus XP",
-  };
-
-  return labels[source] || source.replace(/_/g, " ");
-}
 
 function RarityTag({
   rarity,
@@ -296,10 +240,6 @@ export default function StudentAchievementsPage() {
   const [loadError, setLoadError] = useState("");
 
   const [badges, setBadges] = useState<BadgeItem[]>([]);
-  const [leaderboard, setLeaderboard] = useState<LeaderboardUser[]>([]);
-const [xpHistory, setXpHistory] = useState<XpTransaction[]>([]);
-const [leaderboardError, setLeaderboardError] = useState("");
-const [xpHistoryError, setXpHistoryError] = useState("");
 
   const [totalXp, setTotalXp] = useState(0);
   const [allTimeXp, setAllTimeXp] = useState(0);
@@ -351,12 +291,7 @@ const [xpHistoryError, setXpHistoryError] = useState("");
           console.warn("Auto-reset season notice:", rpcError);
         }
 
-        const [
-          profileRes,
-          leaderboardRes,
-          seasonConfigRes,
-          historyRes,
-        ] = await Promise.all([
+        const [profileRes, seasonConfigRes] = await Promise.all([
           supabase
             .from("profiles")
             .select(
@@ -366,23 +301,10 @@ const [xpHistoryError, setXpHistoryError] = useState("");
             .single(),
 
           supabase
-  .from("profiles")
-  .select("id, full_name, all_time_xp")
-  .order("all_time_xp", { ascending: false, nullsFirst: false })
-  .limit(20),
-
-          supabase
             .from("system_settings")
             .select("value")
             .eq("key", "season_config")
             .maybeSingle(),
-
-          supabase
-            .from("xp_transactions")
-            .select("id, amount, source, description, created_at")
-            .eq("user_id", user.id)
-            .order("created_at", { ascending: false })
-            .limit(10),
         ]);
 
         if (profileRes.error) throw profileRes.error;
@@ -425,39 +347,6 @@ const [xpHistoryError, setXpHistoryError] = useState("");
         setBadges(
           generateMultiTierBadges(articlesRead, examsPassed)
         );
-
-        /* LEADERBOARD */
-
-if (leaderboardRes.error) {
-  console.error("Gagal memuat leaderboard:", leaderboardRes.error);
-  setLeaderboard([]);
-  setLeaderboardError("Leaderboard belum dapat dimuat. Silakan coba kembali.");
-} else {
-  const rankedList: LeaderboardUser[] =
-    (leaderboardRes.data || []).map((profile, index) => ({
-      id: profile.id,
-      full_name: profile.full_name || "Siswa GradeUp",
-      total_xp: Number(profile.all_time_xp ?? 0),
-      rank: index + 1,
-      is_current_user: profile.id === user.id,
-    }));
-
-  setLeaderboard(rankedList);
-  setLeaderboardError("");
-}
-
-/* RIWAYAT XP */
-
-if (historyRes.error) {
-  console.error("Gagal memuat riwayat XP:", historyRes.error);
-  setXpHistory([]);
-  setXpHistoryError("Riwayat XP belum dapat dimuat. Silakan coba kembali.");
-} else {
-  setXpHistory(
-    (historyRes.data || []) as XpTransaction[]
-  );
-  setXpHistoryError("");
-}
 
         /* SEASON */
 
@@ -611,10 +500,6 @@ if (historyRes.error) {
     visibleCount
   );
 
-  const myRank = leaderboard.find(
-    (item) => item.is_current_user
-  )?.rank;
-
   const hasActiveFilter =
     searchQuery !== "" ||
     statusFilter !== "Semua" ||
@@ -630,38 +515,6 @@ if (historyRes.error) {
     setStatusFilter("Semua");
     setCategoryFilter("Semua");
     setVisibleCount(PAGE_SIZE);
-  };
-
-  const podium = leaderboard.slice(0, 3);
-  const restOfBoard =
-    leaderboard.length >= 3
-      ? leaderboard.slice(3)
-      : leaderboard;
-
-  const podiumOrder =
-    podium.length === 3
-      ? [podium[1], podium[0], podium[2]]
-      : [];
-
-  const podiumStyle: Record<
-    number,
-    { height: string; medal: string; ring: string }
-  > = {
-    1: {
-      height: "h-24",
-      medal: "🥇",
-      ring: "border-amber-400/60 bg-amber-400/10",
-    },
-    2: {
-      height: "h-16",
-      medal: "🥈",
-      ring: "border-slate-400/50 bg-slate-400/10",
-    },
-    3: {
-      height: "h-12",
-      medal: "🥉",
-      ring: "border-amber-700/50 bg-amber-700/10",
-    },
   };
 
   /* =======================================================
@@ -742,15 +595,6 @@ if (historyRes.error) {
                     Active Student
                   </Badge>
 
-                  {myRank && (
-                    <Badge
-                      variant="outline"
-                      className="border-slate-200 bg-white/70 text-slate-700 dark:border-slate-700 dark:bg-slate-900/70 dark:text-slate-200"
-                    >
-                      <Medal className="mr-1 h-3 w-3 text-amber-500" />
-                      Peringkat #{myRank}
-                    </Badge>
-                  )}
                 </div>
 
                 <p className="text-xs font-semibold text-slate-600 dark:text-slate-300">
@@ -825,7 +669,7 @@ if (historyRes.error) {
 
           {/* SUMMARY STATS */}
 
-          <div className="grid grid-cols-2 gap-3 border-t border-emerald-200/60 pt-5 dark:border-emerald-900/40 sm:grid-cols-3">
+          <div className="grid grid-cols-2 gap-3 border-t border-emerald-200/60 pt-5 dark:border-emerald-900/40">
             <div className={cn("rounded-2xl p-3.5", tileSurface)}>
               <div className="mb-2 flex items-center gap-2 text-teal-700 dark:text-emerald-400">
                 <Award className="h-4 w-4" />
@@ -863,27 +707,6 @@ if (historyRes.error) {
               </p>
             </div>
 
-            <div
-              className={cn(
-                "col-span-2 rounded-2xl p-3.5 sm:col-span-1",
-                tileSurface
-              )}
-            >
-              <div className="mb-2 flex items-center gap-2 text-amber-500">
-                <Crown className="h-4 w-4" />
-                <span className="text-[11px] font-semibold text-slate-600 dark:text-slate-300">
-                  Peringkat
-                </span>
-              </div>
-              <p
-                className={cn(
-                  "text-xl font-black tabular-nums",
-                  headingText
-                )}
-              >
-                {myRank ? `#${myRank}` : "-"}
-              </p>
-            </div>
           </div>
 
           {/* NEXT BADGE TARGETS */}
@@ -963,34 +786,10 @@ if (historyRes.error) {
         </CardContent>
       </Card>
 
-      {/* MAIN TABS */}
+      {/* DAFTAR BADGE */}
 
-      <Tabs defaultValue="badges" className="space-y-5">
-        <TabsList className="grid h-auto w-full grid-cols-3 rounded-xl border border-emerald-200/60 bg-white/60 p-1 shadow-sm shadow-emerald-900/5 backdrop-blur-md dark:border-slate-700/60 dark:bg-slate-900/50 dark:shadow-none">
-          <TabsTrigger value="badges" className={tabTrigger}>
-            <Award className="h-4 w-4" />
-            <span>Badge</span>
-            <span className="hidden sm:inline">
-              ({totalBadges})
-            </span>
-          </TabsTrigger>
-
-          <TabsTrigger value="history" className={tabTrigger}>
-            <History className="h-4 w-4" />
-            Riwayat XP
-          </TabsTrigger>
-
-          <TabsTrigger value="leaderboard" className={tabTrigger}>
-            <Crown className="h-4 w-4" />
-            Peringkat
-          </TabsTrigger>
-        </TabsList>
-
-        {/* =================================================
-            TAB BADGES
-        ================================================= */}
-
-        <TabsContent value="badges" className="space-y-4">
+      <div className="space-y-5">
+        <div className="space-y-4">
           <div className="space-y-3">
             <div className="relative w-full sm:max-w-sm">
               <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500 dark:text-slate-400" />
@@ -1297,315 +1096,8 @@ if (historyRes.error) {
               )}
             </>
           )}
-        </TabsContent>
-
-        {/* =================================================
-            TAB RIWAYAT XP
-        ================================================= */}
-
-        <TabsContent value="history" className="space-y-4">
-          <Card
-            className={cn(
-              "overflow-hidden rounded-2xl shadow-[0_20px_50px_-34px_rgba(15,118,110,0.4)]",
-              cardSurface
-            )}
-          >
-            <CardContent className="space-y-5 p-4 sm:p-6">
-              <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200/70 pb-4 dark:border-slate-700/60">
-                <div className="flex items-center gap-2.5">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-50 text-teal-700 dark:bg-emerald-950 dark:text-emerald-300">
-                    <History className="h-5 w-5" />
-                  </div>
-
-                  <div>
-                    <CardTitle
-                      className={cn("text-base font-bold", headingText)}
-                    >
-                      Riwayat XP
-                    </CardTitle>
-                    <p className={cn("mt-0.5 text-xs", mutedText)}>
-                      Aktivitas perolehan XP terbaru
-                    </p>
-                  </div>
-                </div>
-
-                <Badge
-                  variant="outline"
-                  className="border-teal-200/80 bg-teal-50 text-[10px] text-teal-800 dark:border-teal-800/70 dark:bg-teal-950/60 dark:text-teal-200"
-                >
-                  10 transaksi terbaru
-                </Badge>
-              </div>
-
-              {xpHistoryError ? (
-  <div className="rounded-2xl border border-dashed border-red-300 px-5 py-8 text-center dark:border-red-900">
-    <AlertCircle className="mx-auto mb-3 h-7 w-7 text-red-500" />
-    <p className={cn("text-sm font-semibold", headingText)}>
-      Riwayat XP tidak tersedia
-    </p>
-    <p className={cn("mt-1 text-xs", mutedText)}>
-      {xpHistoryError}
-    </p>
-  </div>
-) : xpHistory.length === 0 ? (
-                <div className="rounded-2xl border border-dashed border-slate-300 px-5 py-12 text-center dark:border-slate-700">
-                  <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald-50 text-teal-700 dark:bg-emerald-950 dark:text-emerald-300">
-                    <Zap className="h-6 w-6" />
-                  </div>
-
-                  <p className={cn("text-sm font-bold", headingText)}>
-                    Belum ada riwayat XP
-                  </p>
-
-                  <p
-                    className={cn(
-                      "mx-auto mt-1 max-w-sm text-xs leading-relaxed",
-                      mutedText
-                    )}
-                  >
-                    XP yang diperoleh dari aktivitas pembelajaran
-                    berikutnya akan muncul di sini. Total XP lama
-                    tetap tersimpan di profil.
-                  </p>
-                </div>
-              ) : (
-                <div className="space-y-2">
-                  {xpHistory.map((transaction) => (
-                    <div
-                      key={transaction.id}
-                      className="flex items-center gap-3 rounded-xl border border-slate-200/80 bg-white/80 p-3.5 transition-colors duration-300 hover:border-emerald-300/70 hover:bg-emerald-50/50 dark:border-slate-700/70 dark:bg-slate-900/60 dark:hover:border-emerald-800/70 dark:hover:bg-slate-800/60 sm:p-4"
-                    >
-                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-emerald-500/20 bg-emerald-500/10 text-teal-700 dark:text-emerald-400">
-                        <Zap className="h-5 w-5 fill-current" />
-                      </div>
-
-                      <div className="min-w-0 flex-1">
-                        <p
-                          className={cn(
-                            "truncate text-sm font-bold",
-                            headingText
-                          )}
-                        >
-                          {transaction.description ||
-                            getXpSourceLabel(transaction.source)}
-                        </p>
-
-                        <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-slate-600 dark:text-slate-300">
-                          <span>
-                            {getXpSourceLabel(transaction.source)}
-                          </span>
-
-                          <span aria-hidden>•</span>
-
-                          <span className="inline-flex items-center gap-1">
-                            <CalendarDays className="h-3 w-3" />
-                            {formatDate(transaction.created_at)}
-                          </span>
-                        </div>
-                      </div>
-
-                      <div className="shrink-0 text-right">
-                        <p className="text-sm font-black tabular-nums text-teal-700 dark:text-emerald-400">
-                          +{formatNumber(transaction.amount)}
-                        </p>
-                        <p className="text-[10px] font-semibold text-slate-600 dark:text-slate-300">
-                          XP
-                        </p>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              <div className="rounded-xl border border-emerald-100/80 bg-emerald-50/50 p-3.5 dark:border-slate-700/70 dark:bg-slate-900/50">
-                <div className="flex items-start gap-2.5">
-                  <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-teal-600 dark:text-emerald-400" />
-
-                  <p className={cn("text-xs leading-relaxed", mutedText)}>
-                    Riwayat ini menampilkan transaksi yang tercatat
-                    di sistem XP GradeUp. Total XP sebelumnya tetap
-                    dihitung dari profil dan tidak dihapus ketika
-                    riwayat transaksi masih kosong.
-                  </p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        {/* =================================================
-            TAB LEADERBOARD
-        ================================================= */}
-
-        <TabsContent value="leaderboard">
-          <Card
-            className={cn(
-              "overflow-hidden rounded-2xl shadow-[0_20px_50px_-34px_rgba(15,118,110,0.4)]",
-              cardSurface
-            )}
-          >
-            <CardContent className="space-y-6 p-4 sm:p-7">
-              <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200/70 pb-4 dark:border-slate-700/60">
-                <div className="flex items-center gap-2">
-                  <Medal className="h-5 w-5 text-amber-500" />
-
-                  <div>
-                    <CardTitle
-                      className={cn("text-base font-bold", headingText)}
-                    >
-                      Peringkat 10 Besar Siswa
-                    </CardTitle>
-                    <p className={cn("mt-0.5 text-xs", mutedText)}>
-  Berdasarkan akumulasi XP sepanjang waktu
-</p>
-                  </div>
-                </div>
-
-                <Badge
-                  variant="outline"
-                  className="border-teal-200/80 bg-teal-50 text-[10px] font-semibold text-teal-800 dark:border-teal-800/70 dark:bg-teal-950/60 dark:text-teal-200"
-                >
-                  All-Time XP
-                </Badge>
-              </div>
-
-              {leaderboardError ? (
-  <div className={cn("p-8 text-center", mutedText)}>
-    <AlertCircle className="mx-auto mb-3 h-7 w-7 text-red-500" />
-    <p className="text-sm font-semibold">
-      Leaderboard tidak tersedia
-    </p>
-    <p className="mt-1 text-xs">
-      {leaderboardError}
-    </p>
-  </div>
-) : leaderboard.length === 0 ? (
-                <div className={cn("p-8 text-center text-sm", mutedText)}>
-                  Belum ada data peringkat siswa.
-                </div>
-              ) : (
-                <>
-                  {podiumOrder.length === 3 && (
-                    <div className="mx-auto grid w-full max-w-xl grid-cols-3 items-end gap-3 rounded-2xl bg-gradient-to-b from-emerald-50/80 to-transparent px-2 pt-5 dark:from-emerald-950/30 sm:gap-5 sm:px-5">
-                      {podiumOrder.map((item) => {
-                        const style = podiumStyle[item.rank];
-
-                        return (
-                          <div
-                            key={item.id}
-                            className="flex flex-col items-center gap-2 text-center"
-                          >
-                            <span
-                              className="text-2xl"
-                              aria-hidden
-                            >
-                              {style.medal}
-                            </span>
-
-                            <Avatar
-                              className={cn(
-                                "border-2",
-                                item.rank === 1
-                                  ? "h-14 w-14"
-                                  : "h-11 w-11",
-                                item.is_current_user &&
-                                  "ring-2 ring-emerald-500"
-                              )}
-                            >
-                              <AvatarFallback className="bg-primary/10 text-xs font-bold text-primary">
-                                {initials(item.full_name)}
-                              </AvatarFallback>
-                            </Avatar>
-
-                            <div className="w-full min-w-0">
-                              <p
-                                className={cn(
-                                  "truncate text-xs font-bold sm:text-sm",
-                                  headingText
-                                )}
-                              >
-                                {item.full_name}
-
-                                {item.is_current_user && (
-                                  <span className="ml-1 text-[10px] font-normal text-teal-700 dark:text-emerald-400">
-                                    (Anda)
-                                  </span>
-                                )}
-                              </p>
-
-                              <p className="text-xs font-black tabular-nums text-teal-700 dark:text-emerald-400">
-                                {formatNumber(item.total_xp)} XP
-                              </p>
-                            </div>
-
-                            <div
-                              className={cn(
-                                "flex w-full items-start justify-center rounded-t-xl border border-b-0 pt-2 text-sm font-extrabold text-slate-600 dark:text-slate-300",
-                                style.height,
-                                style.ring
-                              )}
-                              aria-label={`Peringkat ${item.rank}`}
-                            >
-                              #{item.rank}
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  )}
-
-                  {restOfBoard.length > 0 && (
-                    <ol className="space-y-2">
-                      {restOfBoard.map((item) => (
-                        <li
-                          key={item.id}
-                          className={cn(
-                            "flex items-center justify-between gap-3 rounded-xl border p-3.5 transition-colors duration-300",
-                            item.is_current_user
-                              ? "border-emerald-400/50 bg-emerald-50 dark:border-emerald-700/50 dark:bg-emerald-950/40"
-                              : "border-slate-200/80 bg-white/80 hover:border-emerald-300/70 hover:bg-emerald-50/50 dark:border-slate-700/70 dark:bg-slate-900/60 dark:hover:border-emerald-800/70 dark:hover:bg-slate-800/60"
-                          )}
-                        >
-                          <div className="flex min-w-0 items-center gap-3">
-                            <span className="w-8 shrink-0 text-center text-xs font-black text-slate-600 dark:text-slate-300">
-                              #{item.rank}
-                            </span>
-
-                            <Avatar className="h-9 w-9 shrink-0 border">
-                              <AvatarFallback className="bg-primary/10 text-xs font-bold text-primary">
-                                {initials(item.full_name)}
-                              </AvatarFallback>
-                            </Avatar>
-
-                            <p
-                              className={cn(
-                                "truncate text-sm font-bold",
-                                headingText
-                              )}
-                            >
-                              {item.full_name}
-
-                              {item.is_current_user && (
-                                <span className="ml-1.5 text-[10px] font-normal text-teal-700 dark:text-emerald-400">
-                                  (Anda)
-                                </span>
-                              )}
-                            </p>
-                          </div>
-
-                          <span className="shrink-0 pl-2 text-xs font-black tabular-nums text-teal-700 dark:text-emerald-400">
-                            {formatNumber(item.total_xp)} XP
-                          </span>
-                        </li>
-                      ))}
-                    </ol>
-                  )}
-                </>
-              )}
-            </CardContent>
-          </Card>
-        </TabsContent>
-      </Tabs>
+        </div>
+      </div>
 
       {/* =====================================================
           MODAL DETAIL BADGE
