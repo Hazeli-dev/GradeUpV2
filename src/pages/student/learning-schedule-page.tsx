@@ -1,4 +1,3 @@
-
 import {
   useCallback,
   useEffect,
@@ -158,6 +157,43 @@ const DAYS: DayInfo[] = [
 ];
 
 // =====================================================
+// DESIGN TOKENS (tampilan saja, tidak terkait logika)
+// =====================================================
+
+// Permukaan kaca lembut untuk card utama.
+const GLASS =
+  "border border-emerald-900/10 bg-white/75 backdrop-blur-md shadow-[0_10px_35px_-15px_rgba(6,78,59,0.25)] dark:border-emerald-400/10 dark:bg-slate-900/60 dark:shadow-[0_10px_35px_-15px_rgba(0,0,0,0.55)]";
+
+// Permukaan kecil di dalam card (baris, input, tombol sekunder).
+const INSET =
+  "border border-emerald-900/10 bg-white/70 dark:border-emerald-400/10 dark:bg-slate-950/40";
+
+// Tombol utama emerald.
+const BTN_PRIMARY =
+  "bg-gradient-to-br from-emerald-500 to-teal-600 text-white shadow-md shadow-emerald-700/20 hover:from-emerald-600 hover:to-teal-700 hover:shadow-lg hover:shadow-emerald-700/25";
+
+// Tombol sekunder biru (materi yang sudah selesai).
+const BTN_BLUE =
+  "bg-gradient-to-br from-sky-500 to-blue-600 text-white shadow-md shadow-blue-700/20 hover:from-sky-600 hover:to-blue-700";
+
+// Animasi ringan. Dimatikan otomatis jika prefers-reduced-motion aktif.
+const PAGE_STYLES = `
+@keyframes gu-float {
+  0%, 100% { transform: translate3d(0, 0, 0); }
+  50% { transform: translate3d(0, -14px, 0); }
+}
+@keyframes gu-drift {
+  0%, 100% { transform: translate3d(0, 0, 0) scale(1); }
+  50% { transform: translate3d(14px, 10px, 0) scale(1.05); }
+}
+.gu-float { animation: gu-float 10s ease-in-out infinite; }
+.gu-drift { animation: gu-drift 16s ease-in-out infinite; }
+@media (prefers-reduced-motion: reduce) {
+  .gu-float, .gu-drift { animation: none !important; }
+}
+`;
+
+// =====================================================
 // HELPERS
 // =====================================================
 
@@ -208,7 +244,8 @@ function getRecommendationStatus(item: Recommendation) {
       description: "Kamu sudah mencapai nilai kelulusan.",
       buttonLabel: "Sudah Selesai",
       canStart: false,
-      className: "bg-green-100 text-green-700",
+      className:
+        "bg-green-100 text-green-700 dark:bg-green-500/15 dark:text-green-300",
     };
   }
 
@@ -220,7 +257,8 @@ function getRecommendationStatus(item: Recommendation) {
         : "Latihan belum dibuka.",
       buttonLabel: "Belum Dibuka",
       canStart: false,
-      className: "bg-blue-100 text-blue-700",
+      className:
+        "bg-blue-100 text-blue-700 dark:bg-blue-500/15 dark:text-blue-300",
     };
   }
 
@@ -230,7 +268,8 @@ function getRecommendationStatus(item: Recommendation) {
       description: "Waktu pengerjaan latihan sudah berakhir.",
       buttonLabel: "Sudah Ditutup",
       canStart: false,
-      className: "bg-gray-100 text-gray-700",
+      className:
+        "bg-gray-100 text-gray-700 dark:bg-slate-500/20 dark:text-slate-300",
     };
   }
 
@@ -240,7 +279,8 @@ function getRecommendationStatus(item: Recommendation) {
       description: "Latihan ini khusus untuk siswa Premium.",
       buttonLabel: "Khusus Premium",
       canStart: false,
-      className: "bg-amber-100 text-amber-700",
+      className:
+        "bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300",
     };
   }
 
@@ -249,7 +289,8 @@ function getRecommendationStatus(item: Recommendation) {
     description: "Latihan siap dikerjakan.",
     buttonLabel: "Mulai Latihan",
     canStart: item.can_attempt,
-    className: "bg-green-100 text-green-700",
+    className:
+      "bg-green-100 text-green-700 dark:bg-green-500/15 dark:text-green-300",
   };
 }
 // Frontend: Senin = 0 sampai Minggu = 6.
@@ -410,8 +451,8 @@ export default function StudentLearningSchedulePage() {
   const [subjectToAdd, setSubjectToAdd] = useState("");
 
   const [recommendations, setRecommendations] = useState<Recommendation[]>([]);
-const [recommendationError, setRecommendationError] = useState("");
-const [startingPackageId, setStartingPackageId] = useState("");
+  const [recommendationError, setRecommendationError] = useState("");
+  const [startingPackageId, setStartingPackageId] = useState("");
   const [allLessons, setAllLessons] = useState<LessonInfo[]>([]);
 
   const [loading, setLoading] = useState(true);
@@ -453,109 +494,107 @@ const [startingPackageId, setStartingPackageId] = useState("");
 
         if (courseError) throw courseError;
 
-        
-// =====================================================
-// PEMETAAN FASE MATERI
-// =====================================================
+        // =====================================================
+        // PEMETAAN FASE MATERI
+        // =====================================================
 
-const grade = studentProfile.grade;
+        const grade = studentProfile.grade;
 
-const materialGrade = getMaterialGrade(grade);
+        const materialGrade = getMaterialGrade(grade);
 
-// Tentukan fase berdasarkan kelas siswa.
-const studentPhase =
-  grade !== null
-    ? grade >= 1 && grade <= 2
-      ? "A"
-      : grade >= 3 && grade <= 4
-        ? "B"
-        : grade >= 5 && grade <= 6
-          ? "C"
-          : grade >= 7 && grade <= 9
-            ? "D"
-            : grade === 10
-              ? "E"
-              : grade >= 11 && grade <= 12
-                ? "F"
-                : null
-    : null;
+        // Tentukan fase berdasarkan kelas siswa.
+        const studentPhase =
+          grade !== null
+            ? grade >= 1 && grade <= 2
+              ? "A"
+              : grade >= 3 && grade <= 4
+                ? "B"
+                : grade >= 5 && grade <= 6
+                  ? "C"
+                  : grade >= 7 && grade <= 9
+                    ? "D"
+                    : grade === 10
+                      ? "E"
+                      : grade >= 11 && grade <= 12
+                        ? "F"
+                        : null
+            : null;
 
-// Rentang kelas untuk masing-masing fase.
-const phaseGradeRanges: Record<string, number[]> = {
-  A: [1, 2],
-  B: [3, 4],
-  C: [5, 6],
-  D: [7, 8, 9],
-  E: [10],
-  F: [11, 12],
-};
+        // Rentang kelas untuk masing-masing fase.
+        const phaseGradeRanges: Record<string, number[]> = {
+          A: [1, 2],
+          B: [3, 4],
+          C: [5, 6],
+          D: [7, 8, 9],
+          E: [10],
+          F: [11, 12],
+        };
 
-const matchingCourses = ((courseData ?? []) as CourseRow[]).filter(
-  (course) => {
-    const rawLevel = (course.level ?? "")
-      .toLowerCase()
-      .replace(/\s+/g, " ")
-      .trim();
+        const matchingCourses = ((courseData ?? []) as CourseRow[]).filter(
+          (course) => {
+            const rawLevel = (course.level ?? "")
+              .toLowerCase()
+              .replace(/\s+/g, " ")
+              .trim();
 
-    // Deteksi apakah level kursus menggunakan nama fase.
-    const phaseMatch = rawLevel.match(/\bfase\s*([a-f])\b/i);
-    const coursePhase = phaseMatch?.[1]?.toUpperCase() ?? null;
+            // Deteksi apakah level kursus menggunakan nama fase.
+            const phaseMatch = rawLevel.match(/\bfase\s*([a-f])\b/i);
+            const coursePhase = phaseMatch?.[1]?.toUpperCase() ?? null;
 
-    // Jika kursus menggunakan nama fase A-F.
-    if (coursePhase) {
-      // Fase harus sama dengan fase siswa.
-      if (!studentPhase || coursePhase !== studentPhase) {
-        return false;
-      }
+            // Jika kursus menggunakan nama fase A-F.
+            if (coursePhase) {
+              // Fase harus sama dengan fase siswa.
+              if (!studentPhase || coursePhase !== studentPhase) {
+                return false;
+              }
 
-      // Jika grade kursus diisi, pastikan masih dalam rentang fase.
-      const allowedGrades = phaseGradeRanges[coursePhase];
+              // Jika grade kursus diisi, pastikan masih dalam rentang fase.
+              const allowedGrades = phaseGradeRanges[coursePhase];
 
-      if (
-        course.grade !== null &&
-        !allowedGrades.includes(Number(course.grade))
-      ) {
-        return false;
-      }
+              if (
+                course.grade !== null &&
+                !allowedGrades.includes(Number(course.grade))
+              ) {
+                return false;
+              }
 
-      return true;
-    }
+              return true;
+            }
 
-    // Jika kursus tidak menggunakan nama fase,
-    // gunakan jenjang dan pemetaan kelas seperti sebelumnya.
-    const courseLevel = normalizeLevel(course.level);
+            // Jika kursus tidak menggunakan nama fase,
+            // gunakan jenjang dan pemetaan kelas seperti sebelumnya.
+            const courseLevel = normalizeLevel(course.level);
 
-    if (courseLevel !== studentLevel) {
-      return false;
-    }
+            if (courseLevel !== studentLevel) {
+              return false;
+            }
 
-    if (
-      course.grade !== null &&
-      materialGrade !== null &&
-      Number(course.grade) !== Number(materialGrade)
-    ) {
-      return false;
-    }
+            if (
+              course.grade !== null &&
+              materialGrade !== null &&
+              Number(course.grade) !== Number(materialGrade)
+            ) {
+              return false;
+            }
 
-    return true;
-  }
-);
+            return true;
+          }
+        );
 
-console.info("[GradeUp] Pemetaan fase materi:", {
-  studentLevel,
-  studentGrade: grade,
-  studentPhase,
-  materialGrade,
-  totalCourses: courseData?.length ?? 0,
-  matchingCourses: matchingCourses.length,
-  matchingCourseDetails: matchingCourses.map((course) => ({
-    title: course.title,
-    level: course.level,
-    grade: course.grade,
-    category: course.category,
-  })),
-});
-
+        console.info("[GradeUp] Pemetaan fase materi:", {
+          studentLevel,
+          studentGrade: grade,
+          studentPhase,
+          materialGrade,
+          totalCourses: courseData?.length ?? 0,
+          matchingCourses: matchingCourses.length,
+          matchingCourseDetails: matchingCourses.map((course) => ({
+            title: course.title,
+            level: course.level,
+            grade: course.grade,
+            category: course.category,
+          })),
+        });
 
         console.info("[GradeUp] Kursus sesuai profil:", {
           studentLevel,
@@ -724,45 +763,45 @@ console.info("[GradeUp] Pemetaan fase materi:", {
   // ===================================================
 
   const loadRecommendations = useCallback(async (dayIndex: number) => {
-  const requestId = ++recommendationRequestRef.current;
+    const requestId = ++recommendationRequestRef.current;
 
-  setLoadingRecommendations(true);
-  setRecommendationError("");
+    setLoadingRecommendations(true);
+    setRecommendationError("");
 
-  try {
-    const { data, error: rpcError } = await supabase.rpc(
-      "get_daily_learning_recommendations_v2",
-      {
-        p_day_of_week: dayIndex,
+    try {
+      const { data, error: rpcError } = await supabase.rpc(
+        "get_daily_learning_recommendations_v2",
+        {
+          p_day_of_week: dayIndex,
+        }
+      );
+
+      if (rpcError) throw rpcError;
+
+      if (requestId !== recommendationRequestRef.current) return;
+
+      const result = Array.isArray(data)
+        ? (data as Recommendation[])
+        : [];
+
+      setRecommendations(
+        result.sort((a, b) => a.sort_order - b.sort_order)
+      );
+    } catch (err) {
+      if (requestId !== recommendationRequestRef.current) return;
+
+      console.error("[GradeUp] Load recommendations:", err);
+
+      setRecommendations([]);
+      setRecommendationError(
+        `Rekomendasi latihan gagal dimuat: ${formatError(err)}`
+      );
+    } finally {
+      if (requestId === recommendationRequestRef.current) {
+        setLoadingRecommendations(false);
       }
-    );
-
-    if (rpcError) throw rpcError;
-
-    if (requestId !== recommendationRequestRef.current) return;
-
-    const result = Array.isArray(data)
-      ? (data as Recommendation[])
-      : [];
-
-    setRecommendations(
-      result.sort((a, b) => a.sort_order - b.sort_order)
-    );
-  } catch (err) {
-    if (requestId !== recommendationRequestRef.current) return;
-
-    console.error("[GradeUp] Load recommendations:", err);
-
-    setRecommendations([]);
-    setRecommendationError(
-      `Rekomendasi latihan gagal dimuat: ${formatError(err)}`
-    );
-  } finally {
-    if (requestId === recommendationRequestRef.current) {
-      setLoadingRecommendations(false);
     }
-  }
-}, []);
+  }, []);
 
   // ===================================================
   // LOAD PAGE
@@ -1247,80 +1286,102 @@ console.info("[GradeUp] Pemetaan fase materi:", {
   // ===================================================
 
   const handleStartPractice = async (item: Recommendation) => {
-  if (startingPackageId) return;
+    if (startingPackageId) return;
 
-  if (!item.can_attempt) {
-    return;
-  }
+    if (!item.can_attempt) {
+      return;
+    }
 
-  setStartingPackageId(item.package_id);
-  setRecommendationError("");
+    setStartingPackageId(item.package_id);
+    setRecommendationError("");
 
-  try {
-    const { data, error: rpcError } = await supabase.rpc(
-      "get_daily_learning_recommendations_v2",
-      {
-        p_day_of_week: selectedDay,
+    try {
+      const { data, error: rpcError } = await supabase.rpc(
+        "get_daily_learning_recommendations_v2",
+        {
+          p_day_of_week: selectedDay,
+        }
+      );
+
+      if (rpcError) throw rpcError;
+
+      const latestRecommendations = Array.isArray(data)
+        ? (data as Recommendation[])
+        : [];
+
+      const latestPackage = latestRecommendations.find(
+        (recommendation) =>
+          recommendation.package_id === item.package_id
+      );
+
+      if (!latestPackage) {
+        setRecommendationError(
+          "Paket latihan tidak lagi tersedia pada jadwal hari ini. Muat ulang halaman untuk memperbarui data."
+        );
+        return;
       }
-    );
 
-    if (rpcError) throw rpcError;
+      if (!latestPackage.can_attempt) {
+        setRecommendationError(
+          `Paket tidak dapat dibuka. Status saat ini: ${
+            getRecommendationStatus(latestPackage).label
+          }.`
+        );
 
-    const latestRecommendations = Array.isArray(data)
-      ? (data as Recommendation[])
-      : [];
+        await loadRecommendations(selectedDay);
+        return;
+      }
 
-    const latestPackage = latestRecommendations.find(
-      (recommendation) =>
-        recommendation.package_id === item.package_id
-    );
+      navigate(`/dashboard/exams/${item.package_id}/attempt`);
+    } catch (err) {
+      console.error("[GradeUp] Start practice:", err);
 
-    if (!latestPackage) {
       setRecommendationError(
-        "Paket latihan tidak lagi tersedia pada jadwal hari ini. Muat ulang halaman untuk memperbarui data."
+        `Paket latihan gagal dibuka: ${formatError(err)}`
       );
-      return;
+    } finally {
+      setStartingPackageId("");
     }
-
-    if (!latestPackage.can_attempt) {
-      setRecommendationError(
-        `Paket tidak dapat dibuka. Status saat ini: ${
-          getRecommendationStatus(latestPackage).label
-        }.`
-      );
-
-      await loadRecommendations(selectedDay);
-      return;
-    }
-
-    navigate(`/dashboard/exams/${item.package_id}/attempt`);
-  } catch (err) {
-    console.error("[GradeUp] Start practice:", err);
-
-    setRecommendationError(
-      `Paket latihan gagal dibuka: ${formatError(err)}`
-    );
-  } finally {
-    setStartingPackageId("");
-  }
-};
+  };
 
   // ===================================================
   // MAIN VIEW
   // ===================================================
 
   return (
-    <div className="min-h-screen w-full bg-background text-foreground">
-      <div className="mx-auto w-full max-w-[1500px] space-y-6 px-3 py-5 sm:px-5 sm:py-7 lg:px-7">
+    <div className="relative min-h-screen w-full overflow-x-hidden bg-gradient-to-b from-emerald-50 via-white to-teal-50/70 text-foreground dark:from-[#07211b] dark:via-[#0a1a1f] dark:to-slate-900">
+      <style>{PAGE_STYLES}</style>
+
+      {/* BACKGROUND DEKORATIF (tidak interaktif) */}
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-0 overflow-hidden"
+      >
+        {/* Pola grid halus */}
+        <div className="absolute inset-0 opacity-[0.5] [background-image:linear-gradient(to_right,rgba(5,150,105,0.07)_1px,transparent_1px),linear-gradient(to_bottom,rgba(5,150,105,0.07)_1px,transparent_1px)] [background-size:44px_44px] [mask-image:radial-gradient(ellipse_80%_55%_at_50%_0%,black,transparent)] dark:opacity-[0.35]" />
+
+        {/* Orb ambient */}
+        <div className="gu-drift absolute -left-32 top-24 h-[26rem] w-[26rem] rounded-full bg-emerald-400/20 blur-3xl dark:bg-emerald-500/15" />
+        <div className="gu-float absolute -right-24 top-[34rem] h-[24rem] w-[24rem] rounded-full bg-teal-400/20 blur-3xl dark:bg-teal-500/12" />
+        <div className="absolute -left-20 bottom-24 h-[22rem] w-[22rem] rounded-full bg-lime-300/15 blur-3xl dark:bg-emerald-600/10" />
+      </div>
+
+      <div className="relative mx-auto w-full max-w-[1500px] space-y-6 px-3 py-5 sm:px-5 sm:py-7 lg:px-7">
 
         {/* HEADER */}
-        <section className="relative overflow-hidden rounded-3xl border border-border bg-card p-5 shadow-sm sm:p-7 lg:p-8">
-          <div className="pointer-events-none absolute -right-16 -top-20 h-64 w-64 rounded-full bg-emerald-500/10 blur-3xl" />
-          <div className="pointer-events-none absolute -bottom-24 left-1/3 h-56 w-56 rounded-full bg-teal-500/10 blur-3xl" />
+        <section className="relative overflow-hidden rounded-3xl border border-emerald-400/20 bg-gradient-to-br from-emerald-600 via-emerald-800 to-teal-900 p-5 text-white shadow-[0_20px_50px_-20px_rgba(6,78,59,0.7)] sm:p-7 lg:p-8">
+          <div aria-hidden="true" className="pointer-events-none absolute inset-0">
+            <div className="absolute inset-0 opacity-40 [background-image:radial-gradient(rgba(255,255,255,0.22)_1px,transparent_1px)] [background-size:22px_22px] [mask-image:linear-gradient(to_bottom_left,black,transparent_70%)]" />
+            <div className="gu-drift absolute -right-16 -top-24 h-72 w-72 rounded-full bg-emerald-300/25 blur-3xl" />
+            <div className="absolute -bottom-28 left-1/3 h-64 w-64 rounded-full bg-teal-300/20 blur-3xl" />
+            <div className="absolute -right-10 bottom-4 h-36 w-36 rounded-full border border-white/10" />
+            <div className="absolute -right-24 bottom-[-1.5rem] h-56 w-56 rounded-full border border-white/10" />
+            <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/40 to-transparent" />
+          </div>
 
           <div className="relative flex flex-col justify-between gap-5 lg:flex-row lg:items-center">
             <div className="min-w-0">
-              <div className="mb-3 inline-flex items-center gap-2 rounded-full bg-emerald-500/10 px-3 py-1.5 text-xs font-bold text-emerald-700 dark:text-emerald-300">
+              <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/10 px-3 py-1.5 text-xs font-bold text-emerald-50 backdrop-blur">
                 <CalendarDays className="h-4 w-4" />
                 Jadwal pembelajaran
               </div>
@@ -1329,7 +1390,7 @@ console.info("[GradeUp] Pemetaan fase materi:", {
                 Rencanakan belajarmu
               </h1>
 
-              <p className="mt-2 max-w-2xl text-sm leading-relaxed text-muted-foreground sm:text-base">
+              <p className="mt-2 max-w-2xl text-sm leading-relaxed text-emerald-50/80 sm:text-base">
                 Materi kursus dan latihan tersusun dalam satu tempat.
                 Pelajari materi sesuai jadwal belajarmu.
               </p>
@@ -1337,7 +1398,7 @@ console.info("[GradeUp] Pemetaan fase materi:", {
               <p className="mt-4 text-sm font-semibold">
                 Halo, {profile?.full_name || "Siswa"}!
                 {profile?.grade ? (
-                  <span className="ml-2 font-normal text-muted-foreground">
+                  <span className="ml-2 font-normal text-emerald-100/75">
                     {profile.education_level || "Kelas"} {profile.grade}
                   </span>
                 ) : null}
@@ -1347,7 +1408,7 @@ console.info("[GradeUp] Pemetaan fase materi:", {
             <button
               onClick={() => void loadPage()}
               disabled={loading}
-              className="inline-flex shrink-0 items-center justify-center gap-2 rounded-xl border border-border bg-background px-4 py-3 text-sm font-semibold transition hover:bg-muted disabled:cursor-not-allowed disabled:opacity-60"
+              className="inline-flex shrink-0 items-center justify-center gap-2 rounded-xl border border-white/25 bg-white/10 px-4 py-3 text-sm font-semibold text-white backdrop-blur transition hover:bg-white/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60 disabled:cursor-not-allowed disabled:opacity-60 motion-reduce:transition-none"
             >
               <RefreshCw className="h-4 w-4" />
               Muat ulang
@@ -1357,14 +1418,14 @@ console.info("[GradeUp] Pemetaan fase materi:", {
 
         {/* ALERT */}
         {error && (
-          <div className="flex items-start gap-3 rounded-2xl border border-red-500/20 bg-red-500/10 p-4 text-sm text-red-600 dark:text-red-400">
+          <div className="flex items-start gap-3 rounded-2xl border border-red-500/20 bg-red-500/10 p-4 text-sm text-red-600 backdrop-blur dark:text-red-400">
             <AlertCircle className="mt-0.5 h-5 w-5 shrink-0" />
             <p>{error}</p>
           </div>
         )}
 
         {successMessage && (
-          <div className="flex items-center gap-3 rounded-2xl border border-emerald-500/20 bg-emerald-500/10 p-4 text-sm font-medium text-emerald-700 dark:text-emerald-300">
+          <div className="flex items-center gap-3 rounded-2xl border border-emerald-500/20 bg-emerald-500/10 p-4 text-sm font-medium text-emerald-700 backdrop-blur dark:text-emerald-300">
             <CheckCircle2 className="h-5 w-5 shrink-0" />
             {successMessage}
           </div>
@@ -1372,10 +1433,11 @@ console.info("[GradeUp] Pemetaan fase materi:", {
 
         {/* SUMMARY */}
         <section className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-          <div className="rounded-2xl border border-border bg-card p-4 sm:p-5">
-            <div className="flex items-center gap-3">
-              <div className="rounded-xl bg-blue-500/10 p-3">
-                <BookOpen className="h-5 w-5 text-blue-600" />
+          <div className={`group relative overflow-hidden rounded-2xl p-4 transition hover:-translate-y-0.5 hover:border-blue-500/30 motion-reduce:transform-none motion-reduce:transition-none sm:p-5 ${GLASS}`}>
+            <div aria-hidden="true" className="pointer-events-none absolute -right-8 -top-8 h-24 w-24 rounded-full bg-blue-500/10 blur-2xl" />
+            <div className="relative flex items-center gap-3">
+              <div className="rounded-xl bg-blue-500/10 p-3 ring-1 ring-blue-500/15">
+                <BookOpen className="h-5 w-5 text-blue-600 dark:text-blue-400" />
               </div>
               <div>
                 <p className="text-xs text-muted-foreground">
@@ -1388,10 +1450,11 @@ console.info("[GradeUp] Pemetaan fase materi:", {
             </div>
           </div>
 
-          <div className="rounded-2xl border border-border bg-card p-4 sm:p-5">
-            <div className="flex items-center gap-3">
-              <div className="rounded-xl bg-emerald-500/10 p-3">
-                <CheckCircle2 className="h-5 w-5 text-emerald-600" />
+          <div className={`group relative overflow-hidden rounded-2xl p-4 transition hover:-translate-y-0.5 hover:border-emerald-500/30 motion-reduce:transform-none motion-reduce:transition-none sm:p-5 ${GLASS}`}>
+            <div aria-hidden="true" className="pointer-events-none absolute -right-8 -top-8 h-24 w-24 rounded-full bg-emerald-500/15 blur-2xl" />
+            <div className="relative flex items-center gap-3">
+              <div className="rounded-xl bg-emerald-500/10 p-3 ring-1 ring-emerald-500/15">
+                <CheckCircle2 className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
               </div>
               <div>
                 <p className="text-xs text-muted-foreground">
@@ -1404,10 +1467,11 @@ console.info("[GradeUp] Pemetaan fase materi:", {
             </div>
           </div>
 
-          <div className="rounded-2xl border border-border bg-card p-4 sm:p-5">
-            <div className="flex items-center gap-3">
-              <div className="rounded-xl bg-amber-500/10 p-3">
-                <Clock3 className="h-5 w-5 text-amber-600" />
+          <div className={`group relative overflow-hidden rounded-2xl p-4 transition hover:-translate-y-0.5 hover:border-amber-500/30 motion-reduce:transform-none motion-reduce:transition-none sm:p-5 ${GLASS}`}>
+            <div aria-hidden="true" className="pointer-events-none absolute -right-8 -top-8 h-24 w-24 rounded-full bg-amber-500/10 blur-2xl" />
+            <div className="relative flex items-center gap-3">
+              <div className="rounded-xl bg-amber-500/10 p-3 ring-1 ring-amber-500/15">
+                <Clock3 className="h-5 w-5 text-amber-600 dark:text-amber-400" />
               </div>
               <div>
                 <p className="text-xs text-muted-foreground">
@@ -1425,11 +1489,13 @@ console.info("[GradeUp] Pemetaan fase materi:", {
         </section>
 
         {/* DAY SELECTOR */}
-        <section className="rounded-3xl border border-border bg-card p-4 shadow-sm sm:p-6">
-          <div className="mb-5 flex flex-col justify-between gap-2 sm:flex-row sm:items-center">
+        <section className={`relative overflow-hidden rounded-3xl p-4 sm:p-6 ${GLASS}`}>
+          <div aria-hidden="true" className="pointer-events-none absolute -left-16 -top-16 h-48 w-48 rounded-full bg-emerald-400/10 blur-3xl" />
+
+          <div className="relative mb-5 flex flex-col justify-between gap-2 sm:flex-row sm:items-center">
             <div>
               <div className="flex items-center gap-2">
-                <CalendarDays className="h-5 w-5 text-emerald-600" />
+                <CalendarDays className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
                 <h2 className="text-lg font-bold">
                   Jadwal mingguan
                 </h2>
@@ -1439,12 +1505,12 @@ console.info("[GradeUp] Pemetaan fase materi:", {
               </p>
             </div>
 
-            <span className="text-xs font-semibold text-muted-foreground">
+            <span className="w-fit rounded-full border border-emerald-500/20 bg-emerald-500/10 px-3 py-1 text-xs font-semibold text-emerald-700 dark:text-emerald-300">
               {currentDayName}
             </span>
           </div>
 
-          <div className="grid grid-cols-4 gap-2 sm:grid-cols-7">
+          <div className="relative grid grid-cols-4 gap-2 sm:grid-cols-7">
             {DAYS.map((day, index) => {
               const active = selectedDay === index;
               const databaseDay = toDatabaseDay(index);
@@ -1457,10 +1523,10 @@ console.info("[GradeUp] Pemetaan fase materi:", {
                 <button
                   key={day.label}
                   onClick={() => handleSelectDay(index)}
-                  className={`relative flex min-h-[68px] flex-col items-center justify-center rounded-2xl border px-2 py-3 transition sm:min-h-[76px] ${
+                  className={`relative flex min-h-[68px] flex-col items-center justify-center rounded-2xl border px-2 py-3 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/50 motion-reduce:transition-none sm:min-h-[76px] ${
                     active
-                      ? "border-emerald-500 bg-emerald-500 text-white shadow-sm"
-                      : "border-border bg-background hover:border-emerald-500/50 hover:bg-emerald-500/5"
+                      ? "border-emerald-400 bg-gradient-to-br from-emerald-500 to-teal-600 text-white shadow-lg shadow-emerald-700/25"
+                      : "border-emerald-900/10 bg-white/60 hover:border-emerald-500/50 hover:bg-emerald-500/10 dark:border-emerald-400/10 dark:bg-slate-950/40"
                   }`}
                 >
                   <span className="text-xs font-semibold">
@@ -1481,11 +1547,13 @@ console.info("[GradeUp] Pemetaan fase materi:", {
         </section>
 
         {/* SUBJECT SETTINGS */}
-        <section className="rounded-3xl border border-border bg-card p-4 shadow-sm sm:p-6">
-          <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
+        <section className={`relative overflow-hidden rounded-3xl p-4 sm:p-6 ${GLASS}`}>
+          <div aria-hidden="true" className="pointer-events-none absolute -bottom-20 -right-16 h-56 w-56 rounded-full bg-teal-400/10 blur-3xl" />
+
+          <div className="relative flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
             <div>
               <div className="flex items-center gap-2">
-                <GraduationCap className="h-5 w-5 text-emerald-600" />
+                <GraduationCap className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
                 <h2 className="text-lg font-bold">
                   Mata pelajaran {currentDayName}
                 </h2>
@@ -1498,7 +1566,7 @@ console.info("[GradeUp] Pemetaan fase materi:", {
             <button
               onClick={() => void saveSchedule()}
               disabled={saving || !userId}
-              className="inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60"
+              className={`inline-flex items-center justify-center gap-2 rounded-xl px-5 py-3 text-sm font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/50 disabled:cursor-not-allowed disabled:opacity-60 motion-reduce:transition-none ${BTN_PRIMARY}`}
             >
               {saving ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
@@ -1510,11 +1578,11 @@ console.info("[GradeUp] Pemetaan fase materi:", {
           </div>
 
           {/* DROPDOWN CATEGORY */}
-          <div className="mt-5 flex flex-col gap-2 sm:flex-row">
+          <div className="relative mt-5 flex flex-col gap-2 sm:flex-row">
             <select
               value={subjectToAdd}
               onChange={(event) => setSubjectToAdd(event.target.value)}
-              className="min-h-12 min-w-0 flex-1 rounded-xl border border-border bg-background px-4 py-3 text-sm outline-none transition focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20"
+              className={`min-h-12 min-w-0 flex-1 rounded-xl px-4 py-3 text-sm outline-none transition focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 ${INSET}`}
             >
               <option value="">Pilih kategori mata pelajaran...</option>
 
@@ -1528,7 +1596,7 @@ console.info("[GradeUp] Pemetaan fase materi:", {
             <button
               onClick={addSubject}
               disabled={!subjectToAdd}
-              className="inline-flex min-h-12 items-center justify-center gap-2 rounded-xl bg-emerald-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50"
+              className={`inline-flex min-h-12 items-center justify-center gap-2 rounded-xl px-5 py-3 text-sm font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/50 disabled:cursor-not-allowed disabled:opacity-50 motion-reduce:transition-none ${BTN_PRIMARY}`}
             >
               <Plus className="h-4 w-4" />
               Tambahkan
@@ -1536,12 +1604,12 @@ console.info("[GradeUp] Pemetaan fase materi:", {
           </div>
 
           {selectedSubjects.length > 0 ? (
-            <div className="mt-6 border-t border-border pt-5">
+            <div className="relative mt-6 border-t border-emerald-900/10 pt-5 dark:border-emerald-400/10">
               <div className="mb-3 flex items-center justify-between gap-2">
                 <h3 className="text-sm font-bold">
                   Kategori terpilih
                 </h3>
-                <span className="text-xs text-muted-foreground">
+                <span className="rounded-full bg-emerald-500/10 px-2.5 py-1 text-xs font-semibold text-emerald-700 dark:text-emerald-300">
                   {selectedSubjects.length} kategori
                 </span>
               </div>
@@ -1550,7 +1618,7 @@ console.info("[GradeUp] Pemetaan fase materi:", {
                 {selectedSubjects.map((subject, index) => (
                   <div
                     key={subject}
-                    className="flex items-center justify-between gap-3 rounded-xl border border-border bg-background p-3"
+                    className={`flex items-center justify-between gap-3 rounded-xl p-3 transition hover:border-emerald-500/30 motion-reduce:transition-none ${INSET}`}
                   >
                     <div className="flex min-w-0 items-center gap-3">
                       <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-emerald-500/10 text-sm font-bold text-emerald-700 dark:text-emerald-300">
@@ -1565,7 +1633,7 @@ console.info("[GradeUp] Pemetaan fase materi:", {
                       <button
                         onClick={() => moveSubject(index, "up")}
                         disabled={index === 0}
-                        className="rounded-lg border border-border p-2 text-muted-foreground transition hover:bg-muted disabled:opacity-30"
+                        className="rounded-lg border border-emerald-900/10 p-2 text-muted-foreground transition hover:bg-emerald-500/10 disabled:opacity-30 dark:border-emerald-400/10 motion-reduce:transition-none"
                         title="Naikkan urutan"
                       >
                         <ChevronLeft className="h-4 w-4 rotate-90" />
@@ -1574,7 +1642,7 @@ console.info("[GradeUp] Pemetaan fase materi:", {
                       <button
                         onClick={() => moveSubject(index, "down")}
                         disabled={index === selectedSubjects.length - 1}
-                        className="rounded-lg border border-border p-2 text-muted-foreground transition hover:bg-muted disabled:opacity-30"
+                        className="rounded-lg border border-emerald-900/10 p-2 text-muted-foreground transition hover:bg-emerald-500/10 disabled:opacity-30 dark:border-emerald-400/10 motion-reduce:transition-none"
                         title="Turunkan urutan"
                       >
                         <ChevronRight className="h-4 w-4 rotate-90" />
@@ -1582,7 +1650,7 @@ console.info("[GradeUp] Pemetaan fase materi:", {
 
                       <button
                         onClick={() => removeSubject(subject)}
-                        className="rounded-lg border border-border p-2 text-red-500 transition hover:bg-red-500/10"
+                        className="rounded-lg border border-emerald-900/10 p-2 text-red-500 transition hover:bg-red-500/10 dark:border-emerald-400/10 motion-reduce:transition-none"
                         title="Hapus kategori"
                       >
                         <X className="h-4 w-4" />
@@ -1593,8 +1661,8 @@ console.info("[GradeUp] Pemetaan fase materi:", {
               </div>
             </div>
           ) : (
-            <div className="mt-5 rounded-xl border border-dashed border-border bg-muted/30 p-5 text-center">
-              <GraduationCap className="mx-auto h-7 w-7 text-muted-foreground" />
+            <div className="relative mt-5 rounded-xl border border-dashed border-emerald-600/25 bg-emerald-500/5 p-5 text-center">
+              <GraduationCap className="mx-auto h-7 w-7 text-emerald-600/60 dark:text-emerald-400/60" />
               <p className="mt-2 text-sm font-semibold">
                 Belum ada mata pelajaran
               </p>
@@ -1605,17 +1673,17 @@ console.info("[GradeUp] Pemetaan fase materi:", {
           )}
 
           {availableSubjects.length === 0 && (
-            <p className="mt-4 rounded-xl bg-muted p-4 text-sm text-muted-foreground">
+            <p className="relative mt-4 rounded-xl bg-muted/70 p-4 text-sm text-muted-foreground">
               Belum ada kategori latihan terpublikasi yang sesuai dengan profil siswa.
             </p>
           )}
         </section>
 
         {/* COURSE MATERIALS */}
-        <section className="space-y-4">
+        <section className="relative space-y-4">
           <div className="flex flex-col justify-between gap-2 sm:flex-row sm:items-end">
             <div>
-              <div className="mb-2 inline-flex items-center gap-2 rounded-full bg-blue-500/10 px-3 py-1.5 text-xs font-bold text-blue-700 dark:text-blue-300">
+              <div className="mb-2 inline-flex items-center gap-2 rounded-full border border-blue-500/15 bg-blue-500/10 px-3 py-1.5 text-xs font-bold text-blue-700 dark:text-blue-300">
                 <BookMarked className="h-4 w-4" />
                 Materi pembelajaran
               </div>
@@ -1629,18 +1697,18 @@ console.info("[GradeUp] Pemetaan fase materi:", {
               </p>
             </div>
 
-            <span className="w-fit rounded-xl border border-border bg-card px-3 py-2 text-xs font-semibold text-muted-foreground">
+            <span className={`w-fit rounded-xl px-3 py-2 text-xs font-semibold text-muted-foreground ${GLASS}`}>
               {lessons.length} materi tersedia
             </span>
           </div>
 
           {loadingLessons ? (
-            <div className="flex items-center justify-center gap-3 rounded-2xl border border-border bg-card p-10 text-sm text-muted-foreground">
+            <div className={`flex items-center justify-center gap-3 rounded-2xl p-10 text-sm text-muted-foreground ${GLASS}`}>
               <Loader2 className="h-5 w-5 animate-spin text-emerald-600" />
               Memeriksa progres materi...
             </div>
           ) : lessonError ? (
-            <div className="rounded-2xl border border-amber-500/20 bg-amber-500/10 p-5 text-sm text-amber-700 dark:text-amber-300">
+            <div className="rounded-2xl border border-amber-500/20 bg-amber-500/10 p-5 text-sm text-amber-700 backdrop-blur dark:text-amber-300">
               <div className="flex items-center gap-2 font-semibold">
                 <AlertCircle className="h-5 w-5" />
                 Materi belum dapat dimuat
@@ -1661,12 +1729,14 @@ console.info("[GradeUp] Pemetaan fase materi:", {
               {lessonsByCourse.map((group) => (
                 <div
                   key={group.course.id}
-                  className="overflow-hidden rounded-3xl border border-border bg-card shadow-sm"
+                  className={`relative overflow-hidden rounded-3xl ${GLASS}`}
                 >
-                  <div className="flex flex-col justify-between gap-3 border-b border-border p-4 sm:flex-row sm:items-center sm:p-5">
+                  <div aria-hidden="true" className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-emerald-500/40 to-transparent" />
+
+                  <div className="relative flex flex-col justify-between gap-3 border-b border-emerald-900/10 bg-gradient-to-r from-emerald-500/[0.07] via-transparent to-transparent p-4 dark:border-emerald-400/10 sm:flex-row sm:items-center sm:p-5">
                     <div className="flex min-w-0 items-start gap-3">
-                      <div className="rounded-xl bg-blue-500/10 p-3">
-                        <BookOpen className="h-5 w-5 text-blue-600" />
+                      <div className="rounded-xl bg-blue-500/10 p-3 ring-1 ring-blue-500/15">
+                        <BookOpen className="h-5 w-5 text-blue-600 dark:text-blue-400" />
                       </div>
 
                       <div className="min-w-0">
@@ -1685,24 +1755,24 @@ console.info("[GradeUp] Pemetaan fase materi:", {
                     </div>
 
                     {group.course.premium && (
-                      <span className="w-fit rounded-full bg-amber-500/10 px-3 py-1.5 text-xs font-bold text-amber-700 dark:text-amber-300">
+                      <span className="w-fit rounded-full border border-amber-500/20 bg-amber-500/10 px-3 py-1.5 text-xs font-bold text-amber-700 dark:text-amber-300">
                         Premium
                       </span>
                     )}
                   </div>
 
-                  <div className="divide-y divide-border">
+                  <div className="divide-y divide-emerald-900/10 dark:divide-emerald-400/10">
                     {group.lessons.map((lesson) => (
                       <div
                         key={lesson.id}
-                        className="flex flex-col gap-4 p-4 sm:flex-row sm:items-center sm:justify-between sm:p-5"
+                        className="flex flex-col gap-4 p-4 transition hover:bg-emerald-500/[0.04] motion-reduce:transition-none sm:flex-row sm:items-center sm:justify-between sm:p-5"
                       >
                         <div className="flex min-w-0 items-start gap-3">
                           <div
-                            className={`mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${
+                            className={`mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ring-1 ${
                               lesson.completed
-                                ? "bg-blue-500/10 text-blue-600"
-                                : "bg-emerald-500/10 text-emerald-600"
+                                ? "bg-blue-500/10 text-blue-600 ring-blue-500/15 dark:text-blue-400"
+                                : "bg-emerald-500/10 text-emerald-600 ring-emerald-500/15 dark:text-emerald-400"
                             }`}
                           >
                             {lesson.completed ? (
@@ -1755,10 +1825,8 @@ console.info("[GradeUp] Pemetaan fase materi:", {
 
                         <button
                           onClick={() => handleStartLesson(lesson)}
-                          className={`inline-flex w-full shrink-0 items-center justify-center gap-2 rounded-xl px-5 py-3 text-sm font-semibold text-white transition sm:w-auto ${
-                            lesson.completed
-                              ? "bg-blue-600 hover:bg-blue-700"
-                              : "bg-emerald-600 hover:bg-emerald-700"
+                          className={`inline-flex w-full shrink-0 items-center justify-center gap-2 rounded-xl px-5 py-3 text-sm font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/50 motion-reduce:transition-none sm:w-auto ${
+                            lesson.completed ? BTN_BLUE : BTN_PRIMARY
                           }`}
                         >
                           <Play className="h-4 w-4 fill-current" />
@@ -1773,18 +1841,20 @@ console.info("[GradeUp] Pemetaan fase materi:", {
               ))}
             </div>
           ) : (
-            <div className="rounded-3xl border border-dashed border-border bg-card px-5 py-12 text-center">
-              <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-emerald-500/10">
-                <BookOpen className="h-8 w-8 text-emerald-600" />
+            <div className="relative overflow-hidden rounded-3xl border border-dashed border-emerald-600/25 bg-white/60 px-5 py-12 text-center backdrop-blur-md dark:bg-slate-900/50">
+              <div aria-hidden="true" className="pointer-events-none absolute left-1/2 top-0 h-40 w-72 -translate-x-1/2 rounded-full bg-emerald-400/15 blur-3xl" />
+
+              <div className="relative mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-emerald-500/10 ring-1 ring-emerald-500/20">
+                <BookOpen className="h-8 w-8 text-emerald-600 dark:text-emerald-400" />
               </div>
 
-              <h3 className="mt-4 text-lg font-bold">
+              <h3 className="relative mt-4 text-lg font-bold">
                 {selectedSubjects.length === 0
                   ? "Belum ada jadwal mata pelajaran"
                   : "Belum ada materi untuk mata pelajaran ini"}
               </h3>
 
-              <p className="mx-auto mt-2 max-w-md text-sm leading-relaxed text-muted-foreground">
+              <p className="relative mx-auto mt-2 max-w-md text-sm leading-relaxed text-muted-foreground">
                 {selectedSubjects.length === 0
                   ? `Belum ada mata pelajaran yang dijadwalkan untuk hari ${currentDayName}. Tambahkan mata pelajaran dan simpan jadwal terlebih dahulu.`
                   : `Belum ada materi kursus yang cocok dengan ${selectedSubjects.join(", ")}. Periksa kategori kursus, jenjang, kelas, dan status publikasinya.`}
@@ -1794,7 +1864,7 @@ console.info("[GradeUp] Pemetaan fase materi:", {
                 onClick={() => {
                   if (profile) void loadCourseMaterials(profile);
                 }}
-                className="mt-5 inline-flex items-center justify-center gap-2 rounded-xl border border-border bg-background px-4 py-2.5 text-sm font-semibold transition hover:bg-muted"
+                className={`relative mt-5 inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold transition hover:bg-emerald-500/10 motion-reduce:transition-none ${INSET}`}
               >
                 <RefreshCw className="h-4 w-4" />
                 Periksa kembali materi
@@ -1803,205 +1873,207 @@ console.info("[GradeUp] Pemetaan fase materi:", {
           )}
         </section>
 
-        
-{/* DAILY PRACTICE */}
-<section className="space-y-4">
-  <div>
-    <div className="mb-2 inline-flex items-center gap-2 rounded-full bg-emerald-500/10 px-3 py-1.5 text-xs font-bold text-emerald-700 dark:text-emerald-300">
-      <Sparkles className="h-4 w-4" />
-      Latihan harian
-    </div>
+        {/* DAILY PRACTICE */}
+        <section className="relative space-y-4">
+          <div>
+            <div className="mb-2 inline-flex items-center gap-2 rounded-full border border-emerald-500/15 bg-emerald-500/10 px-3 py-1.5 text-xs font-bold text-emerald-700 dark:text-emerald-300">
+              <Sparkles className="h-4 w-4" />
+              Latihan harian
+            </div>
 
-    <h2 className="text-xl font-bold sm:text-2xl">
-      Rekomendasi latihan {currentDayName}
-    </h2>
+            <h2 className="text-xl font-bold sm:text-2xl">
+              Rekomendasi latihan {currentDayName}
+            </h2>
 
-    <p className="mt-1 text-sm text-muted-foreground">
-      Paket latihan mengikuti mata pelajaran yang dipilih pada jadwal hari ini.
-    </p>
-  </div>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Paket latihan mengikuti mata pelajaran yang dipilih pada jadwal hari ini.
+            </p>
+          </div>
 
-  {recommendationError && (
-    <div className="flex items-start gap-3 rounded-2xl border border-red-500/20 bg-red-500/10 p-4 text-sm text-red-600 dark:text-red-400">
-      <AlertCircle className="mt-0.5 h-5 w-5 shrink-0" />
-      <div className="min-w-0 flex-1">
-        <p>{recommendationError}</p>
+          {recommendationError && (
+            <div className="flex items-start gap-3 rounded-2xl border border-red-500/20 bg-red-500/10 p-4 text-sm text-red-600 backdrop-blur dark:text-red-400">
+              <AlertCircle className="mt-0.5 h-5 w-5 shrink-0" />
+              <div className="min-w-0 flex-1">
+                <p>{recommendationError}</p>
 
-        <button
-          onClick={() => void loadRecommendations(selectedDay)}
-          className="mt-3 inline-flex items-center gap-2 rounded-lg border border-current/20 px-3 py-2 font-semibold"
-        >
-          <RefreshCw className="h-4 w-4" />
-          Coba lagi
-        </button>
-      </div>
-    </div>
-  )}
+                <button
+                  onClick={() => void loadRecommendations(selectedDay)}
+                  className="mt-3 inline-flex items-center gap-2 rounded-lg border border-current/20 px-3 py-2 font-semibold"
+                >
+                  <RefreshCw className="h-4 w-4" />
+                  Coba lagi
+                </button>
+              </div>
+            </div>
+          )}
 
-  {loadingRecommendations ? (
-    <div className="flex items-center justify-center gap-3 rounded-2xl border border-border bg-card p-10 text-sm text-muted-foreground">
-      <Loader2 className="h-5 w-5 animate-spin text-emerald-600" />
-      Menyiapkan rekomendasi latihan...
-    </div>
-  ) : currentRecommendations.length > 0 ? (
-    <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
-      {currentRecommendations.map((item) => {
-        const status = getRecommendationStatus(item);
-        const isStarting = startingPackageId === item.package_id;
-        const canStart = item.can_attempt && !startingPackageId;
+          {loadingRecommendations ? (
+            <div className={`flex items-center justify-center gap-3 rounded-2xl p-10 text-sm text-muted-foreground ${GLASS}`}>
+              <Loader2 className="h-5 w-5 animate-spin text-emerald-600" />
+              Menyiapkan rekomendasi latihan...
+            </div>
+          ) : currentRecommendations.length > 0 ? (
+            <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
+              {currentRecommendations.map((item) => {
+                const status = getRecommendationStatus(item);
+                const isStarting = startingPackageId === item.package_id;
+                const canStart = item.can_attempt && !startingPackageId;
 
-        return (
-          <div
-            key={item.package_id}
-            className="rounded-2xl border border-border bg-card p-4 shadow-sm transition hover:border-emerald-500/30 sm:p-5"
-          >
-            <div className="flex items-start justify-between gap-3">
-              <div className="flex min-w-0 items-start gap-3">
-                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-600">
-                  <GraduationCap className="h-5 w-5" />
-                </div>
+                return (
+                  <div
+                    key={item.package_id}
+                    className={`group relative overflow-hidden rounded-2xl p-4 transition hover:-translate-y-0.5 hover:border-emerald-500/40 motion-reduce:transform-none motion-reduce:transition-none sm:p-5 ${GLASS}`}
+                  >
+                    <div aria-hidden="true" className="pointer-events-none absolute -right-10 -top-10 h-28 w-28 rounded-full bg-emerald-400/10 blur-2xl transition group-hover:bg-emerald-400/20 motion-reduce:transition-none" />
 
-                <div className="min-w-0">
-                  <p className="text-xs font-semibold text-emerald-600 dark:text-emerald-400">
-                    {item.subject}
-                  </p>
+                    <div className="relative flex items-start justify-between gap-3">
+                      <div className="flex min-w-0 items-start gap-3">
+                        <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-600 ring-1 ring-emerald-500/15 dark:text-emerald-400">
+                          <GraduationCap className="h-5 w-5" />
+                        </div>
 
-                  <h3 className="mt-1 break-words font-bold">
-                    {item.package_title}
-                  </h3>
-                </div>
+                        <div className="min-w-0">
+                          <p className="text-xs font-semibold text-emerald-600 dark:text-emerald-400">
+                            {item.subject}
+                          </p>
+
+                          <h3 className="mt-1 break-words font-bold">
+                            {item.package_title}
+                          </h3>
+                        </div>
+                      </div>
+
+                      {item.premium && (
+                        <span className="shrink-0 rounded-full border border-amber-500/20 bg-amber-500/10 px-2.5 py-1 text-[11px] font-bold text-amber-700 dark:text-amber-300">
+                          Premium
+                        </span>
+                      )}
+                    </div>
+
+                    <div className="relative mt-4 flex flex-wrap items-center gap-2">
+                      <span
+                        className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-bold ${status.className}`}
+                      >
+                        {item.access_status === "open" && (
+                          <CheckCircle2 className="h-3.5 w-3.5" />
+                        )}
+
+                        {item.access_status === "upcoming" && (
+                          <Clock3 className="h-3.5 w-3.5" />
+                        )}
+
+                        {item.access_status === "closed" && (
+                          <Lock className="h-3.5 w-3.5" />
+                        )}
+
+                        {item.access_status === "premium_locked" && (
+                          <Lock className="h-3.5 w-3.5" />
+                        )}
+
+                        {item.access_status === "completed" && (
+                          <Trophy className="h-3.5 w-3.5" />
+                        )}
+
+                        {status.label}
+                      </span>
+                    </div>
+
+                    {item.description && (
+                      <p className="relative mt-3 line-clamp-2 text-sm leading-relaxed text-muted-foreground">
+                        {item.description}
+                      </p>
+                    )}
+
+                    <div className="relative mt-3 rounded-xl border border-emerald-900/5 bg-emerald-500/[0.05] p-3 dark:border-emerald-400/10">
+                      <p className="text-xs font-medium text-muted-foreground">
+                        {status.description}
+                      </p>
+
+                      {item.access_status === "open" && item.end_time && (
+                        <p className="mt-1 text-xs text-muted-foreground">
+                          Batas pengerjaan: {formatScheduleDate(item.end_time)} WIB
+                        </p>
+                      )}
+                    </div>
+
+                    <div className="relative mt-4 flex flex-wrap gap-2">
+                      {item.total_questions != null && (
+                        <span className="rounded-lg bg-muted/70 px-2.5 py-1.5 text-xs font-medium text-muted-foreground">
+                          {item.total_questions} soal
+                        </span>
+                      )}
+
+                      {item.duration_minutes != null && (
+                        <span className="rounded-lg bg-muted/70 px-2.5 py-1.5 text-xs font-medium text-muted-foreground">
+                          {item.duration_minutes} menit
+                        </span>
+                      )}
+
+                      {item.passing_score != null && (
+                        <span className="rounded-lg bg-muted/70 px-2.5 py-1.5 text-xs font-medium text-muted-foreground">
+                          KKM {item.passing_score}
+                        </span>
+                      )}
+                    </div>
+
+                    <button
+                      onClick={() => void handleStartPractice(item)}
+                      disabled={!canStart || isStarting}
+                      className={`relative mt-5 inline-flex w-full items-center justify-center gap-2 rounded-xl border px-4 py-3 text-sm font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/50 disabled:cursor-not-allowed disabled:opacity-60 motion-reduce:transition-none ${
+                        item.can_attempt
+                          ? "border-emerald-500/60 bg-gradient-to-br from-emerald-500 to-teal-600 text-white shadow-md shadow-emerald-700/20 hover:from-emerald-600 hover:to-teal-700"
+                          : "border-border bg-muted text-muted-foreground"
+                      }`}
+                    >
+                      {isStarting ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : item.can_attempt ? (
+                        <Play className="h-4 w-4 fill-current" />
+                      ) : item.access_status === "completed" ? (
+                        <CheckCircle2 className="h-4 w-4" />
+                      ) : (
+                        <Lock className="h-4 w-4" />
+                      )}
+
+                      {isStarting ? "Memeriksa akses..." : status.buttonLabel}
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            <div className="relative overflow-hidden rounded-3xl border border-dashed border-emerald-600/25 bg-white/60 px-5 py-10 text-center backdrop-blur-md dark:bg-slate-900/50">
+              <div aria-hidden="true" className="pointer-events-none absolute left-1/2 top-0 h-36 w-64 -translate-x-1/2 rounded-full bg-teal-400/15 blur-3xl" />
+
+              <div className="relative mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-emerald-500/10 ring-1 ring-emerald-500/15">
+                <Trophy className="h-7 w-7 text-emerald-600/70 dark:text-emerald-400/70" />
               </div>
 
-              {item.premium && (
-                <span className="shrink-0 rounded-full bg-amber-500/10 px-2.5 py-1 text-[11px] font-bold text-amber-700 dark:text-amber-300">
-                  Premium
-                </span>
-              )}
-            </div>
+              <h3 className="relative mt-4 font-bold">
+                Belum ada rekomendasi latihan
+              </h3>
 
-            <div className="mt-4 flex flex-wrap items-center gap-2">
-              <span
-                className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-bold ${status.className}`}
+              <p className="relative mx-auto mt-2 max-w-md text-sm leading-relaxed text-muted-foreground">
+                {selectedSubjects.length === 0
+                  ? `Belum ada mata pelajaran untuk hari ${currentDayName}. Tambahkan dan simpan jadwal terlebih dahulu.`
+                  : `Belum ada paket latihan yang cocok dengan jadwal ${selectedSubjects.join(", ")}. Pastikan kategori, jenjang, kelas, dan status publikasi paket sudah sesuai.`}
+              </p>
+
+              <button
+                onClick={() => void loadRecommendations(selectedDay)}
+                className={`relative mt-5 inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold transition hover:bg-emerald-500/10 motion-reduce:transition-none ${INSET}`}
               >
-                {item.access_status === "open" && (
-                  <CheckCircle2 className="h-3.5 w-3.5" />
-                )}
-
-                {item.access_status === "upcoming" && (
-                  <Clock3 className="h-3.5 w-3.5" />
-                )}
-
-                {item.access_status === "closed" && (
-                  <Lock className="h-3.5 w-3.5" />
-                )}
-
-                {item.access_status === "premium_locked" && (
-                  <Lock className="h-3.5 w-3.5" />
-                )}
-
-                {item.access_status === "completed" && (
-                  <Trophy className="h-3.5 w-3.5" />
-                )}
-
-                {status.label}
-              </span>
+                <RefreshCw className="h-4 w-4" />
+                Periksa kembali
+              </button>
             </div>
-
-            {item.description && (
-              <p className="mt-3 line-clamp-2 text-sm leading-relaxed text-muted-foreground">
-                {item.description}
-              </p>
-            )}
-
-            <div className="mt-3 rounded-xl bg-muted/50 p-3">
-              <p className="text-xs font-medium text-muted-foreground">
-                {status.description}
-              </p>
-
-              {item.access_status === "open" && item.end_time && (
-                <p className="mt-1 text-xs text-muted-foreground">
-                  Batas pengerjaan: {formatScheduleDate(item.end_time)} WIB
-                </p>
-              )}
-            </div>
-
-            <div className="mt-4 flex flex-wrap gap-2">
-              {item.total_questions != null && (
-                <span className="rounded-lg bg-muted px-2.5 py-1.5 text-xs font-medium text-muted-foreground">
-                  {item.total_questions} soal
-                </span>
-              )}
-
-              {item.duration_minutes != null && (
-                <span className="rounded-lg bg-muted px-2.5 py-1.5 text-xs font-medium text-muted-foreground">
-                  {item.duration_minutes} menit
-                </span>
-              )}
-
-              {item.passing_score != null && (
-                <span className="rounded-lg bg-muted px-2.5 py-1.5 text-xs font-medium text-muted-foreground">
-                  KKM {item.passing_score}
-                </span>
-              )}
-            </div>
-
-            <button
-              onClick={() => void handleStartPractice(item)}
-              disabled={!canStart || isStarting}
-              className={`mt-5 inline-flex w-full items-center justify-center gap-2 rounded-xl border px-4 py-3 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-60 ${
-                item.can_attempt
-                  ? "border-emerald-600 bg-emerald-600 text-white hover:bg-emerald-700"
-                  : "border-border bg-muted text-muted-foreground"
-              }`}
-            >
-              {isStarting ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : item.can_attempt ? (
-                <Play className="h-4 w-4 fill-current" />
-              ) : item.access_status === "completed" ? (
-                <CheckCircle2 className="h-4 w-4" />
-              ) : (
-                <Lock className="h-4 w-4" />
-              )}
-
-              {isStarting ? "Memeriksa akses..." : status.buttonLabel}
-            </button>
-          </div>
-        );
-      })}
-    </div>
-  ) : (
-    <div className="rounded-3xl border border-dashed border-border bg-card px-5 py-10 text-center">
-      <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-muted">
-        <Trophy className="h-7 w-7 text-muted-foreground" />
-      </div>
-
-      <h3 className="mt-4 font-bold">
-        Belum ada rekomendasi latihan
-      </h3>
-
-      <p className="mx-auto mt-2 max-w-md text-sm leading-relaxed text-muted-foreground">
-        {selectedSubjects.length === 0
-          ? `Belum ada mata pelajaran untuk hari ${currentDayName}. Tambahkan dan simpan jadwal terlebih dahulu.`
-          : `Belum ada paket latihan yang cocok dengan jadwal ${selectedSubjects.join(", ")}. Pastikan kategori, jenjang, kelas, dan status publikasi paket sudah sesuai.`}
-      </p>
-
-      <button
-        onClick={() => void loadRecommendations(selectedDay)}
-        className="mt-5 inline-flex items-center justify-center gap-2 rounded-xl border border-border bg-background px-4 py-2.5 text-sm font-semibold transition hover:bg-muted"
-      >
-        <RefreshCw className="h-4 w-4" />
-        Periksa kembali
-      </button>
-    </div>
-  )}
-</section>
-
+          )}
+        </section>
 
         {/* FOOTER NOTE */}
-        <div className="rounded-2xl border border-blue-500/20 bg-blue-500/5 p-4">
+        <div className="relative overflow-hidden rounded-2xl border border-blue-500/20 bg-gradient-to-r from-blue-500/[0.07] via-sky-500/[0.04] to-emerald-500/[0.06] p-4 backdrop-blur-md">
           <div className="flex items-start gap-3">
-            <Lock className="mt-0.5 h-5 w-5 shrink-0 text-blue-600" />
+            <Lock className="mt-0.5 h-5 w-5 shrink-0 text-blue-600 dark:text-blue-400" />
             <div>
               <p className="text-sm font-semibold">
                 Progres belajar tersimpan
