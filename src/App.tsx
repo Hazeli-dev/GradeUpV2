@@ -3,7 +3,7 @@ import { Component, type ReactNode } from "react";
 import { BrowserRouter } from "react-router-dom";
 import { AppRoutes } from "@/routes";
 import { Toaster } from "sonner";
-import { ThemeProvider } from "@/hooks/use-theme";
+import { ThemeProvider } from "@/utils/theme-provider";
 import { UpgradeProvider } from "@/hooks/use-upgrade-modal";
 import { GuestGateProvider } from "@/hooks/use-guest-gate";
 
