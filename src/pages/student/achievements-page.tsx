@@ -297,7 +297,9 @@ export default function StudentAchievementsPage() {
 
   const [badges, setBadges] = useState<BadgeItem[]>([]);
   const [leaderboard, setLeaderboard] = useState<LeaderboardUser[]>([]);
-  const [xpHistory, setXpHistory] = useState<XpTransaction[]>([]);
+const [xpHistory, setXpHistory] = useState<XpTransaction[]>([]);
+const [leaderboardError, setLeaderboardError] = useState("");
+const [xpHistoryError, setXpHistoryError] = useState("");
 
   const [totalXp, setTotalXp] = useState(0);
   const [allTimeXp, setAllTimeXp] = useState(0);
@@ -364,10 +366,10 @@ export default function StudentAchievementsPage() {
             .single(),
 
           supabase
-            .from("profiles")
-            .select("id, full_name, total_xp")
-            .order("total_xp", { ascending: false })
-            .limit(10),
+  .from("profiles")
+  .select("id, full_name, all_time_xp")
+  .order("all_time_xp", { ascending: false, nullsFirst: false })
+  .limit(20),
 
           supabase
             .from("system_settings")
@@ -426,32 +428,36 @@ export default function StudentAchievementsPage() {
 
         /* LEADERBOARD */
 
-        if (leaderboardRes.data) {
-          const rankedList: LeaderboardUser[] =
-            leaderboardRes.data.map((profile, index) => ({
-              id: profile.id,
-              full_name: profile.full_name || "Siswa GradeUp",
-              total_xp: Number(profile.total_xp ?? 0),
-              rank: index + 1,
-              is_current_user: profile.id === user.id,
-            }));
+if (leaderboardRes.error) {
+  console.error("Gagal memuat leaderboard:", leaderboardRes.error);
+  setLeaderboard([]);
+  setLeaderboardError("Leaderboard belum dapat dimuat. Silakan coba kembali.");
+} else {
+  const rankedList: LeaderboardUser[] =
+    (leaderboardRes.data || []).map((profile, index) => ({
+      id: profile.id,
+      full_name: profile.full_name || "Siswa GradeUp",
+      total_xp: Number(profile.all_time_xp ?? 0),
+      rank: index + 1,
+      is_current_user: profile.id === user.id,
+    }));
 
-          setLeaderboard(rankedList);
-        }
+  setLeaderboard(rankedList);
+  setLeaderboardError("");
+}
 
-        /* RIWAYAT XP */
+/* RIWAYAT XP */
 
-        if (historyRes.error) {
-          console.warn(
-            "Riwayat XP belum dapat dimuat:",
-            historyRes.error
-          );
-          setXpHistory([]);
-        } else {
-          setXpHistory(
-            (historyRes.data || []) as XpTransaction[]
-          );
-        }
+if (historyRes.error) {
+  console.error("Gagal memuat riwayat XP:", historyRes.error);
+  setXpHistory([]);
+  setXpHistoryError("Riwayat XP belum dapat dimuat. Silakan coba kembali.");
+} else {
+  setXpHistory(
+    (historyRes.data || []) as XpTransaction[]
+  );
+  setXpHistoryError("");
+}
 
         /* SEASON */
 
@@ -1331,7 +1337,17 @@ export default function StudentAchievementsPage() {
                 </Badge>
               </div>
 
-              {xpHistory.length === 0 ? (
+              {xpHistoryError ? (
+  <div className="rounded-2xl border border-dashed border-red-300 px-5 py-8 text-center dark:border-red-900">
+    <AlertCircle className="mx-auto mb-3 h-7 w-7 text-red-500" />
+    <p className={cn("text-sm font-semibold", headingText)}>
+      Riwayat XP tidak tersedia
+    </p>
+    <p className={cn("mt-1 text-xs", mutedText)}>
+      {xpHistoryError}
+    </p>
+  </div>
+) : xpHistory.length === 0 ? (
                 <div className="rounded-2xl border border-dashed border-slate-300 px-5 py-12 text-center dark:border-slate-700">
                   <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald-50 text-teal-700 dark:bg-emerald-950 dark:text-emerald-300">
                     <Zap className="h-6 w-6" />
@@ -1440,8 +1456,8 @@ export default function StudentAchievementsPage() {
                       Peringkat 10 Besar Siswa
                     </CardTitle>
                     <p className={cn("mt-0.5 text-xs", mutedText)}>
-                      Berdasarkan total XP
-                    </p>
+  Berdasarkan akumulasi XP sepanjang waktu
+</p>
                   </div>
                 </div>
 
@@ -1449,11 +1465,21 @@ export default function StudentAchievementsPage() {
                   variant="outline"
                   className="border-teal-200/80 bg-teal-50 text-[10px] font-semibold text-teal-800 dark:border-teal-800/70 dark:bg-teal-950/60 dark:text-teal-200"
                 >
-                  Total XP
+                  All-Time XP
                 </Badge>
               </div>
 
-              {leaderboard.length === 0 ? (
+              {leaderboardError ? (
+  <div className={cn("p-8 text-center", mutedText)}>
+    <AlertCircle className="mx-auto mb-3 h-7 w-7 text-red-500" />
+    <p className="text-sm font-semibold">
+      Leaderboard tidak tersedia
+    </p>
+    <p className="mt-1 text-xs">
+      {leaderboardError}
+    </p>
+  </div>
+) : leaderboard.length === 0 ? (
                 <div className={cn("p-8 text-center text-sm", mutedText)}>
                   Belum ada data peringkat siswa.
                 </div>
