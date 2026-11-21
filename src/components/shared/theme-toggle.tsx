@@ -1,24 +1,17 @@
-import { useEffect, useState } from "react";
+
 import { Moon, Sun } from "lucide-react";
-import { getStorageString, setStorageItem } from "@/lib/storage";
+import { useTheme } from "@/utils/theme-provider";
 
 export function ThemeToggle() {
-  const [theme, setTheme] = useState<string>(() => {
-    return getStorageString("gradeup-theme", "dark");
-  });
+  const { theme, setTheme } = useTheme();
 
-  useEffect(() => {
-    const root = document.documentElement;
-    if (theme === "dark") {
-      root.classList.add("dark");
-    } else {
-      root.classList.remove("dark");
-    }
-    setStorageItem("gradeup-theme", theme);
-  }, [theme]);
+  const isDark =
+    theme === "dark" ||
+    (theme === "system" &&
+      window.matchMedia("(prefers-color-scheme: dark)").matches);
 
   const toggleTheme = () => {
-    setTheme((prev) => (prev === "dark" ? "light" : "dark"));
+    setTheme(isDark ? "light" : "dark");
   };
 
   return (
@@ -27,8 +20,9 @@ export function ThemeToggle() {
       onClick={toggleTheme}
       className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-border bg-background text-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
       aria-label="Ubah Tema"
+      title={isDark ? "Ganti ke tema terang" : "Ganti ke tema gelap"}
     >
-      {theme === "dark" ? (
+      {isDark ? (
         <Sun className="h-4 w-4 text-amber-400" />
       ) : (
         <Moon className="h-4 w-4 text-slate-700" />
