@@ -1,4 +1,3 @@
-
 import { useEffect, useState } from "react";
 import { Link, NavLink, Outlet, useLocation } from "react-router-dom";
 import {
@@ -181,6 +180,49 @@ function Navbar() {
   );
 }
 
+/* ------------------------------------------------------------------ */
+/* Dekorasi footer (murni tampilan, tidak interaktif)                  */
+/* ------------------------------------------------------------------ */
+
+function FooterStyles() {
+  return (
+    <style>{`
+      @keyframes gu-drift {
+        0%, 100% { transform: translate3d(0, 0, 0) scale(1); }
+        50% { transform: translate3d(22px, -16px, 0) scale(1.07); }
+      }
+      @keyframes gu-drift-rev {
+        0%, 100% { transform: translate3d(0, 0, 0) scale(1); }
+        50% { transform: translate3d(-20px, 14px, 0) scale(1.06); }
+      }
+      .gu-drift { animation: gu-drift 20s ease-in-out infinite; }
+      .gu-drift-rev { animation: gu-drift-rev 24s ease-in-out infinite; }
+
+      .gu-grid {
+        background-image:
+          linear-gradient(to right, var(--gu-line) 1px, transparent 1px),
+          linear-gradient(to bottom, var(--gu-line) 1px, transparent 1px);
+        background-size: 44px 44px;
+        -webkit-mask-image: radial-gradient(ellipse 75% 65% at 50% 45%, #000 25%, transparent 100%);
+        mask-image: radial-gradient(ellipse 75% 65% at 50% 45%, #000 25%, transparent 100%);
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        .gu-drift, .gu-drift-rev {
+          animation: none !important;
+        }
+      }
+    `}</style>
+  );
+}
+
+const footerHeading = "text-slate-950 dark:text-white";
+
+const footerText = "text-slate-600 dark:text-slate-300";
+
+const footerIconBox =
+  "flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-emerald-200/70 bg-white/80 text-teal-700 shadow-sm transition-colors duration-300 group-hover:border-emerald-300 group-hover:bg-teal-700 group-hover:text-white dark:border-slate-700/70 dark:bg-slate-900/80 dark:text-emerald-300 dark:group-hover:border-emerald-600 dark:group-hover:bg-emerald-500 dark:group-hover:text-slate-950";
+
 function Footer() {
   const [contact, setContact] =
     useState<PlatformContact>(DEFAULT_CONTACT);
@@ -261,51 +303,66 @@ function Footer() {
   const phoneHref = `tel:${contact.phone.replace(/[^\d+]/g, "")}`;
 
   return (
-    <footer className="relative border-t border-emerald-100/80 bg-white dark:border-emerald-950 dark:bg-card">
-      <div className="pointer-events-none absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-emerald-200 via-emerald-500 to-green-300 opacity-70" />
+    <footer className="relative isolate overflow-hidden border-t border-emerald-300/50 bg-gradient-to-b from-[#d3eddf] via-[#c3e8d3] to-[#b9e4cc] transition-colors duration-300 ease-in-out dark:border-emerald-900/40 dark:from-[#0c2418] dark:via-[#0b2016] dark:to-[#08170f]">
+      <FooterStyles />
 
-      <div className="container grid gap-10 py-12 md:grid-cols-2 md:py-14 lg:grid-cols-5">
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-0 -z-10 overflow-hidden"
+      >
+        <div
+          className="gu-grid absolute inset-0 [--gu-line:rgba(15,118,110,0.14)] dark:[--gu-line:rgba(52,211,153,0.10)]"
+        />
+        <div className="gu-drift absolute -left-32 -top-24 h-96 w-96 rounded-full bg-emerald-400/50 blur-[100px] dark:bg-emerald-500/20" />
+        <div className="gu-drift-rev absolute -right-32 bottom-0 h-96 w-96 rounded-full bg-teal-300/60 blur-[100px] dark:bg-teal-600/20" />
+        <div className="absolute right-[6%] top-10 h-56 w-56 rounded-full border border-emerald-400/45 dark:border-emerald-500/10" />
+        <div className="absolute -left-8 bottom-20 h-32 w-32 rotate-12 rounded-[2rem] border border-teal-400/45 bg-gradient-to-br from-white/50 to-transparent dark:border-teal-500/10 dark:from-white/5" />
+      </div>
+
+      <div className="pointer-events-none absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-emerald-200 via-emerald-500 to-teal-400 opacity-80" />
+
+      <div className="container grid gap-10 py-14 md:grid-cols-2 md:py-16 lg:grid-cols-5">
         <div className="space-y-5 lg:col-span-2">
           <Logo />
 
-          <p className="max-w-sm text-sm leading-relaxed text-muted-foreground">
+          <p className={`max-w-sm text-sm leading-relaxed ${footerText}`}>
             {APP_NAME} membantu siswa naik kelas lebih cepat lewat materi
             terstruktur, try out realistis, dan statistik belajar yang jelas.
           </p>
 
-          <ul className="space-y-3 text-sm text-muted-foreground">
-            <li className="flex items-center gap-3">
-              <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-emerald-50 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300">
+          <ul className={`space-y-3 text-sm ${footerText}`}>
+            <li className="group flex items-center gap-3">
+              <span className={footerIconBox}>
                 <Mail className="h-4 w-4" />
               </span>
 
               <a
                 href={`mailto:${contact.email}`}
-                className="break-all transition-colors hover:text-emerald-700 dark:hover:text-emerald-300"
+                className="break-all transition-colors hover:text-teal-700 dark:hover:text-emerald-300"
               >
                 {contact.email}
               </a>
             </li>
 
-            <li className="flex items-center gap-3">
-              <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-emerald-50 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300">
+            <li className="group flex items-center gap-3">
+              <span className={footerIconBox}>
                 <Phone className="h-4 w-4" />
               </span>
 
               <a
                 href={phoneHref}
-                className="transition-colors hover:text-emerald-700 dark:hover:text-emerald-300"
+                className="transition-colors hover:text-teal-700 dark:hover:text-emerald-300"
               >
                 {contact.phone}
               </a>
             </li>
 
-            <li className="flex items-start gap-3">
-              <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-emerald-50 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300">
+            <li className="group flex items-start gap-3">
+              <span className={footerIconBox}>
                 <MapPin className="h-4 w-4" />
               </span>
 
-              <span className="pt-1 leading-relaxed">
+              <span className="pt-1.5 leading-relaxed">
                 {contact.address}
               </span>
             </li>
@@ -314,7 +371,10 @@ function Footer() {
 
         {groups.map((group) => (
           <div key={group.title}>
-            <h4 className="mb-5 text-sm font-extrabold tracking-wide text-foreground">
+            <h4
+              className={`mb-5 flex items-center gap-2 text-sm font-extrabold tracking-wide ${footerHeading}`}
+            >
+              <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
               {group.title}
             </h4>
 
@@ -323,7 +383,7 @@ function Footer() {
                 <li key={to}>
                   <Link
                     to={to}
-                    className="inline-flex items-center text-muted-foreground transition-colors hover:translate-x-0.5 hover:text-emerald-700 dark:hover:text-emerald-300"
+                    className={`inline-flex items-center transition-all duration-300 hover:translate-x-0.5 hover:text-teal-700 motion-reduce:transition-none motion-reduce:hover:translate-x-0 dark:hover:text-emerald-300 ${footerText}`}
                   >
                     {label}
                   </Link>
@@ -334,8 +394,10 @@ function Footer() {
         ))}
       </div>
 
-      <div className="border-t border-border/70">
-        <div className="container flex flex-col items-center justify-between gap-3 py-5 text-center text-xs text-muted-foreground sm:flex-row sm:text-left">
+      <div className="relative border-t border-emerald-300/50 bg-white/30 backdrop-blur-sm dark:border-emerald-900/40 dark:bg-black/20">
+        <div
+          className={`container flex flex-col items-center justify-between gap-3 py-5 text-center text-xs sm:flex-row sm:text-left ${footerText}`}
+        >
           <p>
             © {new Date().getFullYear()} {APP_NAME}. Seluruh hak cipta
             dilindungi.
