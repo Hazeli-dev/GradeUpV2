@@ -17,6 +17,7 @@ import {
   ImageOff,
 } from "lucide-react";
 import { toast } from "sonner";
+import ReactMarkdown from "react-markdown";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -821,9 +822,11 @@ export default function ExamAttemptPage() {
             </CardHeader>
 
             <CardContent className="space-y-6 px-5 py-6 sm:px-7 sm:py-8">
-              <h2 className="whitespace-pre-wrap text-base font-semibold leading-[1.85] text-foreground sm:text-lg">
-                {currentQuestion.question_text}
-              </h2>
+              <div className="text-base font-semibold leading-[1.85] text-foreground sm:text-lg [&_p]:mb-3 [&_p:last-child]:mb-0 [&_em]:italic [&_strong]:font-bold">
+  <ReactMarkdown>
+    {currentQuestion.question_text}
+  </ReactMarkdown>
+</div>
 
               {/* Gambar soal */}
               {currentQuestion.image_url && (
@@ -869,16 +872,16 @@ export default function ExamAttemptPage() {
                         {option.id || String.fromCharCode(65 + index)}
                       </span>
 
-                      <span
-                        className={cn(
-                          "flex-1 pt-1 text-sm leading-relaxed sm:pt-0 sm:text-base",
-                          selected
-                            ? "font-semibold text-foreground"
-                            : "font-medium text-foreground/85"
-                        )}
-                      >
-                        {option.text}
-                      </span>
+                      <div
+  className={cn(
+    "flex-1 pt-1 text-sm leading-relaxed sm:pt-0 sm:text-base [&_p]:mb-2 [&_p:last-child]:mb-0 [&_em]:italic [&_strong]:font-bold",
+    selected
+      ? "font-semibold text-foreground"
+      : "font-medium text-foreground/85"
+  )}
+>
+  <ReactMarkdown>{option.text}</ReactMarkdown>
+</div>
 
                       {selected && (
                         <CheckCircle2 className="mt-1 h-5 w-5 shrink-0 text-primary sm:mt-0" />
