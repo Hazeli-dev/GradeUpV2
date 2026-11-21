@@ -683,20 +683,74 @@ export default function StudentOverviewPage() {
             )
         );
 
+       
         // ----------------------------------------------
-        // EXAM STATISTICS
+        // WEEKLY PERIOD (WIB)
+        // ----------------------------------------------
+
+        const todayKey = getJakartaDateKey(new Date());
+
+        const todayUtc = new Date(`${todayKey}T00:00:00Z`);
+
+        const weekStart = new Date(todayUtc);
+
+        weekStart.setUTCDate(
+          todayUtc.getUTCDate() - todayUtc.getUTCDay()
+        );
+
+        const weekStartKey = weekStart
+          .toISOString()
+          .slice(0, 10);
+
+        // ----------------------------------------------
+        // WEEKLY EXAM STATISTICS
         // ----------------------------------------------
 
         let completed = 0;
-
         let inProgress = 0;
-
         let durationTotal = 0;
+
+        const secondsByDay = Array(7).fill(0) as number[];
 
         attempts.forEach((attempt) => {
           const status = (
             attempt.status ?? ""
           ).toLowerCase();
+
+          const isOngoing =
+            status === "in_progress" ||
+            status === "in-progress" ||
+            status === "started";
+
+          // Ujian yang masih berjalan tetap ditampilkan
+          // berdasarkan status saat ini.
+          if (isOngoing) {
+            inProgress += 1;
+          }
+
+          if (!attempt.created_at) return;
+
+          const key = getJakartaDateKey(
+            attempt.created_at
+          );
+
+          // Hanya aktivitas minggu berjalan yang dihitung
+          if (key < weekStartKey || key > todayKey) {
+            return;
+          }
+
+          const index = new Date(
+            `${key}T00:00:00Z`
+          ).getUTCDay();
+
+          const duration = Math.max(
+            0,
+            Number(attempt.duration_seconds ?? 0)
+          );
+
+          secondsByDay[index] += duration;
+
+          durationTotal += duration;
 
           if (
             status === "completed" ||
@@ -704,19 +758,6 @@ export default function StudentOverviewPage() {
           ) {
             completed += 1;
           }
-
-          if (
-            status === "in_progress" ||
-            status === "in-progress" ||
-            status === "started"
-          ) {
-            inProgress += 1;
-          }
-
-          durationTotal += Math.max(
-            0,
-            Number(attempt.duration_seconds ?? 0)
-          );
         });
 
         setCompletedCount(completed);
@@ -725,6 +766,7 @@ export default function StudentOverviewPage() {
 
         setTotalDurationSeconds(durationTotal);
 
+        // Target dihitung dari ujian selesai minggu ini
         setCompletionPercentage(
           Math.min(
             100,
@@ -735,82 +777,17 @@ export default function StudentOverviewPage() {
         );
 
         // ----------------------------------------------
-        // WEEKLY ACTIVITY
+        // WEEKLY ACTIVITY CHART
         // ----------------------------------------------
-
-        const todayKey = getJakartaDateKey(
-          new Date()
-        );
-
-        const todayUtc = new Date(
-          `${todayKey}T00:00:00Z`
-        );
-
-        const weekStart = new Date(todayUtc);
-
-        weekStart.setUTCDate(
-          todayUtc.getUTCDate() -
-            todayUtc.getUTCDay()
-        );
-
-        const weekStartKey = weekStart
-          .toISOString()
-          .slice(0, 10);
-
-        const secondsByDay = Array(7).fill(0) as number[];
-
-        attempts.forEach((attempt) => {
-          if (!attempt.created_at) return;
-
-          const key = getJakartaDateKey(
-            attempt.created_at
-          );
-
-          if (
-            key < weekStartKey ||
-            key > todayKey
-          ) {
-            return;
-          }
-
-          const index = new Date(
-            `${key}T00:00:00Z`
-          ).getUTCDay();
-
-          secondsByDay[index] += Math.max(
-            0,
-            Number(attempt.duration_seconds ?? 0)
-          );
-        });
 
         setWeeklyData(
           DAY_LABELS.map((day, index) => ({
             day,
             jam: Number(
-              (
-                secondsByDay[index] / 3600
-              ).toFixed(2)
+              (secondsByDay[index] / 3600).toFixed(2)
             ),
           }))
         );
-      } catch (error) {
-        console.error(
-          "Gagal mengambil data overview:",
-          error
-        );
-      } finally {
-        if (!cancelled) {
-          setLoading(false);
-        }
-      }
-    }
-
-    void fetchOverviewData();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [navigate]);
 
   // ====================================================
   // LOADING
@@ -1207,8 +1184,8 @@ return (
               <div className="flex items-end justify-between gap-3">
                 <div>
                   <p className="text-xs font-medium text-muted-foreground">
-                    Ketercapaian Target (
-                    {completedCount} / {currentTargetExams} Ujian)
+                    Target Mingguan (
+{completedCount} / {currentTargetExams} Ujian)
                   </p>
 
                   <p className="text-2xl font-black tracking-tight">
@@ -1266,7 +1243,7 @@ return (
                       </p>
 
                       <p className="text-xs font-semibold text-muted-foreground">
-                        Selesai Dikerjakan
+                        Ujian Selesai Minggu Ini
                       </p>
                     </div>
                   </div>
