@@ -1,4 +1,3 @@
-
 import { useCallback, useEffect, useMemo, useState } from "react";
 import * as XLSX from "xlsx";
 import {
@@ -51,6 +50,104 @@ import {
 import { FieldError } from "@/components/auth/auth-bits";
 
 import { supabase } from "@/lib/supabase";
+import { cn } from "@/lib/utils";
+
+/* =========================================
+   VISUAL DECORATION (tampilan saja, tidak interaktif)
+========================================= */
+
+const panelSurface =
+  "border border-slate-200/80 bg-white/90 shadow-[0_16px_44px_-28px_rgba(15,118,110,0.35)] backdrop-blur-sm transition-colors duration-300 dark:border-slate-700/70 dark:bg-slate-900/85";
+
+const heroPanel =
+  "relative isolate overflow-hidden rounded-3xl border border-emerald-200/60 bg-gradient-to-br from-white via-emerald-50/80 to-teal-50/70 shadow-[0_24px_60px_-34px_rgba(15,118,110,0.45)] ring-1 ring-inset ring-white/60 transition-colors duration-300 dark:border-emerald-900/40 dark:from-slate-900 dark:via-emerald-950/40 dark:to-slate-900 dark:ring-white/5";
+
+const dialogSurface =
+  "border-emerald-200/60 bg-gradient-to-b from-white to-emerald-50/40 dark:border-emerald-900/50 dark:from-slate-900 dark:to-slate-900";
+
+const insetPanel =
+  "rounded-2xl border border-emerald-200/60 bg-emerald-50/40 dark:border-emerald-900/40 dark:bg-emerald-950/20";
+
+const statCard = `${panelSurface} group rounded-2xl transition-all duration-300 hover:-translate-y-1 hover:border-emerald-300/80 hover:shadow-[0_24px_60px_-28px_rgba(15,118,110,0.35)] motion-reduce:transition-none motion-reduce:hover:translate-y-0 dark:hover:border-emerald-700/70`;
+
+const dashedEmpty =
+  "rounded-3xl border border-dashed border-emerald-300/70 bg-white/60 px-4 py-10 backdrop-blur-sm dark:border-emerald-800/60 dark:bg-slate-900/50";
+
+const patternLine =
+  "[--gu-line:rgba(15,118,110,0.12)] dark:[--gu-line:rgba(52,211,153,0.10)]";
+
+function AdminStyles() {
+  return (
+    <style>{`
+      @keyframes gu-drift {
+        0%, 100% { transform: translate3d(0, 0, 0) scale(1); }
+        50% { transform: translate3d(22px, -16px, 0) scale(1.07); }
+      }
+      @keyframes gu-drift-rev {
+        0%, 100% { transform: translate3d(0, 0, 0) scale(1); }
+        50% { transform: translate3d(-20px, 14px, 0) scale(1.06); }
+      }
+      @keyframes gu-reveal {
+        from { opacity: 0; transform: translate3d(0, 12px, 0); }
+        to { opacity: 1; transform: translate3d(0, 0, 0); }
+      }
+      .gu-drift { animation: gu-drift 22s ease-in-out infinite; }
+      .gu-drift-rev { animation: gu-drift-rev 26s ease-in-out infinite; }
+      .gu-reveal { animation: gu-reveal 0.6s cubic-bezier(0.22, 1, 0.36, 1) both; }
+      .gu-reveal-1 { animation-delay: 0.08s; }
+      .gu-reveal-2 { animation-delay: 0.16s; }
+
+      .gu-grid {
+        background-image:
+          linear-gradient(to right, var(--gu-line) 1px, transparent 1px),
+          linear-gradient(to bottom, var(--gu-line) 1px, transparent 1px);
+        background-size: 44px 44px;
+        -webkit-mask-image: radial-gradient(ellipse 80% 55% at 50% 30%, #000 20%, transparent 100%);
+        mask-image: radial-gradient(ellipse 80% 55% at 50% 30%, #000 20%, transparent 100%);
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        .gu-drift, .gu-drift-rev, .gu-reveal {
+          animation: none !important;
+        }
+      }
+    `}</style>
+  );
+}
+
+/** Latar ambient untuk seluruh halaman. Diletakkan sebagai anak terakhir wrapper `relative isolate`. */
+function AdminDecor() {
+  return (
+    <div
+      aria-hidden="true"
+      className="pointer-events-none absolute inset-0 -z-10 !mt-0 overflow-hidden rounded-[2rem]"
+    >
+      <div
+        className={`gu-grid absolute inset-0 opacity-70 ${patternLine}`}
+      />
+      <div className="gu-drift absolute -right-32 -top-24 h-[26rem] w-[26rem] rounded-full bg-emerald-300/30 blur-3xl dark:bg-emerald-500/10" />
+      <div className="gu-drift-rev absolute -left-36 top-1/3 h-[24rem] w-[24rem] rounded-full bg-teal-300/25 blur-3xl dark:bg-teal-500/10" />
+      <div className="absolute -bottom-32 right-1/4 h-[22rem] w-[22rem] rounded-full bg-emerald-200/30 blur-3xl dark:bg-emerald-600/10" />
+      <div className="absolute right-[6%] top-24 h-56 w-56 rounded-full border border-emerald-300/30 dark:border-emerald-400/10" />
+      <div className="absolute -left-8 bottom-32 h-32 w-32 rotate-12 rounded-[2rem] border border-teal-300/30 bg-gradient-to-br from-white/40 to-transparent dark:border-teal-400/10 dark:from-white/5" />
+    </div>
+  );
+}
+
+/** Dekorasi kecil di dalam panel (butuh parent `relative isolate overflow-hidden`). */
+function PanelGlow() {
+  return (
+    <div
+      aria-hidden="true"
+      className="pointer-events-none absolute inset-0 -z-10 overflow-hidden"
+    >
+      <div className="absolute -right-16 -top-20 h-56 w-56 rounded-full bg-emerald-300/35 blur-3xl dark:bg-emerald-500/15" />
+      <div className="absolute -bottom-24 left-1/4 h-48 w-48 rounded-full bg-teal-300/30 blur-3xl dark:bg-teal-500/10" />
+      <div className="absolute -right-10 -top-14 h-44 w-44 rounded-full border border-emerald-300/40 dark:border-emerald-400/10" />
+      <div className="absolute inset-x-8 top-0 h-px bg-gradient-to-r from-transparent via-emerald-400/50 to-transparent dark:via-emerald-500/30" />
+    </div>
+  );
+}
 
 interface CategoryItem {
   id: string;
@@ -75,7 +172,7 @@ const DEFAULT_COLOR = "#10B981";
 const slugify = (value: string) =>
   value
     .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[̀-ͯ]/g, "")
     .toLowerCase()
     .trim()
     .replace(/[^a-z0-9]+/g, "-")
@@ -642,67 +739,92 @@ export default function AdminCategoriesPage() {
   };
 
   return (
-    <div className="min-w-0 space-y-6 pb-10">
+    <div className="relative isolate min-w-0 space-y-6 pb-10">
+      <AdminStyles />
+
       {/* HEADER */}
-      <PageHeader
-        title="Kategori Materi"
-        description="Kelola pengelompokan materi pembelajaran dan struktur katalog GradeUp."
-        actions={
-          <div className="flex flex-wrap items-center gap-2">
-            <Button
-              variant="outline"
-              onClick={() => void fetchData()}
-              disabled={loading}
-              className="h-9 gap-2"
-            >
-              <RefreshCw
-                className={`h-4 w-4 ${loading ? "animate-spin" : ""}`}
-              />
-              <span className="hidden sm:inline">Muat Ulang</span>
-              <span className="sm:hidden">Refresh</span>
-            </Button>
+      <div className={cn(heroPanel, "gu-reveal p-4 sm:p-6")}>
+        <PanelGlow />
 
-            <Button
-              variant="outline"
-              onClick={downloadCategoryTemplate}
-              className="h-9 gap-2"
-            >
-              <Download className="h-4 w-4" />
-              <span className="hidden sm:inline">
-                Template Excel
-              </span>
-            </Button>
+        <PageHeader
+          title="Kategori Materi"
+          description="Kelola pengelompokan materi pembelajaran dan struktur katalog GradeUp."
+          actions={
+            <div className="flex flex-wrap items-center gap-2">
+              <Button
+                variant="outline"
+                onClick={() => void fetchData()}
+                disabled={loading}
+                className="h-9 gap-2 rounded-xl border-slate-300 bg-white/80 transition-colors duration-300 hover:border-teal-300 hover:bg-teal-50 dark:border-slate-700 dark:bg-slate-900/80 dark:hover:border-teal-700 dark:hover:bg-slate-800"
+              >
+                <RefreshCw
+                  className={`h-4 w-4 ${loading ? "animate-spin" : ""}`}
+                />
+                <span className="hidden sm:inline">Muat Ulang</span>
+                <span className="sm:hidden">Refresh</span>
+              </Button>
 
-            <Button
-              variant="outline"
-              onClick={() => setImportOpen(true)}
-              className="h-9 gap-2"
-            >
-              <FileSpreadsheet className="h-4 w-4" />
-              <span>Import Excel</span>
-            </Button>
+              <Button
+                variant="outline"
+                onClick={downloadCategoryTemplate}
+                className="h-9 gap-2 rounded-xl border-slate-300 bg-white/80 transition-colors duration-300 hover:border-teal-300 hover:bg-teal-50 dark:border-slate-700 dark:bg-slate-900/80 dark:hover:border-teal-700 dark:hover:bg-slate-800"
+              >
+                <Download className="h-4 w-4" />
+                <span className="hidden sm:inline">
+                  Template Excel
+                </span>
+              </Button>
 
-            <Button onClick={openCreate} className="h-9 gap-2">
-              <Plus className="h-4 w-4" />
-              Tambah Kategori
-            </Button>
-          </div>
-        }
-      />
+              <Button
+                variant="outline"
+                onClick={() => setImportOpen(true)}
+                className="h-9 gap-2 rounded-xl border-slate-300 bg-white/80 transition-colors duration-300 hover:border-teal-300 hover:bg-teal-50 dark:border-slate-700 dark:bg-slate-900/80 dark:hover:border-teal-700 dark:hover:bg-slate-800"
+              >
+                <FileSpreadsheet className="h-4 w-4" />
+                <span>Import Excel</span>
+              </Button>
+
+              <Button
+                onClick={openCreate}
+                className="h-9 gap-2 rounded-xl bg-teal-700 font-bold text-white shadow-lg shadow-teal-700/20 transition-all duration-300 hover:-translate-y-0.5 hover:bg-teal-800 motion-reduce:transition-none motion-reduce:hover:translate-y-0 dark:bg-emerald-500 dark:text-slate-950 dark:hover:bg-emerald-400"
+              >
+                <Plus className="h-4 w-4" />
+                Tambah Kategori
+              </Button>
+            </div>
+          }
+        />
+      </div>
 
       {/* INTRODUCTION */}
-      <Card className="overflow-hidden border-primary/15 shadow-sm">
+      <Card
+        className={cn(
+          heroPanel,
+          "gu-reveal gu-reveal-1 border-emerald-200/60 shadow-sm"
+        )}
+      >
         <CardContent className="relative flex flex-col gap-4 p-5 sm:flex-row sm:items-center sm:justify-between sm:p-6">
-          <div className="pointer-events-none absolute -right-10 -top-16 h-48 w-48 rounded-full bg-primary/5 blur-3xl" />
+          <div
+            aria-hidden="true"
+            className="pointer-events-none absolute -right-10 -top-16 h-48 w-48 rounded-full bg-emerald-300/30 blur-3xl dark:bg-emerald-500/10"
+          />
+          <div
+            aria-hidden="true"
+            className="pointer-events-none absolute -bottom-20 left-1/3 h-40 w-40 rounded-full bg-teal-300/25 blur-3xl dark:bg-teal-500/10"
+          />
+          <div
+            aria-hidden="true"
+            className="pointer-events-none absolute -right-6 -top-10 h-36 w-36 rounded-full border border-emerald-300/40 dark:border-emerald-400/10"
+          />
 
           <div className="relative flex min-w-0 items-start gap-4">
-            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
+            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-emerald-100 text-teal-700 shadow-sm dark:bg-emerald-950 dark:text-emerald-300">
               <FolderOpen className="h-6 w-6" />
             </div>
 
             <div className="min-w-0 space-y-1">
               <div className="flex flex-wrap items-center gap-2">
-                <h2 className="text-base font-bold tracking-tight">
+                <h2 className="text-base font-extrabold tracking-tight">
                   Pengelolaan Katalog Pembelajaran
                 </h2>
                 <Badge variant="outline" className="text-[10px]">
@@ -718,8 +840,8 @@ export default function AdminCategoriesPage() {
             </div>
           </div>
 
-          <div className="relative flex shrink-0 items-center gap-2 rounded-lg border bg-muted/30 px-3 py-2">
-            <ShieldAlert className="h-4 w-4 text-primary" />
+          <div className="relative flex shrink-0 items-center gap-2 rounded-xl border border-emerald-200/60 bg-white/70 px-3 py-2 backdrop-blur dark:border-emerald-900/40 dark:bg-slate-900/60">
+            <ShieldAlert className="h-4 w-4 text-teal-700 dark:text-emerald-300" />
             <div>
               <p className="text-[10px] font-medium text-muted-foreground">
                 Modul administrasi
@@ -734,9 +856,9 @@ export default function AdminCategoriesPage() {
 
       {/* STATISTICS */}
       <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        <Card>
+        <Card className={cn(statCard, "gu-reveal")}>
           <CardContent className="flex items-center gap-3 p-4">
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-50 text-teal-700 transition-colors duration-300 group-hover:bg-teal-700 group-hover:text-white dark:bg-emerald-950 dark:text-emerald-300 dark:group-hover:bg-emerald-500 dark:group-hover:text-slate-950">
               <Layers3 className="h-5 w-5" />
             </div>
             <div className="min-w-0">
@@ -750,9 +872,9 @@ export default function AdminCategoriesPage() {
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className={cn(statCard, "gu-reveal gu-reveal-1")}>
           <CardContent className="flex items-center gap-3 p-4">
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-emerald-500/10 text-emerald-600">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-50 text-emerald-600 transition-colors duration-300 group-hover:bg-emerald-500 group-hover:text-white dark:bg-emerald-950 dark:text-emerald-300">
               <BookOpen className="h-5 w-5" />
             </div>
             <div className="min-w-0">
@@ -766,9 +888,9 @@ export default function AdminCategoriesPage() {
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className={cn(statCard, "gu-reveal gu-reveal-2")}>
           <CardContent className="flex items-center gap-3 p-4">
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-blue-500/10 text-blue-600">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-teal-50 text-teal-700 transition-colors duration-300 group-hover:bg-teal-600 group-hover:text-white dark:bg-teal-950 dark:text-teal-300">
               <CheckCircle2 className="h-5 w-5" />
             </div>
             <div className="min-w-0">
@@ -782,9 +904,9 @@ export default function AdminCategoriesPage() {
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className={cn(statCard, "gu-reveal gu-reveal-2")}>
           <CardContent className="flex items-center gap-3 p-4">
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-amber-500/10 text-amber-600">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-amber-50 text-amber-600 transition-colors duration-300 group-hover:bg-amber-500 group-hover:text-white dark:bg-amber-950 dark:text-amber-300">
               <CircleDashed className="h-5 w-5" />
             </div>
             <div className="min-w-0">
@@ -803,7 +925,7 @@ export default function AdminCategoriesPage() {
       <section className="space-y-4">
         <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
           <div>
-            <h3 className="text-base font-bold tracking-tight">
+            <h3 className="text-base font-extrabold tracking-tight">
               Daftar Kategori
             </h3>
             <p className="text-xs text-muted-foreground">
@@ -819,7 +941,7 @@ export default function AdminCategoriesPage() {
         </div>
 
         {/* TOOLBAR */}
-        <Card>
+        <Card className={cn(panelSurface, "rounded-2xl")}>
           <CardContent className="flex flex-col gap-3 p-3 sm:flex-row sm:items-center sm:p-4">
             <div className="relative min-w-0 flex-1">
               <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
@@ -836,7 +958,7 @@ export default function AdminCategoriesPage() {
                   type="button"
                   aria-label="Hapus pencarian"
                   onClick={() => setSearch("")}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 rounded p-1 text-muted-foreground hover:bg-emerald-100/70 hover:text-foreground dark:hover:bg-emerald-950/50"
                 >
                   <X className="h-4 w-4" />
                 </button>
@@ -854,7 +976,7 @@ export default function AdminCategoriesPage() {
                     event.target.value as "name" | "courses" | "newest"
                   )
                 }
-                className="h-10 w-full appearance-none rounded-md border border-input bg-background pl-9 pr-8 text-xs font-medium outline-none transition-colors focus:ring-2 focus:ring-ring"
+                className="h-10 w-full appearance-none rounded-md border border-input bg-background pl-9 pr-8 text-xs font-medium outline-none transition-colors hover:border-teal-300 focus:ring-2 focus:ring-ring dark:hover:border-teal-700"
               >
                 <option value="name">Nama kategori</option>
                 <option value="courses">Jumlah kursus</option>
@@ -875,12 +997,15 @@ export default function AdminCategoriesPage() {
             onRetry={() => void fetchData()}
           />
         ) : items.length === 0 ? (
-          <div className="rounded-xl border border-dashed px-4 py-10">
+          <div className={dashedEmpty}>
             <EmptyState
               title="Belum ada kategori"
               description="Tambahkan kategori pertama untuk mulai mengelompokkan materi pembelajaran."
               action={
-                <Button onClick={openCreate} className="gap-2">
+                <Button
+                  onClick={openCreate}
+                  className="gap-2 rounded-xl bg-teal-700 font-bold text-white transition-colors duration-300 hover:bg-teal-800 dark:bg-emerald-500 dark:text-slate-950 dark:hover:bg-emerald-400"
+                >
                   <Plus className="h-4 w-4" />
                   Tambah Kategori
                 </Button>
@@ -888,7 +1013,7 @@ export default function AdminCategoriesPage() {
             />
           </div>
         ) : filteredItems.length === 0 ? (
-          <div className="rounded-xl border border-dashed px-4 py-10">
+          <div className={dashedEmpty}>
             <EmptyState
               title="Kategori tidak ditemukan"
               description="Tidak ada kategori yang sesuai dengan kata kunci pencarian."
@@ -896,6 +1021,7 @@ export default function AdminCategoriesPage() {
                 <Button
                   variant="outline"
                   onClick={() => setSearch("")}
+                  className="rounded-xl"
                 >
                   Reset Pencarian
                 </Button>
@@ -903,11 +1029,16 @@ export default function AdminCategoriesPage() {
             />
           </div>
         ) : (
-          <Card className="overflow-hidden">
+          <Card
+            className={cn(
+              panelSurface,
+              "overflow-hidden rounded-3xl ring-1 ring-emerald-900/[0.04] dark:ring-white/5"
+            )}
+          >
             {/* TABLE HEADER */}
-            <div className="flex flex-col gap-1 border-b bg-muted/30 px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-5">
+            <div className="flex flex-col gap-1 border-b border-emerald-200/50 bg-emerald-50/60 px-4 py-3 dark:border-emerald-900/40 dark:bg-slate-800/50 sm:flex-row sm:items-center sm:justify-between sm:px-5">
               <div className="flex items-center gap-2">
-                <FolderOpen className="h-4 w-4 text-primary" />
+                <FolderOpen className="h-4 w-4 text-teal-700 dark:text-emerald-300" />
                 <p className="text-sm font-semibold">
                   Data Kategori Pembelajaran
                 </p>
@@ -921,7 +1052,7 @@ export default function AdminCategoriesPage() {
             <div className="hidden overflow-x-auto md:block">
               <table className="w-full min-w-[850px] text-left">
                 <thead>
-                  <tr className="border-b bg-muted/20">
+                  <tr className="border-b border-emerald-200/50 bg-emerald-50/40 dark:border-emerald-900/40 dark:bg-slate-800/30">
                     <th className="w-12 px-5 py-3 text-center text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
                       No.
                     </th>
@@ -946,7 +1077,7 @@ export default function AdminCategoriesPage() {
                   </tr>
                 </thead>
 
-                <tbody className="divide-y">
+                <tbody className="divide-y divide-emerald-100/70 dark:divide-slate-800">
                   {filteredItems.map((item, index) => {
                     const count = countFor(item.name);
                     const color = item.color || DEFAULT_COLOR;
@@ -954,7 +1085,7 @@ export default function AdminCategoriesPage() {
                     return (
                       <tr
                         key={item.id}
-                        className="group transition-colors hover:bg-muted/20"
+                        className="group transition-colors duration-200 hover:bg-emerald-50/60 dark:hover:bg-emerald-950/30"
                       >
                         <td className="px-5 py-4 text-center text-xs tabular-nums text-muted-foreground">
                           {index + 1}
@@ -963,7 +1094,7 @@ export default function AdminCategoriesPage() {
                         <td className="max-w-[280px] px-4 py-4">
                           <div className="flex items-start gap-3">
                             <div
-                              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg"
+                              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ring-1 ring-black/5 dark:ring-white/10"
                               style={{
                                 backgroundColor: `${color}18`,
                                 color,
@@ -1026,7 +1157,7 @@ export default function AdminCategoriesPage() {
                             <Button
                               size="sm"
                               variant="outline"
-                              className="h-8 gap-1.5"
+                              className="h-8 gap-1.5 rounded-xl border-slate-300 transition-colors duration-300 hover:border-teal-300 hover:bg-teal-50 dark:border-slate-700 dark:hover:border-teal-700 dark:hover:bg-slate-800"
                               onClick={() => openEdit(item)}
                             >
                               <Pencil className="h-3.5 w-3.5" />
@@ -1036,7 +1167,7 @@ export default function AdminCategoriesPage() {
                             <Button
                               size="sm"
                               variant="ghost"
-                              className="h-8 gap-1.5 text-destructive hover:bg-destructive/10 hover:text-destructive"
+                              className="h-8 gap-1.5 rounded-xl text-destructive hover:bg-destructive/10 hover:text-destructive"
                               onClick={() => setRemoving(item)}
                             >
                               <Trash2 className="h-3.5 w-3.5" />
@@ -1052,17 +1183,20 @@ export default function AdminCategoriesPage() {
             </div>
 
             {/* MOBILE LIST */}
-            <div className="divide-y md:hidden">
+            <div className="divide-y divide-emerald-100/70 dark:divide-slate-800 md:hidden">
               {filteredItems.map((item, index) => {
                 const count = countFor(item.name);
                 const color = item.color || DEFAULT_COLOR;
 
                 return (
-                  <div key={item.id} className="space-y-3 p-4">
+                  <div
+                    key={item.id}
+                    className="space-y-3 p-4 transition-colors duration-200 hover:bg-emerald-50/50 dark:hover:bg-emerald-950/20"
+                  >
                     <div className="flex items-start justify-between gap-3">
                       <div className="flex min-w-0 items-start gap-3">
                         <div
-                          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg"
+                          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ring-1 ring-black/5 dark:ring-white/10"
                           style={{
                             backgroundColor: `${color}18`,
                             color,
@@ -1093,7 +1227,7 @@ export default function AdminCategoriesPage() {
                         "Belum ada deskripsi kategori."}
                     </p>
 
-                    <div className="grid grid-cols-2 gap-3 rounded-lg bg-muted/30 p-3">
+                    <div className="grid grid-cols-2 gap-3 rounded-xl border border-emerald-200/50 bg-emerald-50/40 p-3 dark:border-emerald-900/40 dark:bg-emerald-950/20">
                       <div>
                         <p className="text-[10px] text-muted-foreground">
                           Warna identitas
@@ -1123,7 +1257,7 @@ export default function AdminCategoriesPage() {
                       <Button
                         size="sm"
                         variant="outline"
-                        className="flex-1 gap-1.5"
+                        className="flex-1 gap-1.5 rounded-xl border-slate-300 transition-colors duration-300 hover:border-teal-300 hover:bg-teal-50 dark:border-slate-700 dark:hover:border-teal-700 dark:hover:bg-slate-800"
                         onClick={() => openEdit(item)}
                       >
                         <Pencil className="h-3.5 w-3.5" />
@@ -1133,7 +1267,7 @@ export default function AdminCategoriesPage() {
                       <Button
                         size="sm"
                         variant="ghost"
-                        className="flex-1 gap-1.5 text-destructive hover:bg-destructive/10 hover:text-destructive"
+                        className="flex-1 gap-1.5 rounded-xl text-destructive hover:bg-destructive/10 hover:text-destructive"
                         onClick={() => setRemoving(item)}
                       >
                         <Trash2 className="h-3.5 w-3.5" />
@@ -1150,7 +1284,7 @@ export default function AdminCategoriesPage() {
             </div>
 
             {/* TABLE FOOTER */}
-            <div className="flex flex-col gap-1 border-t bg-muted/20 px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-5">
+            <div className="flex flex-col gap-1 border-t border-emerald-200/50 bg-emerald-50/40 px-4 py-3 dark:border-emerald-900/40 dark:bg-slate-800/30 sm:flex-row sm:items-center sm:justify-between sm:px-5">
               <p className="text-[11px] text-muted-foreground">
                 Menampilkan {filteredItems.length} kategori
               </p>
@@ -1173,10 +1307,15 @@ export default function AdminCategoriesPage() {
           }
         }}
       >
-        <DialogContent className="max-h-[92vh] overflow-y-auto sm:max-w-3xl">
+        <DialogContent
+          className={cn(
+            dialogSurface,
+            "max-h-[92vh] overflow-y-auto rounded-3xl sm:max-w-3xl"
+          )}
+        >
           <DialogHeader>
             <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-50 text-teal-700 dark:bg-emerald-950 dark:text-emerald-300">
                 <FileSpreadsheet className="h-5 w-5" />
               </div>
 
@@ -1194,8 +1333,10 @@ export default function AdminCategoriesPage() {
 
           <div className="space-y-4 py-3">
             {/* UPLOAD AREA */}
-            <div className="rounded-xl border border-dashed bg-muted/20 p-5 text-center">
-              <Upload className="mx-auto h-8 w-8 text-muted-foreground" />
+            <div className="rounded-2xl border border-dashed border-emerald-300/70 bg-gradient-to-br from-emerald-50/80 via-white to-teal-50/70 p-5 text-center transition-colors duration-300 hover:border-emerald-400 dark:border-emerald-800/60 dark:from-emerald-950/30 dark:via-slate-900 dark:to-teal-950/20">
+              <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-emerald-100 dark:bg-emerald-950">
+                <Upload className="h-7 w-7 text-teal-700 dark:text-emerald-300" />
+              </div>
 
               <p className="mt-2 text-sm font-semibold">
                 Pilih file Excel
@@ -1214,9 +1355,9 @@ export default function AdminCategoriesPage() {
               />
 
               {excelFileName && (
-                <div className="mx-auto mt-3 flex max-w-sm items-center justify-center gap-2 rounded-lg bg-primary/5 px-3 py-2">
-                  <FileSpreadsheet className="h-4 w-4 shrink-0 text-primary" />
-                  <p className="truncate text-xs font-medium text-primary">
+                <div className="mx-auto mt-3 flex max-w-sm items-center justify-center gap-2 rounded-xl bg-emerald-100/70 px-3 py-2 dark:bg-emerald-950/50">
+                  <FileSpreadsheet className="h-4 w-4 shrink-0 text-teal-700 dark:text-emerald-300" />
+                  <p className="truncate text-xs font-medium text-teal-800 dark:text-emerald-200">
                     {excelFileName}
                   </p>
                 </div>
@@ -1235,7 +1376,7 @@ export default function AdminCategoriesPage() {
             </div>
 
             {/* FORMAT INFORMATION */}
-            <div className="rounded-lg border bg-muted/20 p-3">
+            <div className={cn(insetPanel, "p-3")}>
               <p className="text-xs font-semibold">
                 Format kolom Excel
               </p>
@@ -1274,7 +1415,7 @@ export default function AdminCategoriesPage() {
             {excelRows.length > 0 && (
               <>
                 <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-                  <Card>
+                  <Card className="rounded-2xl border-emerald-200/60 bg-white/80 dark:border-emerald-900/40 dark:bg-slate-900/70">
                     <CardContent className="p-3">
                       <p className="text-[11px] text-muted-foreground">
                         Total baris
@@ -1285,18 +1426,18 @@ export default function AdminCategoriesPage() {
                     </CardContent>
                   </Card>
 
-                  <Card>
+                  <Card className="rounded-2xl border-emerald-300/60 bg-emerald-50/70 dark:border-emerald-800/50 dark:bg-emerald-950/30">
                     <CardContent className="p-3">
                       <p className="text-[11px] text-muted-foreground">
                         Siap diimpor
                       </p>
-                      <p className="mt-1 text-xl font-bold tabular-nums text-emerald-600">
+                      <p className="mt-1 text-xl font-bold tabular-nums text-emerald-600 dark:text-emerald-400">
                         {excelRows.filter((row) => row.valid).length}
                       </p>
                     </CardContent>
                   </Card>
 
-                  <Card className="col-span-2 sm:col-span-1">
+                  <Card className="col-span-2 rounded-2xl border-red-200/60 bg-red-50/40 dark:border-red-900/40 dark:bg-red-950/20 sm:col-span-1">
                     <CardContent className="p-3">
                       <p className="text-[11px] text-muted-foreground">
                         Perlu diperbaiki
@@ -1319,9 +1460,9 @@ export default function AdminCategoriesPage() {
                     </p>
                   </div>
 
-                  <div className="max-h-72 overflow-auto rounded-lg border">
+                  <div className="max-h-72 overflow-auto rounded-2xl border border-emerald-200/60 bg-white/70 dark:border-emerald-900/40 dark:bg-slate-900/60">
                     <table className="w-full min-w-[650px] text-left text-xs">
-                      <thead className="sticky top-0 bg-muted">
+                      <thead className="sticky top-0 bg-emerald-50 dark:bg-slate-800">
                         <tr>
                           <th className="px-3 py-3">
                             Nama kategori
@@ -1338,12 +1479,14 @@ export default function AdminCategoriesPage() {
                         </tr>
                       </thead>
 
-                      <tbody className="divide-y">
+                      <tbody className="divide-y divide-emerald-100/70 dark:divide-slate-800">
                         {excelRows.map((row, index) => (
                           <tr
                             key={`${row.name}-${index}`}
                             className={
-                              row.valid ? "" : "bg-destructive/5"
+                              row.valid
+                                ? "transition-colors duration-200 hover:bg-emerald-50/60 dark:hover:bg-emerald-950/30"
+                                : "bg-destructive/5"
                             }
                           >
                             <td className="px-3 py-3 font-medium">
@@ -1398,11 +1541,12 @@ export default function AdminCategoriesPage() {
             )}
           </div>
 
-          <DialogFooter className="gap-2 border-t pt-4 sm:gap-2">
+          <DialogFooter className="gap-2 border-t border-emerald-200/50 pt-4 dark:border-emerald-900/40 sm:gap-2">
             <Button
               variant="outline"
               onClick={closeImportDialog}
               disabled={importing}
+              className="rounded-xl"
             >
               Batal
             </Button>
@@ -1413,7 +1557,7 @@ export default function AdminCategoriesPage() {
                 importing ||
                 !excelRows.some((row) => row.valid)
               }
-              className="gap-2"
+              className="gap-2 rounded-xl bg-teal-700 font-bold text-white transition-colors duration-300 hover:bg-teal-800 dark:bg-emerald-500 dark:text-slate-950 dark:hover:bg-emerald-400"
             >
               {importing ? (
                 <>
@@ -1442,12 +1586,17 @@ export default function AdminCategoriesPage() {
           }
         }}
       >
-        <DialogContent className="max-h-[92vh] overflow-y-auto sm:max-w-xl">
+        <DialogContent
+          className={cn(
+            dialogSurface,
+            "max-h-[92vh] overflow-y-auto rounded-3xl sm:max-w-xl"
+          )}
+        >
           {draft && (
             <>
               <DialogHeader>
                 <div className="flex items-center gap-3">
-                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-50 text-teal-700 dark:bg-emerald-950 dark:text-emerald-300">
                     {draft.id ? (
                       <Pencil className="h-5 w-5" />
                     ) : (
@@ -1469,8 +1618,8 @@ export default function AdminCategoriesPage() {
               <div className="space-y-5 py-3">
                 {/* IDENTITAS */}
                 <section className="space-y-3">
-                  <div className="flex items-center gap-2 border-b pb-2">
-                    <Tag className="h-4 w-4 text-primary" />
+                  <div className="flex items-center gap-2 border-b border-emerald-200/50 pb-2 dark:border-emerald-900/40">
+                    <Tag className="h-4 w-4 text-teal-700 dark:text-emerald-300" />
                     <div>
                       <h4 className="text-sm font-bold">
                         Identitas Kategori
@@ -1519,7 +1668,7 @@ export default function AdminCategoriesPage() {
                   <div className="space-y-2">
                     <Label>Slug URL</Label>
 
-                    <div className="flex items-center gap-2 rounded-lg border bg-muted/40 px-3 py-2.5">
+                    <div className="flex items-center gap-2 rounded-xl border border-emerald-200/60 bg-emerald-50/40 px-3 py-2.5 dark:border-emerald-900/40 dark:bg-emerald-950/20">
                       <Hash className="h-4 w-4 shrink-0 text-muted-foreground" />
                       <span className="truncate text-xs font-medium text-muted-foreground">
                         {slugify(draft.name ?? "") || "slug-kategori"}
@@ -1534,8 +1683,8 @@ export default function AdminCategoriesPage() {
 
                 {/* DESKRIPSI */}
                 <section className="space-y-3">
-                  <div className="flex items-center gap-2 border-b pb-2">
-                    <BookOpen className="h-4 w-4 text-primary" />
+                  <div className="flex items-center gap-2 border-b border-emerald-200/50 pb-2 dark:border-emerald-900/40">
+                    <BookOpen className="h-4 w-4 text-teal-700 dark:text-emerald-300" />
                     <div>
                       <h4 className="text-sm font-bold">
                         Deskripsi Kategori
@@ -1571,8 +1720,8 @@ export default function AdminCategoriesPage() {
 
                 {/* WARNA */}
                 <section className="space-y-3">
-                  <div className="flex items-center gap-2 border-b pb-2">
-                    <Palette className="h-4 w-4 text-primary" />
+                  <div className="flex items-center gap-2 border-b border-emerald-200/50 pb-2 dark:border-emerald-900/40">
+                    <Palette className="h-4 w-4 text-teal-700 dark:text-emerald-300" />
                     <div>
                       <h4 className="text-sm font-bold">
                         Identitas Visual
@@ -1583,7 +1732,7 @@ export default function AdminCategoriesPage() {
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-3 rounded-lg border p-3">
+                  <div className="flex items-center gap-3 rounded-xl border border-emerald-200/60 bg-white/70 p-3 dark:border-emerald-900/40 dark:bg-slate-900/60">
                     <Input
                       id="k-color"
                       type="color"
@@ -1608,7 +1757,7 @@ export default function AdminCategoriesPage() {
                     </div>
 
                     <div
-                      className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border"
+                      className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border"
                       style={{
                         backgroundColor: `${draft.color || DEFAULT_COLOR}18`,
                         color: draft.color || DEFAULT_COLOR,
@@ -1623,9 +1772,14 @@ export default function AdminCategoriesPage() {
                 <section className="space-y-2">
                   <Label>Pratinjau Kategori</Label>
 
-                  <div className="flex items-center gap-3 rounded-xl border bg-muted/20 p-4">
+                  <div className="relative isolate flex items-center gap-3 overflow-hidden rounded-2xl border border-emerald-200/60 bg-gradient-to-br from-white via-emerald-50/60 to-teal-50/50 p-4 dark:border-emerald-900/40 dark:from-slate-900 dark:via-emerald-950/30 dark:to-slate-900">
                     <div
-                      className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg"
+                      aria-hidden="true"
+                      className="pointer-events-none absolute -right-8 -top-10 -z-10 h-28 w-28 rounded-full bg-emerald-300/30 blur-2xl dark:bg-emerald-500/10"
+                    />
+
+                    <div
+                      className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl"
                       style={{
                         backgroundColor: `${draft.color || DEFAULT_COLOR}18`,
                         color: draft.color || DEFAULT_COLOR,
@@ -1650,7 +1804,7 @@ export default function AdminCategoriesPage() {
                 </section>
               </div>
 
-              <DialogFooter className="gap-2 border-t pt-4 sm:gap-2">
+              <DialogFooter className="gap-2 border-t border-emerald-200/50 pt-4 dark:border-emerald-900/40 sm:gap-2">
                 <Button
                   variant="outline"
                   onClick={() => {
@@ -1658,6 +1812,7 @@ export default function AdminCategoriesPage() {
                     setErr({});
                   }}
                   disabled={saving}
+                  className="rounded-xl"
                 >
                   Batal
                 </Button>
@@ -1665,7 +1820,7 @@ export default function AdminCategoriesPage() {
                 <Button
                   onClick={() => void save()}
                   disabled={saving}
-                  className="gap-2"
+                  className="gap-2 rounded-xl bg-teal-700 font-bold text-white transition-colors duration-300 hover:bg-teal-800 dark:bg-emerald-500 dark:text-slate-950 dark:hover:bg-emerald-400"
                 >
                   {saving ? (
                     <>
@@ -1710,8 +1865,8 @@ export default function AdminCategoriesPage() {
 
       {/* INFORMATION */}
       {!loading && !error && items.length > 0 && (
-        <div className="flex items-start gap-3 rounded-xl border border-amber-500/20 bg-amber-500/5 p-4">
-          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-amber-500/10 text-amber-600">
+        <div className="flex items-start gap-3 rounded-2xl border border-amber-500/20 bg-amber-500/5 p-4">
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-amber-500/10 text-amber-600 dark:text-amber-400">
             <AlertTriangle className="h-4 w-4" />
           </div>
 
@@ -1728,6 +1883,8 @@ export default function AdminCategoriesPage() {
           </div>
         </div>
       )}
+
+      <AdminDecor />
     </div>
   );
 }
