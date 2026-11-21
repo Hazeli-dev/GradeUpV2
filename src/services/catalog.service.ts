@@ -24,9 +24,23 @@ interface SupabaseCourseRow {
   thumbnail: string | null;
 }
 
+interface SupabaseExamPackageRow {
+  id: string;
+  title: string;
+  description: string | null;
+  category: string | null;
+  level: string | null;
+  difficulty: string | null;
+  duration_minutes: number | null;
+  total_questions: number | null;
+  question_count: number | null;
+  premium: boolean | null;
+  status: string | null;
+}
+
 export type CatalogCourse = Course & {
   lessonCount: number;
-}
+};
 
 /**
  * Memetakan data kursus dari Supabase.
@@ -42,11 +56,7 @@ function mapSupabaseCourse(row: SupabaseCourseRow): CatalogCourse {
     premium: Boolean(row.premium),
     status: row.status,
     thumbnail: row.thumbnail ?? "from-emerald-500 to-teal-600",
-
-    // Jumlah materi sementara belum dihitung dari relasi.
     lessonCount: 0,
-
-    // Field kompatibilitas dengan tipe Course.
     lessons: [],
     objectives: [],
     duration: 0,
@@ -57,7 +67,6 @@ function mapSupabaseCourse(row: SupabaseCourseRow): CatalogCourse {
 
 /**
  * Mengambil seluruh katalog kursus yang sudah diterbitkan.
- * Menggunakan pola query yang sama dengan Home Page.
  */
 export async function listCourses(): Promise<CatalogCourse[]> {
   const { data, error } = await supabase
@@ -119,13 +128,53 @@ export async function getCourseById(
 }
 
 /**
- * Fungsi katalog ujian tetap menggunakan sumber data sebelumnya.
+ * Mengambil paket ujian yang aktif dan sudah diterbitkan.
  */
 export async function listExams(): Promise<ExamPackage[]> {
-  await delay();
-  return exams;
+  const { data, error } = await supabase
+    .from("exam_packages")
+    .select(`
+      id,
+      title,
+      description,
+      category,
+      level,
+      difficulty,
+      duration_minutes,
+      total_questions,
+      question_count,
+      premium,
+      status
+    `)
+    .eq("is_active", true)
+    .eq("is_published", true)
+    .eq("status", "Published")
+    .order("created_at", { ascending: false });
+
+  if (error) {
+    console.error("Gagal mengambil katalog ujian:", error);
+    throw error;
+  }
+
+  return ((data ?? []) as SupabaseExamPackageRow[]).map((row) => ({
+    id: row.id,
+    title: row.title,
+    description: row.description ?? "",
+    category: row.category || "Umum",
+    level: (row.level || "Umum") as ExamPackage["level"],
+    difficulty: (row.difficulty || "Sedang") as ExamPackage["difficulty"],
+    duration: row.duration_minutes ?? 0,
+    questionCount: row.total_questions ?? row.question_count ?? 0,
+    participants: 0,
+    premium: Boolean(row.premium),
+    status: "Published",
+    questionIds: [],
+  }));
 }
 
+/**
+ * Detail ujian tetap menggunakan sumber data demo sebelumnya.
+ */
 export async function getExamById(
   id: string
 ): Promise<ExamPackage | undefined> {
