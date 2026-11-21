@@ -1,4 +1,3 @@
-
 import {
   useCallback,
   useEffect,
@@ -99,6 +98,96 @@ import { cn } from "@/lib/utils";
 import { supabase } from "@/lib/supabase";
 
 import type { Level } from "@/types";
+
+/* =========================================
+   VISUAL DECORATION (tampilan saja, tidak interaktif)
+========================================= */
+
+const panelSurface =
+  "border border-slate-200/80 bg-white/90 shadow-[0_16px_44px_-28px_rgba(15,118,110,0.35)] backdrop-blur-sm transition-colors duration-300 dark:border-slate-700/70 dark:bg-slate-900/85";
+
+const heroPanel =
+  "relative isolate overflow-hidden rounded-3xl border border-emerald-200/60 bg-gradient-to-br from-white via-emerald-50/80 to-teal-50/70 shadow-[0_24px_60px_-34px_rgba(15,118,110,0.45)] ring-1 ring-inset ring-white/60 transition-colors duration-300 dark:border-emerald-900/40 dark:from-slate-900 dark:via-emerald-950/40 dark:to-slate-900 dark:ring-white/5";
+
+const dialogSurface =
+  "border-emerald-200/60 bg-gradient-to-b from-white to-emerald-50/40 dark:border-emerald-900/50 dark:from-slate-900 dark:to-slate-900";
+
+const insetPanel =
+  "rounded-2xl border border-emerald-200/60 bg-emerald-50/40 dark:border-emerald-900/40 dark:bg-emerald-950/20";
+
+const patternLine =
+  "[--gu-line:rgba(15,118,110,0.12)] dark:[--gu-line:rgba(52,211,153,0.10)]";
+
+function AdminStyles() {
+  return (
+    <style>{`
+      @keyframes gu-drift {
+        0%, 100% { transform: translate3d(0, 0, 0) scale(1); }
+        50% { transform: translate3d(22px, -16px, 0) scale(1.07); }
+      }
+      @keyframes gu-drift-rev {
+        0%, 100% { transform: translate3d(0, 0, 0) scale(1); }
+        50% { transform: translate3d(-20px, 14px, 0) scale(1.06); }
+      }
+      @keyframes gu-reveal {
+        from { opacity: 0; transform: translate3d(0, 12px, 0); }
+        to { opacity: 1; transform: translate3d(0, 0, 0); }
+      }
+      .gu-drift { animation: gu-drift 22s ease-in-out infinite; }
+      .gu-drift-rev { animation: gu-drift-rev 26s ease-in-out infinite; }
+      .gu-reveal { animation: gu-reveal 0.6s cubic-bezier(0.22, 1, 0.36, 1) both; }
+
+      .gu-grid {
+        background-image:
+          linear-gradient(to right, var(--gu-line) 1px, transparent 1px),
+          linear-gradient(to bottom, var(--gu-line) 1px, transparent 1px);
+        background-size: 44px 44px;
+        -webkit-mask-image: radial-gradient(ellipse 80% 55% at 50% 30%, #000 20%, transparent 100%);
+        mask-image: radial-gradient(ellipse 80% 55% at 50% 30%, #000 20%, transparent 100%);
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        .gu-drift, .gu-drift-rev, .gu-reveal {
+          animation: none !important;
+        }
+      }
+    `}</style>
+  );
+}
+
+/** Latar ambient untuk seluruh halaman. Diletakkan sebagai anak terakhir wrapper `relative isolate`. */
+function AdminDecor() {
+  return (
+    <div
+      aria-hidden="true"
+      className="pointer-events-none absolute inset-0 -z-10 !mt-0 overflow-hidden rounded-[2rem]"
+    >
+      <div
+        className={`gu-grid absolute inset-0 opacity-70 ${patternLine}`}
+      />
+      <div className="gu-drift absolute -right-32 -top-24 h-[26rem] w-[26rem] rounded-full bg-emerald-300/30 blur-3xl dark:bg-emerald-500/10" />
+      <div className="gu-drift-rev absolute -left-36 top-1/3 h-[24rem] w-[24rem] rounded-full bg-teal-300/25 blur-3xl dark:bg-teal-500/10" />
+      <div className="absolute -bottom-32 right-1/4 h-[22rem] w-[22rem] rounded-full bg-emerald-200/30 blur-3xl dark:bg-emerald-600/10" />
+      <div className="absolute right-[6%] top-24 h-56 w-56 rounded-full border border-emerald-300/30 dark:border-emerald-400/10" />
+      <div className="absolute -left-8 bottom-32 h-32 w-32 rotate-12 rounded-[2rem] border border-teal-300/30 bg-gradient-to-br from-white/40 to-transparent dark:border-teal-400/10 dark:from-white/5" />
+    </div>
+  );
+}
+
+/** Dekorasi kecil di dalam panel header (butuh parent `relative isolate overflow-hidden`). */
+function PanelGlow() {
+  return (
+    <div
+      aria-hidden="true"
+      className="pointer-events-none absolute inset-0 -z-10 overflow-hidden"
+    >
+      <div className="absolute -right-16 -top-20 h-56 w-56 rounded-full bg-emerald-300/35 blur-3xl dark:bg-emerald-500/15" />
+      <div className="absolute -bottom-24 left-1/4 h-48 w-48 rounded-full bg-teal-300/30 blur-3xl dark:bg-teal-500/10" />
+      <div className="absolute -right-10 -top-14 h-44 w-44 rounded-full border border-emerald-300/40 dark:border-emerald-400/10" />
+      <div className="absolute inset-x-8 top-0 h-px bg-gradient-to-r from-transparent via-emerald-400/50 to-transparent dark:via-emerald-500/30" />
+    </div>
+  );
+}
 
 /* =========================================
    CONSTANTS
@@ -2028,7 +2117,7 @@ export default function AdminCoursesPage() {
   const renderSaveStatus = () => {
     if (saveStatus === "saving") {
       return (
-        <span className="flex items-center gap-2 text-amber-600">
+        <span className="flex items-center gap-2 text-amber-600 dark:text-amber-400">
           <Loader2 className="h-4 w-4 animate-spin" />
           Menyimpan...
         </span>
@@ -2054,7 +2143,7 @@ export default function AdminCoursesPage() {
     }
 
     return (
-      <span className="flex items-center gap-2 text-emerald-600">
+      <span className="flex items-center gap-2 text-emerald-600 dark:text-emerald-400">
         <CheckCircle2 className="h-4 w-4" />
         Tersimpan
       </span>
@@ -2067,8 +2156,17 @@ export default function AdminCoursesPage() {
 
   if (activeCourse) {
     return (
-      <div className="space-y-5">
-        <div className="flex flex-col gap-4 rounded-xl border bg-card p-4 sm:flex-row sm:items-center sm:justify-between">
+      <div className="relative isolate space-y-5">
+        <AdminStyles />
+
+        <div
+          className={cn(
+            heroPanel,
+            "gu-reveal flex flex-col gap-4 p-4 sm:flex-row sm:items-center sm:justify-between sm:p-5"
+          )}
+        >
+          <PanelGlow />
+
           <div className="flex min-w-0 items-start gap-3">
             <Button
               variant="outline"
@@ -2076,6 +2174,7 @@ export default function AdminCoursesPage() {
               onClick={() => void closeStudio()}
               disabled={studioClosing}
               aria-label="Kembali ke daftar kursus"
+              className="rounded-xl border-slate-300 bg-white/80 transition-colors duration-300 hover:border-teal-300 hover:bg-teal-50 dark:border-slate-700 dark:bg-slate-900/80 dark:hover:border-teal-700 dark:hover:bg-slate-800"
             >
               {studioClosing ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
@@ -2085,11 +2184,12 @@ export default function AdminCoursesPage() {
             </Button>
 
             <div className="min-w-0">
-              <p className="text-xs font-semibold uppercase tracking-wider text-primary">
+              <p className="inline-flex items-center gap-2 text-xs font-bold uppercase tracking-[0.16em] text-teal-700 dark:text-emerald-300">
+                <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
                 GradeUp Studio
               </p>
 
-              <h2 className="truncate text-lg font-bold">
+              <h2 className="mt-1 truncate text-lg font-extrabold tracking-tight text-slate-950 dark:text-white">
                 {activeCourse.title}
               </h2>
 
@@ -2106,7 +2206,7 @@ export default function AdminCoursesPage() {
           </div>
 
           <div className="flex flex-wrap items-center gap-3">
-            <div className="text-xs">
+            <div className="rounded-full border border-emerald-200/60 bg-white/70 px-3 py-1.5 text-xs backdrop-blur dark:border-emerald-900/40 dark:bg-slate-900/60">
               {renderSaveStatus()}
             </div>
 
@@ -2121,7 +2221,7 @@ export default function AdminCoursesPage() {
                 !lessonTitle.trim() ||
                 !sectionTitle.trim()
               }
-              className="gap-2"
+              className="gap-2 rounded-xl bg-teal-700 font-bold text-white shadow-lg shadow-teal-700/20 transition-all duration-300 hover:-translate-y-0.5 hover:bg-teal-800 motion-reduce:transition-none motion-reduce:hover:translate-y-0 dark:bg-emerald-500 dark:text-slate-950 dark:hover:bg-emerald-400"
             >
               {saveStatus === "saving" ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
@@ -2134,7 +2234,7 @@ export default function AdminCoursesPage() {
         </div>
 
         {studioError && (
-          <Card className="flex items-start gap-3 border-destructive/30 p-4">
+          <Card className="flex items-start gap-3 rounded-2xl border-destructive/30 bg-white/90 p-4 backdrop-blur-sm dark:bg-slate-900/85">
             <AlertCircle className="mt-0.5 h-5 w-5 text-destructive" />
 
             <div className="min-w-0">
@@ -2171,16 +2271,28 @@ export default function AdminCoursesPage() {
 
           <div className="min-w-0 space-y-4">
             {studioLoading ? (
-              <Card className="flex min-h-[300px] flex-col items-center justify-center gap-3 p-6">
-                <Loader2 className="h-8 w-8 animate-spin text-primary" />
+              <Card
+                className={cn(
+                  panelSurface,
+                  "flex min-h-[300px] flex-col items-center justify-center gap-3 rounded-3xl p-6"
+                )}
+              >
+                <Loader2 className="h-8 w-8 animate-spin text-teal-600 dark:text-emerald-400" />
 
                 <p className="text-sm text-muted-foreground">
                   Memuat materi pembelajaran...
                 </p>
               </Card>
             ) : !activeLessonId ? (
-              <Card className="flex min-h-[300px] flex-col items-center justify-center p-6 text-center">
-                <BookOpen className="mb-3 h-10 w-10 text-muted-foreground" />
+              <Card
+                className={cn(
+                  panelSurface,
+                  "flex min-h-[300px] flex-col items-center justify-center rounded-3xl p-6 text-center"
+                )}
+              >
+                <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-emerald-50 text-teal-700 dark:bg-emerald-950 dark:text-emerald-300">
+                  <BookOpen className="h-7 w-7" />
+                </div>
 
                 <h3 className="font-semibold">
                   Belum ada sesi pembelajaran
@@ -2192,8 +2304,15 @@ export default function AdminCoursesPage() {
                 </p>
               </Card>
             ) : !activeSectionId ? (
-              <Card className="flex min-h-[300px] flex-col items-center justify-center p-6 text-center">
-                <FileText className="mb-3 h-10 w-10 text-muted-foreground" />
+              <Card
+                className={cn(
+                  panelSurface,
+                  "flex min-h-[300px] flex-col items-center justify-center rounded-3xl p-6 text-center"
+                )}
+              >
+                <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-emerald-50 text-teal-700 dark:bg-emerald-950 dark:text-emerald-300">
+                  <FileText className="h-7 w-7" />
+                </div>
 
                 <h3 className="font-semibold">
                   Belum ada bagian materi
@@ -2206,7 +2325,12 @@ export default function AdminCoursesPage() {
               </Card>
             ) : (
               <>
-                <Card className="space-y-4 p-4">
+                <Card
+                  className={cn(
+                    panelSurface,
+                    "space-y-4 rounded-3xl p-4 sm:p-5"
+                  )}
+                >
                   <div className="space-y-2">
                     <Label htmlFor="lesson-title">
                       Judul Sesi Pembelajaran
@@ -2275,7 +2399,12 @@ export default function AdminCoursesPage() {
                   />
                 </div>
 
-                <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border bg-card p-4">
+                <div
+                  className={cn(
+                    panelSurface,
+                    "flex flex-wrap items-center justify-between gap-3 rounded-2xl p-4"
+                  )}
+                >
                   <div className="text-sm text-muted-foreground">
                     Materi otomatis disimpan setelah 1,5 detik.
                   </div>
@@ -2289,7 +2418,7 @@ export default function AdminCoursesPage() {
                       !lessonTitle.trim() ||
                       !sectionTitle.trim()
                     }
-                    className="gap-2"
+                    className="gap-2 rounded-xl bg-teal-700 font-bold text-white transition-colors duration-300 hover:bg-teal-800 dark:bg-emerald-500 dark:text-slate-950 dark:hover:bg-emerald-400"
                   >
                     {saveStatus === "saving" ? (
                       <Loader2 className="h-4 w-4 animate-spin" />
@@ -2312,6 +2441,8 @@ export default function AdminCoursesPage() {
             )}
           </div>
         </div>
+
+        <AdminDecor />
       </div>
     );
   }
@@ -2321,67 +2452,79 @@ export default function AdminCoursesPage() {
   ========================================= */
 
   return (
-    <div className="space-y-6">
-      <PageHeader
-        title="Manajemen Materi"
-        description="Tambah, ubah, dan kelola kursus serta materi pembelajaran GradeUp."
-        actions={
-          <div className="flex flex-wrap gap-2">
-            <Button
-              variant="outline"
-              onClick={() => void fetchData()}
-              disabled={loading || studioLoading || lifecycleLoading}
-              className="gap-2"
-            >
-              <RefreshCw
-                className={`h-4 w-4 ${
-                  loading ? "animate-spin" : ""
-                }`}
-              />
-              Refresh
-            </Button>
+    <div className="relative isolate space-y-6">
+      <AdminStyles />
 
-            <Button
-              variant="outline"
-              onClick={downloadCourseTemplate}
-              disabled={studioLoading || lifecycleLoading}
-              className="gap-2"
-            >
-              <Download className="h-4 w-4" />
-              Download Template
-            </Button>
+      <div className={cn(heroPanel, "gu-reveal p-4 sm:p-6")}>
+        <PanelGlow />
 
-            <Button
-              variant="outline"
-              onClick={() => {
-                resetBulkImport();
-                setBulkOpen(true);
-              }}
-              disabled={
-                studioLoading ||
-                lifecycleLoading ||
-                categories.length === 0
-              }
-              className="gap-2"
-            >
-              <Upload className="h-4 w-4" />
-              Impor Massal
-            </Button>
+        <PageHeader
+          title="Manajemen Materi"
+          description="Tambah, ubah, dan kelola kursus serta materi pembelajaran GradeUp."
+          actions={
+            <div className="flex flex-wrap gap-2">
+              <Button
+                variant="outline"
+                onClick={() => void fetchData()}
+                disabled={loading || studioLoading || lifecycleLoading}
+                className="gap-2 rounded-xl border-slate-300 bg-white/80 transition-colors duration-300 hover:border-teal-300 hover:bg-teal-50 dark:border-slate-700 dark:bg-slate-900/80 dark:hover:border-teal-700 dark:hover:bg-slate-800"
+              >
+                <RefreshCw
+                  className={`h-4 w-4 ${
+                    loading ? "animate-spin" : ""
+                  }`}
+                />
+                Refresh
+              </Button>
 
-            <Button
-              onClick={openCreateForm}
-              disabled={studioLoading || lifecycleLoading}
-            >
-              <Plus className="mr-1 h-4 w-4" />
-              Tambah Materi
-            </Button>
-          </div>
-        }
-      />
+              <Button
+                variant="outline"
+                onClick={downloadCourseTemplate}
+                disabled={studioLoading || lifecycleLoading}
+                className="gap-2 rounded-xl border-slate-300 bg-white/80 transition-colors duration-300 hover:border-teal-300 hover:bg-teal-50 dark:border-slate-700 dark:bg-slate-900/80 dark:hover:border-teal-700 dark:hover:bg-slate-800"
+              >
+                <Download className="h-4 w-4" />
+                Download Template
+              </Button>
+
+              <Button
+                variant="outline"
+                onClick={() => {
+                  resetBulkImport();
+                  setBulkOpen(true);
+                }}
+                disabled={
+                  studioLoading ||
+                  lifecycleLoading ||
+                  categories.length === 0
+                }
+                className="gap-2 rounded-xl border-slate-300 bg-white/80 transition-colors duration-300 hover:border-teal-300 hover:bg-teal-50 dark:border-slate-700 dark:bg-slate-900/80 dark:hover:border-teal-700 dark:hover:bg-slate-800"
+              >
+                <Upload className="h-4 w-4" />
+                Impor Massal
+              </Button>
+
+              <Button
+                onClick={openCreateForm}
+                disabled={studioLoading || lifecycleLoading}
+                className="rounded-xl bg-teal-700 font-bold text-white shadow-lg shadow-teal-700/20 transition-all duration-300 hover:-translate-y-0.5 hover:bg-teal-800 motion-reduce:transition-none motion-reduce:hover:translate-y-0 dark:bg-emerald-500 dark:text-slate-950 dark:hover:bg-emerald-400"
+              >
+                <Plus className="mr-1 h-4 w-4" />
+                Tambah Materi
+              </Button>
+            </div>
+          }
+        />
+      </div>
 
       {studioLoading && (
-        <Card className="flex items-center gap-3 p-4">
-          <Loader2 className="h-5 w-5 animate-spin text-primary" />
+        <Card
+          className={cn(
+            panelSurface,
+            "flex items-center gap-3 rounded-2xl p-4"
+          )}
+        >
+          <Loader2 className="h-5 w-5 animate-spin text-teal-600 dark:text-emerald-400" />
 
           <div>
             <p className="text-sm font-semibold">
@@ -2395,7 +2538,12 @@ export default function AdminCoursesPage() {
         </Card>
       )}
 
-      <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap">
+      <div
+        className={cn(
+          panelSurface,
+          "flex flex-col gap-3 rounded-2xl p-3 sm:flex-row sm:flex-wrap sm:p-4"
+        )}
+      >
         <SearchInput
           value={q}
           onChange={setQ}
@@ -2443,7 +2591,12 @@ export default function AdminCoursesPage() {
         />
       </div>
 
-      <Card className="overflow-hidden">
+      <Card
+        className={cn(
+          panelSurface,
+          "overflow-hidden rounded-3xl ring-1 ring-emerald-900/[0.04] dark:ring-white/5"
+        )}
+      >
         {loading ? (
           <TableSkeleton />
         ) : error ? (
@@ -2459,7 +2612,7 @@ export default function AdminCoursesPage() {
           </div>
         ) : (
           <Table>
-            <TableHeader>
+            <TableHeader className="bg-emerald-50/70 dark:bg-slate-800/60">
               <TableRow>
                 <TableHead>Kursus</TableHead>
                 <TableHead>Kategori</TableHead>
@@ -2475,12 +2628,15 @@ export default function AdminCoursesPage() {
 
             <TableBody>
               {filtered.map((c) => (
-                <TableRow key={c.id}>
+                <TableRow
+                  key={c.id}
+                  className="transition-colors duration-200 hover:bg-emerald-50/60 dark:hover:bg-emerald-950/30"
+                >
                   <TableCell>
                     <div className="flex items-center gap-3">
                       <div
                         className={cn(
-                          "relative h-12 w-20 shrink-0 overflow-hidden rounded-lg bg-gradient-to-br",
+                          "relative h-12 w-20 shrink-0 overflow-hidden rounded-xl bg-gradient-to-br shadow-sm ring-1 ring-emerald-900/10 dark:ring-white/10",
                           gradients[0]
                         )}
                       >
@@ -2542,7 +2698,7 @@ export default function AdminCoursesPage() {
                     ) : (
                       <Badge
                         variant="outline"
-                        className="border-emerald-500/30 text-emerald-600"
+                        className="border-emerald-500/30 text-emerald-600 dark:text-emerald-400"
                       >
                         Gratis
                       </Badge>
@@ -2567,6 +2723,7 @@ export default function AdminCoursesPage() {
                           size="icon"
                           aria-label={`Aksi untuk ${c.title}`}
                           disabled={studioLoading || lifecycleLoading}
+                          className="rounded-xl hover:bg-emerald-100/70 dark:hover:bg-emerald-950/50"
                         >
                           <MoreHorizontal className="h-4 w-4" />
                         </Button>
@@ -2633,10 +2790,17 @@ export default function AdminCoursesPage() {
           }
         }}
       >
-        <DialogContent className="max-h-[90vh] max-w-4xl overflow-y-auto">
+        <DialogContent
+          className={cn(
+            dialogSurface,
+            "max-h-[90vh] max-w-4xl overflow-y-auto rounded-3xl"
+          )}
+        >
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <FileSpreadsheet className="h-5 w-5 text-primary" />
+              <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-emerald-50 text-teal-700 dark:bg-emerald-950 dark:text-emerald-300">
+                <FileSpreadsheet className="h-5 w-5" />
+              </span>
               Impor Massal Kursus
             </DialogTitle>
 
@@ -2647,10 +2811,10 @@ export default function AdminCoursesPage() {
           </DialogHeader>
 
           <div className="space-y-5">
-            <div className="rounded-xl border border-dashed bg-muted/20 p-5">
+            <div className="rounded-2xl border border-dashed border-emerald-300/70 bg-gradient-to-br from-emerald-50/80 via-white to-teal-50/70 p-5 transition-colors duration-300 hover:border-emerald-400 dark:border-emerald-800/60 dark:from-emerald-950/30 dark:via-slate-900 dark:to-teal-950/20">
               <div className="flex flex-col items-center gap-3 text-center">
-                <div className="rounded-full bg-primary/10 p-3">
-                  <Upload className="h-7 w-7 text-primary" />
+                <div className="rounded-full bg-emerald-100 p-3 dark:bg-emerald-950">
+                  <Upload className="h-7 w-7 text-teal-700 dark:text-emerald-300" />
                 </div>
 
                 <div>
@@ -2700,7 +2864,7 @@ export default function AdminCoursesPage() {
                 variant="outline"
                 size="sm"
                 onClick={downloadCourseTemplate}
-                className="gap-2"
+                className="gap-2 rounded-xl border-slate-300 transition-colors duration-300 hover:border-teal-300 hover:bg-teal-50 dark:border-slate-700 dark:hover:border-teal-700 dark:hover:bg-slate-800"
               >
                 <Download className="h-4 w-4" />
                 Download Template
@@ -2712,8 +2876,8 @@ export default function AdminCoursesPage() {
             </div>
 
             {bulkParsing && (
-              <div className="flex items-center justify-center gap-3 rounded-lg border p-6">
-                <Loader2 className="h-5 w-5 animate-spin text-primary" />
+              <div className="flex items-center justify-center gap-3 rounded-2xl border border-emerald-200/60 bg-white/70 p-6 dark:border-emerald-900/40 dark:bg-slate-900/60">
+                <Loader2 className="h-5 w-5 animate-spin text-teal-600 dark:text-emerald-400" />
 
                 <p className="text-sm text-muted-foreground">
                   Membaca dan memvalidasi file Excel...
@@ -2724,7 +2888,7 @@ export default function AdminCoursesPage() {
             {bulkRows.length > 0 && !bulkParsing && (
               <>
                 <div className="grid gap-3 sm:grid-cols-3">
-                  <Card className="p-3">
+                  <Card className="rounded-2xl border-emerald-200/60 bg-white/80 p-3 dark:border-emerald-900/40 dark:bg-slate-900/70">
                     <p className="text-xs text-muted-foreground">
                       Total Data
                     </p>
@@ -2734,17 +2898,17 @@ export default function AdminCoursesPage() {
                     </p>
                   </Card>
 
-                  <Card className="p-3">
+                  <Card className="rounded-2xl border-emerald-300/60 bg-emerald-50/70 p-3 dark:border-emerald-800/50 dark:bg-emerald-950/30">
                     <p className="text-xs text-muted-foreground">
                       Data Valid
                     </p>
 
-                    <p className="mt-1 text-2xl font-bold text-emerald-600 tabular-nums">
+                    <p className="mt-1 text-2xl font-bold text-emerald-600 tabular-nums dark:text-emerald-400">
                       {validBulkRows.length}
                     </p>
                   </Card>
 
-                  <Card className="p-3">
+                  <Card className="rounded-2xl border-red-200/60 bg-red-50/40 p-3 dark:border-red-900/40 dark:bg-red-950/20">
                     <p className="text-xs text-muted-foreground">
                       Perlu Diperbaiki
                     </p>
@@ -2755,8 +2919,8 @@ export default function AdminCoursesPage() {
                   </Card>
                 </div>
 
-                <div className="rounded-lg border">
-                  <div className="flex flex-wrap items-center justify-between gap-2 border-b p-3">
+                <div className="overflow-hidden rounded-2xl border border-emerald-200/60 bg-white/70 dark:border-emerald-900/40 dark:bg-slate-900/60">
+                  <div className="flex flex-wrap items-center justify-between gap-2 border-b border-emerald-200/60 bg-emerald-50/60 p-3 dark:border-emerald-900/40 dark:bg-slate-800/50">
                     <div>
                       <p className="text-sm font-semibold">
                         Pratinjau Data
@@ -2787,7 +2951,10 @@ export default function AdminCoursesPage() {
 
                       <TableBody>
                         {bulkRows.map((row) => (
-                          <TableRow key={row.rowNumber}>
+                          <TableRow
+                            key={row.rowNumber}
+                            className="transition-colors duration-200 hover:bg-emerald-50/60 dark:hover:bg-emerald-950/30"
+                          >
                             <TableCell className="tabular-nums">
                               {row.rowNumber}
                             </TableCell>
@@ -2839,7 +3006,7 @@ export default function AdminCoursesPage() {
                   </div>
                 </div>
 
-                <div className="rounded-lg border border-amber-500/30 bg-amber-500/5 p-3">
+                <div className="rounded-2xl border border-amber-500/30 bg-amber-500/5 p-3">
                   <div className="flex items-start gap-2">
                     <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
 
@@ -2869,6 +3036,7 @@ export default function AdminCoursesPage() {
                 resetBulkImport();
               }}
               disabled={bulkSaving}
+              className="rounded-xl"
             >
               Batal
             </Button>
@@ -2881,7 +3049,7 @@ export default function AdminCoursesPage() {
                 bulkParsing ||
                 validBulkRows.length === 0
               }
-              className="gap-2"
+              className="gap-2 rounded-xl bg-teal-700 font-bold text-white transition-colors duration-300 hover:bg-teal-800 dark:bg-emerald-500 dark:text-slate-950 dark:hover:bg-emerald-400"
             >
               {bulkSaving ? (
                 <>
@@ -2913,7 +3081,12 @@ export default function AdminCoursesPage() {
           }
         }}
       >
-        <DialogContent className="max-h-[90vh] max-w-xl overflow-y-auto">
+        <DialogContent
+          className={cn(
+            dialogSurface,
+            "max-h-[90vh] max-w-xl overflow-y-auto rounded-3xl"
+          )}
+        >
           {draft && (
             <>
               <DialogHeader>
@@ -3112,9 +3285,11 @@ export default function AdminCoursesPage() {
                   <FieldError message={errs.instructor} />
                 </div>
 
-                <div className="space-y-3 rounded-xl border bg-muted/20 p-4">
+                <div className={cn(insetPanel, "space-y-3 p-4")}>
                   <div className="flex items-center gap-2">
-                    <ImageIcon className="h-5 w-5 text-primary" />
+                    <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-emerald-100 text-teal-700 dark:bg-emerald-950 dark:text-emerald-300">
+                      <ImageIcon className="h-5 w-5" />
+                    </span>
 
                     <div>
                       <Label htmlFor="c-thumbnail">
@@ -3166,7 +3341,7 @@ export default function AdminCoursesPage() {
                           </Badge>
                         </div>
 
-                        <div className="relative aspect-video w-full overflow-hidden rounded-xl border bg-muted">
+                        <div className="relative aspect-video w-full overflow-hidden rounded-xl border border-emerald-200/60 bg-muted shadow-sm dark:border-emerald-900/40">
                           {!thumbnailPreviewError ? (
                             <img
                               key={draft.thumbnail}
@@ -3199,7 +3374,7 @@ export default function AdminCoursesPage() {
                     )}
 
                   {!draft.thumbnail.trim() && (
-                    <div className="flex aspect-video w-full flex-col items-center justify-center gap-2 rounded-xl border border-dashed bg-background text-muted-foreground">
+                    <div className="flex aspect-video w-full flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-emerald-300/70 bg-background/70 text-muted-foreground dark:border-emerald-800/60">
                       <ImageIcon className="h-9 w-9 opacity-40" />
 
                       <p className="text-xs">
@@ -3209,7 +3384,7 @@ export default function AdminCoursesPage() {
                   )}
                 </div>
 
-                <div className="flex flex-wrap gap-6 border-t pt-4">
+                <div className="flex flex-wrap gap-6 border-t border-emerald-200/60 pt-4 dark:border-emerald-900/40">
                   <div className="flex items-center gap-3">
                     <Switch
                       id="c-prem"
@@ -3248,7 +3423,7 @@ export default function AdminCoursesPage() {
                 </div>
 
                 {draft.archived && (
-                  <div className="rounded-lg border border-muted bg-muted/30 p-3">
+                  <div className="rounded-2xl border border-muted bg-muted/30 p-3">
                     <div className="flex items-start gap-2">
                       <Archive className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
 
@@ -3271,6 +3446,7 @@ export default function AdminCoursesPage() {
                     setThumbnailPreviewError(false);
                   }}
                   disabled={saving}
+                  className="rounded-xl"
                 >
                   Batal
                 </Button>
@@ -3278,7 +3454,7 @@ export default function AdminCoursesPage() {
                 <Button
                   onClick={saveCourse}
                   disabled={saving}
-                  className="gap-2"
+                  className="gap-2 rounded-xl bg-teal-700 font-bold text-white transition-colors duration-300 hover:bg-teal-800 dark:bg-emerald-500 dark:text-slate-950 dark:hover:bg-emerald-400"
                 >
                   {saving ? (
                     <>
@@ -3329,6 +3505,8 @@ export default function AdminCoursesPage() {
         }
         onConfirm={handleCourseLifecycle}
       />
+
+      <AdminDecor />
     </div>
   );
 }
