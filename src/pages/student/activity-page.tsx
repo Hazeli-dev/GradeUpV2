@@ -95,6 +95,74 @@ const activityMeta: Record<
   },
 };
 
+/* ------------------------------------------------------------------ */
+/* Dekorasi visual (murni tampilan, tidak interaktif)                  */
+/* ------------------------------------------------------------------ */
+
+const glassCard =
+  "border border-emerald-900/10 bg-white/80 backdrop-blur-sm shadow-[0_10px_30px_-22px_rgba(15,118,110,0.35)] dark:border-emerald-400/10 dark:bg-slate-900/70";
+
+const hoverLift =
+  "transition-all duration-300 hover:-translate-y-0.5 hover:border-emerald-300/70 hover:shadow-[0_20px_50px_-28px_rgba(15,118,110,0.45)] motion-reduce:transition-none motion-reduce:hover:translate-y-0 dark:hover:border-emerald-700/60";
+
+const cardHeaderTone =
+  "border-b border-emerald-900/10 bg-gradient-to-r from-emerald-50/80 via-transparent to-transparent dark:border-emerald-400/10 dark:from-emerald-500/10";
+
+const patternLine =
+  "[--ga-line:rgba(15,118,110,0.10)] dark:[--ga-line:rgba(52,211,153,0.08)]";
+
+function ActivityStyles() {
+  return (
+    <style>{`
+      @keyframes ga-drift {
+        0%, 100% { transform: translate3d(0, 0, 0) scale(1); }
+        50% { transform: translate3d(18px, -14px, 0) scale(1.06); }
+      }
+      @keyframes ga-drift-rev {
+        0%, 100% { transform: translate3d(0, 0, 0) scale(1); }
+        50% { transform: translate3d(-16px, 12px, 0) scale(1.05); }
+      }
+      @keyframes ga-reveal {
+        from { opacity: 0; transform: translate3d(0, 12px, 0); }
+        to { opacity: 1; transform: translate3d(0, 0, 0); }
+      }
+      .ga-drift { animation: ga-drift 22s ease-in-out infinite; }
+      .ga-drift-rev { animation: ga-drift-rev 26s ease-in-out infinite; }
+      .ga-reveal { animation: ga-reveal 0.7s cubic-bezier(0.22, 1, 0.36, 1) both; }
+
+      .ga-grid {
+        background-image:
+          linear-gradient(to right, var(--ga-line) 1px, transparent 1px),
+          linear-gradient(to bottom, var(--ga-line) 1px, transparent 1px);
+        background-size: 44px 44px;
+        -webkit-mask-image: radial-gradient(ellipse 80% 55% at 50% 0%, #000 20%, transparent 100%);
+        mask-image: radial-gradient(ellipse 80% 55% at 50% 0%, #000 20%, transparent 100%);
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        .ga-drift, .ga-drift-rev, .ga-reveal {
+          animation: none !important;
+        }
+      }
+    `}</style>
+  );
+}
+
+function AmbientBackground() {
+  return (
+    <div
+      aria-hidden="true"
+      className="pointer-events-none absolute inset-0 -z-10 overflow-hidden rounded-3xl"
+    >
+      <div className="absolute inset-0 bg-gradient-to-b from-[#eaf6ef] via-[#f6fbf8] to-[#e2f3ea] dark:from-[#0b1c13] dark:via-[#0b2016] dark:to-[#0a1d14]" />
+      <div className={`ga-grid absolute inset-0 ${patternLine}`} />
+      <div className="ga-drift absolute -right-32 -top-24 h-[26rem] w-[26rem] rounded-full bg-emerald-300/40 blur-[100px] dark:bg-emerald-500/15" />
+      <div className="ga-drift-rev absolute -left-32 top-1/3 h-[24rem] w-[24rem] rounded-full bg-teal-300/35 blur-[100px] dark:bg-teal-600/15" />
+      <div className="absolute -bottom-32 right-1/4 h-[22rem] w-[22rem] rounded-full bg-emerald-300/30 blur-[100px] dark:bg-emerald-700/15" />
+    </div>
+  );
+}
+
 function formatTime(date: string) {
   const parsed = new Date(date);
 
@@ -347,17 +415,28 @@ export default function ActivityPage() {
   }
 
   return (
-    <div className="space-y-6 pb-8">
-      <PageHeader
-        title="Riwayat Aktivitas"
-        description="Pantau perjalanan belajar, ujian, dan pencapaianmu di GradeUp."
-      />
+    <div className="relative isolate space-y-6 pb-8">
+      <ActivityStyles />
+      <AmbientBackground />
+
+      <div className="ga-reveal">
+        <PageHeader
+          title="Riwayat Aktivitas"
+          description="Pantau perjalanan belajar, ujian, dan pencapaianmu di GradeUp."
+        />
+      </div>
 
       {/* RINGKASAN AKTIVITAS */}
       <section className="grid grid-cols-2 gap-3 xl:grid-cols-4">
-        <Card className="overflow-hidden">
-          <CardContent className="flex items-center gap-3 p-4">
-            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
+        <Card
+          className={`group relative overflow-hidden rounded-2xl bg-gradient-to-br from-emerald-500/15 via-white/80 to-white/80 dark:from-emerald-500/15 dark:via-slate-900/70 dark:to-slate-900/70 ${glassCard} ${hoverLift}`}
+        >
+          <span
+            aria-hidden="true"
+            className="pointer-events-none absolute -right-10 -top-10 h-28 w-28 rounded-full bg-emerald-400/25 blur-3xl dark:bg-emerald-500/15"
+          />
+          <CardContent className="relative flex items-center gap-3 p-4">
+            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary ring-1 ring-inset ring-emerald-500/15">
               <Activity className="h-5 w-5" />
             </div>
             <div className="min-w-0">
@@ -371,9 +450,15 @@ export default function ActivityPage() {
           </CardContent>
         </Card>
 
-        <Card className="overflow-hidden">
-          <CardContent className="flex items-center gap-3 p-4">
-            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-blue-500/10 text-blue-600 dark:text-blue-400">
+        <Card
+          className={`group relative overflow-hidden rounded-2xl ${glassCard} ${hoverLift}`}
+        >
+          <span
+            aria-hidden="true"
+            className="pointer-events-none absolute -right-8 -top-8 h-24 w-24 rounded-full bg-blue-400/0 blur-2xl transition-colors duration-500 group-hover:bg-blue-400/20"
+          />
+          <CardContent className="relative flex items-center gap-3 p-4">
+            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-blue-500/10 text-blue-600 ring-1 ring-inset ring-blue-500/10 dark:text-blue-400">
               <ClipboardCheck className="h-5 w-5" />
             </div>
             <div className="min-w-0">
@@ -387,9 +472,15 @@ export default function ActivityPage() {
           </CardContent>
         </Card>
 
-        <Card className="overflow-hidden">
-          <CardContent className="flex items-center gap-3 p-4">
-            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
+        <Card
+          className={`group relative overflow-hidden rounded-2xl ${glassCard} ${hoverLift}`}
+        >
+          <span
+            aria-hidden="true"
+            className="pointer-events-none absolute -right-8 -top-8 h-24 w-24 rounded-full bg-emerald-400/0 blur-2xl transition-colors duration-500 group-hover:bg-emerald-400/25"
+          />
+          <CardContent className="relative flex items-center gap-3 p-4">
+            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-600 ring-1 ring-inset ring-emerald-500/10 dark:text-emerald-400">
               <BookOpen className="h-5 w-5" />
             </div>
             <div className="min-w-0">
@@ -403,9 +494,15 @@ export default function ActivityPage() {
           </CardContent>
         </Card>
 
-        <Card className="overflow-hidden">
-          <CardContent className="flex items-center gap-3 p-4">
-            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-amber-500/10 text-amber-600 dark:text-amber-400">
+        <Card
+          className={`group relative overflow-hidden rounded-2xl ${glassCard} ${hoverLift}`}
+        >
+          <span
+            aria-hidden="true"
+            className="pointer-events-none absolute -right-8 -top-8 h-24 w-24 rounded-full bg-amber-400/0 blur-2xl transition-colors duration-500 group-hover:bg-amber-400/20"
+          />
+          <CardContent className="relative flex items-center gap-3 p-4">
+            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-amber-500/10 text-amber-600 ring-1 ring-inset ring-amber-500/10 dark:text-amber-400">
               <Sparkles className="h-5 w-5" />
             </div>
             <div className="min-w-0">
@@ -439,7 +536,7 @@ export default function ActivityPage() {
           </div>
 
           <Tabs value={filter} onValueChange={setFilter}>
-            <TabsList className="flex h-auto w-full flex-wrap justify-start gap-1">
+            <TabsList className="flex h-auto w-full flex-wrap justify-start gap-1 border border-emerald-900/10 bg-white/70 backdrop-blur-sm dark:border-emerald-400/10 dark:bg-slate-900/60">
               <TabsTrigger value="all">Semua</TabsTrigger>
               <TabsTrigger value="exam">Ujian</TabsTrigger>
               <TabsTrigger value="course">Materi</TabsTrigger>
@@ -448,8 +545,18 @@ export default function ActivityPage() {
             </TabsList>
           </Tabs>
 
-          <Card>
-            <CardContent className="p-4 sm:p-6">
+          <Card
+            className={`relative overflow-hidden rounded-2xl ring-1 ring-emerald-900/[0.04] dark:ring-white/5 ${glassCard}`}
+          >
+            <span
+              aria-hidden="true"
+              className="pointer-events-none absolute inset-x-8 top-0 h-px bg-gradient-to-r from-transparent via-emerald-400/50 to-transparent"
+            />
+            <span
+              aria-hidden="true"
+              className="pointer-events-none absolute -right-20 -top-20 h-56 w-56 rounded-full bg-emerald-300/20 blur-3xl dark:bg-emerald-500/10"
+            />
+            <CardContent className="relative p-4 sm:p-6">
               {filteredActivities.length === 0 ? (
                 <EmptyState
                   title={
@@ -464,16 +571,16 @@ export default function ActivityPage() {
                   }
                 />
               ) : (
-                <ol className="relative space-y-7 border-l-2 border-border pl-7">
+                <ol className="relative space-y-7 border-l-2 border-emerald-200/80 pl-7 dark:border-emerald-900/60">
                   {filteredActivities.map((activity) => {
                     const meta = activityMeta[activity.type];
                     const Icon = meta.icon;
 
                     return (
-                      <li key={activity.id} className="relative">
+                      <li key={activity.id} className="group relative">
                         <div
                           className={cn(
-                            "absolute -left-[43px] flex h-9 w-9 items-center justify-center rounded-xl border-4 border-card",
+                            "absolute -left-[43px] flex h-9 w-9 items-center justify-center rounded-xl border-4 border-[#f4faf6] shadow-sm transition-transform duration-300 group-hover:scale-110 motion-reduce:transition-none motion-reduce:group-hover:scale-100 dark:border-[#0e1f17]",
                             meta.background,
                             meta.color
                           )}
@@ -481,7 +588,7 @@ export default function ActivityPage() {
                           <Icon className="h-4 w-4" />
                         </div>
 
-                        <div className="space-y-2">
+                        <div className="space-y-2 rounded-xl border border-transparent p-3 -m-3 transition-colors duration-300 group-hover:border-emerald-900/10 group-hover:bg-emerald-50/60 dark:group-hover:border-emerald-400/10 dark:group-hover:bg-emerald-500/5">
                           <div className="flex flex-wrap items-center gap-2">
                             <p className="text-sm font-bold leading-snug">
                               {activity.title}
@@ -538,15 +645,21 @@ export default function ActivityPage() {
 
         {/* PANEL SAMPING */}
         <aside className="space-y-5">
-          <Card>
-            <CardHeader className="pb-3">
+          <Card
+            className={`relative overflow-hidden rounded-2xl ${glassCard}`}
+          >
+            <span
+              aria-hidden="true"
+              className="pointer-events-none absolute -right-12 -top-12 h-36 w-36 rounded-full bg-amber-300/25 blur-3xl dark:bg-amber-500/10"
+            />
+            <CardHeader className={`relative pb-3 ${cardHeaderTone}`}>
               <CardTitle className="flex items-center gap-2 text-base">
                 <Trophy className="h-5 w-5 text-amber-500" />
                 Ringkasan Pencapaian
               </CardTitle>
             </CardHeader>
 
-            <CardContent className="space-y-4">
+            <CardContent className="relative space-y-4 pt-4">
               <div className="flex items-center justify-between gap-3">
                 <div className="flex items-center gap-2 text-sm text-muted-foreground">
                   <CheckCircle2 className="h-4 w-4 text-emerald-500" />
@@ -577,7 +690,7 @@ export default function ActivityPage() {
                 </span>
               </div>
 
-              <div className="border-t pt-4">
+              <div className="border-t border-emerald-900/10 pt-4 dark:border-emerald-400/10">
                 <div className="flex items-center justify-between gap-3">
                   <div className="flex items-center gap-2 text-sm font-semibold">
                     <Flame className="h-4 w-4 text-orange-500" />
@@ -591,15 +704,21 @@ export default function ActivityPage() {
             </CardContent>
           </Card>
 
-          <Card>
-            <CardHeader className="pb-3">
+          <Card
+            className={`relative overflow-hidden rounded-2xl ${glassCard}`}
+          >
+            <span
+              aria-hidden="true"
+              className="pointer-events-none absolute -left-12 -top-12 h-36 w-36 rounded-full bg-teal-300/25 blur-3xl dark:bg-teal-500/10"
+            />
+            <CardHeader className={`relative pb-3 ${cardHeaderTone}`}>
               <CardTitle className="flex items-center gap-2 text-base">
                 <GraduationCap className="h-5 w-5 text-primary" />
                 Ujian Terbaru
               </CardTitle>
             </CardHeader>
 
-            <CardContent className="space-y-3">
+            <CardContent className="relative space-y-3 pt-4">
               {recentExams.length === 0 ? (
                 <p className="py-4 text-center text-xs text-muted-foreground">
                   Belum ada ujian yang diselesaikan.
@@ -609,7 +728,7 @@ export default function ActivityPage() {
                   <Link
                     key={exam.id}
                     to={`/dashboard/results/${exam.id}`}
-                    className="block rounded-xl border p-3 transition-colors hover:border-primary/30 hover:bg-muted/50"
+                    className="block rounded-xl border border-emerald-900/10 bg-white/60 p-3 transition-all duration-300 hover:-translate-y-0.5 hover:border-emerald-300/70 hover:bg-emerald-50/70 hover:shadow-md motion-reduce:transition-none motion-reduce:hover:translate-y-0 dark:border-emerald-400/10 dark:bg-slate-800/40 dark:hover:border-emerald-700/60 dark:hover:bg-slate-800/70"
                   >
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0">
@@ -649,7 +768,7 @@ export default function ActivityPage() {
                     </div>
 
                     {(exam.correct != null || exam.incorrect != null) && (
-                      <div className="mt-3 flex gap-3 border-t pt-2 text-xs text-muted-foreground">
+                      <div className="mt-3 flex gap-3 border-t border-emerald-900/10 pt-2 text-xs text-muted-foreground dark:border-emerald-400/10">
                         {exam.correct != null && (
                           <span className="text-emerald-600 dark:text-emerald-400">
                             {exam.correct} benar
@@ -675,9 +794,13 @@ export default function ActivityPage() {
             </CardContent>
           </Card>
 
-          <Card className="border-primary/15 bg-primary/5">
-            <CardContent className="flex gap-3 p-4">
-              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-background text-primary shadow-sm">
+          <Card className="relative overflow-hidden rounded-2xl border-emerald-500/20 bg-gradient-to-br from-emerald-500/[0.10] via-white/70 to-teal-500/[0.06] shadow-[0_10px_30px_-22px_rgba(15,118,110,0.35)] dark:from-emerald-500/15 dark:via-slate-900/70 dark:to-teal-500/10">
+            <span
+              aria-hidden="true"
+              className="pointer-events-none absolute -bottom-12 -right-12 h-36 w-36 rounded-full bg-emerald-400/25 blur-3xl dark:bg-emerald-500/15"
+            />
+            <CardContent className="relative flex gap-3 p-4">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-background text-primary shadow-sm ring-1 ring-inset ring-emerald-500/15">
                 <Sparkles className="h-5 w-5" />
               </div>
               <div>
@@ -705,7 +828,7 @@ export default function ActivityPage() {
           variant="outline"
           size="sm"
           onClick={() => void loadActivities()}
-          className="gap-2"
+          className="gap-2 border-emerald-900/15 bg-white/70 backdrop-blur-sm transition-colors duration-300 hover:border-emerald-300 hover:bg-emerald-50 dark:border-emerald-400/15 dark:bg-slate-900/60 dark:hover:border-emerald-700 dark:hover:bg-slate-800"
         >
           <Activity className="h-4 w-4" />
           Muat ulang aktivitas
