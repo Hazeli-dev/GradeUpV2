@@ -788,6 +788,24 @@ export default function StudentOverviewPage() {
             ),
           }))
         );
+              } catch (error) {
+        console.error(
+          "Gagal memuat dashboard siswa:",
+          error
+        );
+      } finally {
+        if (!cancelled) {
+          setLoading(false);
+        }
+      }
+    }
+
+    fetchOverviewData();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [navigate]);
 
   // ====================================================
   // LOADING
