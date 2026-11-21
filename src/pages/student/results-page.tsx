@@ -555,18 +555,16 @@ export default function ResultsPage() {
     <div className="relative isolate">
       <style>{PAGE_STYLES}</style>
 
-      {/* BACKGROUND DEKORATIF (tidak interaktif) */}
+            {/* BACKGROUND DEKORATIF (tidak interaktif) */}
       <div
         aria-hidden="true"
-        className="pointer-events-none absolute inset-0 -z-10 overflow-hidden"
+        className="pointer-events-none absolute inset-0 -z-10"
       >
-        <div className="absolute inset-0 bg-gradient-to-b from-emerald-50/80 via-transparent to-teal-50/60 dark:from-emerald-950/30 dark:via-transparent dark:to-teal-950/20" />
+        <div className="absolute inset-x-0 top-0 h-[36rem] opacity-60 [background-image:linear-gradient(to_right,rgba(5,150,105,0.07)_1px,transparent_1px),linear-gradient(to_bottom,rgba(5,150,105,0.07)_1px,transparent_1px)] [background-size:44px_44px] [-webkit-mask-image:radial-gradient(ellipse_60%_80%_at_50%_0%,black_5%,transparent_100%)] [mask-image:radial-gradient(ellipse_60%_80%_at_50%_0%,black_5%,transparent_100%)] dark:opacity-40" />
 
-        <div className="absolute inset-0 opacity-60 [background-image:linear-gradient(to_right,rgba(5,150,105,0.07)_1px,transparent_1px),linear-gradient(to_bottom,rgba(5,150,105,0.07)_1px,transparent_1px)] [background-size:44px_44px] [mask-image:radial-gradient(ellipse_80%_50%_at_50%_0%,black,transparent)] dark:opacity-40" />
-
-        <div className="gu-drift absolute -left-28 top-72 h-[24rem] w-[24rem] rounded-full bg-emerald-400/20 blur-3xl dark:bg-emerald-500/12" />
-        <div className="gu-float absolute -right-24 top-[40rem] h-[22rem] w-[22rem] rounded-full bg-teal-400/20 blur-3xl dark:bg-teal-500/12" />
-        <div className="absolute -left-20 bottom-24 h-[20rem] w-[20rem] rounded-full bg-lime-300/15 blur-3xl dark:bg-emerald-600/10" />
+        <div className="gu-drift absolute left-0 top-72 h-[24rem] w-[24rem] rounded-full bg-emerald-400/20 blur-[110px] dark:bg-emerald-500/10" />
+        <div className="gu-float absolute right-0 top-[40rem] h-[22rem] w-[22rem] rounded-full bg-teal-400/20 blur-[110px] dark:bg-teal-500/10" />
+        <div className="absolute bottom-24 left-0 h-[20rem] w-[20rem] rounded-full bg-lime-300/15 blur-[110px] dark:bg-emerald-600/10" />
       </div>
 
       <div className="relative space-y-6 pb-8">
