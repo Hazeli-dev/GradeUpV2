@@ -1,4 +1,3 @@
-
 import {
   useCallback,
   useEffect,
@@ -67,6 +66,38 @@ type Announcement = {
   published_at: string | null;
   created_at: string;
 };
+
+/* ------------------------------------------------------------------ */
+/* Dekorasi visual (murni tampilan, statis, tidak interaktif)          */
+/* ------------------------------------------------------------------ */
+
+/** Latar dekoratif untuk sidebar (desktop dan drawer mobile). */
+function SidebarDecor() {
+  return (
+    <div
+      aria-hidden="true"
+      className="pointer-events-none absolute inset-0 -z-10 overflow-hidden"
+    >
+      <div className="absolute -left-16 -top-16 h-56 w-56 rounded-full bg-emerald-400/35 blur-3xl dark:bg-emerald-500/15" />
+      <div className="absolute -bottom-20 -right-20 h-64 w-64 rounded-full bg-teal-300/45 blur-3xl dark:bg-teal-600/15" />
+      <div className="absolute inset-x-0 bottom-0 h-2/5 bg-[radial-gradient(rgba(5,150,105,0.28)_1px,transparent_1.5px)] [background-size:22px_22px] [mask-image:linear-gradient(to_top,#000,transparent)] dark:bg-[radial-gradient(rgba(110,231,183,0.16)_1px,transparent_1.5px)]" />
+      <div className="absolute -right-10 top-1/3 h-32 w-32 rotate-12 rounded-[2rem] border border-emerald-400/30 dark:border-emerald-500/10" />
+    </div>
+  );
+}
+
+/** Ambient glow lembut di area konten dashboard. */
+function ContentDecor() {
+  return (
+    <div
+      aria-hidden="true"
+      className="pointer-events-none fixed inset-0 -z-10 overflow-hidden"
+    >
+      <div className="absolute -right-40 -top-40 h-[28rem] w-[28rem] rounded-full bg-emerald-300/25 blur-[110px] dark:bg-emerald-500/10" />
+      <div className="absolute -bottom-40 left-1/3 h-[26rem] w-[26rem] rounded-full bg-teal-300/20 blur-[110px] dark:bg-teal-600/10" />
+    </div>
+  );
+}
 
 /** Cangkang dashboard dengan sidebar responsif dan navigasi kategori. */
 export function SidebarShell({
@@ -318,9 +349,9 @@ export function SidebarShell({
 
   const links = (isCollapsed: boolean) => (
     <nav
-  className="flex-1 space-y-4 overflow-y-auto px-3 py-3 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
-  aria-label="Navigasi utama"
->
+      className="flex-1 space-y-4 overflow-y-auto px-3 py-3 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
+      aria-label="Navigasi utama"
+    >
       {visibleNav.map((group, groupIndex) => (
         <div
           key={group.title || `group-${groupIndex}`}
@@ -338,10 +369,14 @@ export function SidebarShell({
             >
               <p
                 className={cn(
-                  "text-[10px] font-bold uppercase tracking-[0.13em] text-muted-foreground/70",
+                  "flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.13em] text-teal-800/70 dark:text-emerald-300/60",
                   compactMenu && "text-[9px] tracking-[0.12em]"
                 )}
               >
+                <span
+                  aria-hidden="true"
+                  className="h-1 w-1 shrink-0 rounded-full bg-emerald-500"
+                />
                 {group.title}
               </p>
             </div>
@@ -360,8 +395,8 @@ export function SidebarShell({
                   compactMenu && "gap-2.5 px-3 py-2 text-xs",
                   isCollapsed && "justify-center px-0",
                   isActive
-                    ? "bg-brand-gradient text-white shadow-glow"
-                    : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                    ? "bg-gradient-to-r from-teal-700 to-emerald-600 text-white shadow-md shadow-teal-700/25 ring-1 ring-inset ring-white/15 dark:from-emerald-600 dark:to-teal-600"
+                    : "text-slate-600 hover:bg-emerald-100/70 hover:text-teal-800 dark:text-slate-300 dark:hover:bg-emerald-950/60 dark:hover:text-emerald-200"
                 )
               }
             >
@@ -393,7 +428,7 @@ export function SidebarShell({
       {visibleActionItem && (
         <div className="pt-2">
           {!isCollapsed && (
-            <div className="mb-2 border-t border-border/70" />
+            <div className="mb-3 h-px bg-gradient-to-r from-transparent via-emerald-400/50 to-transparent" />
           )}
 
           <button
@@ -401,20 +436,27 @@ export function SidebarShell({
             onClick={visibleActionItem.onClick}
             title={isCollapsed ? visibleActionItem.label : undefined}
             className={cn(
-              "group flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold text-primary transition-all duration-200 hover:bg-soft dark:text-accent",
+              "group relative flex w-full items-center gap-3 overflow-hidden rounded-xl bg-gradient-to-br from-teal-700 via-teal-700 to-emerald-500 px-3 py-2.5 text-sm font-bold text-white shadow-lg shadow-teal-700/25 ring-1 ring-inset ring-white/20 transition-all duration-300 hover:-translate-y-0.5 hover:shadow-xl hover:shadow-teal-700/30 motion-reduce:transition-none motion-reduce:hover:translate-y-0 dark:from-emerald-500 dark:via-emerald-500 dark:to-teal-400 dark:text-slate-950 dark:ring-white/30",
               compactMenu && "gap-2.5 py-2 text-xs",
               isCollapsed && "justify-center px-0"
             )}
           >
+            <span
+              aria-hidden="true"
+              className="pointer-events-none absolute -right-6 -top-8 h-20 w-20 rounded-full bg-white/20 blur-xl"
+            />
+
             <visibleActionItem.icon
               className={cn(
-                "h-[18px] w-[18px] shrink-0 transition-transform duration-200 group-hover:scale-110",
+                "relative h-[18px] w-[18px] shrink-0 transition-transform duration-200 group-hover:scale-110",
                 compactMenu && "h-[17px] w-[17px]"
               )}
             />
 
             {!isCollapsed && (
-              <span className="truncate">{visibleActionItem.label}</span>
+              <span className="relative truncate">
+                {visibleActionItem.label}
+              </span>
             )}
           </button>
         </div>
@@ -423,36 +465,49 @@ export function SidebarShell({
   );
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="relative isolate min-h-screen bg-background">
+      <ContentDecor />
+
       {/* ========================================
           SIDEBAR DESKTOP
       ======================================== */}
       <aside
         className={cn(
-          "fixed inset-y-0 left-0 z-30 hidden flex-col border-r border-border/70 bg-card transition-[width] duration-300 lg:flex",
+          "fixed inset-y-0 left-0 z-30 isolate hidden flex-col overflow-hidden border-r border-emerald-200/60 bg-gradient-to-b from-[#f4fbf7] via-[#e6f5ec] to-[#d3eddf] transition-[width] duration-300 dark:border-emerald-900/40 dark:from-[#0c2418] dark:via-[#0b2016] dark:to-[#08170f] lg:flex",
           collapsed ? "w-[76px]" : "w-56"
         )}
       >
+        <SidebarDecor />
+
         {/* Logo */}
         <div
           className={cn(
-            "flex h-16 shrink-0 items-center border-b border-border/70 px-4",
+            "relative flex h-16 shrink-0 items-center border-b border-emerald-200/60 bg-white/50 px-4 backdrop-blur-sm dark:border-emerald-900/40 dark:bg-white/[0.02]",
             collapsed && "justify-center px-0"
           )}
         >
           <Logo compact={collapsed} />
+
+          <span
+            aria-hidden="true"
+            className="pointer-events-none absolute inset-x-4 bottom-0 h-px bg-gradient-to-r from-transparent via-emerald-400/60 to-transparent"
+          />
         </div>
 
         {/* Label dashboard */}
         {areaLabel && !collapsed && (
           <div className="px-5 pt-4">
-  <Badge
-    variant="default"
-    className="border border-primary/20 bg-primary/10 text-primary dark:border-primary/30 dark:bg-primary/20 dark:text-primary"
-  >
-    {areaLabel}
-  </Badge>
-</div>
+            <Badge
+              variant="default"
+              className="gap-1.5 border border-teal-200/80 bg-teal-50 text-teal-800 dark:border-teal-800/70 dark:bg-teal-950/60 dark:text-teal-200"
+            >
+              <span
+                aria-hidden="true"
+                className="h-1.5 w-1.5 rounded-full bg-emerald-500"
+              />
+              {areaLabel}
+            </Badge>
+          </div>
         )}
 
         {/* Navigasi */}
@@ -466,12 +521,12 @@ export function SidebarShell({
         )}
 
         {/* Tombol collapse */}
-        <div className="shrink-0 border-t border-border/70 p-3">
+        <div className="shrink-0 border-t border-emerald-200/60 bg-white/40 p-3 backdrop-blur-sm dark:border-emerald-900/40 dark:bg-white/[0.02]">
           <Button
             variant="ghost"
             size="sm"
             className={cn(
-              "w-full",
+              "w-full text-slate-600 hover:bg-emerald-100/70 hover:text-teal-800 dark:text-slate-300 dark:hover:bg-emerald-950/60 dark:hover:text-emerald-200",
               collapsed ? "px-0" : "justify-start"
             )}
             onClick={() => setCollapsed((value) => !value)}
@@ -506,8 +561,10 @@ export function SidebarShell({
             onClick={() => setMobileOpen(false)}
           />
 
-          <aside className="absolute inset-y-0 left-0 flex w-72 max-w-[85vw] animate-fade-up flex-col bg-card shadow-2xl">
-            <div className="flex h-16 shrink-0 items-center justify-between border-b border-border/70 px-4">
+          <aside className="absolute inset-y-0 left-0 isolate flex w-72 max-w-[85vw] animate-fade-up flex-col overflow-hidden bg-gradient-to-b from-[#f4fbf7] via-[#e6f5ec] to-[#d3eddf] shadow-2xl dark:from-[#0c2418] dark:via-[#0b2016] dark:to-[#08170f]">
+            <SidebarDecor />
+
+            <div className="relative flex h-16 shrink-0 items-center justify-between border-b border-emerald-200/60 bg-white/50 px-4 backdrop-blur-sm dark:border-emerald-900/40 dark:bg-white/[0.02]">
               <Logo />
 
               <Button
@@ -521,15 +578,19 @@ export function SidebarShell({
             </div>
 
             {areaLabel && (
-  <div className="px-5 pt-4">
-    <Badge
-      variant="default"
-      className="border border-primary/20 bg-primary/10 text-primary dark:border-primary/30 dark:bg-primary/20 dark:text-primary"
-    >
-      {areaLabel}
-    </Badge>
-  </div>
-)}
+              <div className="px-5 pt-4">
+                <Badge
+                  variant="default"
+                  className="gap-1.5 border border-teal-200/80 bg-teal-50 text-teal-800 dark:border-teal-800/70 dark:bg-teal-950/60 dark:text-teal-200"
+                >
+                  <span
+                    aria-hidden="true"
+                    className="h-1.5 w-1.5 rounded-full bg-emerald-500"
+                  />
+                  {areaLabel}
+                </Badge>
+              </div>
+            )}
 
             <div className="flex flex-1 flex-col overflow-hidden pt-2">
               {links(false)}
@@ -552,7 +613,7 @@ export function SidebarShell({
         )}
       >
         {/* Topbar */}
-        <header className="sticky top-0 z-[50] flex h-16 items-center gap-3 border-b border-border bg-background px-4 shadow-sm sm:px-6">
+        <header className="sticky top-0 z-[50] flex h-16 items-center gap-3 border-b border-emerald-200/60 bg-background/80 px-4 shadow-sm shadow-emerald-900/[0.03] backdrop-blur-xl dark:border-emerald-900/40 sm:px-6">
           <Button
             variant="ghost"
             size="icon"
@@ -603,9 +664,9 @@ export function SidebarShell({
 
             <DropdownMenuContent
               align="end"
-              className="max-h-[min(480px,75vh)] w-[350px] max-w-[calc(100vw-2rem)] overflow-y-auto p-0"
+              className="max-h-[min(480px,75vh)] w-[350px] max-w-[calc(100vw-2rem)] overflow-y-auto border-emerald-200/70 p-0 shadow-xl shadow-emerald-900/10 dark:border-emerald-900/50"
             >
-              <div className="flex items-center justify-between px-4 py-3">
+              <div className="flex items-center justify-between bg-gradient-to-r from-emerald-50/80 to-transparent px-4 py-3 dark:from-emerald-950/40">
                 <div>
                   <p className="text-sm font-bold">Notifikasi</p>
                   <p className="text-xs text-muted-foreground">
@@ -652,7 +713,7 @@ export function SidebarShell({
                           openAnnouncement(announcement);
                           setNotificationsOpen(false);
                         }}
-                        className="flex w-full items-start gap-3 rounded-xl px-3 py-3 text-left transition-colors hover:bg-muted"
+                        className="flex w-full items-start gap-3 rounded-xl px-3 py-3 text-left transition-colors hover:bg-emerald-50 dark:hover:bg-emerald-950/50"
                       >
                         <div className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-emerald-50 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300">
                           <Megaphone className="h-4 w-4" />
@@ -672,7 +733,7 @@ export function SidebarShell({
                             </p>
 
                             {!isRead && (
-                              <span className="mt-1 h-2 w-2 shrink-0 rounded-full bg-emerald-500" />
+                              <span className="mt-1 h-2 w-2 shrink-0 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.6)]" />
                             )}
                           </div>
 
@@ -724,9 +785,14 @@ export function SidebarShell({
           if (!open) setSelectedAnnouncement(null);
         }}
       >
-        <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-lg">
+        <DialogContent className="max-h-[85vh] overflow-y-auto border-emerald-200/70 dark:border-emerald-900/50 sm:max-w-lg">
           {selectedAnnouncement && (
             <>
+              <span
+                aria-hidden="true"
+                className="pointer-events-none absolute inset-x-6 top-0 h-px bg-gradient-to-r from-transparent via-emerald-400/70 to-transparent"
+              />
+
               <DialogHeader>
                 <div className="mb-2 flex items-center gap-2">
                   <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-emerald-50 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300">
