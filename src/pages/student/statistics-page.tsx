@@ -1318,4 +1318,3 @@ export default function StatisticsPage() {
     </div>
   );
 }
-</file_text>
