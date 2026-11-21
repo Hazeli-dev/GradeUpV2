@@ -71,17 +71,21 @@ type Announcement = {
 /* Dekorasi visual (murni tampilan, statis, tidak interaktif)          */
 /* ------------------------------------------------------------------ */
 
-/** Latar dekoratif untuk sidebar (desktop dan drawer mobile). */
+/**
+ * Latar dekoratif untuk sidebar (desktop dan drawer mobile).
+ * Selalu dirender di dalam wrapper "dark", sehingga memakai nada gelap
+ * di light mode maupun dark mode.
+ */
 function SidebarDecor() {
   return (
     <div
       aria-hidden="true"
       className="pointer-events-none absolute inset-0 -z-10 overflow-hidden"
     >
-      <div className="absolute -left-16 -top-16 h-56 w-56 rounded-full bg-emerald-400/35 blur-3xl dark:bg-emerald-500/15" />
-      <div className="absolute -bottom-20 -right-20 h-64 w-64 rounded-full bg-teal-300/45 blur-3xl dark:bg-teal-600/15" />
-      <div className="absolute inset-x-0 bottom-0 h-2/5 bg-[radial-gradient(rgba(5,150,105,0.28)_1px,transparent_1.5px)] [background-size:22px_22px] [mask-image:linear-gradient(to_top,#000,transparent)] dark:bg-[radial-gradient(rgba(110,231,183,0.16)_1px,transparent_1.5px)]" />
-      <div className="absolute -right-10 top-1/3 h-32 w-32 rotate-12 rounded-[2rem] border border-emerald-400/30 dark:border-emerald-500/10" />
+      <div className="absolute -left-16 -top-16 h-56 w-56 rounded-full bg-emerald-400/35 blur-3xl dark:bg-emerald-500/20" />
+      <div className="absolute -bottom-20 -right-20 h-64 w-64 rounded-full bg-teal-300/45 blur-3xl dark:bg-teal-500/20" />
+      <div className="absolute inset-x-0 bottom-0 h-2/5 bg-[radial-gradient(rgba(5,150,105,0.28)_1px,transparent_1.5px)] [background-size:22px_22px] [mask-image:linear-gradient(to_top,#000,transparent)] dark:bg-[radial-gradient(rgba(110,231,183,0.18)_1px,transparent_1.5px)]" />
+      <div className="absolute -right-10 top-1/3 h-32 w-32 rotate-12 rounded-[2rem] border border-emerald-400/30 dark:border-emerald-400/15" />
     </div>
   );
 }
@@ -346,6 +350,8 @@ export function SidebarShell({
   // ==========================================
   // KOMPONEN MENU SIDEBAR
   // ==========================================
+  // Menu ini selalu dirender di dalam wrapper "dark",
+  // sehingga varian dark: aktif di light mode maupun dark mode.
 
   const links = (isCollapsed: boolean) => (
     <nav
@@ -369,13 +375,13 @@ export function SidebarShell({
             >
               <p
                 className={cn(
-                  "flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.13em] text-teal-800/70 dark:text-emerald-300/60",
+                  "flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.13em] text-teal-800/70 dark:text-emerald-300/70",
                   compactMenu && "text-[9px] tracking-[0.12em]"
                 )}
               >
                 <span
                   aria-hidden="true"
-                  className="h-1 w-1 shrink-0 rounded-full bg-emerald-500"
+                  className="h-1 w-1 shrink-0 rounded-full bg-emerald-400"
                 />
                 {group.title}
               </p>
@@ -391,12 +397,12 @@ export function SidebarShell({
               title={isCollapsed ? item.label : undefined}
               className={({ isActive }) =>
                 cn(
-                  "group relative flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold transition-all duration-200",
+                  "group relative flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold transition-all duration-200 motion-reduce:transition-none",
                   compactMenu && "gap-2.5 px-3 py-2 text-xs",
                   isCollapsed && "justify-center px-0",
                   isActive
-                    ? "bg-gradient-to-r from-teal-700 to-emerald-600 text-white shadow-md shadow-teal-700/25 ring-1 ring-inset ring-white/15 dark:from-emerald-600 dark:to-teal-600"
-                    : "text-slate-600 hover:bg-emerald-100/70 hover:text-teal-800 dark:text-slate-300 dark:hover:bg-emerald-950/60 dark:hover:text-emerald-200"
+                    ? "bg-gradient-to-r from-teal-700 to-emerald-600 text-white shadow-md shadow-black/25 ring-1 ring-inset ring-white/15 dark:from-emerald-500 dark:to-teal-500"
+                    : "text-slate-600 hover:bg-emerald-100/70 hover:text-teal-800 dark:text-slate-300 dark:hover:bg-white/10 dark:hover:text-white"
                 )
               }
             >
@@ -408,7 +414,7 @@ export function SidebarShell({
 
                   <item.icon
                     className={cn(
-                      "h-[18px] w-[18px] shrink-0 transition-transform duration-200",
+                      "h-[18px] w-[18px] shrink-0 transition-transform duration-200 motion-reduce:transition-none",
                       compactMenu && "h-[17px] w-[17px]",
                       !isActive && "group-hover:scale-110"
                     )}
@@ -436,7 +442,7 @@ export function SidebarShell({
             onClick={visibleActionItem.onClick}
             title={isCollapsed ? visibleActionItem.label : undefined}
             className={cn(
-              "group relative flex w-full items-center gap-3 overflow-hidden rounded-xl bg-gradient-to-br from-teal-700 via-teal-700 to-emerald-500 px-3 py-2.5 text-sm font-bold text-white shadow-lg shadow-teal-700/25 ring-1 ring-inset ring-white/20 transition-all duration-300 hover:-translate-y-0.5 hover:shadow-xl hover:shadow-teal-700/30 motion-reduce:transition-none motion-reduce:hover:translate-y-0 dark:from-emerald-500 dark:via-emerald-500 dark:to-teal-400 dark:text-slate-950 dark:ring-white/30",
+              "group relative flex w-full items-center gap-3 overflow-hidden rounded-xl bg-gradient-to-br from-teal-700 via-teal-700 to-emerald-500 px-3 py-2.5 text-sm font-bold text-white shadow-lg shadow-black/25 ring-1 ring-inset ring-white/20 transition-all duration-300 hover:-translate-y-0.5 hover:shadow-xl hover:shadow-black/30 motion-reduce:transition-none motion-reduce:hover:translate-y-0 dark:from-emerald-500 dark:via-emerald-500 dark:to-teal-400 dark:text-slate-950 dark:ring-white/30",
               compactMenu && "gap-2.5 py-2 text-xs",
               isCollapsed && "justify-center px-0"
             )}
@@ -448,7 +454,7 @@ export function SidebarShell({
 
             <visibleActionItem.icon
               className={cn(
-                "relative h-[18px] w-[18px] shrink-0 transition-transform duration-200 group-hover:scale-110",
+                "relative h-[18px] w-[18px] shrink-0 transition-transform duration-200 group-hover:scale-110 motion-reduce:transition-none",
                 compactMenu && "h-[17px] w-[17px]"
               )}
             />
@@ -470,79 +476,84 @@ export function SidebarShell({
 
       {/* ========================================
           SIDEBAR DESKTOP
+          Lebih gelap dari isi halaman (deep forest),
+          baik di light mode maupun dark mode.
       ======================================== */}
       <aside
         className={cn(
-          "fixed inset-y-0 left-0 z-30 isolate hidden flex-col overflow-hidden border-r border-emerald-200/60 bg-gradient-to-b from-[#f4fbf7] via-[#e6f5ec] to-[#d3eddf] transition-[width] duration-300 dark:border-emerald-900/40 dark:from-[#0c2418] dark:via-[#0b2016] dark:to-[#08170f] lg:flex",
+          "fixed inset-y-0 left-0 z-30 isolate hidden flex-col overflow-hidden border-r border-emerald-950/30 bg-gradient-to-b from-[#0f3d2e] via-[#0b3025] to-[#072219] shadow-[4px_0_24px_-12px_rgba(6,40,28,0.45)] transition-[width] duration-300 motion-reduce:transition-none dark:border-emerald-400/10 dark:from-[#081d14] dark:via-[#06160f] dark:to-[#040e09] lg:flex",
           collapsed ? "w-[76px]" : "w-56"
         )}
       >
-        <SidebarDecor />
+        {/* Wrapper "dark": seluruh isi sidebar memakai tema gelap */}
+        <div className="dark relative flex h-full w-full flex-col">
+          <SidebarDecor />
 
-        {/* Logo */}
-        <div
-          className={cn(
-            "relative flex h-16 shrink-0 items-center border-b border-emerald-200/60 bg-white/50 px-4 backdrop-blur-sm dark:border-emerald-900/40 dark:bg-white/[0.02]",
-            collapsed && "justify-center px-0"
-          )}
-        >
-          <Logo compact={collapsed} />
-
-          <span
-            aria-hidden="true"
-            className="pointer-events-none absolute inset-x-4 bottom-0 h-px bg-gradient-to-r from-transparent via-emerald-400/60 to-transparent"
-          />
-        </div>
-
-        {/* Label dashboard */}
-        {areaLabel && !collapsed && (
-          <div className="px-5 pt-4">
-            <Badge
-              variant="default"
-              className="gap-1.5 border border-teal-200/80 bg-teal-50 text-teal-800 dark:border-teal-800/70 dark:bg-teal-950/60 dark:text-teal-200"
-            >
-              <span
-                aria-hidden="true"
-                className="h-1.5 w-1.5 rounded-full bg-emerald-500"
-              />
-              {areaLabel}
-            </Badge>
-          </div>
-        )}
-
-        {/* Navigasi */}
-        <div className="flex flex-1 flex-col overflow-hidden pt-2">
-          {links(collapsed)}
-        </div>
-
-        {/* Footer sidebar */}
-        {sidebarFooter && !collapsed && (
-          <div className="p-3">{sidebarFooter}</div>
-        )}
-
-        {/* Tombol collapse */}
-        <div className="shrink-0 border-t border-emerald-200/60 bg-white/40 p-3 backdrop-blur-sm dark:border-emerald-900/40 dark:bg-white/[0.02]">
-          <Button
-            variant="ghost"
-            size="sm"
+          {/* Logo */}
+          <div
             className={cn(
-              "w-full text-slate-600 hover:bg-emerald-100/70 hover:text-teal-800 dark:text-slate-300 dark:hover:bg-emerald-950/60 dark:hover:text-emerald-200",
-              collapsed ? "px-0" : "justify-start"
+              "relative flex h-16 shrink-0 items-center border-b border-emerald-200/60 bg-white/50 px-4 backdrop-blur-sm dark:border-white/10 dark:bg-white/[0.04]",
+              collapsed && "justify-center px-0"
             )}
-            onClick={() => setCollapsed((value) => !value)}
-            aria-label={
-              collapsed ? "Perluas sidebar" : "Ciutkan sidebar"
-            }
           >
-            {collapsed ? (
-              <ChevronsRight />
-            ) : (
-              <>
-                <ChevronsLeft />
-                Sembunyikan
-              </>
-            )}
-          </Button>
+            <Logo compact={collapsed} />
+
+            <span
+              aria-hidden="true"
+              className="pointer-events-none absolute inset-x-4 bottom-0 h-px bg-gradient-to-r from-transparent via-emerald-400/60 to-transparent"
+            />
+          </div>
+
+          {/* Label dashboard */}
+          {areaLabel && !collapsed && (
+            <div className="px-5 pt-4">
+              <Badge
+                variant="default"
+                className="gap-1.5 border border-teal-200/80 bg-teal-50 text-teal-800 dark:border-emerald-400/25 dark:bg-emerald-400/10 dark:text-emerald-200"
+              >
+                <span
+                  aria-hidden="true"
+                  className="h-1.5 w-1.5 rounded-full bg-emerald-400"
+                />
+                {areaLabel}
+              </Badge>
+            </div>
+          )}
+
+          {/* Navigasi */}
+          <div className="flex flex-1 flex-col overflow-hidden pt-2">
+            {links(collapsed)}
+          </div>
+
+          {/* Footer sidebar */}
+          {sidebarFooter && !collapsed && (
+            <div className="p-3">{sidebarFooter}</div>
+          )}
+
+          {/* Tombol collapse */}
+          <div className="shrink-0 border-t border-emerald-200/60 bg-white/40 p-3 backdrop-blur-sm dark:border-white/10 dark:bg-white/[0.03]">
+            <Button
+              variant="ghost"
+              size="sm"
+              className={cn(
+                "w-full text-slate-600 hover:bg-emerald-100/70 hover:text-teal-800 dark:text-slate-300 dark:hover:bg-white/10 dark:hover:text-white",
+                collapsed ? "px-0" : "justify-start"
+              )}
+              onClick={() => setCollapsed((value) => !value)}
+              aria-label={
+                collapsed ? "Perluas sidebar" : "Ciutkan sidebar"
+              }
+            >
+              {collapsed ? (
+                <ChevronsRight />
+              ) : (
+                <>
+                  <ChevronsLeft />
+                  Sembunyikan
+                </>
+              )}
+            </Button>
+          </div>
         </div>
       </aside>
 
@@ -561,44 +572,46 @@ export function SidebarShell({
             onClick={() => setMobileOpen(false)}
           />
 
-          <aside className="absolute inset-y-0 left-0 isolate flex w-72 max-w-[85vw] animate-fade-up flex-col overflow-hidden bg-gradient-to-b from-[#f4fbf7] via-[#e6f5ec] to-[#d3eddf] shadow-2xl dark:from-[#0c2418] dark:via-[#0b2016] dark:to-[#08170f]">
-            <SidebarDecor />
+          <aside className="absolute inset-y-0 left-0 isolate flex w-72 max-w-[85vw] animate-fade-up flex-col overflow-hidden bg-gradient-to-b from-[#0f3d2e] via-[#0b3025] to-[#072219] shadow-2xl dark:from-[#081d14] dark:via-[#06160f] dark:to-[#040e09]">
+            <div className="dark relative flex h-full w-full flex-col">
+              <SidebarDecor />
 
-            <div className="relative flex h-16 shrink-0 items-center justify-between border-b border-emerald-200/60 bg-white/50 px-4 backdrop-blur-sm dark:border-emerald-900/40 dark:bg-white/[0.02]">
-              <Logo />
+              <div className="relative flex h-16 shrink-0 items-center justify-between border-b border-emerald-200/60 bg-white/50 px-4 backdrop-blur-sm dark:border-white/10 dark:bg-white/[0.04]">
+                <Logo />
 
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={() => setMobileOpen(false)}
-                aria-label="Tutup menu"
-              >
-                <X />
-              </Button>
-            </div>
-
-            {areaLabel && (
-              <div className="px-5 pt-4">
-                <Badge
-                  variant="default"
-                  className="gap-1.5 border border-teal-200/80 bg-teal-50 text-teal-800 dark:border-teal-800/70 dark:bg-teal-950/60 dark:text-teal-200"
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => setMobileOpen(false)}
+                  aria-label="Tutup menu"
                 >
-                  <span
-                    aria-hidden="true"
-                    className="h-1.5 w-1.5 rounded-full bg-emerald-500"
-                  />
-                  {areaLabel}
-                </Badge>
+                  <X />
+                </Button>
               </div>
-            )}
 
-            <div className="flex flex-1 flex-col overflow-hidden pt-2">
-              {links(false)}
+              {areaLabel && (
+                <div className="px-5 pt-4">
+                  <Badge
+                    variant="default"
+                    className="gap-1.5 border border-teal-200/80 bg-teal-50 text-teal-800 dark:border-emerald-400/25 dark:bg-emerald-400/10 dark:text-emerald-200"
+                  >
+                    <span
+                      aria-hidden="true"
+                      className="h-1.5 w-1.5 rounded-full bg-emerald-400"
+                    />
+                    {areaLabel}
+                  </Badge>
+                </div>
+              )}
+
+              <div className="flex flex-1 flex-col overflow-hidden pt-2">
+                {links(false)}
+              </div>
+
+              {sidebarFooter && (
+                <div className="p-3">{sidebarFooter}</div>
+              )}
             </div>
-
-            {sidebarFooter && (
-              <div className="p-3">{sidebarFooter}</div>
-            )}
           </aside>
         </div>
       )}
@@ -608,7 +621,7 @@ export function SidebarShell({
       ======================================== */}
       <div
         className={cn(
-          "transition-[padding] duration-300",
+          "transition-[padding] duration-300 motion-reduce:transition-none",
           collapsed ? "lg:pl-[76px]" : "lg:pl-56"
         )}
       >
