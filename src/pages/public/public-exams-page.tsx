@@ -91,8 +91,9 @@ export default function PublicExamsPage() {
   );
 
   return (
-    <section className="relative isolate overflow-hidden bg-gradient-to-b from-[#c3e8e0] via-[#e2f3f0] to-[#cfeae3] dark:from-[#0a2420] dark:via-[#0c2220] dark:to-[#0b1f19]">
-      <CatalogStyles />
+    <>
+    <CatalogStyles />
+    <section className="relative isolate bg-gradient-to-b from-[#c3e8e0] via-[#e2f3f0] to-[#cfeae3] dark:from-[#0a2420] dark:via-[#0c2220] dark:to-[#0b1f19]">
 
       <DecorLayer>
         <div className={`gu-grid absolute inset-0 ${patternLine}`} />
@@ -106,10 +107,8 @@ export default function PublicExamsPage() {
         <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-teal-400/50 to-transparent dark:via-teal-500/30" />
       </DecorLayer>
 
-      <div className="container py-14 sm:py-20">
-        <div className="gu-reveal">
-          <SectionHeading eyebrow="Paket Ujian" title="Katalog paket ujian" description="Lihat jenjang, durasi, dan jumlah soal. Masuk untuk mengerjakan." />
-        </div>
+      <div className="container relative z-10 py-14 sm:py-20">
+        <SectionHeading eyebrow="Paket Ujian" title="Katalog paket ujian" description="Lihat jenjang, durasi, dan jumlah soal. Masuk untuk mengerjakan." />
         <div className="mt-10 flex flex-col gap-3 rounded-2xl border border-teal-200/70 bg-card/70 p-3 shadow-[0_16px_44px_-26px_rgba(15,118,110,0.4)] backdrop-blur-md dark:border-teal-900/40 sm:flex-row">
           <SearchInput value={q} onChange={setQ} placeholder="Cari paket ujian..." className="flex-1" />
           <FilterSelect value={level} onChange={setLevel} options={[...LEVELS]} allLabel="Semua jenjang" />
@@ -133,5 +132,6 @@ export default function PublicExamsPage() {
         <p className="mt-8 text-center text-xs text-muted-foreground">Jumlah soal pada paket demo sengaja dibuat singkat untuk keperluan pengujian antarmuka.</p>
       </div>
     </section>
+    </>
   );
 }
