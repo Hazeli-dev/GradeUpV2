@@ -152,6 +152,61 @@ type SubmitAnswerResult = {
 };
 
 // =====================================================
+// DESIGN TOKENS (tampilan saja, tidak terkait logika)
+// =====================================================
+
+// Permukaan kaca lembut untuk card dan panel.
+const GLASS =
+  "border border-emerald-900/10 bg-white/75 backdrop-blur-md shadow-[0_10px_35px_-15px_rgba(6,78,59,0.25)] dark:border-emerald-400/10 dark:bg-slate-900/60 dark:shadow-[0_10px_35px_-15px_rgba(0,0,0,0.55)]";
+
+// Permukaan kecil di dalam card (baris, pilihan jawaban).
+const INSET =
+  "border border-emerald-900/10 bg-white/70 dark:border-emerald-400/10 dark:bg-slate-950/40";
+
+// Tombol utama emerald.
+const BTN_PRIMARY =
+  "bg-gradient-to-br from-emerald-500 to-teal-600 text-white shadow-md shadow-emerald-700/20 hover:from-emerald-600 hover:to-teal-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/50 motion-reduce:transition-none";
+
+// Tombol utama versi lebih pekat (evaluasi akhir).
+const BTN_DEEP =
+  "bg-gradient-to-br from-emerald-600 to-teal-700 text-white shadow-md shadow-emerald-800/25 hover:from-emerald-700 hover:to-teal-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/50 motion-reduce:transition-none";
+
+// Animasi ringan. Dimatikan otomatis jika prefers-reduced-motion aktif.
+const PAGE_STYLES = `
+@keyframes gu-float {
+  0%, 100% { transform: translate3d(0, 0, 0); }
+  50% { transform: translate3d(0, -14px, 0); }
+}
+@keyframes gu-drift {
+  0%, 100% { transform: translate3d(0, 0, 0) scale(1); }
+  50% { transform: translate3d(16px, 12px, 0) scale(1.05); }
+}
+.gu-float { animation: gu-float 10s ease-in-out infinite; }
+.gu-drift { animation: gu-drift 18s ease-in-out infinite; }
+@media (prefers-reduced-motion: reduce) {
+  .gu-float, .gu-drift { animation: none !important; }
+}
+`;
+
+/** Latar dekoratif halaman (tidak interaktif). */
+function PageDecor() {
+  return (
+    <div
+      aria-hidden="true"
+      className="pointer-events-none absolute inset-0 -z-10 overflow-hidden"
+    >
+      <div className="absolute inset-0 bg-gradient-to-b from-emerald-50/80 via-transparent to-teal-50/60 dark:from-emerald-950/30 dark:via-transparent dark:to-teal-950/20" />
+
+      <div className="absolute inset-0 opacity-60 [background-image:linear-gradient(to_right,rgba(5,150,105,0.07)_1px,transparent_1px),linear-gradient(to_bottom,rgba(5,150,105,0.07)_1px,transparent_1px)] [background-size:44px_44px] [mask-image:radial-gradient(ellipse_80%_50%_at_50%_0%,black,transparent)] dark:opacity-40" />
+
+      <div className="gu-drift absolute -left-28 top-40 h-[24rem] w-[24rem] rounded-full bg-emerald-400/20 blur-3xl dark:bg-emerald-500/12" />
+      <div className="gu-float absolute -right-24 top-[34rem] h-[22rem] w-[22rem] rounded-full bg-teal-400/20 blur-3xl dark:bg-teal-500/12" />
+      <div className="absolute -left-20 bottom-24 h-[20rem] w-[20rem] rounded-full bg-lime-300/15 blur-3xl dark:bg-emerald-600/10" />
+    </div>
+  );
+}
+
+// =====================================================
 // PARAGRAPH LAYOUT EXTENSION
 // =====================================================
 
@@ -392,43 +447,43 @@ export default function LessonLearningPage() {
   });
 
   const [assessmentError, setAssessmentError] = useState("");
-const [showOutline, setShowOutline] = useState(true);
+  const [showOutline, setShowOutline] = useState(true);
 
-// ===================================================
-// FULLSCREEN MODE
-// ===================================================
+  // ===================================================
+  // FULLSCREEN MODE
+  // ===================================================
 
-const learningPageRef = useRef<HTMLDivElement | null>(null);
-const [isFullscreen, setIsFullscreen] = useState(false);
+  const learningPageRef = useRef<HTMLDivElement | null>(null);
+  const [isFullscreen, setIsFullscreen] = useState(false);
 
-useEffect(() => {
-  const handleFullscreenChange = () => {
-    setIsFullscreen(
-      document.fullscreenElement === learningPageRef.current
-    );
-  };
+  useEffect(() => {
+    const handleFullscreenChange = () => {
+      setIsFullscreen(
+        document.fullscreenElement === learningPageRef.current
+      );
+    };
 
-  document.addEventListener("fullscreenchange", handleFullscreenChange);
+    document.addEventListener("fullscreenchange", handleFullscreenChange);
 
-  return () => {
-    document.removeEventListener(
-      "fullscreenchange",
-      handleFullscreenChange
-    );
-  };
-}, []);
+    return () => {
+      document.removeEventListener(
+        "fullscreenchange",
+        handleFullscreenChange
+      );
+    };
+  }, []);
 
-const toggleFullscreen = async () => {
-  try {
-    if (document.fullscreenElement === learningPageRef.current) {
-      await document.exitFullscreen();
-    } else {
-      await learningPageRef.current?.requestFullscreen();
+  const toggleFullscreen = async () => {
+    try {
+      if (document.fullscreenElement === learningPageRef.current) {
+        await document.exitFullscreen();
+      } else {
+        await learningPageRef.current?.requestFullscreen();
+      }
+    } catch (err) {
+      console.error("Gagal mengaktifkan fullscreen:", err);
     }
-  } catch (err) {
-    console.error("Gagal mengaktifkan fullscreen:", err);
-  }
-};
+  };
 
   // ===================================================
   // BOOKMARK STATE
@@ -923,31 +978,31 @@ const toggleFullscreen = async () => {
         : [];
 
       const mappedSections: LessonSection[] = availableSections
-  .map((section) => {
-    // Ambil progres berdasarkan ID bagian materi
-    const sectionProgress = progress.sections.find(
-      (item) => item.section_id === section.id
-    );
+        .map((section) => {
+          // Ambil progres berdasarkan ID bagian materi
+          const sectionProgress = progress.sections.find(
+            (item) => item.section_id === section.id
+          );
 
-    return {
-      section_id: section.id,
-      title: section.title,
-      sort_order: Number(section.sort_order ?? 0),
+          return {
+            section_id: section.id,
+            title: section.title,
+            sort_order: Number(section.sort_order ?? 0),
 
-      // Progres checkpoint tetap menggunakan data RPC
-      checkpoints: sectionProgress?.checkpoints ?? [],
+            // Progres checkpoint tetap menggunakan data RPC
+            checkpoints: sectionProgress?.checkpoints ?? [],
 
-      checkpoint_completed:
-        sectionProgress?.checkpoint_completed ?? false,
+            checkpoint_completed:
+              sectionProgress?.checkpoint_completed ?? false,
 
-      // Konten materi langsung dari tabel lesson_sections
-      content_json: section.content_json || {
-        type: "doc",
-        content: [{ type: "paragraph" }],
-      },
-    };
-  })
-  .sort((a, b) => a.sort_order - b.sort_order);
+            // Konten materi langsung dari tabel lesson_sections
+            content_json: section.content_json || {
+              type: "doc",
+              content: [{ type: "paragraph" }],
+            },
+          };
+        })
+        .sort((a, b) => a.sort_order - b.sort_order);
 
       const mappedAssessments = Array.isArray(assessmentData)
         ? (assessmentData as AssessmentInfo[])
@@ -1306,12 +1361,19 @@ const toggleFullscreen = async () => {
 
   if (loading) {
     return (
-      <div className="gu-learning-page min-h-[60vh] flex flex-col items-center justify-center gap-4 bg-background text-foreground">
-        <div className="rounded-2xl bg-emerald-500/10 p-4">
-          <Loader2 className="h-8 w-8 animate-spin text-emerald-600" />
+      <div className="gu-learning-page relative isolate flex min-h-[60vh] flex-col items-center justify-center gap-4 bg-background text-foreground">
+        <style>{PAGE_STYLES}</style>
+        <PageDecor />
+
+        <div className="relative rounded-2xl bg-emerald-500/10 p-4 ring-1 ring-emerald-500/20">
+          <div
+            aria-hidden="true"
+            className="pointer-events-none absolute inset-0 rounded-2xl bg-emerald-400/20 blur-xl"
+          />
+          <Loader2 className="relative h-8 w-8 animate-spin text-emerald-600 motion-reduce:animate-none" />
         </div>
 
-        <div className="text-center">
+        <div className="relative text-center">
           <p className="font-semibold">
             Menyiapkan ruang belajar
           </p>
@@ -1329,23 +1391,33 @@ const toggleFullscreen = async () => {
 
   if (error || !lesson) {
     return (
-      <div className="gu-learning-page min-h-[60vh] bg-background px-4 py-10 text-foreground">
-        <div className="mx-auto max-w-xl rounded-3xl border border-border bg-card p-6 shadow-sm md:p-8">
-          <div className="mb-4 inline-flex rounded-2xl bg-red-500/10 p-3">
+      <div className="gu-learning-page relative isolate min-h-[60vh] bg-background px-4 py-10 text-foreground">
+        <style>{PAGE_STYLES}</style>
+        <PageDecor />
+
+        <div
+          className={`relative mx-auto max-w-xl overflow-hidden rounded-3xl p-6 md:p-8 ${GLASS}`}
+        >
+          <div
+            aria-hidden="true"
+            className="pointer-events-none absolute -right-12 -top-12 h-36 w-36 rounded-full bg-red-400/15 blur-3xl"
+          />
+
+          <div className="relative mb-4 inline-flex rounded-2xl bg-red-500/10 p-3 ring-1 ring-red-500/20">
             <XCircle className="h-8 w-8 text-red-500" />
           </div>
 
-          <h2 className="text-xl font-bold">
+          <h2 className="relative text-xl font-bold">
             Materi tidak dapat dibuka
           </h2>
 
-          <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
+          <p className="relative mt-2 text-sm leading-relaxed text-muted-foreground">
             {error || "Data materi tidak ditemukan."}
           </p>
 
           <button
             onClick={() => navigate(`/dashboard/courses/${courseId}`)}
-            className="mt-6 inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-emerald-700"
+            className={`relative mt-6 inline-flex items-center gap-2 rounded-xl px-5 py-3 text-sm font-semibold transition ${BTN_PRIMARY}`}
           >
             <ArrowLeft className="h-4 w-4" />
             Kembali ke kursus
@@ -1374,24 +1446,36 @@ const toggleFullscreen = async () => {
         : 0;
 
     return (
-      <div className="gu-learning-page min-h-screen bg-background px-4 py-6 text-foreground md:py-10">
-        <div className="mx-auto max-w-4xl">
+      <div className="gu-learning-page relative isolate min-h-screen bg-background px-4 py-6 text-foreground md:py-10">
+        <style>{PAGE_STYLES}</style>
+        <PageDecor />
+
+        <div className="relative mx-auto max-w-4xl">
           <button
             onClick={() => void closeAssessment()}
             disabled={submitting}
-            className="mb-6 inline-flex items-center gap-2 rounded-lg text-sm font-medium text-muted-foreground transition hover:text-foreground disabled:opacity-50"
+            className="mb-6 inline-flex items-center gap-2 rounded-full border border-emerald-900/10 bg-white/60 px-3 py-1.5 text-sm font-medium text-muted-foreground backdrop-blur-md transition hover:bg-emerald-500/10 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/50 disabled:opacity-50 dark:border-emerald-400/10 dark:bg-slate-900/50 motion-reduce:transition-none"
           >
             <ArrowLeft className="h-4 w-4" />
             Kembali ke materi
           </button>
 
-          <div className="overflow-hidden rounded-3xl border border-border bg-card shadow-sm">
-            <div className="relative overflow-hidden bg-gradient-to-br from-emerald-700 via-emerald-600 to-teal-600 p-6 text-white md:p-9">
-              <div className="absolute -right-12 -top-16 h-48 w-48 rounded-full bg-white/10" />
-              <div className="absolute -bottom-20 right-24 h-40 w-40 rounded-full bg-white/10" />
+          <div className={`overflow-hidden rounded-3xl ${GLASS}`}>
+            <div className="relative overflow-hidden bg-gradient-to-br from-emerald-700 via-emerald-600 to-teal-700 p-6 text-white md:p-9">
+              <div
+                aria-hidden="true"
+                className="pointer-events-none absolute inset-0"
+              >
+                <div className="absolute inset-0 opacity-40 [background-image:radial-gradient(rgba(255,255,255,0.22)_1px,transparent_1px)] [background-size:22px_22px] [mask-image:linear-gradient(to_bottom_left,black,transparent_70%)]" />
+                <div className="gu-drift absolute -right-12 -top-16 h-48 w-48 rounded-full bg-white/10 blur-sm" />
+                <div className="absolute -bottom-20 right-24 h-40 w-40 rounded-full bg-teal-300/15 blur-2xl" />
+                <div className="absolute -right-6 bottom-4 h-28 w-28 rounded-full border border-white/15" />
+                <div className="absolute -right-20 -bottom-8 h-48 w-48 rounded-full border border-white/10" />
+                <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/40 to-transparent" />
+              </div>
 
               <div className="relative">
-                <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/10 px-3 py-1.5 text-xs font-semibold text-white">
+                <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/10 px-3 py-1.5 text-xs font-semibold text-white backdrop-blur">
                   <ShieldCheck className="h-4 w-4" />
                   {activeAssessment.assessment_type === "checkpoint"
                     ? "Checkpoint Materi"
@@ -1421,20 +1505,20 @@ const toggleFullscreen = async () => {
                   </p>
                 </div>
 
-                <span className="rounded-xl bg-emerald-500/10 px-3 py-2 text-sm font-bold tabular-nums text-emerald-600 dark:text-emerald-400">
+                <span className="rounded-xl bg-emerald-500/10 px-3 py-2 text-sm font-bold tabular-nums text-emerald-600 ring-1 ring-emerald-500/15 dark:text-emerald-400">
                   {assessmentStats.correct}/{assessmentStats.total}
                 </span>
               </div>
 
               <div
-                className="mb-8 h-2.5 overflow-hidden rounded-full bg-muted"
+                className="mb-8 h-2.5 overflow-hidden rounded-full bg-emerald-900/10 dark:bg-white/10"
                 role="progressbar"
                 aria-valuenow={percentage}
                 aria-valuemin={0}
                 aria-valuemax={100}
               >
                 <div
-                  className="h-full rounded-full bg-emerald-500 transition-all duration-500"
+                  className="h-full rounded-full bg-gradient-to-r from-emerald-500 to-teal-400 transition-all duration-500 motion-reduce:transition-none"
                   style={{ width: `${percentage}%` }}
                 />
               </div>
@@ -1447,34 +1531,39 @@ const toggleFullscreen = async () => {
               )}
 
               {assessmentStats.completed && !answerFeedback ? (
-                <div className="py-8 text-center md:py-12">
-                  <div className="mx-auto mb-5 flex h-20 w-20 items-center justify-center rounded-3xl bg-emerald-500/10">
+                <div className="relative py-8 text-center md:py-12">
+                  <div
+                    aria-hidden="true"
+                    className="pointer-events-none absolute left-1/2 top-0 h-48 w-80 -translate-x-1/2 rounded-full bg-emerald-400/15 blur-3xl"
+                  />
+
+                  <div className="relative mx-auto mb-5 flex h-20 w-20 items-center justify-center rounded-3xl bg-gradient-to-br from-emerald-500/15 to-teal-500/10 ring-1 ring-emerald-500/20">
                     <Trophy className="h-10 w-10 text-emerald-600 dark:text-emerald-400" />
                   </div>
 
-                  <p className="mb-2 text-sm font-semibold uppercase tracking-wider text-emerald-600 dark:text-emerald-400">
+                  <p className="relative mb-2 text-sm font-semibold uppercase tracking-wider text-emerald-600 dark:text-emerald-400">
                     Evaluasi selesai
                   </p>
 
-                  <h2 className="text-2xl font-bold md:text-3xl">
+                  <h2 className="relative text-2xl font-bold md:text-3xl">
                     Hebat! Kamu berhasil!
                   </h2>
 
-                  <p className="mx-auto mt-3 max-w-md text-sm leading-relaxed text-muted-foreground">
+                  <p className="relative mx-auto mt-3 max-w-md text-sm leading-relaxed text-muted-foreground">
                     Semua pertanyaan telah dijawab dengan benar.
                     Kamu dapat melanjutkan pembelajaran.
                   </p>
 
-                  <div className="mt-7 inline-flex items-center gap-2 rounded-2xl border border-emerald-500/20 bg-emerald-500/10 px-5 py-3 font-semibold text-emerald-700 dark:text-emerald-300">
+                  <div className="relative mt-7 inline-flex items-center gap-2 rounded-2xl border border-emerald-500/20 bg-emerald-500/10 px-5 py-3 font-semibold text-emerald-700 dark:text-emerald-300">
                     <CheckCircle2 className="h-5 w-5" />
                     {assessmentStats.correct} dari{" "}
                     {assessmentStats.total} jawaban benar
                   </div>
 
-                  <div>
+                  <div className="relative">
                     <button
                       onClick={() => void closeAssessment()}
-                      className="mt-8 inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-6 py-3 font-semibold text-white shadow-sm transition hover:bg-emerald-700"
+                      className={`mt-8 inline-flex items-center gap-2 rounded-xl px-6 py-3 font-semibold transition ${BTN_PRIMARY}`}
                     >
                       Lanjutkan belajar
                       <ArrowRight className="h-4 w-4" />
@@ -1508,10 +1597,10 @@ const toggleFullscreen = async () => {
                           type="button"
                           disabled={!!answerFeedback || submitting}
                           onClick={() => setSelectedAnswer(option.id)}
-                          className={`group flex w-full items-start gap-3 rounded-2xl border p-4 text-left transition-all duration-200 ${
+                          className={`group flex w-full items-start gap-3 rounded-2xl border p-4 text-left transition-all duration-200 motion-reduce:transition-none ${
                             isSelected
                               ? "border-emerald-500 bg-emerald-500/10 ring-2 ring-emerald-500/20"
-                              : "border-border bg-card hover:border-emerald-500/50 hover:bg-muted/60"
+                              : "border-emerald-900/10 bg-white/60 hover:border-emerald-500/50 hover:bg-emerald-500/[0.06] dark:border-emerald-400/10 dark:bg-slate-950/40"
                           } ${
                             answerFeedback || submitting
                               ? "cursor-default"
@@ -1519,9 +1608,9 @@ const toggleFullscreen = async () => {
                           }`}
                         >
                           <span
-                            className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-sm font-bold transition ${
+                            className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-sm font-bold transition motion-reduce:transition-none ${
                               isSelected
-                                ? "bg-emerald-600 text-white"
+                                ? "bg-gradient-to-br from-emerald-500 to-teal-600 text-white shadow-md shadow-emerald-700/20"
                                 : "bg-muted text-muted-foreground group-hover:bg-emerald-500/10 group-hover:text-emerald-600"
                             }`}
                           >
@@ -1591,9 +1680,9 @@ const toggleFullscreen = async () => {
 
                       <button
                         onClick={continueAfterFeedback}
-                        className={`mt-5 inline-flex items-center gap-2 rounded-xl px-5 py-3 text-sm font-semibold text-white transition ${
+                        className={`mt-5 inline-flex items-center gap-2 rounded-xl px-5 py-3 text-sm font-semibold text-white transition motion-reduce:transition-none ${
                           answerFeedback.correct
-                            ? "bg-emerald-600 hover:bg-emerald-700"
+                            ? BTN_PRIMARY
                             : "bg-amber-600 hover:bg-amber-700"
                         }`}
                       >
@@ -1612,11 +1701,11 @@ const toggleFullscreen = async () => {
                     <button
                       onClick={() => void submitAnswer()}
                       disabled={!selectedAnswer || submitting}
-                      className="mt-7 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-600 px-7 py-3.5 font-semibold text-white shadow-sm transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50 md:w-auto"
+                      className={`mt-7 inline-flex w-full items-center justify-center gap-2 rounded-xl px-7 py-3.5 font-semibold transition disabled:cursor-not-allowed disabled:opacity-50 md:w-auto ${BTN_PRIMARY}`}
                     >
                       {submitting ? (
                         <>
-                          <Loader2 className="h-4 w-4 animate-spin" />
+                          <Loader2 className="h-4 w-4 animate-spin motion-reduce:animate-none" />
                           Memeriksa jawaban...
                         </>
                       ) : (
@@ -1630,7 +1719,7 @@ const toggleFullscreen = async () => {
                 </div>
               ) : (
                 <div className="py-12 text-center">
-                  <Loader2 className="mx-auto h-8 w-8 animate-spin text-emerald-600" />
+                  <Loader2 className="mx-auto h-8 w-8 animate-spin text-emerald-600 motion-reduce:animate-none" />
                   <p className="mt-3 text-sm text-muted-foreground">
                     Memuat pertanyaan berikutnya...
                   </p>
@@ -1647,556 +1736,592 @@ const toggleFullscreen = async () => {
   // NORMAL LEARNING VIEW
   // ===================================================
 
-  
-return (
-  <div
-    ref={learningPageRef}
-    className={`gu-learning-page w-full bg-background text-foreground ${
-      isFullscreen ? "h-screen overflow-y-auto" : "min-h-screen"
-    }`}
-  >
-    {/* TOP BAR */}
-    <header className="sticky top-0 z-30 border-b border-border bg-background/95 backdrop-blur-xl">
-      <div className="flex w-full items-center justify-between gap-2 px-3 py-3 sm:gap-4 sm:px-5 lg:px-8">
-        <button
-          onClick={() => navigate(`/dashboard/courses/${courseId}`)}
-          className="inline-flex shrink-0 items-center gap-2 rounded-lg text-xs font-semibold text-muted-foreground transition hover:text-emerald-600 sm:text-sm"
-        >
-          <ArrowLeft className="h-4 w-4" />
-          <span className="hidden sm:inline">Kembali ke kursus</span>
-        </button>
+  return (
+    <div
+      ref={learningPageRef}
+      className={`gu-learning-page relative isolate w-full bg-background text-foreground ${
+        isFullscreen ? "h-screen overflow-y-auto" : "min-h-screen"
+      }`}
+    >
+      <style>{PAGE_STYLES}</style>
+      <PageDecor />
 
-        <div className="max-w-xl flex-1">
-          <div className="mb-1.5 flex items-center justify-between text-xs">
-            <span className="text-muted-foreground">Progres sesi</span>
-            <span className="font-bold text-emerald-600 dark:text-emerald-400">
-              {completedSections}/{sections.length} bagian
-            </span>
-          </div>
-
-          <div className="h-2 overflow-hidden rounded-full bg-muted">
-            <div
-              className="h-full rounded-full bg-emerald-500 transition-all duration-500"
-              style={{ width: `${progressPercentage}%` }}
-            />
-          </div>
-        </div>
-
-        <div className="flex shrink-0 items-center gap-2">
+      {/* TOP BAR */}
+      <header className="sticky top-0 z-30 border-b border-emerald-900/10 bg-background/80 shadow-sm shadow-emerald-900/[0.03] backdrop-blur-xl dark:border-emerald-400/10">
+        <div className="flex w-full items-center justify-between gap-2 px-3 py-3 sm:gap-4 sm:px-5 lg:px-8">
           <button
-            type="button"
-            onClick={() => void toggleFullscreen()}
-            title={isFullscreen ? "Keluar dari layar penuh" : "Layar penuh"}
-            aria-label={isFullscreen ? "Keluar dari layar penuh" : "Layar penuh"}
-            className="rounded-xl border border-border p-2.5 text-muted-foreground transition hover:border-emerald-500/40 hover:bg-emerald-500/10 hover:text-emerald-600"
+            onClick={() => navigate(`/dashboard/courses/${courseId}`)}
+            className="inline-flex shrink-0 items-center gap-2 rounded-lg text-xs font-semibold text-muted-foreground transition hover:text-emerald-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/50 motion-reduce:transition-none sm:text-sm"
           >
-            {isFullscreen ? (
-              <Minimize2 className="h-4 w-4" />
-            ) : (
-              <Maximize2 className="h-4 w-4" />
-            )}
+            <ArrowLeft className="h-4 w-4" />
+            <span className="hidden sm:inline">Kembali ke kursus</span>
           </button>
 
-          <button
-            onClick={() => void loadLearningData()}
-            title="Muat ulang progres"
-            className="rounded-xl border border-border p-2.5 text-muted-foreground transition hover:bg-muted hover:text-foreground"
-          >
-            <RefreshCw className="h-4 w-4" />
-          </button>
-        </div>
-      </div>
-    </header>
-
-    <div className="w-full overflow-x-hidden px-3 py-5 sm:px-5 sm:py-7 lg:px-8 xl:px-10">
-      {/* BREADCRUMB */}
-      <nav className="mb-5 flex min-w-0 flex-wrap items-center gap-2 text-xs leading-relaxed text-muted-foreground sm:mb-7">
-        <span>{lesson.module.course.title}</span>
-        <ChevronRight className="h-3 w-3 shrink-0" />
-        <span>{lesson.module.title}</span>
-        <ChevronRight className="h-3 w-3 shrink-0" />
-        <span className="font-semibold text-emerald-600 dark:text-emerald-400">
-          {lesson.title}
-        </span>
-      </nav>
-
-      <div className="grid w-full min-w-0 grid-cols-1 items-start gap-4 lg:grid-cols-[280px_minmax(0,1fr)] xl:grid-cols-[300px_minmax(0,1fr)] xl:gap-6">
-        {/* SIDEBAR */}
-        <aside className="overflow-hidden rounded-2xl border border-border bg-card shadow-sm lg:sticky lg:top-24">
-          <button
-            onClick={() => setShowOutline((value) => !value)}
-            className="flex w-full items-center justify-between gap-3 p-4 text-left transition hover:bg-muted/40 sm:p-5"
-          >
-            <div>
-              <p className="text-xs font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400">
-                Struktur belajar
-              </p>
-              <h2 className="mt-1 text-base font-bold">
-                Daftar bagian
-              </h2>
+          <div className="max-w-xl flex-1">
+            <div className="mb-1.5 flex items-center justify-between text-xs">
+              <span className="text-muted-foreground">Progres sesi</span>
+              <span className="font-bold text-emerald-600 dark:text-emerald-400">
+                {completedSections}/{sections.length} bagian
+              </span>
             </div>
 
-            <ChevronDown
-              className={`h-5 w-5 text-muted-foreground transition-transform ${
-                showOutline ? "" : "-rotate-90"
-              }`}
+            <div className="h-2 overflow-hidden rounded-full bg-emerald-900/10 dark:bg-white/10">
+              <div
+                className="h-full rounded-full bg-gradient-to-r from-emerald-500 to-teal-400 transition-all duration-500 motion-reduce:transition-none"
+                style={{ width: `${progressPercentage}%` }}
+              />
+            </div>
+          </div>
+
+          <div className="flex shrink-0 items-center gap-2">
+            <button
+              type="button"
+              onClick={() => void toggleFullscreen()}
+              title={isFullscreen ? "Keluar dari layar penuh" : "Layar penuh"}
+              aria-label={isFullscreen ? "Keluar dari layar penuh" : "Layar penuh"}
+              className="rounded-xl border border-emerald-900/10 bg-white/60 p-2.5 text-muted-foreground transition hover:border-emerald-500/40 hover:bg-emerald-500/10 hover:text-emerald-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/50 dark:border-emerald-400/10 dark:bg-slate-950/40 motion-reduce:transition-none"
+            >
+              {isFullscreen ? (
+                <Minimize2 className="h-4 w-4" />
+              ) : (
+                <Maximize2 className="h-4 w-4" />
+              )}
+            </button>
+
+            <button
+              onClick={() => void loadLearningData()}
+              title="Muat ulang progres"
+              className="rounded-xl border border-emerald-900/10 bg-white/60 p-2.5 text-muted-foreground transition hover:bg-emerald-500/10 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/50 dark:border-emerald-400/10 dark:bg-slate-950/40 motion-reduce:transition-none"
+            >
+              <RefreshCw className="h-4 w-4" />
+            </button>
+          </div>
+        </div>
+      </header>
+
+      <div className="w-full overflow-x-hidden px-3 py-5 sm:px-5 sm:py-7 lg:px-8 xl:px-10">
+        {/* BREADCRUMB */}
+        <nav className="mb-5 flex min-w-0 flex-wrap items-center gap-2 text-xs leading-relaxed text-muted-foreground sm:mb-7">
+          <span>{lesson.module.course.title}</span>
+          <ChevronRight className="h-3 w-3 shrink-0" />
+          <span>{lesson.module.title}</span>
+          <ChevronRight className="h-3 w-3 shrink-0" />
+          <span className="font-semibold text-emerald-600 dark:text-emerald-400">
+            {lesson.title}
+          </span>
+        </nav>
+
+        <div className="grid w-full min-w-0 grid-cols-1 items-start gap-4 lg:grid-cols-[280px_minmax(0,1fr)] xl:grid-cols-[300px_minmax(0,1fr)] xl:gap-6">
+          {/* SIDEBAR */}
+          <aside
+            className={`relative overflow-hidden rounded-2xl lg:sticky lg:top-24 ${GLASS}`}
+          >
+            <div
+              aria-hidden="true"
+              className="pointer-events-none absolute -right-12 -top-12 h-32 w-32 rounded-full bg-emerald-400/15 blur-3xl"
             />
-          </button>
 
-          {showOutline && (
-            <div className="max-h-[420px] overflow-y-auto border-t border-border p-3 sm:max-h-[calc(100vh-180px)]">
-              {sections.map((section, index) => {
-                const accessible = isSectionAccessible(index);
-                const completed = section.checkpoint_completed;
-                const active = index === selectedSectionIndex;
+            <button
+              onClick={() => setShowOutline((value) => !value)}
+              className="relative flex w-full items-center justify-between gap-3 bg-gradient-to-r from-emerald-500/[0.08] via-transparent to-transparent p-4 text-left transition hover:bg-emerald-500/[0.05] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-emerald-500/50 motion-reduce:transition-none sm:p-5"
+            >
+              <div>
+                <p className="text-xs font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400">
+                  Struktur belajar
+                </p>
+                <h2 className="mt-1 text-base font-bold">
+                  Daftar bagian
+                </h2>
+              </div>
 
-                const completedCheckpointCount =
-                  section.checkpoints.filter(
-                    (checkpoint) => checkpoint.completed
-                  ).length;
+              <ChevronDown
+                className={`h-5 w-5 text-muted-foreground transition-transform motion-reduce:transition-none ${
+                  showOutline ? "" : "-rotate-90"
+                }`}
+              />
+            </button>
 
-                const totalCheckpointCount =
-                  section.checkpoints.length;
+            {showOutline && (
+              <div className="relative max-h-[420px] overflow-y-auto border-t border-emerald-900/10 p-3 dark:border-emerald-400/10 sm:max-h-[calc(100vh-180px)]">
+                {sections.map((section, index) => {
+                  const accessible = isSectionAccessible(index);
+                  const completed = section.checkpoint_completed;
+                  const active = index === selectedSectionIndex;
 
-                return (
-                  <button
-                    key={section.section_id}
-                    disabled={!accessible}
-                    onClick={() => setSelectedSectionIndex(index)}
-                    className={`mb-1 flex w-full items-start gap-3 rounded-xl border p-3.5 text-left transition ${
-                      active
-                        ? "border-emerald-500/30 bg-emerald-500/10"
-                        : accessible
-                          ? "border-transparent hover:bg-muted"
-                          : "cursor-not-allowed border-transparent opacity-50"
-                    }`}
-                  >
+                  const completedCheckpointCount =
+                    section.checkpoints.filter(
+                      (checkpoint) => checkpoint.completed
+                    ).length;
+
+                  const totalCheckpointCount =
+                    section.checkpoints.length;
+
+                  return (
+                    <button
+                      key={section.section_id}
+                      disabled={!accessible}
+                      onClick={() => setSelectedSectionIndex(index)}
+                      className={`mb-1 flex w-full items-start gap-3 rounded-xl border p-3.5 text-left transition motion-reduce:transition-none ${
+                        active
+                          ? "border-emerald-500/30 bg-emerald-500/10 shadow-sm"
+                          : accessible
+                            ? "border-transparent hover:bg-emerald-500/[0.06]"
+                            : "cursor-not-allowed border-transparent opacity-50"
+                      }`}
+                    >
+                      <div className="mt-0.5 shrink-0">
+                        {completed ? (
+                          <CheckCircle2 className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
+                        ) : accessible ? (
+                          <Circle className="h-5 w-5 text-muted-foreground" />
+                        ) : (
+                          <Lock className="h-5 w-5 text-muted-foreground" />
+                        )}
+                      </div>
+
+                      <div className="min-w-0">
+                        <p className="text-xs text-muted-foreground">
+                          Bagian {index + 1}
+                        </p>
+
+                        <p
+                          className={`mt-1 text-sm font-semibold ${
+                            active
+                              ? "text-emerald-700 dark:text-emerald-300"
+                              : "text-foreground"
+                          }`}
+                        >
+                          {section.title}
+                        </p>
+
+                        <p className="mt-1 text-xs text-muted-foreground">
+                          {completed
+                            ? "Semua checkpoint selesai"
+                            : accessible
+                              ? totalCheckpointCount > 0
+                                ? `${completedCheckpointCount}/${totalCheckpointCount} checkpoint selesai`
+                                : "Tidak ada checkpoint"
+                              : "Selesaikan bagian sebelumnya"}
+                        </p>
+                      </div>
+                    </button>
+                  );
+                })}
+
+                <div className="mt-3 border-t border-emerald-900/10 pt-3 dark:border-emerald-400/10">
+                  <div className="flex items-start gap-3 rounded-xl p-3">
                     <div className="mt-0.5 shrink-0">
-                      {completed ? (
+                      {learningProgress?.final_assessment?.completed ? (
                         <CheckCircle2 className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
-                      ) : accessible ? (
-                        <Circle className="h-5 w-5 text-muted-foreground" />
+                      ) : canOpenFinalAssessment ? (
+                        <Trophy className="h-5 w-5 text-amber-500" />
                       ) : (
                         <Lock className="h-5 w-5 text-muted-foreground" />
                       )}
                     </div>
 
-                    <div className="min-w-0">
-                      <p className="text-xs text-muted-foreground">
-                        Bagian {index + 1}
+                    <div>
+                      <p className="text-sm font-semibold">
+                        Evaluasi Akhir
                       </p>
-
-                      <p
-                        className={`mt-1 text-sm font-semibold ${
-                          active
-                            ? "text-emerald-700 dark:text-emerald-300"
-                            : "text-foreground"
-                        }`}
-                      >
-                        {section.title}
-                      </p>
-
                       <p className="mt-1 text-xs text-muted-foreground">
-                        {completed
-                          ? "Semua checkpoint selesai"
-                          : accessible
-                            ? totalCheckpointCount > 0
-                              ? `${completedCheckpointCount}/${totalCheckpointCount} checkpoint selesai`
-                              : "Tidak ada checkpoint"
-                            : "Selesaikan bagian sebelumnya"}
+                        {learningProgress?.final_assessment?.completed
+                          ? "Sudah diselesaikan"
+                          : canOpenFinalAssessment
+                            ? "Siap dikerjakan"
+                            : "Selesaikan semua checkpoint"}
                       </p>
                     </div>
-                  </button>
-                );
-              })}
+                  </div>
+                </div>
+              </div>
+            )}
+          </aside>
 
-              <div className="mt-3 border-t border-border pt-3">
-                <div className="flex items-start gap-3 rounded-xl p-3">
-                  <div className="mt-0.5 shrink-0">
-                    {learningProgress?.final_assessment?.completed ? (
-                      <CheckCircle2 className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
-                    ) : canOpenFinalAssessment ? (
-                      <Trophy className="h-5 w-5 text-amber-500" />
-                    ) : (
-                      <Lock className="h-5 w-5 text-muted-foreground" />
+          {/* MAIN CONTENT */}
+          <main className="min-w-0">
+            <section className={`overflow-hidden rounded-2xl ${GLASS}`}>
+              {/* LESSON HEADER */}
+              <div className="relative overflow-hidden border-b border-emerald-900/10 p-5 dark:border-emerald-400/10 sm:p-7 lg:p-9">
+                <div
+                  aria-hidden="true"
+                  className="pointer-events-none absolute inset-0"
+                >
+                  <div className="absolute inset-0 bg-gradient-to-br from-emerald-500/[0.12] via-teal-500/[0.05] to-transparent" />
+                  <div className="absolute inset-0 opacity-50 [background-image:radial-gradient(rgba(5,150,105,0.22)_1px,transparent_1px)] [background-size:20px_20px] [mask-image:linear-gradient(to_bottom_left,black,transparent_60%)]" />
+                  <div className="gu-drift absolute -right-12 -top-16 h-44 w-44 rounded-full bg-emerald-400/20 blur-3xl" />
+                  <div className="absolute inset-x-6 top-0 h-px bg-gradient-to-r from-transparent via-emerald-400/60 to-transparent" />
+                </div>
+
+                <div className="relative">
+                  <div className="mb-4 flex flex-wrap items-center gap-2">
+                    <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-500/15 bg-emerald-500/10 px-3 py-1.5 text-xs font-semibold text-emerald-700 dark:text-emerald-300">
+                      <BookOpen className="h-3.5 w-3.5" />
+                      Materi pembelajaran
+                    </span>
+
+                    {lesson.module.course.premium && (
+                      <span className="rounded-full border border-amber-500/20 bg-amber-500/10 px-3 py-1.5 text-xs font-semibold text-amber-700 dark:text-amber-300">
+                        Premium
+                      </span>
                     )}
                   </div>
 
-                  <div>
-                    <p className="text-sm font-semibold">
-                      Evaluasi Akhir
+                  <h1 className="break-words text-2xl font-bold leading-tight tracking-tight sm:text-3xl lg:text-4xl">
+                    {lesson.title}
+                  </h1>
+
+                  {lesson.description && (
+                    <p className="mt-4 max-w-4xl text-sm leading-relaxed text-muted-foreground sm:text-base">
+                      {lesson.description}
                     </p>
-                    <p className="mt-1 text-xs text-muted-foreground">
-                      {learningProgress?.final_assessment?.completed
-                        ? "Sudah diselesaikan"
-                        : canOpenFinalAssessment
-                          ? "Siap dikerjakan"
-                          : "Selesaikan semua checkpoint"}
-                    </p>
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
-        </aside>
-
-        {/* MAIN CONTENT */}
-        <main className="min-w-0">
-          <section className="overflow-hidden rounded-2xl border border-border bg-card shadow-sm">
-            {/* LESSON HEADER */}
-            <div className="border-b border-border p-5 sm:p-7 lg:p-9">
-              <div className="mb-4 flex flex-wrap items-center gap-2">
-                <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/10 px-3 py-1.5 text-xs font-semibold text-emerald-700 dark:text-emerald-300">
-                  <BookOpen className="h-3.5 w-3.5" />
-                  Materi pembelajaran
-                </span>
-
-                {lesson.module.course.premium && (
-                  <span className="rounded-full bg-amber-500/10 px-3 py-1.5 text-xs font-semibold text-amber-700 dark:text-amber-300">
-                    Premium
-                  </span>
-                )}
-              </div>
-
-              <h1 className="break-words text-2xl font-bold leading-tight tracking-tight sm:text-3xl lg:text-4xl">
-                {lesson.title}
-              </h1>
-
-              {lesson.description && (
-                <p className="mt-4 max-w-4xl text-sm leading-relaxed text-muted-foreground sm:text-base">
-                  {lesson.description}
-                </p>
-              )}
-
-              <div className="mt-6 flex flex-col items-start justify-between gap-4 sm:flex-row sm:flex-wrap sm:items-center">
-                <div className="flex flex-wrap items-center gap-4 text-sm text-muted-foreground">
-                  <span className="inline-flex items-center gap-2">
-                    <BookOpen className="h-4 w-4" />
-                    {sections.length} bagian materi
-                  </span>
-
-                  <span className="inline-flex items-center gap-2">
-                    <Clock3 className="h-4 w-4" />
-                    Estimasi {lesson.estimated_minutes || 0} menit
-                  </span>
-                </div>
-
-                <button
-                  type="button"
-                  onClick={() => void toggleBookmark()}
-                  disabled={bookmarkLoading || bookmarkChecking}
-                  className={`inline-flex w-full items-center justify-center gap-2 rounded-xl border px-4 py-3 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto ${
-                    isBookmarked
-                      ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-700 hover:bg-emerald-500/15 dark:text-emerald-300"
-                      : "border-border bg-card text-muted-foreground hover:border-emerald-500/40 hover:bg-emerald-500/5 hover:text-emerald-600"
-                  }`}
-                >
-                  {bookmarkLoading || bookmarkChecking ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : isBookmarked ? (
-                    <BookmarkCheck className="h-4 w-4" />
-                  ) : (
-                    <Bookmark className="h-4 w-4" />
                   )}
 
-                  {bookmarkLoading
-                    ? "Menyimpan..."
-                    : bookmarkChecking
-                      ? "Memeriksa..."
-                      : isBookmarked
-                        ? "Tersimpan"
-                        : "Simpan Bookmark"}
-                </button>
+                  <div className="mt-6 flex flex-col items-start justify-between gap-4 sm:flex-row sm:flex-wrap sm:items-center">
+                    <div className="flex flex-wrap items-center gap-4 text-sm text-muted-foreground">
+                      <span className="inline-flex items-center gap-2">
+                        <BookOpen className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+                        {sections.length} bagian materi
+                      </span>
+
+                      <span className="inline-flex items-center gap-2">
+                        <Clock3 className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+                        Estimasi {lesson.estimated_minutes || 0} menit
+                      </span>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => void toggleBookmark()}
+                      disabled={bookmarkLoading || bookmarkChecking}
+                      className={`inline-flex w-full items-center justify-center gap-2 rounded-xl border px-4 py-3 text-sm font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/50 disabled:cursor-not-allowed disabled:opacity-60 motion-reduce:transition-none sm:w-auto ${
+                        isBookmarked
+                          ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-700 hover:bg-emerald-500/15 dark:text-emerald-300"
+                          : "border-emerald-900/10 bg-white/60 text-muted-foreground hover:border-emerald-500/40 hover:bg-emerald-500/5 hover:text-emerald-600 dark:border-emerald-400/10 dark:bg-slate-950/40"
+                      }`}
+                    >
+                      {bookmarkLoading || bookmarkChecking ? (
+                        <Loader2 className="h-4 w-4 animate-spin motion-reduce:animate-none" />
+                      ) : isBookmarked ? (
+                        <BookmarkCheck className="h-4 w-4" />
+                      ) : (
+                        <Bookmark className="h-4 w-4" />
+                      )}
+
+                      {bookmarkLoading
+                        ? "Menyimpan..."
+                        : bookmarkChecking
+                          ? "Memeriksa..."
+                          : isBookmarked
+                            ? "Tersimpan"
+                            : "Simpan Bookmark"}
+                    </button>
+                  </div>
+
+                  {bookmarkError && (
+                    <p className="mt-3 text-xs text-red-600 dark:text-red-400">
+                      {bookmarkError}
+                    </p>
+                  )}
+                </div>
               </div>
 
-              {bookmarkError && (
-                <p className="mt-3 text-xs text-red-600 dark:text-red-400">
-                  {bookmarkError}
-                </p>
-              )}
-            </div>
+              {selectedSection ? (
+                <>
+                  {/* SECTION TITLE */}
+                  <div className="px-5 pt-7 sm:px-7 lg:px-9 lg:pt-9">
+                    <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400">
+                      <FileText className="h-4 w-4" />
+                      Bagian {selectedSectionIndex + 1}
+                    </div>
 
-            {selectedSection ? (
-              <>
-                {/* SECTION TITLE */}
-                <div className="px-5 pt-7 sm:px-7 lg:px-9 lg:pt-9">
-                  <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400">
-                    <FileText className="h-4 w-4" />
-                    Bagian {selectedSectionIndex + 1}
+                    <h2 className="mt-3 text-2xl font-bold tracking-tight sm:text-3xl">
+                      {selectedSection.title}
+                    </h2>
+
+                    <div className="mt-4 h-1 w-14 rounded-full bg-gradient-to-r from-emerald-500 to-teal-400" />
                   </div>
 
-                  <h2 className="mt-3 text-2xl font-bold tracking-tight sm:text-3xl">
-                    {selectedSection.title}
-                  </h2>
-                </div>
-
-                {/* LESSON CONTENT */}
-                <div className="min-w-0 px-4 py-7 sm:px-7 sm:py-9 lg:px-9 lg:py-10">
-                  <div className="gu-student-content min-w-0 max-w-full overflow-x-auto text-foreground">
-                    <EditorContent editor={editor} />
+                  {/* LESSON CONTENT */}
+                  <div className="min-w-0 px-4 py-7 sm:px-7 sm:py-9 lg:px-9 lg:py-10">
+                    <div className="gu-student-content min-w-0 max-w-full overflow-x-auto text-foreground">
+                      <EditorContent editor={editor} />
+                    </div>
                   </div>
-                </div>
 
-                {/* CHECKPOINT AREA */}
-                <div className="border-t border-border bg-muted/40 p-4 sm:p-6 lg:px-9 lg:py-8">
-                  {(() => {
-                    const checkpointList =
-                      getCheckpointAssessments(selectedSection);
+                  {/* CHECKPOINT AREA */}
+                  <div className="relative border-t border-emerald-900/10 bg-emerald-500/[0.04] p-4 dark:border-emerald-400/10 sm:p-6 lg:px-9 lg:py-8">
+                    {(() => {
+                      const checkpointList =
+                        getCheckpointAssessments(selectedSection);
 
-                    const completedCount =
-                      checkpointList.filter((checkpoint) =>
-                        selectedSection.checkpoints.some(
-                          (item) =>
-                            item.id === checkpoint.id && item.completed
-                        )
-                      ).length;
+                      const completedCount =
+                        checkpointList.filter((checkpoint) =>
+                          selectedSection.checkpoints.some(
+                            (item) =>
+                              item.id === checkpoint.id && item.completed
+                          )
+                        ).length;
 
-                    const totalCount = checkpointList.length;
-                    const allCompleted =
-                      selectedSection.checkpoint_completed;
+                      const totalCount = checkpointList.length;
+                      const allCompleted =
+                        selectedSection.checkpoint_completed;
 
-                    return (
-                      <>
-                        <div className="mb-5 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                          <div>
-                            <h3 className="text-lg font-bold">
-                              Checkpoint pemahaman
-                            </h3>
-                            <p className="mt-1 text-sm text-muted-foreground">
-                              Selesaikan semua checkpoint untuk membuka bagian berikutnya.
-                            </p>
-                          </div>
-
-                          {totalCount > 0 && (
-                            <span className="w-fit rounded-xl bg-emerald-500/10 px-3 py-2 text-xs font-bold text-emerald-700 dark:text-emerald-300">
-                              {completedCount}/{totalCount} selesai
-                            </span>
-                          )}
-                        </div>
-
-                        {totalCount === 0 ? (
-                          <div className="rounded-2xl border border-emerald-500/20 bg-emerald-500/10 p-5">
-                            <div className="flex items-center gap-2 font-bold text-emerald-700 dark:text-emerald-300">
-                              <CheckCircle2 className="h-5 w-5" />
-                              Tidak ada checkpoint pada bagian ini
+                      return (
+                        <>
+                          <div className="mb-5 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                            <div>
+                              <h3 className="text-lg font-bold">
+                                Checkpoint pemahaman
+                              </h3>
+                              <p className="mt-1 text-sm text-muted-foreground">
+                                Selesaikan semua checkpoint untuk membuka bagian berikutnya.
+                              </p>
                             </div>
-                            <p className="mt-2 text-sm text-emerald-700 dark:text-emerald-200">
-                              Kamu dapat melanjutkan ke bagian berikutnya.
-                            </p>
-                          </div>
-                        ) : (
-                          <div className="space-y-3">
-                            {checkpointList.map((checkpoint, index) => {
-                              const checkpointProgress =
-                                selectedSection.checkpoints.find(
-                                  (item) => item.id === checkpoint.id
-                                );
 
-                              const completed =
-                                checkpointProgress?.completed === true;
-
-                              return (
-                                <div
-                                  key={checkpoint.id}
-                                  className={`flex min-w-0 flex-col gap-3 rounded-2xl border p-4 sm:flex-row sm:items-center sm:justify-between sm:gap-4 ${
-                                    completed
-                                      ? "border-emerald-500/20 bg-emerald-500/5"
-                                      : "border-border bg-card"
-                                  }`}
-                                >
-                                  <div className="flex min-w-0 items-start gap-3">
-                                    <div
-                                      className={`mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${
-                                        completed
-                                          ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
-                                          : "bg-muted text-muted-foreground"
-                                      }`}
-                                    >
-                                      {completed ? (
-                                        <CheckCircle2 className="h-5 w-5" />
-                                      ) : (
-                                        <ShieldCheck className="h-5 w-5" />
-                                      )}
-                                    </div>
-
-                                    <div className="min-w-0">
-                                      <p className="text-xs font-semibold text-muted-foreground">
-                                        Checkpoint {index + 1}
-                                      </p>
-                                      <h4 className="mt-1 font-bold">
-                                        {checkpoint.title}
-                                      </h4>
-                                      <p
-                                        className={`mt-1 text-xs font-medium ${
-                                          completed
-                                            ? "text-emerald-600 dark:text-emerald-400"
-                                            : "text-muted-foreground"
-                                        }`}
-                                      >
-                                        {completed
-                                          ? "Sudah diselesaikan"
-                                          : "Belum dikerjakan"}
-                                      </p>
-                                    </div>
-                                  </div>
-
-                                  <button
-                                    type="button"
-                                    disabled={completed || startingAssessment}
-                                    onClick={() =>
-                                      void startAssessment(checkpoint)
-                                    }
-                                    className={`inline-flex w-full shrink-0 items-center justify-center gap-2 rounded-xl px-4 py-3 text-sm font-semibold transition disabled:cursor-not-allowed sm:w-auto sm:px-5 ${
-                                      completed
-                                        ? "border border-emerald-500/20 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300"
-                                        : "bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-50"
-                                    }`}
-                                  >
-                                    {startingAssessment ? (
-                                      <Loader2 className="h-4 w-4 animate-spin" />
-                                    ) : completed ? (
-                                      <CheckCircle2 className="h-4 w-4" />
-                                    ) : (
-                                      <ArrowRight className="h-4 w-4" />
-                                    )}
-                                    {completed ? "Selesai" : "Kerjakan"}
-                                  </button>
-                                </div>
-                              );
-                            })}
-                          </div>
-                        )}
-
-                        {allCompleted && (
-                          <div className="mt-4 rounded-2xl border border-emerald-500/20 bg-emerald-500/10 p-5">
-                            <div className="flex items-center gap-2 font-bold text-emerald-700 dark:text-emerald-300">
-                              <CheckCircle2 className="h-5 w-5" />
-                              Semua checkpoint bagian ini selesai!
-                            </div>
-                            <p className="mt-2 text-sm text-emerald-700 dark:text-emerald-200">
-                              Kamu sudah menyelesaikan seluruh checkpoint pada bagian ini. Silakan lanjutkan pembelajaran.
-                            </p>
-                          </div>
-                        )}
-
-                        {allCompleted && (
-                          <div className="mt-4 flex flex-wrap justify-between gap-3">
-                            <button
-                              disabled={selectedSectionIndex === 0}
-                              onClick={() =>
-                                setSelectedSectionIndex((index) =>
-                                  Math.max(0, index - 1)
-                                )
-                              }
-                              className="inline-flex items-center gap-2 rounded-xl border border-border bg-card px-4 py-2.5 text-sm font-semibold text-muted-foreground transition hover:bg-muted disabled:cursor-not-allowed disabled:opacity-40"
-                            >
-                              <ArrowLeft className="h-4 w-4" />
-                              Bagian sebelumnya
-                            </button>
-
-                            {selectedSectionIndex < sections.length - 1 ? (
-                              <button
-                                disabled={
-                                  !isSectionAccessible(selectedSectionIndex + 1)
-                                }
-                                onClick={() =>
-                                  setSelectedSectionIndex((index) =>
-                                    Math.min(sections.length - 1, index + 1)
-                                  )
-                                }
-                                className="inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50"
-                              >
-                                Bagian berikutnya
-                                <ArrowRight className="h-4 w-4" />
-                              </button>
-                            ) : (
-                              <button
-                                disabled={
-                                  !canOpenFinalAssessment ||
-                                  startingAssessment ||
-                                  !finalAssessment
-                                }
-                                onClick={() => {
-                                  if (finalAssessment) {
-                                    void startAssessment(finalAssessment);
-                                  } else {
-                                    setAssessmentError(
-                                      "Evaluasi akhir belum tersedia."
-                                    );
-                                  }
-                                }}
-                                className="inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50"
-                              >
-                                <GraduationCap className="h-4 w-4" />
-                                Evaluasi akhir
-                              </button>
+                            {totalCount > 0 && (
+                              <span className="w-fit rounded-xl bg-emerald-500/10 px-3 py-2 text-xs font-bold text-emerald-700 ring-1 ring-emerald-500/15 dark:text-emerald-300">
+                                {completedCount}/{totalCount} selesai
+                              </span>
                             )}
                           </div>
-                        )}
-                      </>
-                    );
-                  })()}
+
+                          {totalCount === 0 ? (
+                            <div className="rounded-2xl border border-emerald-500/20 bg-emerald-500/10 p-5">
+                              <div className="flex items-center gap-2 font-bold text-emerald-700 dark:text-emerald-300">
+                                <CheckCircle2 className="h-5 w-5" />
+                                Tidak ada checkpoint pada bagian ini
+                              </div>
+                              <p className="mt-2 text-sm text-emerald-700 dark:text-emerald-200">
+                                Kamu dapat melanjutkan ke bagian berikutnya.
+                              </p>
+                            </div>
+                          ) : (
+                            <div className="space-y-3">
+                              {checkpointList.map((checkpoint, index) => {
+                                const checkpointProgress =
+                                  selectedSection.checkpoints.find(
+                                    (item) => item.id === checkpoint.id
+                                  );
+
+                                const completed =
+                                  checkpointProgress?.completed === true;
+
+                                return (
+                                  <div
+                                    key={checkpoint.id}
+                                    className={`flex min-w-0 flex-col gap-3 rounded-2xl border p-4 transition-colors motion-reduce:transition-none sm:flex-row sm:items-center sm:justify-between sm:gap-4 ${
+                                      completed
+                                        ? "border-emerald-500/20 bg-emerald-500/5"
+                                        : "border-emerald-900/10 bg-white/70 hover:border-emerald-500/30 dark:border-emerald-400/10 dark:bg-slate-950/40"
+                                    }`}
+                                  >
+                                    <div className="flex min-w-0 items-start gap-3">
+                                      <div
+                                        className={`mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ring-1 ${
+                                          completed
+                                            ? "bg-emerald-500/10 text-emerald-600 ring-emerald-500/15 dark:text-emerald-400"
+                                            : "bg-muted text-muted-foreground ring-transparent"
+                                        }`}
+                                      >
+                                        {completed ? (
+                                          <CheckCircle2 className="h-5 w-5" />
+                                        ) : (
+                                          <ShieldCheck className="h-5 w-5" />
+                                        )}
+                                      </div>
+
+                                      <div className="min-w-0">
+                                        <p className="text-xs font-semibold text-muted-foreground">
+                                          Checkpoint {index + 1}
+                                        </p>
+                                        <h4 className="mt-1 font-bold">
+                                          {checkpoint.title}
+                                        </h4>
+                                        <p
+                                          className={`mt-1 text-xs font-medium ${
+                                            completed
+                                              ? "text-emerald-600 dark:text-emerald-400"
+                                              : "text-muted-foreground"
+                                          }`}
+                                        >
+                                          {completed
+                                            ? "Sudah diselesaikan"
+                                            : "Belum dikerjakan"}
+                                        </p>
+                                      </div>
+                                    </div>
+
+                                    <button
+                                      type="button"
+                                      disabled={completed || startingAssessment}
+                                      onClick={() =>
+                                        void startAssessment(checkpoint)
+                                      }
+                                      className={`inline-flex w-full shrink-0 items-center justify-center gap-2 rounded-xl px-4 py-3 text-sm font-semibold transition disabled:cursor-not-allowed motion-reduce:transition-none sm:w-auto sm:px-5 ${
+                                        completed
+                                          ? "border border-emerald-500/20 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300"
+                                          : `${BTN_PRIMARY} disabled:opacity-50`
+                                      }`}
+                                    >
+                                      {startingAssessment ? (
+                                        <Loader2 className="h-4 w-4 animate-spin motion-reduce:animate-none" />
+                                      ) : completed ? (
+                                        <CheckCircle2 className="h-4 w-4" />
+                                      ) : (
+                                        <ArrowRight className="h-4 w-4" />
+                                      )}
+                                      {completed ? "Selesai" : "Kerjakan"}
+                                    </button>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          )}
+
+                          {allCompleted && (
+                            <div className="mt-4 rounded-2xl border border-emerald-500/20 bg-emerald-500/10 p-5">
+                              <div className="flex items-center gap-2 font-bold text-emerald-700 dark:text-emerald-300">
+                                <CheckCircle2 className="h-5 w-5" />
+                                Semua checkpoint bagian ini selesai!
+                              </div>
+                              <p className="mt-2 text-sm text-emerald-700 dark:text-emerald-200">
+                                Kamu sudah menyelesaikan seluruh checkpoint pada bagian ini. Silakan lanjutkan pembelajaran.
+                              </p>
+                            </div>
+                          )}
+
+                          {allCompleted && (
+                            <div className="mt-4 flex flex-wrap justify-between gap-3">
+                              <button
+                                disabled={selectedSectionIndex === 0}
+                                onClick={() =>
+                                  setSelectedSectionIndex((index) =>
+                                    Math.max(0, index - 1)
+                                  )
+                                }
+                                className="inline-flex items-center gap-2 rounded-xl border border-emerald-900/10 bg-white/70 px-4 py-2.5 text-sm font-semibold text-muted-foreground transition hover:bg-emerald-500/10 disabled:cursor-not-allowed disabled:opacity-40 dark:border-emerald-400/10 dark:bg-slate-950/40 motion-reduce:transition-none"
+                              >
+                                <ArrowLeft className="h-4 w-4" />
+                                Bagian sebelumnya
+                              </button>
+
+                              {selectedSectionIndex < sections.length - 1 ? (
+                                <button
+                                  disabled={
+                                    !isSectionAccessible(selectedSectionIndex + 1)
+                                  }
+                                  onClick={() =>
+                                    setSelectedSectionIndex((index) =>
+                                      Math.min(sections.length - 1, index + 1)
+                                    )
+                                  }
+                                  className={`inline-flex items-center gap-2 rounded-xl px-5 py-2.5 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-50 ${BTN_PRIMARY}`}
+                                >
+                                  Bagian berikutnya
+                                  <ArrowRight className="h-4 w-4" />
+                                </button>
+                              ) : (
+                                <button
+                                  disabled={
+                                    !canOpenFinalAssessment ||
+                                    startingAssessment ||
+                                    !finalAssessment
+                                  }
+                                  onClick={() => {
+                                    if (finalAssessment) {
+                                      void startAssessment(finalAssessment);
+                                    } else {
+                                      setAssessmentError(
+                                        "Evaluasi akhir belum tersedia."
+                                      );
+                                    }
+                                  }}
+                                  className={`inline-flex items-center gap-2 rounded-xl px-5 py-2.5 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-50 ${BTN_PRIMARY}`}
+                                >
+                                  <GraduationCap className="h-4 w-4" />
+                                  Evaluasi akhir
+                                </button>
+                              )}
+                            </div>
+                          )}
+                        </>
+                      );
+                    })()}
+                  </div>
+                </>
+              ) : (
+                <div className="relative px-6 py-14 text-center">
+                  <div
+                    aria-hidden="true"
+                    className="pointer-events-none absolute left-1/2 top-0 h-40 w-72 -translate-x-1/2 rounded-full bg-emerald-400/15 blur-3xl"
+                  />
+                  <div className="relative mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-emerald-500/10 ring-1 ring-emerald-500/20">
+                    <BookOpen className="h-8 w-8 text-emerald-600/70 dark:text-emerald-400/70" />
+                  </div>
+                  <h2 className="relative mt-4 font-bold">
+                    Belum ada bagian materi
+                  </h2>
+                  <p className="relative mx-auto mt-2 max-w-sm text-sm leading-relaxed text-muted-foreground">
+                    Admin belum menambahkan bagian materi untuk sesi ini.
+                  </p>
                 </div>
-              </>
-            ) : (
-              <div className="px-6 py-14 text-center">
-                <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-muted">
-                  <BookOpen className="h-8 w-8 text-muted-foreground" />
-                </div>
-                <h2 className="mt-4 font-bold">
-                  Belum ada bagian materi
-                </h2>
-                <p className="mx-auto mt-2 max-w-sm text-sm leading-relaxed text-muted-foreground">
-                  Admin belum menambahkan bagian materi untuk sesi ini.
-                </p>
+              )}
+            </section>
+
+            {/* ASSESSMENT ERROR */}
+            {assessmentError && !activeAssessment && (
+              <div className="mt-4 flex items-start gap-3 rounded-xl border border-amber-500/20 bg-amber-500/10 p-4 text-sm text-amber-700 backdrop-blur-md dark:text-amber-300">
+                <XCircle className="mt-0.5 h-5 w-5 shrink-0" />
+                <p>{assessmentError}</p>
               </div>
             )}
-          </section>
 
-          {/* ASSESSMENT ERROR */}
-          {assessmentError && !activeAssessment && (
-            <div className="mt-4 flex items-start gap-3 rounded-xl border border-amber-500/20 bg-amber-500/10 p-4 text-sm text-amber-700 dark:text-amber-300">
-              <XCircle className="mt-0.5 h-5 w-5 shrink-0" />
-              <p>{assessmentError}</p>
-            </div>
-          )}
-
-          {/* FINAL ASSESSMENT CARD */}
-          {canOpenFinalAssessment && finalAssessment && (
-            <section className="mt-5 rounded-2xl border border-emerald-500/20 bg-emerald-500/5 p-5 sm:p-6">
-              <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
-                <div className="flex items-start gap-3">
-                  <div className="rounded-xl bg-emerald-500/10 p-3">
-                    <Trophy className="h-6 w-6 text-emerald-600 dark:text-emerald-400" />
-                  </div>
-                  <div>
-                    <h3 className="font-bold text-emerald-800 dark:text-emerald-200">
-                      Semua checkpoint telah selesai
-                    </h3>
-                    <p className="mt-1 text-sm leading-relaxed text-muted-foreground">
-                      Lanjutkan dengan evaluasi akhir untuk menyelesaikan sesi pembelajaran ini.
-                    </p>
-                  </div>
+            {/* FINAL ASSESSMENT CARD */}
+            {canOpenFinalAssessment && finalAssessment && (
+              <section className="relative mt-5 overflow-hidden rounded-2xl border border-emerald-500/25 bg-gradient-to-br from-emerald-500/[0.12] via-white/60 to-teal-500/[0.08] p-5 shadow-[0_10px_35px_-15px_rgba(6,78,59,0.25)] backdrop-blur-md dark:via-slate-900/50 sm:p-6">
+                <div
+                  aria-hidden="true"
+                  className="pointer-events-none absolute inset-0"
+                >
+                  <div className="absolute inset-0 opacity-50 [background-image:radial-gradient(rgba(5,150,105,0.22)_1px,transparent_1px)] [background-size:20px_20px] [mask-image:linear-gradient(to_bottom_left,black,transparent_60%)]" />
+                  <div className="gu-drift absolute -right-10 -top-14 h-40 w-40 rounded-full bg-emerald-400/20 blur-3xl" />
+                  <div className="absolute inset-x-6 top-0 h-px bg-gradient-to-r from-transparent via-emerald-400/60 to-transparent" />
                 </div>
 
-                <button
-                  onClick={() => void startAssessment(finalAssessment)}
-                  disabled={startingAssessment}
-                  className="inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-700 px-5 py-3 text-sm font-semibold text-white transition hover:bg-emerald-800 disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  {startingAssessment ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <ArrowRight className="h-4 w-4" />
-                  )}
-                  Mulai evaluasi
-                </button>
-              </div>
-            </section>
-          )}
-        </main>
+                <div className="relative flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
+                  <div className="flex items-start gap-3">
+                    <div className="rounded-xl bg-gradient-to-br from-emerald-500 to-teal-600 p-3 text-white shadow-md shadow-emerald-700/25">
+                      <Trophy className="h-6 w-6" />
+                    </div>
+                    <div>
+                      <h3 className="font-bold text-emerald-800 dark:text-emerald-200">
+                        Semua checkpoint telah selesai
+                      </h3>
+                      <p className="mt-1 text-sm leading-relaxed text-muted-foreground">
+                        Lanjutkan dengan evaluasi akhir untuk menyelesaikan sesi pembelajaran ini.
+                      </p>
+                    </div>
+                  </div>
+
+                  <button
+                    onClick={() => void startAssessment(finalAssessment)}
+                    disabled={startingAssessment}
+                    className={`inline-flex items-center justify-center gap-2 rounded-xl px-5 py-3 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-50 ${BTN_DEEP}`}
+                  >
+                    {startingAssessment ? (
+                      <Loader2 className="h-4 w-4 animate-spin motion-reduce:animate-none" />
+                    ) : (
+                      <ArrowRight className="h-4 w-4" />
+                    )}
+                    Mulai evaluasi
+                  </button>
+                </div>
+              </section>
+            )}
+          </main>
+        </div>
       </div>
     </div>
-  </div>
-);
+  );
 }
