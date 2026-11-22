@@ -1,1613 +1,1419 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
 import {
-  Area,
-  AreaChart,
-  Bar,
-  BarChart,
-  CartesianGrid,
-  Line,
-  LineChart,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from "recharts";
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+  type ReactNode,
+} from "react";
 import {
-  Download,
-  TrendingUp,
-  TrendingDown,
-  Users,
   Crown,
-  Wallet,
-  ClipboardCheck,
-  Sparkles,
-  Activity,
-  CalendarDays,
-  ChartNoAxesCombined,
-  Info,
-  GraduationCap,
+  Plus,
+  Pencil,
   RefreshCw,
-  FileSpreadsheet,
-  AlertCircle,
+  Loader2,
+  Search,
+  CheckCircle2,
+  XCircle,
+  CalendarDays,
+  AlertTriangle,
+  X,
+  Package,
+  Power,
+  Filter,
+  Clock3,
+  CircleDollarSign,
+  ArrowUpDown,
+  MoreHorizontal,
+  ListFilter,
+  ShieldCheck,
+  Layers3,
+  ChevronDown,
 } from "lucide-react";
-import type { LucideIcon } from "lucide-react";
 import { toast } from "sonner";
-import * as XLSX from "xlsx";
 
-import { supabase } from "@/lib/supabase";
-import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Input, Textarea } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+
 import { PageHeader } from "@/components/shared/page-header";
 import {
-  ChartCard,
-  axisProps,
-  chartTooltipStyle,
-} from "@/components/shared/chart-card";
-import { FilterSelect } from "@/components/shared/filter-select";
-import { CHART_COLORS } from "@/constants";
+  EmptyState,
+  ErrorState,
+  CardGridSkeleton,
+} from "@/components/shared/states";
 
-const ranges = ["3 bulan terakhir", "6 bulan terakhir"] as const;
+import { supabase } from "@/lib/supabase";
 
-type RangeType = (typeof ranges)[number];
-
-type ProfileRow = {
+interface PremiumPlan {
   id: string;
-  role: string | null;
-  created_at: string | null;
-  is_premium: boolean | null;
-  premium_until: string | null;
-};
+  code: string;
+  name: string;
+  description: string | null;
+  price: number | null;
+  duration_months: number;
+  features: string[];
+  is_active: boolean;
+  sort_order: number;
+  created_at: string;
+  updated_at: string;
+}
 
-type TransactionRow = {
-  id: string;
-  user_id: string | null;
-  invoice_number: string | null;
-  plan_name: string | null;
-  amount: number | string | null;
-  gross_amount: number | string | null;
-  status: string | null;
-  payment_method: string | null;
-  paid_at: string | null;
-  created_at: string | null;
-};
-
-type ExamAttemptRow = {
-  id: string;
-  user_id: string | null;
-  exam_id: string | null;
-  score: number | null;
-  status: string | null;
-  created_at: string | null;
-  correct_count: number | null;
-  wrong_count: number | null;
-  total_questions: number | null;
-  is_passed: boolean | null;
-};
-
-type MonthlyData = {
-  bulan: string;
-  pendapatan: number;
-  penggunaBaru: number;
-  totalPengguna: number;
-  transaksiPremium: number;
-  ujian: number;
-};
-
-type WeeklyData = {
-  minggu: string;
-  ujian: number;
-};
-
-type ReportData = {
-  profiles: ProfileRow[];
-  transactions: TransactionRow[];
-  attempts: ExamAttemptRow[];
-};
-
-type MetricCardProps = {
-  title: string;
-  value: string;
+interface PlanDraft {
+  id?: string;
+  code: string;
+  name: string;
   description: string;
-  icon: LucideIcon;
-  color: string;
-  trend?: string;
-  trendPositive?: boolean;
+  price: string;
+  duration_months: number;
+  features: string;
+  is_active: boolean;
+  sort_order: number;
+}
+
+type StatusFilter = "all" | "active" | "inactive";
+type SortOption = "position" | "name" | "price-low" | "price-high";
+
+const DURATION_OPTIONS = [1, 3, 6, 12];
+
+const formatRupiah = (value: number | null) => {
+  if (value === null) return "Belum ditentukan";
+
+  return new Intl.NumberFormat("id-ID", {
+    style: "currency",
+    currency: "IDR",
+    maximumFractionDigits: 0,
+  }).format(value);
 };
 
-const currencyFormatter = new Intl.NumberFormat("id-ID", {
-  style: "currency",
-  currency: "IDR",
-  maximumFractionDigits: 0,
+const formatDuration = (months: number) =>
+  months === 1 ? "1 Bulan" : `${months} Bulan`;
+
+const formatDate = (value: string) => {
+  if (!value) return "-";
+
+  return new Intl.DateTimeFormat("id-ID", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  }).format(new Date(value));
+};
+
+const getErrorMessage = (error: unknown) =>
+  error instanceof Error
+    ? error.message
+    : "Terjadi kesalahan. Silakan coba kembali.";
+
+const createCode = (value: string) =>
+  value
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/(^-|-$)/g, "");
+
+const emptyDraft = (): PlanDraft => ({
+  code: "",
+  name: "",
+  description: "",
+  price: "",
+  duration_months: 1,
+  features: "",
+  is_active: false,
+  sort_order: 0,
 });
 
-const numberFormatter = new Intl.NumberFormat("id-ID");
+/* ------------------------------------------------------------------ */
+/* Dekorasi visual (murni tampilan, tidak interaktif)                  */
+/* ------------------------------------------------------------------ */
 
-function formatCurrency(value: number) {
-  return currencyFormatter.format(value);
-}
+const patternLine =
+  "[--gu-line:rgba(15,118,110,0.10)] dark:[--gu-line:rgba(52,211,153,0.09)]";
 
-function formatNumber(value: number) {
-  return numberFormatter.format(value);
-}
+const panelSurface =
+  "border border-emerald-200/70 bg-card/90 shadow-[0_16px_44px_-28px_rgba(15,118,110,0.4)] backdrop-blur-sm dark:border-emerald-900/40";
 
-function getMonthStart(date: Date) {
-  return new Date(date.getFullYear(), date.getMonth(), 1);
-}
+const selectField =
+  "h-10 w-full appearance-none rounded-md border border-input bg-background pl-9 pr-8 text-xs font-medium outline-none transition-colors focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20";
 
-function getMonthKey(date: Date) {
-  return `${date.getFullYear()}-${String(
-    date.getMonth() + 1
-  ).padStart(2, "0")}`;
-}
-
-function getMonthLabel(date: Date) {
-  return date.toLocaleDateString("id-ID", {
-    month: "short",
-    year: "2-digit",
-  });
-}
-
-function getMonday(date: Date) {
-  const result = new Date(date);
-  result.setHours(0, 0, 0, 0);
-
-  const day = result.getDay();
-  const difference = day === 0 ? -6 : 1 - day;
-
-  result.setDate(result.getDate() + difference);
-  return result;
-}
-
-function getWeekKey(date: Date) {
-  return getMonday(date).toISOString().slice(0, 10);
-}
-
-function getWeekLabel(date: Date) {
-  return getMonday(date).toLocaleDateString("id-ID", {
-    day: "numeric",
-    month: "short",
-  });
-}
-
-function getTransactionAmount(transaction: TransactionRow) {
-  const amount = Number(
-    transaction.amount ?? transaction.gross_amount ?? 0
-  );
-
-  return Number.isFinite(amount) ? amount : 0;
-}
-
-function getTransactionDate(transaction: TransactionRow) {
-  const date = transaction.paid_at || transaction.created_at;
-
-  return date ? new Date(date) : null;
-}
-
-function getAttemptDate(attempt: ExamAttemptRow) {
-  return attempt.created_at ? new Date(attempt.created_at) : null;
-}
-
-function isValidDate(date: Date | null): date is Date {
-  return date !== null && !Number.isNaN(date.getTime());
-}
-
-function MetricCard({
-  title,
-  value,
-  description,
-  icon: Icon,
-  color,
-  trend,
-  trendPositive = true,
-}: MetricCardProps) {
+function PlansStyles() {
   return (
-    <div className="group relative overflow-hidden rounded-2xl border bg-card p-5 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md">
-      <div
-        className={`pointer-events-none absolute -right-8 -top-8 h-28 w-28 rounded-full opacity-[0.07] blur-2xl ${color}`}
-      />
+    <style>{`
+      @keyframes gu-drift {
+        0%, 100% { transform: translate3d(0, 0, 0) scale(1); }
+        50% { transform: translate3d(22px, -16px, 0) scale(1.07); }
+      }
+      @keyframes gu-drift-rev {
+        0%, 100% { transform: translate3d(0, 0, 0) scale(1); }
+        50% { transform: translate3d(-20px, 14px, 0) scale(1.06); }
+      }
+      @keyframes gu-reveal {
+        from { opacity: 0; transform: translate3d(0, 12px, 0); }
+        to { opacity: 1; transform: translate3d(0, 0, 0); }
+      }
+      .gu-drift { animation: gu-drift 20s ease-in-out infinite; }
+      .gu-drift-rev { animation: gu-drift-rev 24s ease-in-out infinite; }
+      .gu-reveal { animation: gu-reveal 0.6s cubic-bezier(0.22, 1, 0.36, 1) both; }
 
-      <div className="relative flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <p className="text-sm font-medium text-muted-foreground">
-            {title}
-          </p>
-
-          <p className="mt-3 break-words text-2xl font-bold tracking-tight md:text-3xl">
-            {value}
-          </p>
-
-          <p className="mt-2 text-xs text-muted-foreground">
-            {description}
-          </p>
-        </div>
-
-        <div
-          className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl ${color} bg-opacity-10`}
-        >
-          <Icon className="h-5 w-5" />
-        </div>
-      </div>
-
-      {trend && (
-        <div className="relative mt-4 flex flex-wrap items-center gap-1.5 border-t pt-3">
-          {trendPositive ? (
-            <TrendingUp className="h-3.5 w-3.5 text-emerald-600" />
-          ) : (
-            <TrendingDown className="h-3.5 w-3.5 text-rose-600" />
-          )}
-
-          <span
-            className={`text-xs font-semibold ${
-              trendPositive ? "text-emerald-600" : "text-rose-600"
-            }`}
-          >
-            {trend}
-          </span>
-
-          <span className="text-xs text-muted-foreground">
-            dibandingkan periode sebelumnya
-          </span>
-        </div>
-      )}
-    </div>
-  );
-}
-
-function InsightCard({
-  icon: Icon,
-  title,
-  description,
-}: {
-  icon: LucideIcon;
-  title: string;
-  description: string;
-}) {
-  return (
-    <div className="flex gap-3 rounded-xl border bg-card p-4">
-      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
-        <Icon className="h-4 w-4" />
-      </div>
-
-      <div className="min-w-0">
-        <p className="text-sm font-semibold">{title}</p>
-
-        <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
-          {description}
-        </p>
-      </div>
-    </div>
-  );
-}
-
-function BadgePeriod({ range }: { range: string }) {
-  return (
-    <Badge variant="outline" className="gap-1.5 px-3 py-1.5">
-      <CalendarDays className="h-3.5 w-3.5" />
-      {range}
-    </Badge>
-  );
-}
-
-export default function AdminReportsPage() {
-  const [range, setRange] = useState<RangeType>("6 bulan terakhir");
-  const [loading, setLoading] = useState(true);
-  const [exporting, setExporting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  const [data, setData] = useState<ReportData>({
-    profiles: [],
-    transactions: [],
-    attempts: [],
-  });
-
-  const monthCount = range === "3 bulan terakhir" ? 3 : 6;
-
-
-const loadReports = useCallback(async () => {
-  setLoading(true);
-  setError(null);
-
-  try {
-    const now = new Date();
-
-    const firstMonth = new Date(
-      now.getFullYear(),
-      now.getMonth() - monthCount + 1,
-      1
-    );
-
-    const weeklyStart = getMonday(now);
-    weeklyStart.setDate(weeklyStart.getDate() - 6 * 7);
-
-    const activityStart =
-      firstMonth < weeklyStart ? firstMonth : weeklyStart;
-
-    const DUITKU_PRODUCTION_MERCHANT_CODE = "D25895";
-
-    const [
-      profilesResult,
-      paymentTransactionsResult,
-      attemptsResult,
-    ] = await Promise.all([
-      supabase
-        .from("profiles")
-        .select(
-          "id, role, created_at, is_premium, premium_until"
-        )
-        .eq("role", "student"),
-
-      supabase
-        .from("payment_transactions")
-        .select("merchant_order_id")
-        .filter(
-          "raw_response->>merchantCode",
-          "eq",
-          DUITKU_PRODUCTION_MERCHANT_CODE
-        ),
-
-      supabase
-        .from("exam_attempts")
-        .select(
-          "id, user_id, exam_id, score, status, created_at, correct_count, wrong_count, total_questions, is_passed"
-        )
-        .eq("status", "completed")
-        .gte("created_at", activityStart.toISOString()),
-    ]);
-
-    if (profilesResult.error) {
-      throw new Error(
-        `Gagal mengambil data pengguna: ${profilesResult.error.message}`
-      );
-    }
-
-    if (paymentTransactionsResult.error) {
-      throw new Error(
-        `Gagal mengambil data pembayaran Duitku: ${paymentTransactionsResult.error.message}`
-      );
-    }
-
-    if (attemptsResult.error) {
-      throw new Error(
-        `Gagal mengambil aktivitas ujian: ${attemptsResult.error.message}`
-      );
-    }
-
-    const productionOrderIds = [
-      ...new Set(
-        (paymentTransactionsResult.data || [])
-          .map((item) => item.merchant_order_id)
-          .filter(
-            (id): id is string =>
-              typeof id === "string" && id.length > 0
-          )
-      ),
-    ];
-
-    let transactions: TransactionRow[] = [];
-
-    if (productionOrderIds.length > 0) {
-      const transactionsResult = await supabase
-        .from("transactions")
-        .select(
-          "id, user_id, invoice_number, plan_name, amount, gross_amount, status, payment_method, paid_at, created_at"
-        )
-        .eq("status", "settlement")
-        .in("invoice_number", productionOrderIds);
-
-      if (transactionsResult.error) {
-        throw new Error(
-          `Gagal mengambil transaksi Production: ${transactionsResult.error.message}`
-        );
+      .gu-grid {
+        background-image:
+          linear-gradient(to right, var(--gu-line) 1px, transparent 1px),
+          linear-gradient(to bottom, var(--gu-line) 1px, transparent 1px);
+        background-size: 40px 40px;
+        -webkit-mask-image: radial-gradient(ellipse 80% 70% at 50% 0%, #000 20%, transparent 100%);
+        mask-image: radial-gradient(ellipse 80% 70% at 50% 0%, #000 20%, transparent 100%);
       }
 
-      transactions = (transactionsResult.data ||
-        []) as TransactionRow[];
+      @media (prefers-reduced-motion: reduce) {
+        .gu-drift, .gu-drift-rev, .gu-reveal {
+          animation: none !important;
+        }
+      }
+    `}</style>
+  );
+}
+
+function DecorLayer({ children }: { children: ReactNode }) {
+  return (
+    <div
+      aria-hidden="true"
+      className="pointer-events-none absolute inset-0 -z-10 overflow-hidden"
+    >
+      {children}
+    </div>
+  );
+}
+
+export default function AdminPremiumPlansPage() {
+  const [items, setItems] = useState<PremiumPlan[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [togglingId, setTogglingId] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const [draft, setDraft] = useState<PlanDraft | null>(null);
+  const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
+  const [sortBy, setSortBy] = useState<SortOption>("position");
+  const [validation, setValidation] = useState<Record<string, string>>({});
+
+  const fetchData = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+
+    try {
+      const { data, error } = await supabase
+        .from("premium_plans")
+        .select("*")
+        .order("sort_order", { ascending: true })
+        .order("duration_months", { ascending: true });
+
+      if (error) throw error;
+
+      const mapped = (data ?? []).map((item) => ({
+        ...item,
+        features: Array.isArray(item.features) ? item.features : [],
+      })) as PremiumPlan[];
+
+      setItems(mapped);
+    } catch (fetchError) {
+      console.error("Fetch premium plans error:", fetchError);
+      setError(getErrorMessage(fetchError));
+    } finally {
+      setLoading(false);
     }
-
-    setData({
-      profiles: (profilesResult.data || []) as ProfileRow[],
-      transactions,
-      attempts: (attemptsResult.data ||
-        []) as ExamAttemptRow[],
-    });
-  } catch (err) {
-    const message =
-      err instanceof Error
-        ? err.message
-        : "Terjadi kesalahan saat mengambil laporan.";
-
-    setError(message);
-    toast.error("Gagal memuat laporan", {
-      description: message,
-    });
-  } finally {
-    setLoading(false);
-  }
-}, [monthCount]);
-
+  }, []);
 
   useEffect(() => {
-    void loadReports();
-  }, [loadReports]);
+    void fetchData();
+  }, [fetchData]);
 
-  const now = new Date();
+  const activePlans = useMemo(
+    () => items.filter((item) => item.is_active).length,
+    [items]
+  );
 
-  const monthly = useMemo<MonthlyData[]>(() => {
-    const result: MonthlyData[] = [];
+  const inactivePlans = items.length - activePlans;
 
-    for (let index = monthCount - 1; index >= 0; index--) {
-      const date = new Date(
-        now.getFullYear(),
-        now.getMonth() - index,
-        1
-      );
+  const averagePrice = useMemo(() => {
+    const pricedPlans = items.filter(
+      (item) => item.price !== null && item.price > 0
+    );
 
-      const key = getMonthKey(date);
-      const monthEnd = new Date(
-        date.getFullYear(),
-        date.getMonth() + 1,
-        1
-      );
+    if (!pricedPlans.length) return 0;
 
-      const monthlyTransactions = data.transactions.filter(
-        (transaction) => {
-          const transactionDate = getTransactionDate(transaction);
+    return (
+      pricedPlans.reduce((sum, item) => sum + (item.price ?? 0), 0) /
+      pricedPlans.length
+    );
+  }, [items]);
 
+  const filteredItems = useMemo(() => {
+    const keyword = search.trim().toLowerCase();
+
+    const result = items.filter((item) => {
+      const matchesSearch =
+        !keyword ||
+        [item.name, item.code, item.description ?? ""].some((value) =>
+          value.toLowerCase().includes(keyword)
+        );
+
+      const matchesStatus =
+        statusFilter === "all" ||
+        (statusFilter === "active" && item.is_active) ||
+        (statusFilter === "inactive" && !item.is_active);
+
+      return matchesSearch && matchesStatus;
+    });
+
+    return [...result].sort((a, b) => {
+      switch (sortBy) {
+        case "name":
+          return a.name.localeCompare(b.name);
+        case "price-low":
+          return (a.price ?? 0) - (b.price ?? 0);
+        case "price-high":
+          return (b.price ?? 0) - (a.price ?? 0);
+        default:
           return (
-            isValidDate(transactionDate) &&
-            getMonthKey(transactionDate) === key
+            a.sort_order - b.sort_order ||
+            a.duration_months - b.duration_months
           );
-        }
-      );
-
-      const monthlyProfiles = data.profiles.filter((profile) => {
-        if (!profile.created_at) return false;
-
-        const createdAt = new Date(profile.created_at);
-
-        return (
-          isValidDate(createdAt) &&
-          createdAt >= date &&
-          createdAt < monthEnd
-        );
-      });
-
-      const monthlyAttempts = data.attempts.filter((attempt) => {
-        const attemptDate = getAttemptDate(attempt);
-
-        return (
-          isValidDate(attemptDate) &&
-          getMonthKey(attemptDate) === key
-        );
-      });
-
-      const cumulativeUsers = data.profiles.filter((profile) => {
-        if (!profile.created_at) return false;
-
-        const createdAt = new Date(profile.created_at);
-
-        return isValidDate(createdAt) && createdAt < monthEnd;
-      }).length;
-
-      result.push({
-        bulan: getMonthLabel(date),
-        pendapatan: monthlyTransactions.reduce(
-          (total, transaction) =>
-            total + getTransactionAmount(transaction),
-          0
-        ),
-        penggunaBaru: monthlyProfiles.length,
-        totalPengguna: cumulativeUsers,
-        transaksiPremium: monthlyTransactions.length,
-        ujian: monthlyAttempts.length,
-      });
-    }
-
-    return result;
-  }, [data, monthCount]);
-
-  const weekly = useMemo<WeeklyData[]>(() => {
-    const result: WeeklyData[] = [];
-
-    const currentMonday = getMonday(now);
-
-    for (let index = 6; index >= 0; index--) {
-      const weekStart = new Date(currentMonday);
-      weekStart.setDate(weekStart.getDate() - index * 7);
-
-      const weekKey = getWeekKey(weekStart);
-
-      const count = data.attempts.filter((attempt) => {
-        const attemptDate = getAttemptDate(attempt);
-
-        return (
-          isValidDate(attemptDate) &&
-          getWeekKey(attemptDate) === weekKey
-        );
-      }).length;
-
-      result.push({
-        minggu: getWeekLabel(weekStart),
-        ujian: count,
-      });
-    }
-
-    return result;
-  }, [data.attempts]);
-
-  const totalRevenue = useMemo(
-    () =>
-      monthly.reduce(
-        (total, item) => total + item.pendapatan,
-        0
-      ),
-    [monthly]
-  );
-
-  const totalUsers = data.profiles.length;
-
-  const activePremium = useMemo(() => {
-    const currentTime = Date.now();
-
-    return data.profiles.filter((profile) => {
-      if (!profile.is_premium) return false;
-
-      if (!profile.premium_until) return true;
-
-      return new Date(profile.premium_until).getTime() > currentTime;
-    }).length;
-  }, [data.profiles]);
-
-  const premiumRate = totalUsers
-    ? (activePremium / totalUsers) * 100
-    : 0;
-
-  const totalTransactions = monthly.reduce(
-    (total, item) => total + item.transaksiPremium,
-    0
-  );
-
-  const totalExamActivity = weekly.reduce(
-    (total, item) => total + item.ujian,
-    0
-  );
-
-  const averageRevenue = monthly.length
-    ? totalRevenue / monthly.length
-    : 0;
-
-  const latestRevenue = monthly[monthly.length - 1];
-  const previousRevenue = monthly[monthly.length - 2];
-
-  const revenueChange =
-    latestRevenue &&
-    previousRevenue &&
-    previousRevenue.pendapatan > 0
-      ? ((latestRevenue.pendapatan -
-          previousRevenue.pendapatan) /
-          previousRevenue.pendapatan) *
-        100
-      : null;
-
-  const latestMonth = monthly[monthly.length - 1];
-  const previousMonth = monthly[monthly.length - 2];
-
-  const userIncrease =
-    latestMonth && previousMonth
-      ? latestMonth.penggunaBaru - previousMonth.penggunaBaru
-      : null;
-
-  const transactionChange =
-    latestMonth && previousMonth
-      ? latestMonth.transaksiPremium -
-        previousMonth.transaksiPremium
-      : null;
-
-  const averageWeeklyExam = weekly.length
-    ? totalExamActivity / weekly.length
-    : 0;
-
-  const insights = useMemo(() => {
-    const items: {
-      icon: LucideIcon;
-      title: string;
-      description: string;
-    }[] = [];
-
-    if (revenueChange !== null) {
-      items.push({
-        icon: revenueChange >= 0 ? TrendingUp : TrendingDown,
-        title:
-          revenueChange >= 0
-            ? "Pendapatan mengalami peningkatan"
-            : "Pendapatan mengalami penurunan",
-        description: `Pendapatan bulan terakhir ${
-          revenueChange >= 0 ? "naik" : "turun"
-        } ${Math.abs(revenueChange).toFixed(
-          1
-        )}% dibandingkan bulan sebelumnya.`,
-      });
-    }
-
-    if (userIncrease !== null) {
-      items.push({
-        icon: Users,
-        title: "Pertumbuhan pengguna",
-        description: `Jumlah pengguna baru pada bulan terakhir ${
-          userIncrease >= 0 ? "bertambah" : "berkurang"
-        } ${formatNumber(Math.abs(userIncrease))} dibandingkan bulan sebelumnya.`,
-      });
-    }
-
-    items.push({
-      icon: Crown,
-      title: "Keanggotaan Premium",
-      description: `Saat ini terdapat ${formatNumber(
-        activePremium
-      )} siswa dengan Premium aktif, yaitu ${premiumRate.toFixed(
-        1
-      )}% dari total pengguna.`,
+      }
     });
+  }, [items, search, statusFilter, sortBy]);
 
-    items.push({
-      icon: ClipboardCheck,
-      title: "Aktivitas evaluasi",
-      description: `Terdapat ${formatNumber(
-        totalExamActivity
-      )} ujian selesai dalam tujuh minggu terakhir.`,
+  const openCreate = () => {
+    setValidation({});
+    setDraft(emptyDraft());
+  };
+
+  const openEdit = (item: PremiumPlan) => {
+    setValidation({});
+
+    setDraft({
+      id: item.id,
+      code: item.code,
+      name: item.name,
+      description: item.description ?? "",
+      price: item.price === null ? "" : String(item.price),
+      duration_months: item.duration_months,
+      features: item.features.join("\n"),
+      is_active: item.is_active,
+      sort_order: item.sort_order,
     });
+  };
 
-    return items;
-  }, [
-    revenueChange,
-    userIncrease,
-    activePremium,
-    premiumRate,
-    totalExamActivity,
-  ]);
+  const updateDraft = (changes: Partial<PlanDraft>) => {
+    setDraft((current) =>
+      current ? { ...current, ...changes } : current
+    );
+  };
 
-  const exportExcel = () => {
-    if (!monthly.length) {
-      toast.error("Belum ada data laporan untuk diekspor.");
+  const save = async () => {
+    if (!draft || saving) return;
+
+    const errors: Record<string, string> = {};
+
+    const name = draft.name.trim();
+    const code = createCode(draft.code || name);
+    const rawPrice = draft.price.trim();
+    const parsedPrice = rawPrice === "" ? null : Number(rawPrice);
+
+    if (!name) {
+      errors.name = "Nama paket wajib diisi.";
+    }
+
+    if (!code) {
+      errors.code = "Kode paket tidak valid.";
+    }
+
+    if (
+      parsedPrice !== null &&
+      (!Number.isFinite(parsedPrice) || parsedPrice < 0)
+    ) {
+      errors.price = "Masukkan harga yang valid.";
+    }
+
+    if (
+      draft.is_active &&
+      (parsedPrice === null || parsedPrice <= 0)
+    ) {
+      errors.price = "Paket aktif wajib memiliki harga lebih dari Rp0.";
+    }
+
+    if (
+      items.some(
+        (item) =>
+          item.code.toLowerCase() === code.toLowerCase() &&
+          item.id !== draft.id
+      )
+    ) {
+      errors.code = "Kode paket sudah digunakan.";
+    }
+
+    if (!DURATION_OPTIONS.includes(draft.duration_months)) {
+      errors.duration_months = "Durasi paket tidak valid.";
+    }
+
+    if (
+      !Number.isFinite(Number(draft.sort_order)) ||
+      Number(draft.sort_order) < 0
+    ) {
+      errors.sort_order = "Urutan tampilan tidak valid.";
+    }
+
+    setValidation(errors);
+
+    if (Object.keys(errors).length > 0) return;
+
+    const features = draft.features
+      .split("\n")
+      .map((feature) => feature.trim())
+      .filter(Boolean);
+
+    const payload = {
+      code,
+      name,
+      description: draft.description.trim() || null,
+      price: parsedPrice,
+      duration_months: draft.duration_months,
+      features,
+      is_active: draft.is_active,
+      sort_order: Number(draft.sort_order) || 0,
+      updated_at: new Date().toISOString(),
+    };
+
+    setSaving(true);
+
+    try {
+      if (draft.id) {
+        const { error } = await supabase
+          .from("premium_plans")
+          .update(payload)
+          .eq("id", draft.id);
+
+        if (error) throw error;
+
+        toast.success("Paket Premium berhasil diperbarui.");
+      } else {
+        const { error } = await supabase
+          .from("premium_plans")
+          .insert([payload]);
+
+        if (error) throw error;
+
+        toast.success("Paket Premium berhasil ditambahkan.");
+      }
+
+      setDraft(null);
+      setValidation({});
+      await fetchData();
+    } catch (saveError) {
+      console.error("Save premium plan error:", saveError);
+      toast.error(`Gagal menyimpan paket: ${getErrorMessage(saveError)}`);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const toggleActive = async (item: PremiumPlan) => {
+    if (togglingId) return;
+
+    if (!item.is_active && (!item.price || item.price <= 0)) {
+      toast.error("Tentukan harga paket sebelum mengaktifkannya.");
       return;
     }
 
-    setExporting(true);
+    const newStatus = !item.is_active;
+    setTogglingId(item.id);
 
     try {
-      const workbook = XLSX.utils.book_new();
-
-      // SHEET 1: RINGKASAN
-      const summarySheet = XLSX.utils.aoa_to_sheet([
-        ["LAPORAN ANALITIK GRADEUP"],
-        ["Tanggal Ekspor", new Date().toLocaleString("id-ID")],
-        ["Periode", range],
-        [],
-        ["INDIKATOR", "NILAI"],
-        ["Total Pengguna", totalUsers],
-        ["Premium Aktif", activePremium],
-        ["Persentase Premium", `${premiumRate.toFixed(1)}%`],
-        ["Total Pendapatan", totalRevenue],
-        ["Rata-rata Pendapatan Bulanan", averageRevenue],
-        ["Transaksi Settlement", totalTransactions],
-        ["Aktivitas Ujian 7 Minggu", totalExamActivity],
-      ]);
-
-      summarySheet["!cols"] = [
-        { wch: 38 },
-        { wch: 28 },
-      ];
-
-      ["B9", "B10"].forEach((cellAddress) => {
-        const cell = summarySheet[cellAddress];
-
-        if (cell) {
-          cell.z = '"Rp" #,##0';
-        }
-      });
-
-      XLSX.utils.book_append_sheet(
-        workbook,
-        summarySheet,
-        "Ringkasan"
-      );
-
-      // SHEET 2: DATA BULANAN
-      const monthlySheet = XLSX.utils.json_to_sheet(
-        monthly.map((item) => ({
-          Bulan: item.bulan,
-          Pendapatan_Rupiah: item.pendapatan,
-          Pengguna_Baru: item.penggunaBaru,
-          Total_Pengguna_Kumulatif: item.totalPengguna,
-          Transaksi_Settlement: item.transaksiPremium,
-          Ujian_Selesai: item.ujian,
-        }))
-      );
-
-      monthlySheet["!cols"] = [
-        { wch: 18 },
-        { wch: 24 },
-        { wch: 18 },
-        { wch: 30 },
-        { wch: 24 },
-        { wch: 18 },
-      ];
-
-      for (let row = 2; row <= monthly.length + 1; row++) {
-        const cell = monthlySheet[`B${row}`];
-
-        if (cell) {
-          cell.z = '"Rp" #,##0';
-        }
-      }
-
-      monthlySheet["!autofilter"] = {
-        ref: `A1:F${monthly.length + 1}`,
-      };
-
-      XLSX.utils.book_append_sheet(
-        workbook,
-        monthlySheet,
-        "Data Bulanan"
-      );
-
-      // SHEET 3: AKTIVITAS MINGGUAN
-      const weeklySheet = XLSX.utils.json_to_sheet(
-        weekly.map((item) => ({
-          Minggu_Mulai: item.minggu,
-          Ujian_Selesai: item.ujian,
-        }))
-      );
-
-      weeklySheet["!cols"] = [
-        { wch: 22 },
-        { wch: 20 },
-      ];
-
-      weeklySheet["!autofilter"] = {
-        ref: `A1:B${weekly.length + 1}`,
-      };
-
-      XLSX.utils.book_append_sheet(
-        workbook,
-        weeklySheet,
-        "Aktivitas Mingguan"
-      );
-
-      // SHEET 4: DETAIL TRANSAKSI BERHASIL
-      const successfulTransactions = data.transactions
-        .filter((transaction) => {
-          const date = getTransactionDate(transaction);
-
-          return (
-            isValidDate(date) &&
-            date >= new Date(
-              now.getFullYear(),
-              now.getMonth() - monthCount + 1,
-              1
-            )
-          );
+      const { error } = await supabase
+        .from("premium_plans")
+        .update({
+          is_active: newStatus,
+          updated_at: new Date().toISOString(),
         })
-        .map((transaction) => ({
-          Nomor_Invoice: transaction.invoice_number || "-",
-          Nama_Paket: transaction.plan_name || "-",
-          Jumlah_Rupiah: getTransactionAmount(transaction),
-          Metode_Pembayaran: transaction.payment_method || "-",
-          Tanggal_Pembayaran: getTransactionDate(transaction)
-            ? getTransactionDate(transaction)!.toLocaleString("id-ID")
-            : "-",
-          Status: transaction.status || "-",
-        }));
+        .eq("id", item.id);
 
-      const transactionSheet = XLSX.utils.json_to_sheet(
-        successfulTransactions
+      if (error) throw error;
+
+      toast.success(
+        newStatus
+          ? "Paket berhasil diaktifkan."
+          : "Paket berhasil dinonaktifkan."
       );
 
-      transactionSheet["!cols"] = [
-        { wch: 28 },
-        { wch: 24 },
-        { wch: 22 },
-        { wch: 24 },
-        { wch: 28 },
-        { wch: 18 },
-      ];
-
-      for (
-        let row = 2;
-        row <= successfulTransactions.length + 1;
-        row++
-      ) {
-        const cell = transactionSheet[`C${row}`];
-
-        if (cell) {
-          cell.z = '"Rp" #,##0';
-        }
-      }
-
-      XLSX.utils.book_append_sheet(
-        workbook,
-        transactionSheet,
-        "Transaksi Berhasil"
+      await fetchData();
+    } catch (toggleError) {
+      console.error("Toggle premium plan error:", toggleError);
+      toast.error(
+        `Gagal mengubah status: ${getErrorMessage(toggleError)}`
       );
-
-      XLSX.writeFile(
-        workbook,
-        `GradeUp-Laporan-Analitik-${new Date()
-          .toISOString()
-          .slice(0, 10)}.xlsx`
-      );
-
-      toast.success("Laporan Excel berhasil dibuat", {
-        description:
-          "File berisi ringkasan, data bulanan, aktivitas ujian, dan transaksi berhasil.",
-      });
-    } catch (err) {
-      console.error("Excel export error:", err);
-
-      toast.error("Gagal membuat file Excel", {
-        description:
-          "Silakan coba kembali beberapa saat lagi.",
-      });
     } finally {
-      setExporting(false);
+      setTogglingId(null);
     }
   };
-
-  const exportExamExcel = () => {
-    try {
-      const workbook = XLSX.utils.book_new();
-
-      const examDetails = data.attempts
-        .filter((attempt) => {
-          const date = getAttemptDate(attempt);
-
-          return (
-            isValidDate(date) &&
-            date >= getMonday(new Date(
-              new Date().getFullYear(),
-              new Date().getMonth(),
-              new Date().getDate()
-            ))
-              ? false
-              : true
-          );
-        })
-        .map((attempt) => ({
-          Tanggal: attempt.created_at
-            ? new Date(attempt.created_at).toLocaleString("id-ID")
-            : "-",
-          ID_Siswa: attempt.user_id || "-",
-          ID_Ujian: attempt.exam_id || "-",
-          Nilai: attempt.score ?? 0,
-          Jawaban_Benar: attempt.correct_count ?? 0,
-          Jawaban_Salah: attempt.wrong_count ?? 0,
-          Total_Soal: attempt.total_questions ?? 0,
-          Status_Kelulusan:
-            attempt.is_passed === null
-              ? "Belum diketahui"
-              : attempt.is_passed
-                ? "Lulus"
-                : "Belum lulus",
-          Status: attempt.status || "-",
-        }));
-
-      const detailSheet = XLSX.utils.json_to_sheet(examDetails);
-
-      detailSheet["!cols"] = [
-        { wch: 24 },
-        { wch: 38 },
-        { wch: 38 },
-        { wch: 12 },
-        { wch: 18 },
-        { wch: 18 },
-        { wch: 16 },
-        { wch: 20 },
-        { wch: 18 },
-      ];
-
-      XLSX.utils.book_append_sheet(
-        workbook,
-        detailSheet,
-        "Detail Ujian"
-      );
-
-      const weeklySheet = XLSX.utils.json_to_sheet(
-        weekly.map((item) => ({
-          Minggu_Mulai: item.minggu,
-          Ujian_Selesai: item.ujian,
-        }))
-      );
-
-      weeklySheet["!cols"] = [
-        { wch: 22 },
-        { wch: 20 },
-      ];
-
-      XLSX.utils.book_append_sheet(
-        workbook,
-        weeklySheet,
-        "Rekap Mingguan"
-      );
-
-      XLSX.writeFile(
-        workbook,
-        `GradeUp-Aktivitas-Ujian-${new Date()
-          .toISOString()
-          .slice(0, 10)}.xlsx`
-      );
-
-      toast.success("Aktivitas ujian berhasil diekspor ke Excel.");
-    } catch (err) {
-      console.error("Exam Excel export error:", err);
-
-      toast.error("Gagal mengekspor aktivitas ujian.");
-    }
-  };
-
-  const latestRevenueValue = latestRevenue?.pendapatan ?? 0;
 
   return (
-    <div className="min-h-full space-y-6 p-4 md:space-y-8 md:p-6">
-      <PageHeader
-        title="Laporan & Analitik"
-        description="Pantau perkembangan bisnis, pengguna, keanggotaan Premium, dan aktivitas pembelajaran GradeUp."
-        actions={
-          <>
-            <FilterSelect
-              value={range}
-              onChange={(value) => setRange(value as RangeType)}
-              options={[...ranges]}
-              allLabel="Semua periode"
-              className="sm:w-52"
-            />
+    <div className="relative isolate min-w-0 space-y-6 pb-10">
+      <PlansStyles />
 
-            <Button
-              variant="outline"
-              onClick={loadReports}
-              disabled={loading}
-              className="gap-2"
-            >
-              <RefreshCw
-                className={`h-4 w-4 ${
-                  loading ? "animate-spin" : ""
-                }`}
-              />
-              Muat Ulang
-            </Button>
+      <DecorLayer>
+        <div className={`gu-grid absolute inset-0 ${patternLine}`} />
+        <div className="gu-drift absolute -right-24 -top-24 h-80 w-80 rounded-full bg-emerald-300/30 blur-3xl dark:bg-emerald-600/10" />
+        <div className="gu-drift-rev absolute -left-24 top-1/3 h-72 w-72 rounded-full bg-teal-300/25 blur-3xl dark:bg-teal-600/10" />
+      </DecorLayer>
 
-            <Button
-              onClick={exportExcel}
-              disabled={loading || exporting || !!error}
-              className="gap-2"
-            >
-              {exporting ? (
-                <RefreshCw className="h-4 w-4 animate-spin" />
-              ) : (
-                <FileSpreadsheet className="h-4 w-4" />
-              )}
-              {exporting ? "Membuat Excel..." : "Ekspor Excel"}
-            </Button>
-          </>
-        }
-      />
-
-      <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border bg-card px-4 py-3">
-        <div className="flex items-center gap-2">
-          <CalendarDays className="h-4 w-4 text-primary" />
-          <span className="text-sm font-medium">
-            Periode analisis
-          </span>
+      {/* HEADER */}
+      <div className="gu-reveal relative overflow-hidden rounded-3xl border border-emerald-200/70 bg-gradient-to-br from-emerald-100/80 via-white/70 to-teal-100/70 p-5 shadow-[0_20px_50px_-30px_rgba(15,118,110,0.45)] backdrop-blur-sm dark:border-emerald-900/40 dark:from-emerald-950/60 dark:via-slate-900/60 dark:to-teal-950/50 sm:p-6">
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-0 overflow-hidden"
+        >
+          <div className="absolute -right-16 -top-20 h-56 w-56 rounded-full bg-emerald-400/30 blur-3xl dark:bg-emerald-500/15" />
+          <div className="absolute -bottom-24 left-1/3 h-52 w-52 rounded-full bg-teal-400/20 blur-3xl dark:bg-teal-500/10" />
+          <div className="absolute -right-10 top-6 h-40 w-40 rounded-full border border-emerald-400/30 dark:border-emerald-400/10" />
+          <div className="absolute inset-x-6 top-0 h-px bg-gradient-to-r from-transparent via-emerald-400/60 to-transparent dark:via-emerald-500/30" />
         </div>
 
-        <BadgePeriod range={range} />
-      </div>
-
-      {error && (
-        <div className="flex flex-col gap-3 rounded-xl border border-rose-500/30 bg-rose-500/5 p-4 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex items-start gap-3">
-            <AlertCircle className="mt-0.5 h-5 w-5 shrink-0 text-rose-600" />
-
-            <div>
-              <p className="text-sm font-semibold text-rose-600">
-                Data laporan gagal dimuat
-              </p>
-
-              <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
-                {error}
-              </p>
-            </div>
-          </div>
-
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={loadReports}
-            disabled={loading}
-            className="shrink-0 gap-2"
-          >
-            <RefreshCw className="h-4 w-4" />
-            Coba Lagi
-          </Button>
-        </div>
-      )}
-
-      {loading && (
-        <div className="rounded-2xl border bg-card p-8 text-center">
-          <RefreshCw className="mx-auto h-7 w-7 animate-spin text-primary" />
-
-          <p className="mt-3 text-sm font-semibold">
-            Mengambil data laporan...
-          </p>
-
-          <p className="mt-1 text-xs text-muted-foreground">
-            Menghubungkan statistik dengan database GradeUp.
-          </p>
-        </div>
-      )}
-
-      {!loading && !error && (
-        <>
-          <section>
-            <div className="mb-4 flex items-center gap-2">
-              <ChartNoAxesCombined className="h-5 w-5 text-primary" />
-              <h2 className="font-semibold">
-                Ringkasan Performa
-              </h2>
-            </div>
-
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-              <MetricCard
-                title="Total Pendapatan"
-                value={formatCurrency(totalRevenue)}
-                description={`Akumulasi ${monthly.length} bulan`}
-                icon={Wallet}
-                color="bg-emerald-500 text-emerald-600"
-                trend={
-                  revenueChange !== null
-                    ? `${revenueChange >= 0 ? "+" : ""}${revenueChange.toFixed(1)}%`
-                    : undefined
-                }
-                trendPositive={
-                  revenueChange === null || revenueChange >= 0
-                }
-              />
-
-              <MetricCard
-                title="Total Pengguna"
-                value={formatNumber(totalUsers)}
-                description="Total siswa terdaftar"
-                icon={Users}
-                color="bg-blue-500 text-blue-600"
-                trend={
-                  userIncrease !== null
-                    ? `${userIncrease >= 0 ? "+" : ""}${formatNumber(userIncrease)} siswa baru`
-                    : undefined
-                }
-              />
-
-              <MetricCard
-                title="Premium Aktif"
-                value={formatNumber(activePremium)}
-                description={`${premiumRate.toFixed(1)}% dari total siswa`}
-                icon={Crown}
-                color="bg-amber-500 text-amber-600"
-              />
-
-              <MetricCard
-                title="Aktivitas Ujian"
-                value={formatNumber(totalExamActivity)}
-                description="Ujian selesai dalam 7 minggu"
-                icon={ClipboardCheck}
-                color="bg-violet-500 text-violet-600"
-              />
-            </div>
-          </section>
-
-          <section>
-            <div className="mb-4 flex items-center gap-2">
-              <Wallet className="h-5 w-5 text-primary" />
-              <h2 className="font-semibold">
-                Analisis Pendapatan
-              </h2>
-            </div>
-
-            <div className="grid gap-4 lg:grid-cols-3">
-              <div className="rounded-2xl border bg-card p-5 shadow-sm">
-                <p className="text-sm text-muted-foreground">
-                  Rata-rata pendapatan
-                </p>
-
-                <p className="mt-3 break-words text-2xl font-bold">
-                  {formatCurrency(averageRevenue)}
-                </p>
-
-                <p className="mt-2 text-xs text-muted-foreground">
-                  Rata-rata per bulan dalam periode terpilih
-                </p>
-              </div>
-
-              <div className="rounded-2xl border bg-card p-5 shadow-sm">
-                <p className="text-sm text-muted-foreground">
-                  Pendapatan bulan terakhir
-                </p>
-
-                <p className="mt-3 break-words text-2xl font-bold">
-                  {formatCurrency(latestRevenueValue)}
-                </p>
-
-                <p className="mt-2 text-xs text-muted-foreground">
-                  {latestRevenue?.bulan || "Belum tersedia"}
-                </p>
-              </div>
-
-              <div className="rounded-2xl border bg-card p-5 shadow-sm">
-                <p className="text-sm text-muted-foreground">
-                  Perubahan pendapatan
-                </p>
-
-                <div className="mt-3 flex items-center gap-2">
-                  {revenueChange !== null && revenueChange < 0 ? (
-                    <TrendingDown className="h-6 w-6 text-rose-600" />
-                  ) : (
-                    <TrendingUp className="h-6 w-6 text-emerald-600" />
-                  )}
-
-                  <p className="text-2xl font-bold">
-                    {revenueChange === null
-                      ? "-"
-                      : `${revenueChange >= 0 ? "+" : ""}${revenueChange.toFixed(1)}%`}
-                  </p>
-                </div>
-
-                <p className="mt-2 text-xs text-muted-foreground">
-                  Dibandingkan bulan sebelumnya
-                </p>
-              </div>
-            </div>
-          </section>
-
-          <section>
-            <div className="mb-4 flex items-center gap-2">
-              <Activity className="h-5 w-5 text-primary" />
-              <h2 className="font-semibold">
-                Visualisasi Data
-              </h2>
-            </div>
-
-            <div className="grid gap-6 lg:grid-cols-2">
-              <ChartCard
-                title="Pendapatan Bulanan"
-                description="Pendapatan dari transaksi yang berhasil dibayar"
-              >
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart
-                    data={monthly}
-                    margin={{
-                      top: 12,
-                      right: 8,
-                      left: -16,
-                      bottom: 0,
-                    }}
-                  >
-                    <CartesianGrid
-                      strokeDasharray="3 3"
-                      vertical={false}
-                      stroke="hsl(var(--border))"
-                    />
-
-                    <XAxis dataKey="bulan" {...axisProps} />
-                    <YAxis
-                      {...axisProps}
-                      tickFormatter={(value) =>
-                        new Intl.NumberFormat("id-ID", {
-                          notation: "compact",
-                        }).format(Number(value))
-                      }
-                    />
-
-                    <Tooltip
-                      {...chartTooltipStyle}
-                      formatter={(value) => [
-                        formatCurrency(Number(value)),
-                        "Pendapatan",
-                      ]}
-                    />
-
-                    <Bar
-                      dataKey="pendapatan"
-                      name="Pendapatan"
-                      radius={[8, 8, 0, 0]}
-                      fill={CHART_COLORS.secondary}
-                    />
-                  </BarChart>
-                </ResponsiveContainer>
-              </ChartCard>
-
-              <ChartCard
-                title="Pertumbuhan Pengguna"
-                description="Jumlah pengguna baru setiap bulan"
-              >
-                <ResponsiveContainer width="100%" height="100%">
-                  <AreaChart
-                    data={monthly}
-                    margin={{
-                      top: 12,
-                      right: 8,
-                      left: -16,
-                      bottom: 0,
-                    }}
-                  >
-                    <defs>
-                      <linearGradient
-                        id="repGrowth"
-                        x1="0"
-                        y1="0"
-                        x2="0"
-                        y2="1"
-                      >
-                        <stop
-                          offset="0%"
-                          stopColor={CHART_COLORS.secondary}
-                          stopOpacity={0.4}
-                        />
-                        <stop
-                          offset="100%"
-                          stopColor={CHART_COLORS.secondary}
-                          stopOpacity={0}
-                        />
-                      </linearGradient>
-                    </defs>
-
-                    <CartesianGrid
-                      strokeDasharray="3 3"
-                      vertical={false}
-                      stroke="hsl(var(--border))"
-                    />
-
-                    <XAxis dataKey="bulan" {...axisProps} />
-                    <YAxis {...axisProps} />
-
-                    <Tooltip
-                      {...chartTooltipStyle}
-                      formatter={(value) => [
-                        formatNumber(Number(value)),
-                        "Pengguna baru",
-                      ]}
-                    />
-
-                    <Area
-                      type="monotone"
-                      dataKey="penggunaBaru"
-                      name="Pengguna baru"
-                      stroke={CHART_COLORS.primary}
-                      strokeWidth={3}
-                      fill="url(#repGrowth)"
-                      activeDot={{ r: 5 }}
-                    />
-                  </AreaChart>
-                </ResponsiveContainer>
-              </ChartCard>
-
-              <ChartCard
-                title="Transaksi Premium Berhasil"
-                description="Jumlah pembayaran dengan status settlement"
-              >
-                <ResponsiveContainer width="100%" height="100%">
-                  <LineChart
-                    data={monthly}
-                    margin={{
-                      top: 12,
-                      right: 12,
-                      left: -16,
-                      bottom: 0,
-                    }}
-                  >
-                    <CartesianGrid
-                      strokeDasharray="3 3"
-                      vertical={false}
-                      stroke="hsl(var(--border))"
-                    />
-
-                    <XAxis dataKey="bulan" {...axisProps} />
-                    <YAxis {...axisProps} />
-
-                    <Tooltip
-                      {...chartTooltipStyle}
-                      formatter={(value) => [
-                        formatNumber(Number(value)),
-                        "Transaksi berhasil",
-                      ]}
-                    />
-
-                    <Line
-                      type="monotone"
-                      dataKey="transaksiPremium"
-                      name="Transaksi berhasil"
-                      stroke={CHART_COLORS.primary}
-                      strokeWidth={3}
-                      dot={{
-                        r: 4,
-                        fill: CHART_COLORS.accent,
-                      }}
-                      activeDot={{ r: 6 }}
-                    />
-                  </LineChart>
-                </ResponsiveContainer>
-              </ChartCard>
-
-              <ChartCard
-                title="Aktivitas Ujian"
-                description="Jumlah ujian yang diselesaikan per minggu"
-              >
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart
-                    data={weekly}
-                    margin={{
-                      top: 12,
-                      right: 8,
-                      left: -16,
-                      bottom: 0,
-                    }}
-                  >
-                    <CartesianGrid
-                      strokeDasharray="3 3"
-                      vertical={false}
-                      stroke="hsl(var(--border))"
-                    />
-
-                    <XAxis dataKey="minggu" {...axisProps} />
-                    <YAxis {...axisProps} />
-
-                    <Tooltip
-                      {...chartTooltipStyle}
-                      formatter={(value) => [
-                        formatNumber(Number(value)),
-                        "Ujian selesai",
-                      ]}
-                    />
-
-                    <Bar
-                      dataKey="ujian"
-                      name="Ujian selesai"
-                      radius={[8, 8, 0, 0]}
-                      fill={CHART_COLORS.primary}
-                    />
-                  </BarChart>
-                </ResponsiveContainer>
-              </ChartCard>
-            </div>
-          </section>
-
-          <section className="grid gap-6 lg:grid-cols-2">
-            <div className="rounded-2xl border bg-card p-5 shadow-sm">
-              <div className="flex items-center justify-between gap-3">
-                <div>
-                  <h3 className="font-semibold">
-                    Ringkasan Keanggotaan Premium
-                  </h3>
-
-                  <p className="mt-1 text-xs text-muted-foreground">
-                    Status Premium siswa saat ini
-                  </p>
-                </div>
-
-                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-amber-500/10 text-amber-600">
-                  <Crown className="h-5 w-5" />
-                </div>
-              </div>
-
-              <div className="mt-6">
-                <div className="flex items-end justify-between gap-3">
-                  <div>
-                    <p className="text-3xl font-bold">
-                      {premiumRate.toFixed(1)}%
-                    </p>
-
-                    <p className="mt-1 text-xs text-muted-foreground">
-                      Persentase Premium aktif
-                    </p>
-                  </div>
-
-                  <Badge variant="outline">
-                    {formatNumber(activePremium)} Premium
-                  </Badge>
-                </div>
-
-                <div className="mt-5 h-3 overflow-hidden rounded-full bg-muted">
-                  <div
-                    className="h-full rounded-full bg-amber-500 transition-all duration-500"
-                    style={{
-                      width: `${Math.min(100, premiumRate)}%`,
-                    }}
-                  />
-                </div>
-
-                <div className="mt-4 grid grid-cols-2 gap-3">
-                  <div className="rounded-xl bg-muted/40 p-4">
-                    <p className="text-xs text-muted-foreground">
-                      Total siswa
-                    </p>
-
-                    <p className="mt-2 text-xl font-bold">
-                      {formatNumber(totalUsers)}
-                    </p>
-                  </div>
-
-                  <div className="rounded-xl bg-muted/40 p-4">
-                    <p className="text-xs text-muted-foreground">
-                      Pengguna reguler
-                    </p>
-
-                    <p className="mt-2 text-xl font-bold">
-                      {formatNumber(
-                        Math.max(0, totalUsers - activePremium)
-                      )}
-                    </p>
-                  </div>
-                </div>
-
-                <p className="mt-4 text-xs leading-relaxed text-muted-foreground">
-                  Premium aktif dihitung dari status is_premium dan
-                  tanggal premium_until pada profil siswa.
-                </p>
-              </div>
-            </div>
-
-            <div className="rounded-2xl border bg-card p-5 shadow-sm">
-              <div className="flex items-center justify-between gap-3">
-                <div>
-                  <h3 className="font-semibold">
-                    Aktivitas Pembelajaran
-                  </h3>
-
-                  <p className="mt-1 text-xs text-muted-foreground">
-                    Ringkasan aktivitas evaluasi mingguan
-                  </p>
-                </div>
-
-                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-violet-500/10 text-violet-600">
-                  <GraduationCap className="h-5 w-5" />
-                </div>
-              </div>
-
-              <div className="mt-6">
-                <p className="text-3xl font-bold">
-                  {formatNumber(totalExamActivity)}
-                </p>
-
-                <p className="mt-1 text-xs text-muted-foreground">
-                  Total ujian selesai dalam tujuh minggu terakhir
-                </p>
-
-                <div className="mt-5 grid grid-cols-2 gap-3">
-                  <div className="rounded-xl bg-muted/40 p-4">
-                    <p className="text-xs text-muted-foreground">
-                      Jumlah minggu
-                    </p>
-
-                    <p className="mt-2 text-xl font-bold">
-                      {weekly.length}
-                    </p>
-                  </div>
-
-                  <div className="rounded-xl bg-muted/40 p-4">
-                    <p className="text-xs text-muted-foreground">
-                      Rata-rata mingguan
-                    </p>
-
-                    <p className="mt-2 text-xl font-bold">
-                      {formatNumber(Math.round(averageWeeklyExam))}
-                    </p>
-                  </div>
-                </div>
-
+        <div className="relative">
+          <PageHeader
+            title="Manajemen Paket Premium"
+            description="Kelola produk langganan, harga, durasi, dan ketersediaan paket GradeUp."
+            actions={
+              <div className="flex flex-wrap items-center gap-2">
                 <Button
                   variant="outline"
-                  className="mt-4 w-full gap-2"
-                  onClick={exportExamExcel}
-                  disabled={!data.attempts.length}
+                  onClick={() => void fetchData()}
+                  disabled={loading}
+                  className="h-9 gap-2 bg-background/70 backdrop-blur"
                 >
-                  <Download className="h-4 w-4" />
-                  Ekspor Aktivitas Ujian Excel
+                  <RefreshCw
+                    className={`h-4 w-4 ${loading ? "animate-spin" : ""}`}
+                  />
+                  <span className="hidden sm:inline">Muat Ulang</span>
+                  <span className="sm:hidden">Refresh</span>
                 </Button>
-              </div>
-            </div>
-          </section>
-
-          <section>
-            <div className="mb-4 flex items-center gap-2">
-              <Sparkles className="h-5 w-5 text-primary" />
-
-              <div>
-                <h2 className="font-semibold">
-                  Insight Analitik
-                </h2>
-
-                <p className="mt-1 text-xs text-muted-foreground">
-                  Ringkasan otomatis berdasarkan data aktual Supabase
-                </p>
-              </div>
-            </div>
-
-            <div className="grid gap-3 md:grid-cols-2">
-              {insights.map((item, index) => (
-                <InsightCard
-                  key={`${item.title}-${index}`}
-                  icon={item.icon}
-                  title={item.title}
-                  description={item.description}
-                />
-              ))}
-            </div>
-          </section>
-
-          <section className="rounded-2xl border bg-card p-5 shadow-sm">
-            <div className="flex items-start gap-3">
-              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-600">
-                <FileSpreadsheet className="h-5 w-5" />
-              </div>
-
-              <div className="min-w-0 flex-1">
-                <h3 className="font-semibold">
-                  Ekspor Laporan GradeUp
-                </h3>
-
-                <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
-                  Unduh laporan dalam format Excel (.xlsx) yang
-                  dapat dibuka dan diedit menggunakan Microsoft Excel
-                  maupun Google Sheets.
-                </p>
-
-                <div className="mt-4 grid gap-2 sm:grid-cols-2">
-                  {[
-                    "Ringkasan performa",
-                    "Data pendapatan bulanan",
-                    "Pertumbuhan pengguna",
-                    "Aktivitas ujian mingguan",
-                    "Detail transaksi berhasil",
-                  ].map((item) => (
-                    <div
-                      key={item}
-                      className="flex items-center gap-2 text-xs text-muted-foreground"
-                    >
-                      <ClipboardCheck className="h-3.5 w-3.5 shrink-0 text-emerald-600" />
-                      {item}
-                    </div>
-                  ))}
-                </div>
 
                 <Button
-                  className="mt-5 gap-2"
-                  onClick={exportExcel}
-                  disabled={exporting}
+                  onClick={openCreate}
+                  className="h-9 gap-2 shadow-lg shadow-emerald-700/20"
                 >
-                  <Download className="h-4 w-4" />
-                  Unduh Laporan Excel
+                  <Plus className="h-4 w-4" />
+                  Tambah Paket
                 </Button>
               </div>
+            }
+          />
+        </div>
+      </div>
+
+      {/* PAGE INTRO */}
+      <Card className={`overflow-hidden ${panelSurface}`}>
+        <CardContent className="relative flex flex-col gap-4 p-5 sm:flex-row sm:items-center sm:justify-between sm:p-6">
+          <div className="pointer-events-none absolute -right-10 -top-16 h-48 w-48 rounded-full bg-emerald-400/20 blur-3xl dark:bg-emerald-500/10" />
+          <div className="pointer-events-none absolute -bottom-20 left-1/4 h-40 w-40 rounded-full bg-teal-400/15 blur-3xl dark:bg-teal-500/10" />
+
+          <div className="relative flex min-w-0 items-start gap-4">
+            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-emerald-500 to-teal-600 text-white shadow-lg shadow-emerald-700/25">
+              <Crown className="h-6 w-6" />
             </div>
-          </section>
 
-          <div className="flex items-start gap-3 rounded-xl border bg-muted/20 p-4">
-            <Info className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
+            <div className="min-w-0 space-y-1">
+              <div className="flex flex-wrap items-center gap-2">
+                <h2 className="text-base font-bold tracking-tight">
+                  Pengelolaan Produk Langganan
+                </h2>
+                <Badge
+                  variant="outline"
+                  className="border-emerald-300/70 text-[10px] text-emerald-700 dark:border-emerald-800 dark:text-emerald-300"
+                >
+                  ADMIN CONTROL
+                </Badge>
+              </div>
 
-            <div>
-              <p className="text-sm font-medium">
-                Tentang laporan ini
-              </p>
-
-              <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
-                Pendapatan hanya menghitung transaksi dengan status
-                settlement. Transaksi pending, failed, dan expire
-                tidak dimasukkan. Total pengguna berasal dari profil
-                dengan role student. Aktivitas ujian menghitung
-                exam_attempts dengan status completed. Grafik
-                transaksi Premium menunjukkan jumlah pembayaran
-                berhasil, bukan konversi historis pengguna.
+              <p className="max-w-2xl text-xs leading-relaxed text-muted-foreground sm:text-sm">
+                Semua konfigurasi paket Premium dikelola dari satu tempat.
+                Paket yang dinonaktifkan tetap tersimpan agar riwayat
+                transaksi dapat ditelusuri.
               </p>
             </div>
           </div>
-        </>
+
+          <div className="relative flex shrink-0 items-center gap-2 rounded-lg border border-emerald-200/70 bg-background/70 px-3 py-2 backdrop-blur dark:border-emerald-900/40">
+            <ShieldCheck className="h-4 w-4 text-emerald-600" />
+            <div>
+              <p className="text-[10px] font-medium text-muted-foreground">
+                Akses pengelolaan
+              </p>
+              <p className="text-xs font-semibold">Admin</p>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* SUMMARY */}
+      <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <Card className={`group relative overflow-hidden transition-all duration-300 hover:-translate-y-0.5 motion-reduce:transition-none motion-reduce:hover:translate-y-0 ${panelSurface}`}>
+          <span
+            aria-hidden="true"
+            className="pointer-events-none absolute -bottom-12 -right-12 h-32 w-32 rounded-full bg-emerald-400/20 blur-3xl dark:bg-emerald-500/10"
+          />
+          <CardContent className="relative flex items-center gap-3 p-4">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+              <Layers3 className="h-5 w-5" />
+            </div>
+            <div className="min-w-0">
+              <p className="text-xs text-muted-foreground">Total paket</p>
+              <p className="mt-0.5 text-2xl font-bold tabular-nums">
+                {loading ? "—" : items.length}
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className={`group relative overflow-hidden transition-all duration-300 hover:-translate-y-0.5 motion-reduce:transition-none motion-reduce:hover:translate-y-0 ${panelSurface}`}>
+          <span
+            aria-hidden="true"
+            className="pointer-events-none absolute -bottom-12 -right-12 h-32 w-32 rounded-full bg-emerald-400/25 blur-3xl dark:bg-emerald-500/10"
+          />
+          <CardContent className="relative flex items-center gap-3 p-4">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-emerald-500/10 text-emerald-600">
+              <CheckCircle2 className="h-5 w-5" />
+            </div>
+            <div className="min-w-0">
+              <p className="text-xs text-muted-foreground">Paket aktif</p>
+              <p className="mt-0.5 text-2xl font-bold tabular-nums">
+                {loading ? "—" : activePlans}
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className={`group relative overflow-hidden transition-all duration-300 hover:-translate-y-0.5 motion-reduce:transition-none motion-reduce:hover:translate-y-0 ${panelSurface}`}>
+          <span
+            aria-hidden="true"
+            className="pointer-events-none absolute -bottom-12 -right-12 h-32 w-32 rounded-full bg-amber-400/20 blur-3xl dark:bg-amber-500/10"
+          />
+          <CardContent className="relative flex items-center gap-3 p-4">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-amber-500/10 text-amber-600">
+              <XCircle className="h-5 w-5" />
+            </div>
+            <div className="min-w-0">
+              <p className="text-xs text-muted-foreground">Paket nonaktif</p>
+              <p className="mt-0.5 text-2xl font-bold tabular-nums">
+                {loading ? "—" : inactivePlans}
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className={`group relative overflow-hidden transition-all duration-300 hover:-translate-y-0.5 motion-reduce:transition-none motion-reduce:hover:translate-y-0 ${panelSurface}`}>
+          <span
+            aria-hidden="true"
+            className="pointer-events-none absolute -bottom-12 -right-12 h-32 w-32 rounded-full bg-blue-400/20 blur-3xl dark:bg-blue-500/10"
+          />
+          <CardContent className="relative flex items-center gap-3 p-4">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-blue-500/10 text-blue-600">
+              <CircleDollarSign className="h-5 w-5" />
+            </div>
+            <div className="min-w-0">
+              <p className="text-xs text-muted-foreground">
+                Rata-rata harga paket
+              </p>
+              <p className="mt-0.5 truncate text-xl font-bold tabular-nums">
+                {loading ? "—" : formatRupiah(averagePrice)}
+              </p>
+              <p className="text-[10px] text-muted-foreground">
+                Berdasarkan paket dengan harga terisi
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      </section>
+
+      {/* TABLE SECTION */}
+      <section className="space-y-4">
+        <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <h3 className="text-base font-bold tracking-tight">
+              Daftar Paket Langganan
+            </h3>
+            <p className="text-xs text-muted-foreground">
+              Data paket yang tersimpan di database GradeUp.
+            </p>
+          </div>
+
+          {!loading && !error && (
+            <span className="rounded-full border border-emerald-200/70 bg-background/70 px-3 py-1 text-xs text-muted-foreground backdrop-blur dark:border-emerald-900/40">
+              {filteredItems.length} dari {items.length} paket
+            </span>
+          )}
+        </div>
+
+        {/* FILTER TOOLBAR */}
+        <Card className={panelSurface}>
+          <CardContent className="flex flex-col gap-3 p-3 sm:flex-row sm:items-center sm:p-4">
+            <div className="relative min-w-0 flex-1">
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                value={search}
+                onChange={(event) => setSearch(event.target.value)}
+                placeholder="Cari nama paket, kode, atau deskripsi..."
+                className="h-10 pl-9 pr-9"
+              />
+              {search && (
+                <button
+                  type="button"
+                  aria-label="Hapus pencarian"
+                  onClick={() => setSearch("")}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              )}
+            </div>
+
+            <div className="grid grid-cols-2 gap-2 sm:flex">
+              <div className="relative">
+                <ListFilter className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                <select
+                  aria-label="Filter status paket"
+                  value={statusFilter}
+                  onChange={(event) =>
+                    setStatusFilter(event.target.value as StatusFilter)
+                  }
+                  className={`${selectField} sm:w-36`}
+                >
+                  <option value="all">Semua Status</option>
+                  <option value="active">Aktif</option>
+                  <option value="inactive">Nonaktif</option>
+                </select>
+                <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+              </div>
+
+              <div className="relative">
+                <ArrowUpDown className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                <select
+                  aria-label="Urutkan paket"
+                  value={sortBy}
+                  onChange={(event) =>
+                    setSortBy(event.target.value as SortOption)
+                  }
+                  className={`${selectField} sm:w-40`}
+                >
+                  <option value="position">Urutan tampilan</option>
+                  <option value="name">Nama paket</option>
+                  <option value="price-low">Harga terendah</option>
+                  <option value="price-high">Harga tertinggi</option>
+                </select>
+                <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {loading ? (
+          <CardGridSkeleton count={3} />
+        ) : error ? (
+          <ErrorState
+            message={error}
+            onRetry={() => void fetchData()}
+          />
+        ) : items.length === 0 ? (
+          <div className="rounded-xl border border-dashed border-emerald-300/70 bg-card/60 px-4 py-10 backdrop-blur-sm dark:border-emerald-800/50">
+            <EmptyState
+              title="Belum ada paket Premium"
+              description="Tambahkan paket pertama untuk mulai mengelola langganan GradeUp."
+              action={
+                <Button onClick={openCreate} className="gap-2">
+                  <Plus className="h-4 w-4" />
+                  Tambah Paket
+                </Button>
+              }
+            />
+          </div>
+        ) : filteredItems.length === 0 ? (
+          <div className="rounded-xl border border-dashed border-emerald-300/70 bg-card/60 px-4 py-10 backdrop-blur-sm dark:border-emerald-800/50">
+            <EmptyState
+              title="Data tidak ditemukan"
+              description="Tidak ada paket yang sesuai dengan pencarian atau filter."
+              action={
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setSearch("");
+                    setStatusFilter("all");
+                    setSortBy("position");
+                  }}
+                >
+                  Reset Filter
+                </Button>
+              }
+            />
+          </div>
+        ) : (
+          <Card className={`overflow-hidden ${panelSurface}`}>
+            {/* TABLE HEADER */}
+            <div className="flex flex-col gap-1 border-b border-emerald-100 bg-gradient-to-r from-emerald-50/80 via-transparent to-teal-50/60 px-4 py-3 dark:border-emerald-900/30 dark:from-emerald-950/30 dark:to-teal-950/20 sm:flex-row sm:items-center sm:justify-between sm:px-5">
+              <div className="flex items-center gap-2">
+                <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-emerald-100 dark:bg-emerald-950">
+                  <Package className="h-4 w-4 text-emerald-600" />
+                </span>
+                <p className="text-sm font-semibold">Data Paket Premium</p>
+              </div>
+              <p className="text-[11px] text-muted-foreground">
+                Terakhir diperbarui berdasarkan data database
+              </p>
+            </div>
+
+            {/* DESKTOP TABLE */}
+            <div className="hidden overflow-x-auto md:block">
+              <table className="w-full min-w-[850px] text-left">
+                <thead>
+                  <tr className="border-b border-emerald-100 bg-emerald-50/60 dark:border-emerald-900/30 dark:bg-emerald-950/20">
+                    <th className="w-12 px-5 py-3 text-center text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                      No.
+                    </th>
+                    <th className="px-4 py-3 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                      Informasi Paket
+                    </th>
+                    <th className="px-4 py-3 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                      Harga
+                    </th>
+                    <th className="px-4 py-3 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                      Durasi
+                    </th>
+                    <th className="px-4 py-3 text-center text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                      Fasilitas
+                    </th>
+                    <th className="px-4 py-3 text-center text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                      Status
+                    </th>
+                    <th className="px-5 py-3 text-right text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                      Tindakan
+                    </th>
+                  </tr>
+                </thead>
+
+                <tbody className="divide-y divide-emerald-100/80 dark:divide-emerald-900/25">
+                  {filteredItems.map((item, index) => (
+                    <tr
+                      key={item.id}
+                      className="group transition-colors hover:bg-emerald-50/70 dark:hover:bg-emerald-950/25"
+                    >
+                      <td className="px-5 py-4 text-center text-xs tabular-nums text-muted-foreground">
+                        {index + 1}
+                      </td>
+
+                      <td className="max-w-[260px] px-4 py-4">
+                        <div className="flex items-start gap-3">
+                          <div
+                            className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg ${
+                              item.is_active
+                                ? "bg-gradient-to-br from-emerald-500 to-teal-600 text-white shadow-md shadow-emerald-700/20"
+                                : "bg-muted text-muted-foreground"
+                            }`}
+                          >
+                            <Crown className="h-5 w-5" />
+                          </div>
+                          <div className="min-w-0">
+                            <p className="truncate text-sm font-semibold">
+                              {item.name}
+                            </p>
+                            <p className="mt-0.5 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+                              {item.code}
+                            </p>
+                            {item.description && (
+                              <p className="mt-1 line-clamp-1 text-[11px] text-muted-foreground">
+                                {item.description}
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                      </td>
+
+                      <td className="px-4 py-4">
+                        <p className="whitespace-nowrap text-sm font-bold tabular-nums">
+                          {formatRupiah(item.price)}
+                        </p>
+                        {item.price === null && (
+                          <span className="text-[10px] text-amber-600">
+                            Perlu ditentukan
+                          </span>
+                        )}
+                      </td>
+
+                      <td className="px-4 py-4">
+                        <div className="flex items-center gap-1.5 whitespace-nowrap text-xs font-medium">
+                          <CalendarDays className="h-3.5 w-3.5 text-emerald-600/70" />
+                          {formatDuration(item.duration_months)}
+                        </div>
+                      </td>
+
+                      <td className="px-4 py-4 text-center">
+                        <Badge
+                          variant="outline"
+                          className="border-emerald-200 bg-emerald-50/60 font-medium dark:border-emerald-900/60 dark:bg-emerald-950/30"
+                        >
+                          {item.features.length} fasilitas
+                        </Badge>
+                      </td>
+
+                      <td className="px-4 py-4 text-center">
+                        <Badge
+                          variant={item.is_active ? "success" : "outline"}
+                          className="gap-1"
+                        >
+                          {item.is_active ? (
+                            <CheckCircle2 className="h-3 w-3" />
+                          ) : (
+                            <XCircle className="h-3 w-3" />
+                          )}
+                          {item.is_active ? "Aktif" : "Nonaktif"}
+                        </Badge>
+                      </td>
+
+                      <td className="px-5 py-4">
+                        <div className="flex items-center justify-end gap-1.5">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="h-8 gap-1.5 bg-background/70 hover:border-emerald-400/60 hover:bg-emerald-50 dark:hover:bg-emerald-950/30"
+                            onClick={() => openEdit(item)}
+                          >
+                            <Pencil className="h-3.5 w-3.5" />
+                            Edit
+                          </Button>
+
+                          <Button
+                            size="sm"
+                            variant={item.is_active ? "ghost" : "soft"}
+                            disabled={togglingId !== null}
+                            className={
+                              item.is_active
+                                ? "h-8 gap-1.5 text-destructive hover:bg-destructive/10 hover:text-destructive"
+                                : "h-8 gap-1.5"
+                            }
+                            onClick={() => void toggleActive(item)}
+                          >
+                            {togglingId === item.id ? (
+                              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                            ) : (
+                              <Power className="h-3.5 w-3.5" />
+                            )}
+                            {item.is_active ? "Nonaktifkan" : "Aktifkan"}
+                          </Button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            {/* MOBILE LIST */}
+            <div className="divide-y divide-emerald-100/80 dark:divide-emerald-900/25 md:hidden">
+              {filteredItems.map((item, index) => (
+                <div key={item.id} className="space-y-3 p-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex min-w-0 items-start gap-3">
+                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-emerald-500 to-teal-600 text-white shadow-md shadow-emerald-700/20">
+                        <Crown className="h-5 w-5" />
+                      </div>
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-bold">
+                          {item.name}
+                        </p>
+                        <p className="mt-0.5 text-[10px] text-muted-foreground">
+                          {item.code}
+                        </p>
+                      </div>
+                    </div>
+                    <Badge
+                      variant={item.is_active ? "success" : "outline"}
+                    >
+                      {item.is_active ? "Aktif" : "Nonaktif"}
+                    </Badge>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3 rounded-lg border border-emerald-100 bg-emerald-50/50 p-3 dark:border-emerald-900/30 dark:bg-emerald-950/20">
+                    <div>
+                      <p className="text-[10px] text-muted-foreground">
+                        Harga
+                      </p>
+                      <p className="mt-1 text-sm font-bold">
+                        {formatRupiah(item.price)}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-[10px] text-muted-foreground">
+                        Durasi
+                      </p>
+                      <p className="mt-1 text-sm font-semibold">
+                        {formatDuration(item.duration_months)}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-[10px] text-muted-foreground">
+                        Fasilitas
+                      </p>
+                      <p className="mt-1 text-sm font-semibold">
+                        {item.features.length} fasilitas
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-[10px] text-muted-foreground">
+                        Urutan
+                      </p>
+                      <p className="mt-1 text-sm font-semibold">
+                        {item.sort_order}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex gap-2">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="flex-1 gap-1.5"
+                      onClick={() => openEdit(item)}
+                    >
+                      <Pencil className="h-3.5 w-3.5" />
+                      Edit Paket
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant={item.is_active ? "ghost" : "soft"}
+                      disabled={togglingId !== null}
+                      className={
+                        item.is_active
+                          ? "flex-1 gap-1.5 text-destructive hover:bg-destructive/10 hover:text-destructive"
+                          : "flex-1 gap-1.5"
+                      }
+                      onClick={() => void toggleActive(item)}
+                    >
+                      {togglingId === item.id ? (
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      ) : (
+                        <Power className="h-3.5 w-3.5" />
+                      )}
+                      {item.is_active ? "Nonaktifkan" : "Aktifkan"}
+                    </Button>
+                  </div>
+
+                  <p className="text-right text-[10px] text-muted-foreground">
+                    Paket #{index + 1} · Diperbarui{" "}
+                    {formatDate(item.updated_at)}
+                  </p>
+                </div>
+              ))}
+            </div>
+
+            {/* TABLE FOOTER */}
+            <div className="flex flex-col gap-1 border-t border-emerald-100 bg-gradient-to-r from-emerald-50/70 via-transparent to-teal-50/60 px-4 py-3 dark:border-emerald-900/30 dark:from-emerald-950/25 dark:to-teal-950/20 sm:flex-row sm:items-center sm:justify-between sm:px-5">
+              <p className="text-[11px] text-muted-foreground">
+                Menampilkan {filteredItems.length} paket
+              </p>
+              <p className="text-[11px] text-muted-foreground">
+                Data tersimpan di Supabase
+              </p>
+            </div>
+          </Card>
+        )}
+      </section>
+
+      {/* FORM DIALOG */}
+      <Dialog
+        open={!!draft}
+        onOpenChange={(open) => {
+          if (!open && !saving) {
+            setDraft(null);
+            setValidation({});
+          }
+        }}
+      >
+        <DialogContent className="flex max-h-[92vh] flex-col gap-0 overflow-hidden border-emerald-200/70 p-0 dark:border-emerald-900/50 sm:max-w-2xl">
+          {draft && (
+            <>
+              <div
+                aria-hidden="true"
+                className="pointer-events-none absolute inset-x-0 top-0 z-10 h-1 bg-gradient-to-r from-emerald-400 via-teal-400 to-emerald-500"
+              />
+
+              <DialogHeader className="border-b border-emerald-100 px-5 py-4 text-left dark:border-emerald-900/30 sm:px-6">
+                <div className="flex items-center gap-3">
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-emerald-500 to-teal-600 text-white shadow-md shadow-emerald-700/20">
+                    {draft.id ? (
+                      <Pencil className="h-5 w-5" />
+                    ) : (
+                      <Plus className="h-5 w-5" />
+                    )}
+                  </div>
+                  <div className="min-w-0">
+                    <DialogTitle className="text-base font-bold">
+                      {draft.id ? "Edit Paket Premium" : "Tambah Paket Premium"}
+                    </DialogTitle>
+                    <DialogDescription className="mt-1 text-xs">
+                      Konfigurasikan detail produk langganan GradeUp.
+                    </DialogDescription>
+                  </div>
+                </div>
+              </DialogHeader>
+
+              <div className="flex-1 space-y-6 overflow-y-auto px-5 py-5 sm:px-6">
+                {/* IDENTITAS */}
+                <section className="space-y-3">
+                  <div className="flex items-center gap-2 border-b border-emerald-100 pb-2 dark:border-emerald-900/30">
+                    <Package className="h-4 w-4 text-emerald-600" />
+                    <div>
+                      <h4 className="text-sm font-bold">
+                        Identitas Paket
+                      </h4>
+                      <p className="text-[11px] text-muted-foreground">
+                        Nama dan kode identifikasi produk.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <div className="space-y-2">
+                      <Label htmlFor="plan-name">
+                        Nama Paket <span className="text-destructive">*</span>
+                      </Label>
+                      <Input
+                        id="plan-name"
+                        value={draft.name}
+                        onChange={(event) =>
+                          updateDraft({
+                            name: event.target.value,
+                            code: draft.id
+                              ? draft.code
+                              : createCode(event.target.value),
+                          })
+                        }
+                        placeholder="Contoh: Premium Bulanan"
+                        maxLength={80}
+                        disabled={saving}
+                      />
+                      {validation.name && (
+                        <p className="text-xs text-destructive">
+                          {validation.name}
+                        </p>
+                      )}
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="plan-code">Kode Paket</Label>
+                      <Input
+                        id="plan-code"
+                        value={draft.code}
+                        onChange={(event) =>
+                          updateDraft({
+                            code: createCode(event.target.value),
+                          })
+                        }
+                        placeholder="premium-bulanan"
+                        disabled={saving}
+                      />
+                      {validation.code && (
+                        <p className="text-xs text-destructive">
+                          {validation.code}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="plan-description">Deskripsi</Label>
+                    <Textarea
+                      id="plan-description"
+                      value={draft.description}
+                      onChange={(event) =>
+                        updateDraft({ description: event.target.value })
+                      }
+                      placeholder="Jelaskan manfaat paket ini..."
+                      rows={3}
+                      maxLength={300}
+                      disabled={saving}
+                    />
+                    <p className="text-right text-[10px] text-muted-foreground">
+                      {draft.description.length}/300 karakter
+                    </p>
+                  </div>
+                </section>
+
+                {/* HARGA DAN DURASI */}
+                <section className="space-y-3">
+                  <div className="flex items-center gap-2 border-b border-emerald-100 pb-2 dark:border-emerald-900/30">
+                    <CircleDollarSign className="h-4 w-4 text-emerald-600" />
+                    <div>
+                      <h4 className="text-sm font-bold">
+                        Harga dan Durasi
+                      </h4>
+                      <p className="text-[11px] text-muted-foreground">
+                        Pengaturan biaya dan masa aktif langganan.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <div className="space-y-2">
+                      <Label htmlFor="plan-price">
+                        Harga (Rupiah){" "}
+                        <span className="text-destructive">*</span>
+                      </Label>
+                      <div className="relative">
+                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm font-semibold text-muted-foreground">
+                          Rp
+                        </span>
+                        <Input
+                          id="plan-price"
+                          type="number"
+                          min="0"
+                          step="1000"
+                          value={draft.price}
+                          onChange={(event) =>
+                            updateDraft({ price: event.target.value })
+                          }
+                          placeholder="49000"
+                          className="pl-10"
+                          disabled={saving}
+                        />
+                      </div>
+                      {validation.price && (
+                        <p className="text-xs text-destructive">
+                          {validation.price}
+                        </p>
+                      )}
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="plan-duration">
+                        Durasi Langganan
+                      </Label>
+                      <select
+                        id="plan-duration"
+                        value={draft.duration_months}
+                        onChange={(event) =>
+                          updateDraft({
+                            duration_months: Number(event.target.value),
+                          })
+                        }
+                        disabled={saving}
+                        className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 disabled:opacity-50"
+                      >
+                        {DURATION_OPTIONS.map((duration) => (
+                          <option key={duration} value={duration}>
+                            {formatDuration(duration)}
+                          </option>
+                        ))}
+                      </select>
+                      {validation.duration_months && (
+                        <p className="text-xs text-destructive">
+                          {validation.duration_months}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                </section>
+
+                {/* FASILITAS */}
+                <section className="space-y-3">
+                  <div className="flex items-center gap-2 border-b border-emerald-100 pb-2 dark:border-emerald-900/30">
+                    <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+                    <div>
+                      <h4 className="text-sm font-bold">
+                        Fasilitas Paket
+                      </h4>
+                      <p className="text-[11px] text-muted-foreground">
+                        Daftar manfaat yang diterima pelanggan.
+                      </p>
+                    </div>
+                  </div>
+
+                  <Textarea
+                    id="plan-features"
+                    value={draft.features}
+                    onChange={(event) =>
+                      updateDraft({ features: event.target.value })
+                    }
+                    placeholder={
+                      "Akses seluruh materi Premium\nLatihan dan evaluasi\nRiwayat perkembangan belajar"
+                    }
+                    rows={5}
+                    disabled={saving}
+                  />
+                  <p className="text-[11px] text-muted-foreground">
+                    Satu fasilitas per baris. Baris kosong akan diabaikan.
+                  </p>
+                </section>
+
+                {/* PENGATURAN */}
+                <section className="space-y-3">
+                  <div className="flex items-center gap-2 border-b border-emerald-100 pb-2 dark:border-emerald-900/30">
+                    <Power className="h-4 w-4 text-emerald-600" />
+                    <div>
+                      <h4 className="text-sm font-bold">
+                        Pengaturan Publikasi
+                      </h4>
+                      <p className="text-[11px] text-muted-foreground">
+                        Atur posisi dan ketersediaan paket.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="plan-order">Urutan Tampilan</Label>
+                    <Input
+                      id="plan-order"
+                      type="number"
+                      min="0"
+                      value={draft.sort_order}
+                      onChange={(event) =>
+                        updateDraft({
+                          sort_order: Number(event.target.value),
+                        })
+                      }
+                      disabled={saving}
+                    />
+                    {validation.sort_order && (
+                      <p className="text-xs text-destructive">
+                        {validation.sort_order}
+                      </p>
+                    )}
+                    <p className="text-[11px] text-muted-foreground">
+                      Angka lebih kecil ditampilkan lebih dahulu.
+                    </p>
+                  </div>
+
+                  <div className="flex items-center justify-between gap-3 rounded-lg border border-emerald-200/70 bg-gradient-to-br from-emerald-50/60 to-transparent p-4 dark:border-emerald-900/40 dark:from-emerald-950/20">
+                    <div className="flex min-w-0 items-center gap-3">
+                      <div
+                        className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${
+                          draft.is_active
+                            ? "bg-emerald-500/10 text-emerald-600"
+                            : "bg-muted text-muted-foreground"
+                        }`}
+                      >
+                        {draft.is_active ? (
+                          <CheckCircle2 className="h-5 w-5" />
+                        ) : (
+                          <XCircle className="h-5 w-5" />
+                        )}
+                      </div>
+                      <div>
+                        <p className="text-sm font-semibold">
+                          Status Paket
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          {draft.is_active
+                            ? "Paket tersedia untuk pelanggan."
+                            : "Paket tidak ditampilkan kepada pelanggan."}
+                        </p>
+                      </div>
+                    </div>
+
+                    <button
+                      type="button"
+                      role="switch"
+                      aria-label="Status paket"
+                      aria-checked={draft.is_active}
+                      disabled={saving}
+                      onClick={() =>
+                        updateDraft({ is_active: !draft.is_active })
+                      }
+                      className={`relative h-6 w-11 shrink-0 rounded-full transition-colors ${
+                        draft.is_active
+                          ? "bg-primary"
+                          : "bg-muted-foreground/30"
+                      } disabled:opacity-50`}
+                    >
+                      <span
+                        className={`absolute top-1 h-4 w-4 rounded-full bg-white shadow transition-transform ${
+                          draft.is_active ? "translate-x-6" : "translate-x-1"
+                        }`}
+                      />
+                    </button>
+                  </div>
+
+                  {!draft.is_active && (
+                    <div className="flex gap-2 rounded-lg border border-amber-500/20 bg-amber-500/5 p-3">
+                      <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
+                      <p className="text-xs leading-relaxed text-muted-foreground">
+                        Paket nonaktif tetap tersimpan dan dapat diaktifkan
+                        kembali kapan saja.
+                      </p>
+                    </div>
+                  )}
+                </section>
+              </div>
+
+              <DialogFooter className="border-t border-emerald-100 bg-gradient-to-r from-emerald-50/60 via-transparent to-teal-50/50 px-5 py-4 dark:border-emerald-900/30 dark:from-emerald-950/20 dark:to-teal-950/15 sm:px-6">
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setDraft(null);
+                    setValidation({});
+                  }}
+                  disabled={saving}
+                >
+                  Batal
+                </Button>
+                <Button
+                  onClick={() => void save()}
+                  disabled={saving}
+                  className="gap-2 shadow-lg shadow-emerald-700/20"
+                >
+                  {saving ? (
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      Menyimpan...
+                    </>
+                  ) : (
+                    <>
+                      {draft.id ? (
+                        <CheckCircle2 className="h-4 w-4" />
+                      ) : (
+                        <Plus className="h-4 w-4" />
+                      )}
+                      {draft.id ? "Simpan Perubahan" : "Tambah Paket"}
+                    </>
+                  )}
+                </Button>
+              </DialogFooter>
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* INFORMATION */}
+      {!loading && !error && items.length > 0 && (
+        <div className="flex items-start gap-3 rounded-xl border border-amber-500/25 bg-gradient-to-br from-amber-50/80 to-amber-500/5 p-4 shadow-sm dark:from-amber-950/20 dark:to-amber-500/5">
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-amber-500/10 text-amber-600">
+            <AlertTriangle className="h-4 w-4" />
+          </div>
+          <div>
+            <p className="text-xs font-bold">
+              Catatan pengelolaan paket
+            </p>
+            <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+              Jika paket tidak lagi ditawarkan, nonaktifkan paket tersebut
+              daripada menghapusnya. Riwayat transaksi lama tetap perlu
+              dapat ditelusuri meskipun harga atau nama paket berubah.
+            </p>
+          </div>
+        </div>
       )}
     </div>
   );
