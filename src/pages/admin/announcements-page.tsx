@@ -1,4 +1,3 @@
-
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Megaphone,
@@ -82,6 +81,47 @@ const CATEGORIES: AnnouncementCategory[] = [
   "Sistem",
   "Lainnya",
 ];
+
+// =====================================================
+// TAMPILAN (murni visual, tidak memengaruhi logika)
+// =====================================================
+
+const cardGlass =
+  "relative overflow-hidden rounded-3xl border border-slate-200/80 bg-white/85 shadow-[0_12px_36px_-24px_rgba(15,118,110,0.35)] backdrop-blur-sm dark:border-slate-700/70 dark:bg-slate-900/80";
+
+const headingText = "text-slate-950 dark:text-white";
+
+const mutedText = "text-slate-600 dark:text-slate-300";
+
+const mutedSoft = "text-slate-500 dark:text-slate-400";
+
+const outlineBtn =
+  "rounded-xl border-slate-300 text-slate-700 transition-colors duration-300 hover:border-teal-300 hover:bg-teal-50 dark:border-slate-700 dark:text-slate-200 dark:hover:border-teal-700 dark:hover:bg-slate-800";
+
+const primaryBtn =
+  "rounded-xl bg-teal-700 font-bold text-white shadow-md shadow-teal-700/20 transition-all duration-300 hover:-translate-y-0.5 hover:bg-teal-800 motion-reduce:transition-none motion-reduce:hover:translate-y-0 dark:bg-emerald-500 dark:text-slate-950 dark:hover:bg-emerald-400";
+
+const nativeField =
+  "rounded-xl border border-slate-300 bg-white/80 px-3 text-sm outline-none transition-colors focus:border-teal-500 focus:ring-2 focus:ring-teal-500/20 dark:border-slate-700 dark:bg-slate-900/80 dark:focus:border-emerald-500 dark:focus:ring-emerald-500/20";
+
+const inputField =
+  "rounded-xl border-slate-300 bg-white/80 focus-visible:ring-teal-500/30 dark:border-slate-700 dark:bg-slate-900/80";
+
+const statCard =
+  "group relative overflow-hidden rounded-3xl border border-slate-200/80 bg-white/85 shadow-[0_10px_30px_-22px_rgba(15,118,110,0.3)] backdrop-blur-sm transition-all duration-300 hover:-translate-y-0.5 hover:border-emerald-300/80 hover:shadow-[0_20px_44px_-24px_rgba(15,118,110,0.4)] motion-reduce:transition-none motion-reduce:hover:translate-y-0 dark:border-slate-700/70 dark:bg-slate-900/80 dark:hover:border-emerald-700/70";
+
+const emptyBox =
+  "relative overflow-hidden rounded-3xl border border-dashed border-teal-300/70 bg-white/60 px-4 py-10 backdrop-blur-sm dark:border-slate-700 dark:bg-slate-900/60";
+
+/** Garis aksen tipis di tepi atas kartu. */
+function CardAccent({ via = "via-emerald-400/70" }: { via?: string }) {
+  return (
+    <span
+      aria-hidden="true"
+      className={`pointer-events-none absolute inset-x-6 top-0 z-10 h-px bg-gradient-to-r from-transparent ${via} to-transparent`}
+    />
+  );
+}
 
 const getErrorMessage = (error: unknown) =>
   error instanceof Error
@@ -431,7 +471,7 @@ export default function AdminAnnouncementsPage() {
               variant="outline"
               onClick={fetchData}
               disabled={loading}
-              className="gap-2"
+              className={`gap-2 ${outlineBtn}`}
             >
               <RefreshCw
                 className={`h-4 w-4 ${loading ? "animate-spin" : ""}`}
@@ -439,7 +479,10 @@ export default function AdminAnnouncementsPage() {
               Refresh
             </Button>
 
-            <Button onClick={openCreate} className="gap-2">
+            <Button
+              onClick={openCreate}
+              className={`gap-2 ${primaryBtn}`}
+            >
               <Plus className="h-4 w-4" />
               Buat Pengumuman
             </Button>
@@ -448,32 +491,48 @@ export default function AdminAnnouncementsPage() {
       />
 
       {/* HERO */}
-      <section className="relative isolate overflow-hidden rounded-3xl border bg-gradient-to-br from-primary/15 via-primary/5 to-background p-5 shadow-sm sm:p-7">
-        <div className="pointer-events-none absolute -right-16 -top-20 h-56 w-56 rounded-full bg-primary/10 blur-3xl" />
+      <section className="relative isolate overflow-hidden rounded-3xl border border-emerald-300/50 bg-gradient-to-br from-emerald-100/90 via-white/80 to-teal-50/80 p-5 shadow-[0_20px_60px_-35px_rgba(15,118,110,0.45)] dark:border-emerald-800/50 dark:from-emerald-950/60 dark:via-slate-900/80 dark:to-slate-900/80 sm:p-7">
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-0 -z-10 overflow-hidden"
+        >
+          <div className="absolute -right-16 -top-20 h-56 w-56 rounded-full bg-emerald-300/50 blur-3xl dark:bg-emerald-500/15" />
+          <div className="absolute -bottom-20 left-1/3 h-48 w-48 rounded-full bg-teal-300/50 blur-3xl dark:bg-teal-600/15" />
+          <div className="absolute inset-0 bg-[radial-gradient(rgba(5,150,105,0.3)_1.2px,transparent_1.5px)] [background-size:24px_24px] [mask-image:radial-gradient(ellipse_70%_80%_at_85%_20%,#000,transparent_75%)] dark:bg-[radial-gradient(rgba(110,231,183,0.2)_1.2px,transparent_1.5px)]" />
+          <div className="absolute -right-10 -top-14 h-52 w-52 rounded-full border border-emerald-400/40 dark:border-emerald-400/10" />
+          <div className="absolute inset-x-8 top-0 h-px bg-gradient-to-r from-transparent via-emerald-400/60 to-transparent" />
+        </div>
 
         <div className="relative flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
           <div className="max-w-2xl space-y-3">
             <Badge
               variant="outline"
-              className="border-primary/20 bg-background/70 text-primary"
+              className="border-teal-200/80 bg-teal-50 text-teal-800 dark:border-teal-800/70 dark:bg-teal-950/60 dark:text-teal-200"
             >
-              <Megaphone className="mr-1.5 h-3 w-3" />
+              <Megaphone className="mr-1.5 h-3 w-3 text-emerald-500" />
               KOMUNIKASI GRADEUP
             </Badge>
 
             <div className="space-y-1.5">
-              <h2 className="text-xl font-extrabold tracking-tight sm:text-2xl">
-                Sampaikan Informasi kepada Semua Siswa
+              <h2
+                className={`text-xl font-extrabold tracking-[-0.035em] sm:text-2xl ${headingText}`}
+              >
+                Sampaikan Informasi kepada{" "}
+                <span className="bg-gradient-to-r from-teal-700 to-emerald-500 bg-clip-text text-transparent dark:from-teal-300 dark:to-emerald-300">
+                  Semua Siswa
+                </span>
               </h2>
 
-              <p className="max-w-xl text-xs leading-relaxed text-muted-foreground sm:text-sm">
+              <p
+                className={`max-w-xl text-xs leading-relaxed sm:text-sm ${mutedText}`}
+              >
                 Buat pengumuman sekarang atau atur tanggal dan jam agar
                 informasi tersedia otomatis pada waktu yang ditentukan.
               </p>
             </div>
           </div>
 
-          <div className="hidden h-20 w-20 shrink-0 items-center justify-center rounded-2xl border border-primary/15 bg-background/70 text-primary shadow-sm sm:flex">
+          <div className="hidden h-20 w-20 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-teal-700 to-emerald-500 text-white shadow-xl shadow-teal-700/25 ring-1 ring-inset ring-white/30 dark:from-emerald-500 dark:to-teal-400 dark:text-slate-950 sm:flex">
             <CalendarClock className="h-10 w-10" />
           </div>
         </div>
@@ -481,68 +540,80 @@ export default function AdminAnnouncementsPage() {
 
       {/* STATISTIK */}
       <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <Card>
+        <Card className={statCard}>
+          <CardAccent via="via-teal-400/70" />
           <CardContent className="flex items-center gap-3 p-4">
-            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
+            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-emerald-50 text-teal-700 transition-transform duration-300 group-hover:scale-105 dark:bg-emerald-950 dark:text-emerald-300">
               <FileText className="h-5 w-5" />
             </div>
 
             <div>
-              <p className="text-2xl font-extrabold tabular-nums">
+              <p
+                className={`text-2xl font-extrabold tabular-nums ${headingText}`}
+              >
                 {loading ? "—" : items.length}
               </p>
-              <p className="text-xs text-muted-foreground">
+              <p className={`text-xs ${mutedSoft}`}>
                 Total pengumuman
               </p>
             </div>
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className={statCard}>
+          <CardAccent via="via-emerald-400/70" />
           <CardContent className="flex items-center gap-3 p-4">
-            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
+            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-600 transition-transform duration-300 group-hover:scale-105 dark:text-emerald-400">
               <Send className="h-5 w-5" />
             </div>
 
             <div>
-              <p className="text-2xl font-extrabold tabular-nums">
+              <p
+                className={`text-2xl font-extrabold tabular-nums ${headingText}`}
+              >
                 {loading ? "—" : publishedCount}
               </p>
-              <p className="text-xs text-muted-foreground">
+              <p className={`text-xs ${mutedSoft}`}>
                 Sudah diterbitkan
               </p>
             </div>
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className={statCard}>
+          <CardAccent via="via-blue-400/60" />
           <CardContent className="flex items-center gap-3 p-4">
-            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-blue-500/10 text-blue-600 dark:text-blue-400">
+            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-blue-500/10 text-blue-600 transition-transform duration-300 group-hover:scale-105 dark:text-blue-400">
               <CalendarClock className="h-5 w-5" />
             </div>
 
             <div>
-              <p className="text-2xl font-extrabold tabular-nums">
+              <p
+                className={`text-2xl font-extrabold tabular-nums ${headingText}`}
+              >
                 {loading ? "—" : scheduledCount}
               </p>
-              <p className="text-xs text-muted-foreground">
+              <p className={`text-xs ${mutedSoft}`}>
                 Terjadwal
               </p>
             </div>
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className={statCard}>
+          <CardAccent via="via-amber-400/70" />
           <CardContent className="flex items-center gap-3 p-4">
-            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-amber-500/10 text-amber-600 dark:text-amber-400">
+            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-amber-500/10 text-amber-600 transition-transform duration-300 group-hover:scale-105 dark:text-amber-400">
               <Clock3 className="h-5 w-5" />
             </div>
 
             <div>
-              <p className="text-2xl font-extrabold tabular-nums">
+              <p
+                className={`text-2xl font-extrabold tabular-nums ${headingText}`}
+              >
                 {loading ? "—" : draftCount}
               </p>
-              <p className="text-xs text-muted-foreground">
+              <p className={`text-xs ${mutedSoft}`}>
                 Masih berupa Draft
               </p>
             </div>
@@ -554,10 +625,12 @@ export default function AdminAnnouncementsPage() {
       <section className="space-y-4">
         <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
           <div className="space-y-1">
-            <h3 className="text-base font-extrabold tracking-tight">
+            <h3
+              className={`text-base font-extrabold tracking-tight ${headingText}`}
+            >
               Daftar Pengumuman
             </h3>
-            <p className="text-xs text-muted-foreground">
+            <p className={`text-xs ${mutedSoft}`}>
               Pantau pengumuman aktif, jadwal mendatang, dan draft.
             </p>
           </div>
@@ -572,13 +645,13 @@ export default function AdminAnnouncementsPage() {
         {/* PENCARIAN DAN FILTER */}
         <div className="flex flex-col gap-3 sm:flex-row">
           <div className="relative flex-1">
-            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-teal-600 dark:text-emerald-400" />
 
             <Input
               value={search}
               onChange={(event) => setSearch(event.target.value)}
               placeholder="Cari judul, isi, atau kategori pengumuman..."
-              className="h-11 pl-9 pr-10"
+              className={`h-11 pl-9 pr-10 ${inputField}`}
             />
 
             {search && (
@@ -586,7 +659,7 @@ export default function AdminAnnouncementsPage() {
                 type="button"
                 onClick={() => setSearch("")}
                 aria-label="Hapus pencarian"
-                className="absolute right-3 top-1/2 -translate-y-1/2 rounded-md p-1 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                className="absolute right-3 top-1/2 -translate-y-1/2 rounded-md p-1 text-slate-400 transition-colors hover:bg-emerald-50 hover:text-slate-700 dark:hover:bg-slate-800 dark:hover:text-slate-200"
               >
                 <X className="h-4 w-4" />
               </button>
@@ -604,7 +677,7 @@ export default function AdminAnnouncementsPage() {
                   | "Terjadwal"
               )
             }
-            className="h-11 rounded-xl border border-input bg-background px-3 text-sm outline-none transition-colors focus:border-primary sm:w-48"
+            className={`h-11 sm:w-48 ${nativeField}`}
             aria-label="Filter status pengumuman"
           >
             <option value="Semua">Semua Status</option>
@@ -620,35 +693,45 @@ export default function AdminAnnouncementsPage() {
         ) : error ? (
           <ErrorState message={error} onRetry={fetchData} />
         ) : items.length === 0 ? (
-          <div className="rounded-2xl border border-dashed bg-muted/10 px-4 py-10">
-            <EmptyState
-              title="Belum ada pengumuman"
-              description="Buat pengumuman pertama untuk menyampaikan informasi kepada seluruh siswa GradeUp."
-              action={
-                <Button onClick={openCreate} className="gap-2">
-                  <Plus className="h-4 w-4" />
-                  Buat Pengumuman
-                </Button>
-              }
-            />
+          <div className={emptyBox}>
+            <div className="pointer-events-none absolute -right-16 -top-16 h-48 w-48 rounded-full bg-teal-400/20 blur-3xl dark:bg-teal-500/10" />
+            <div className="relative">
+              <EmptyState
+                title="Belum ada pengumuman"
+                description="Buat pengumuman pertama untuk menyampaikan informasi kepada seluruh siswa GradeUp."
+                action={
+                  <Button
+                    onClick={openCreate}
+                    className={`gap-2 ${primaryBtn}`}
+                  >
+                    <Plus className="h-4 w-4" />
+                    Buat Pengumuman
+                  </Button>
+                }
+              />
+            </div>
           </div>
         ) : filteredItems.length === 0 ? (
-          <div className="rounded-2xl border border-dashed bg-muted/10 px-4 py-10">
-            <EmptyState
-              title="Pengumuman tidak ditemukan"
-              description="Coba ubah kata kunci atau filter status."
-              action={
-                <Button
-                  variant="outline"
-                  onClick={() => {
-                    setSearch("");
-                    setStatusFilter("Semua");
-                  }}
-                >
-                  Reset Filter
-                </Button>
-              }
-            />
+          <div className={emptyBox}>
+            <div className="pointer-events-none absolute -right-16 -top-16 h-48 w-48 rounded-full bg-teal-400/20 blur-3xl dark:bg-teal-500/10" />
+            <div className="relative">
+              <EmptyState
+                title="Pengumuman tidak ditemukan"
+                description="Coba ubah kata kunci atau filter status."
+                action={
+                  <Button
+                    variant="outline"
+                    className={outlineBtn}
+                    onClick={() => {
+                      setSearch("");
+                      setStatusFilter("Semua");
+                    }}
+                  >
+                    Reset Filter
+                  </Button>
+                }
+              />
+            </div>
           </div>
         ) : (
           <div className="grid gap-4">
@@ -660,8 +743,18 @@ export default function AdminAnnouncementsPage() {
               return (
                 <Card
                   key={item.id}
-                  className="overflow-hidden transition-shadow hover:shadow-md"
+                  className={`${cardGlass} transition-all duration-300 hover:-translate-y-0.5 hover:border-emerald-300/80 hover:shadow-[0_22px_48px_-26px_rgba(15,118,110,0.4)] motion-reduce:transition-none motion-reduce:hover:translate-y-0 dark:hover:border-emerald-700/70`}
                 >
+                  <CardAccent
+                    via={
+                      isPublished
+                        ? "via-emerald-400/70"
+                        : scheduled
+                          ? "via-blue-400/60"
+                          : "via-amber-400/70"
+                    }
+                  />
+
                   <CardContent className="space-y-4 p-5">
                     {/* IDENTITAS */}
                     <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
@@ -683,7 +776,9 @@ export default function AdminAnnouncementsPage() {
                         </div>
 
                         <div className="min-w-0 space-y-1">
-                          <h4 className="font-bold tracking-tight">
+                          <h4
+                            className={`font-bold tracking-tight ${headingText}`}
+                          >
                             {item.title}
                           </h4>
 
@@ -710,7 +805,9 @@ export default function AdminAnnouncementsPage() {
                         </div>
                       </div>
 
-                      <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground sm:shrink-0">
+                      <div
+                        className={`flex items-center gap-1.5 text-[11px] sm:shrink-0 ${mutedSoft}`}
+                      >
                         <CalendarDays className="h-3.5 w-3.5" />
                         <span>
                           {scheduled
@@ -723,7 +820,9 @@ export default function AdminAnnouncementsPage() {
                     </div>
 
                     {/* ISI */}
-                    <p className="whitespace-pre-wrap break-words text-sm leading-relaxed text-muted-foreground">
+                    <p
+                      className={`whitespace-pre-wrap break-words text-sm leading-relaxed ${mutedText}`}
+                    >
                       {item.content.length > 320
                         ? `${item.content.slice(0, 320)}...`
                         : item.content}
@@ -731,7 +830,7 @@ export default function AdminAnnouncementsPage() {
 
                     {/* INFORMASI STATUS */}
                     {scheduled && (
-                      <div className="flex items-center gap-2 rounded-xl bg-blue-500/5 px-3 py-2 text-xs text-blue-700 dark:text-blue-300">
+                      <div className="flex items-center gap-2 rounded-2xl bg-blue-500/5 px-3 py-2 text-xs text-blue-700 dark:text-blue-300">
                         <Clock3 className="h-4 w-4 shrink-0" />
                         Pengumuman akan tersedia otomatis pada jadwal yang
                         ditentukan.
@@ -739,19 +838,19 @@ export default function AdminAnnouncementsPage() {
                     )}
 
                     {isPublished && (
-                      <div className="flex items-center gap-2 rounded-xl bg-emerald-500/5 px-3 py-2 text-xs text-emerald-700 dark:text-emerald-300">
+                      <div className="flex items-center gap-2 rounded-2xl bg-emerald-500/5 px-3 py-2 text-xs text-emerald-700 dark:text-emerald-300">
                         <Bell className="h-4 w-4 shrink-0" />
                         Pengumuman sudah tersedia untuk semua siswa.
                       </div>
                     )}
 
                     {/* AKSI */}
-                    <div className="flex flex-wrap gap-2 border-t pt-3">
+                    <div className="flex flex-wrap gap-2 border-t border-slate-200/70 pt-3 dark:border-slate-800">
                       <Button
                         size="sm"
                         variant="outline"
                         onClick={() => openEdit(item)}
-                        className="gap-1.5"
+                        className={`gap-1.5 ${outlineBtn}`}
                       >
                         <Pencil className="h-3.5 w-3.5" />
                         Edit
@@ -761,7 +860,11 @@ export default function AdminAnnouncementsPage() {
                         size="sm"
                         variant={item.status === "Published" ? "outline" : "default"}
                         onClick={() => void changeStatus(item)}
-                        className="gap-1.5"
+                        className={`gap-1.5 ${
+                          item.status === "Published"
+                            ? outlineBtn
+                            : primaryBtn
+                        }`}
                       >
                         {item.status === "Published" ? (
                           <>
@@ -780,7 +883,7 @@ export default function AdminAnnouncementsPage() {
                         size="sm"
                         variant="ghost"
                         onClick={() => setRemoving(item)}
-                        className="gap-1.5 text-destructive hover:bg-destructive/10 hover:text-destructive"
+                        className="gap-1.5 rounded-xl text-destructive hover:bg-destructive/10 hover:text-destructive"
                       >
                         <Trash2 className="h-3.5 w-3.5" />
                         Hapus
@@ -804,9 +907,14 @@ export default function AdminAnnouncementsPage() {
           }
         }}
       >
-        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-xl">
+        <DialogContent className="max-h-[90vh] overflow-y-auto rounded-3xl border-emerald-200/70 dark:border-emerald-900/50 sm:max-w-xl">
           {draft && (
             <>
+              <span
+                aria-hidden="true"
+                className="pointer-events-none absolute inset-x-6 top-0 h-px bg-gradient-to-r from-transparent via-emerald-400/70 to-transparent"
+              />
+
               <DialogHeader>
                 <DialogTitle className="text-lg">
                   {draft.id ? "Edit Pengumuman" : "Buat Pengumuman"}
@@ -835,9 +943,12 @@ export default function AdminAnnouncementsPage() {
                     placeholder="Contoh: Informasi Jadwal Tryout Nasional"
                     maxLength={120}
                     disabled={saving}
+                    className={inputField}
                   />
 
-                  <p className="text-right text-[10px] text-muted-foreground">
+                  <p
+                    className={`text-right text-[10px] ${mutedSoft}`}
+                  >
                     {draft.title.length}/120 karakter
                   </p>
                 </div>
@@ -856,7 +967,7 @@ export default function AdminAnnouncementsPage() {
                       })
                     }
                     disabled={saving}
-                    className="h-11 w-full rounded-xl border border-input bg-background px-3 text-sm outline-none transition-colors focus:border-primary disabled:opacity-60"
+                    className={`h-11 w-full disabled:opacity-60 ${nativeField}`}
                   >
                     {CATEGORIES.map((category) => (
                       <option key={category} value={category}>
@@ -883,26 +994,30 @@ export default function AdminAnnouncementsPage() {
                     rows={8}
                     maxLength={10000}
                     disabled={saving}
-                    className="resize-y"
+                    className={`resize-y ${inputField}`}
                   />
 
-                  <p className="text-right text-[10px] text-muted-foreground">
+                  <p
+                    className={`text-right text-[10px] ${mutedSoft}`}
+                  >
                     {draft.content.length}/10.000 karakter
                   </p>
                 </div>
 
                 {/* JADWAL PENERBITAN */}
-                <div className="space-y-3 rounded-xl border p-4">
+                <div className="space-y-3 rounded-2xl border border-blue-200/70 bg-gradient-to-br from-blue-50/70 to-transparent p-4 dark:border-blue-900/50 dark:from-blue-950/30">
                   <div className="flex items-start gap-3">
                     <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-blue-500/10 text-blue-600 dark:text-blue-400">
                       <CalendarClock className="h-5 w-5" />
                     </div>
 
                     <div>
-                      <p className="text-sm font-bold">
+                      <p className={`text-sm font-bold ${headingText}`}>
                         Jadwal Penerbitan
                       </p>
-                      <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+                      <p
+                        className={`mt-1 text-xs leading-relaxed ${mutedSoft}`}
+                      >
                         Tentukan kapan pengumuman tersedia untuk seluruh siswa.
                         Kosongkan jika ingin menerbitkan sekarang.
                       </p>
@@ -927,17 +1042,19 @@ export default function AdminAnnouncementsPage() {
                         setFormError("");
                       }}
                       disabled={saving}
-                      className="h-11"
+                      className={`h-11 ${inputField}`}
                     />
 
-                    <p className="text-[11px] leading-relaxed text-muted-foreground">
+                    <p
+                      className={`text-[11px] leading-relaxed ${mutedSoft}`}
+                    >
                       Zona waktu mengikuti pengaturan perangkat admin.
                       Jadwal ditampilkan dalam WIB (Asia/Jakarta).
                     </p>
                   </div>
 
                   {draft.scheduledAt && (
-                    <div className="flex items-center gap-2 rounded-lg bg-blue-500/5 px-3 py-2 text-xs text-blue-700 dark:text-blue-300">
+                    <div className="flex items-center gap-2 rounded-xl bg-blue-500/5 px-3 py-2 text-xs text-blue-700 dark:text-blue-300">
                       <Clock3 className="h-4 w-4 shrink-0" />
                       Jadwal:{" "}
                       {formatDate(new Date(draft.scheduledAt).toISOString())}
@@ -946,16 +1063,18 @@ export default function AdminAnnouncementsPage() {
                 </div>
 
                 {/* TARGET */}
-                <div className="flex items-start gap-3 rounded-xl border bg-muted/30 p-3">
-                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                <div className="flex items-start gap-3 rounded-2xl border border-emerald-200/70 bg-gradient-to-br from-emerald-50/70 to-transparent p-3 dark:border-emerald-900/50 dark:from-emerald-950/30">
+                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-emerald-500/10 text-teal-700 dark:text-emerald-300">
                     <Bell className="h-4 w-4" />
                   </div>
 
                   <div className="min-w-0">
-                    <p className="text-xs font-bold">
+                    <p className={`text-xs font-bold ${headingText}`}>
                       Target penerima: Semua siswa
                     </p>
-                    <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">
+                    <p
+                      className={`mt-1 text-[11px] leading-relaxed ${mutedSoft}`}
+                    >
                       Pengumuman yang sudah mencapai waktu penerbitan dapat
                       dilihat oleh seluruh akun siswa yang login ke GradeUp.
                     </p>
@@ -963,7 +1082,7 @@ export default function AdminAnnouncementsPage() {
                 </div>
 
                 {formError && (
-                  <p className="rounded-lg bg-destructive/10 px-3 py-2 text-xs text-destructive">
+                  <p className="rounded-xl bg-destructive/10 px-3 py-2 text-xs text-destructive">
                     {formError}
                   </p>
                 )}
@@ -978,6 +1097,7 @@ export default function AdminAnnouncementsPage() {
                     setFormError("");
                   }}
                   disabled={saving}
+                  className={outlineBtn}
                 >
                   Batal
                 </Button>
@@ -986,7 +1106,7 @@ export default function AdminAnnouncementsPage() {
                   variant="soft"
                   onClick={() => void save("Draft")}
                   disabled={saving}
-                  className="gap-2"
+                  className="gap-2 rounded-xl"
                 >
                   {saving && <Loader2 className="h-4 w-4 animate-spin" />}
                   Simpan Draft
@@ -996,7 +1116,7 @@ export default function AdminAnnouncementsPage() {
                   <Button
                     onClick={() => void save("Schedule")}
                     disabled={saving}
-                    className="gap-2"
+                    className={`gap-2 ${primaryBtn}`}
                   >
                     {saving ? (
                       <Loader2 className="h-4 w-4 animate-spin" />
@@ -1009,7 +1129,7 @@ export default function AdminAnnouncementsPage() {
                   <Button
                     onClick={() => void save("Now")}
                     disabled={saving}
-                    className="gap-2"
+                    className={`gap-2 ${primaryBtn}`}
                   >
                     {saving ? (
                       <Loader2 className="h-4 w-4 animate-spin" />
