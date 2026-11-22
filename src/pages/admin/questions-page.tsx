@@ -1,11 +1,17 @@
-
-import { useEffect, useMemo, useState, type ChangeEvent } from "react";
+import {
+  useEffect,
+  useMemo,
+  useState,
+  type ChangeEvent,
+  type ReactNode,
+} from "react";
 import * as XLSX from "xlsx";
 import {
   Download,
   MoreHorizontal,
   Pencil,
   Plus,
+  SlidersHorizontal,
   Trash2,
   Upload,
   Loader2,
@@ -100,6 +106,64 @@ const emptyDraft: Draft = {
   correct_answer: "A",
   explanation: "",
 };
+
+/* ------------------------------------------------------------------ */
+/* Dekorasi visual (murni tampilan, tidak interaktif)                  */
+/* ------------------------------------------------------------------ */
+
+const patternLine =
+  "[--gu-line:rgba(15,118,110,0.10)] dark:[--gu-line:rgba(52,211,153,0.09)]";
+
+const panelSurface =
+  "border border-emerald-200/70 bg-card/90 shadow-[0_16px_44px_-28px_rgba(15,118,110,0.4)] backdrop-blur-sm dark:border-emerald-900/40";
+
+function AdminStyles() {
+  return (
+    <style>{`
+      @keyframes gu-drift {
+        0%, 100% { transform: translate3d(0, 0, 0) scale(1); }
+        50% { transform: translate3d(22px, -16px, 0) scale(1.07); }
+      }
+      @keyframes gu-drift-rev {
+        0%, 100% { transform: translate3d(0, 0, 0) scale(1); }
+        50% { transform: translate3d(-20px, 14px, 0) scale(1.06); }
+      }
+      @keyframes gu-reveal {
+        from { opacity: 0; transform: translate3d(0, 12px, 0); }
+        to { opacity: 1; transform: translate3d(0, 0, 0); }
+      }
+      .gu-drift { animation: gu-drift 20s ease-in-out infinite; }
+      .gu-drift-rev { animation: gu-drift-rev 24s ease-in-out infinite; }
+      .gu-reveal { animation: gu-reveal 0.6s cubic-bezier(0.22, 1, 0.36, 1) both; }
+
+      .gu-grid {
+        background-image:
+          linear-gradient(to right, var(--gu-line) 1px, transparent 1px),
+          linear-gradient(to bottom, var(--gu-line) 1px, transparent 1px);
+        background-size: 40px 40px;
+        -webkit-mask-image: radial-gradient(ellipse 80% 70% at 50% 0%, #000 20%, transparent 100%);
+        mask-image: radial-gradient(ellipse 80% 70% at 50% 0%, #000 20%, transparent 100%);
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        .gu-drift, .gu-drift-rev, .gu-reveal {
+          animation: none !important;
+        }
+      }
+    `}</style>
+  );
+}
+
+function DecorLayer({ children }: { children: ReactNode }) {
+  return (
+    <div
+      aria-hidden="true"
+      className="pointer-events-none absolute inset-0 -z-10 overflow-hidden"
+    >
+      {children}
+    </div>
+  );
+}
 
 export default function AdminQuestionsPage() {
   const [questions, setQuestions] = useState<QuestionItem[]>([]);
@@ -526,67 +590,98 @@ export default function AdminQuestionsPage() {
   };
 
   return (
-    <div className="space-y-6">
-      <PageHeader
-        title="Bank Soal"
-        description="Kelola, cari, unduh, dan hapus kumpulan soal GradeUp."
-        actions={
-          <div className="flex flex-wrap gap-2">
-            <Button
-              variant="outline"
-              onClick={downloadQuestionTemplate}
-              className="gap-2"
-            >
-              <Download className="h-4 w-4" />
-              Template Excel
-            </Button>
+    <div className="relative isolate space-y-6">
+      <AdminStyles />
 
-            <Button
-              variant="outline"
-              onClick={downloadBankSoal}
-              disabled={loading || filtered.length === 0}
-              className="gap-2"
-            >
-              <Download className="h-4 w-4" />
-              Download Bank Soal
-            </Button>
+      <DecorLayer>
+        <div className={`gu-grid absolute inset-0 ${patternLine}`} />
+        <div className="gu-drift absolute -right-24 -top-24 h-80 w-80 rounded-full bg-emerald-300/30 blur-3xl dark:bg-emerald-600/10" />
+        <div className="gu-drift-rev absolute -left-24 top-1/3 h-72 w-72 rounded-full bg-teal-300/25 blur-3xl dark:bg-teal-600/10" />
+      </DecorLayer>
 
-            <Label htmlFor="excel-upload" className="cursor-pointer">
-              <div className="flex h-9 items-center gap-2 rounded-md bg-secondary px-3 py-2 text-sm font-medium hover:bg-secondary/80">
-                <Upload className="h-4 w-4" />
-                Import Excel
+      {/* HEADER */}
+      <div className="gu-reveal relative overflow-hidden rounded-3xl border border-emerald-200/70 bg-gradient-to-br from-emerald-100/80 via-white/70 to-teal-100/70 p-5 shadow-[0_20px_50px_-30px_rgba(15,118,110,0.45)] backdrop-blur-sm dark:border-emerald-900/40 dark:from-emerald-950/60 dark:via-slate-900/60 dark:to-teal-950/50 sm:p-6">
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-0 overflow-hidden"
+        >
+          <div className="absolute -right-16 -top-20 h-56 w-56 rounded-full bg-emerald-400/30 blur-3xl dark:bg-emerald-500/15" />
+          <div className="absolute -bottom-24 left-1/3 h-52 w-52 rounded-full bg-teal-400/20 blur-3xl dark:bg-teal-500/10" />
+          <div className="absolute -right-10 top-6 h-40 w-40 rounded-full border border-emerald-400/30 dark:border-emerald-400/10" />
+          <div className="absolute inset-x-6 top-0 h-px bg-gradient-to-r from-transparent via-emerald-400/60 to-transparent dark:via-emerald-500/30" />
+        </div>
+
+        <div className="relative">
+          <PageHeader
+            title="Bank Soal"
+            description="Kelola, cari, unduh, dan hapus kumpulan soal GradeUp."
+            actions={
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  variant="outline"
+                  onClick={downloadQuestionTemplate}
+                  className="gap-2 bg-background/70 backdrop-blur"
+                >
+                  <Download className="h-4 w-4" />
+                  Template Excel
+                </Button>
+
+                <Button
+                  variant="outline"
+                  onClick={downloadBankSoal}
+                  disabled={loading || filtered.length === 0}
+                  className="gap-2 bg-background/70 backdrop-blur"
+                >
+                  <Download className="h-4 w-4" />
+                  Download Bank Soal
+                </Button>
+
+                <Label htmlFor="excel-upload" className="cursor-pointer">
+                  <div className="flex h-9 items-center gap-2 rounded-md bg-emerald-100 px-3 py-2 text-sm font-medium text-emerald-900 transition-colors hover:bg-emerald-200 dark:bg-emerald-950 dark:text-emerald-100 dark:hover:bg-emerald-900">
+                    <Upload className="h-4 w-4" />
+                    Import Excel
+                  </div>
+
+                  <Input
+                    id="excel-upload"
+                    type="file"
+                    accept=".xlsx,.xls"
+                    className="hidden"
+                    onChange={handleFileUpload}
+                    disabled={loading}
+                  />
+                </Label>
+
+                <Button
+                  className="shadow-lg shadow-emerald-700/20"
+                  onClick={() => {
+                    setErrs({});
+                    setDraft({ ...emptyDraft });
+                  }}
+                >
+                  <Plus className="mr-1 h-4 w-4" />
+                  Tambah Soal
+                </Button>
               </div>
+            }
+          />
+        </div>
+      </div>
 
-              <Input
-                id="excel-upload"
-                type="file"
-                accept=".xlsx,.xls"
-                className="hidden"
-                onChange={handleFileUpload}
-                disabled={loading}
-              />
-            </Label>
-
-            <Button
-              onClick={() => {
-                setErrs({});
-                setDraft({ ...emptyDraft });
-              }}
-            >
-              <Plus className="mr-1 h-4 w-4" />
-              Tambah Soal
-            </Button>
-          </div>
-        }
-      />
-
-      <Card className="space-y-4 p-4">
+      {/* FILTER */}
+      <Card className={`space-y-4 p-4 ${panelSurface}`}>
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <div>
-            <h3 className="font-semibold">Filter Bank Soal</h3>
-            <p className="text-sm text-muted-foreground">
-              Temukan soal berdasarkan pertanyaan, kategori, kelas, atau kunci jawaban.
-            </p>
+          <div className="flex items-start gap-3">
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300">
+              <SlidersHorizontal className="h-5 w-5" />
+            </span>
+
+            <div>
+              <h3 className="font-semibold">Filter Bank Soal</h3>
+              <p className="text-sm text-muted-foreground">
+                Temukan soal berdasarkan pertanyaan, kategori, kelas, atau kunci jawaban.
+              </p>
+            </div>
           </div>
 
           <Button
@@ -668,7 +763,7 @@ export default function AdminQuestionsPage() {
           </Select>
         </div>
 
-        <div className="flex flex-wrap items-center justify-between gap-3 border-t pt-3">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-t border-emerald-100 pt-3 dark:border-emerald-900/30">
           <div className="text-sm text-muted-foreground">
             Menampilkan{" "}
             <strong className="text-foreground">{filtered.length}</strong>{" "}
@@ -705,7 +800,8 @@ export default function AdminQuestionsPage() {
         </div>
       </Card>
 
-      <Card className="overflow-hidden">
+      {/* TABEL */}
+      <Card className={`overflow-hidden ${panelSurface}`}>
         {loading ? (
           <TableSkeleton />
         ) : error ? (
@@ -722,105 +818,117 @@ export default function AdminQuestionsPage() {
         ) : (
           <>
             <Table>
-              <TableHeader>
-              <TableRow>
-                <TableHead className="w-12">
-                  <input
-                    type="checkbox"
-                    aria-label="Pilih semua soal pada halaman ini"
-                    checked={allFilteredSelected}
-                    onChange={toggleAllFiltered}
-                    className="h-4 w-4 cursor-pointer accent-emerald-600"
-                  />
-                </TableHead>
-
-                <TableHead>Pertanyaan</TableHead>
-                <TableHead>Kategori</TableHead>
-                <TableHead>Kunci</TableHead>
-                <TableHead className="text-right">Aksi</TableHead>
-              </TableRow>
-            </TableHeader>
-
-            <TableBody>
-              {paginatedQuestions.map((item) => (
-                <TableRow key={item.id}>
-                  <TableCell>
+              <TableHeader className="bg-emerald-50/80 dark:bg-emerald-950/30">
+                <TableRow className="hover:bg-transparent">
+                  <TableHead className="w-12">
                     <input
                       type="checkbox"
-                      aria-label={`Pilih soal ${item.question_text}`}
-                      checked={selectedIds.includes(item.id)}
-                      onChange={() => toggleQuestion(item.id)}
+                      aria-label="Pilih semua soal pada halaman ini"
+                      checked={allFilteredSelected}
+                      onChange={toggleAllFiltered}
                       className="h-4 w-4 cursor-pointer accent-emerald-600"
                     />
-                  </TableCell>
+                  </TableHead>
 
-                  <TableCell className="max-w-md">
-                    <p className="line-clamp-2 font-medium">
-                      {item.question_text}
-                    </p>
-
-                    <p className="mt-1 text-xs text-muted-foreground">
-                      Opsi: A. {item.options?.[0]?.text} · B.{" "}
-                      {item.options?.[1]?.text}
-                    </p>
-                  </TableCell>
-
-                  <TableCell>
-                    <Badge variant="outline">{item.category}</Badge>
-                  </TableCell>
-
-                  <TableCell>
-                    <Badge className="bg-emerald-600 text-white hover:bg-emerald-700">
-                      Opsi {item.correct_answer}
-                    </Badge>
-                  </TableCell>
-
-                  <TableCell className="text-right">
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="icon">
-                          <MoreHorizontal className="h-4 w-4" />
-                        </Button>
-                      </DropdownMenuTrigger>
-
-                      <DropdownMenuContent align="end">
-                        <DropdownMenuItem
-                          onSelect={() => {
-                            setErrs({});
-                            setDraft({
-                              id: item.id,
-                              category: item.category,
-                              question_text: item.question_text,
-                              optionA: item.options?.[0]?.text || "",
-                              optionB: item.options?.[1]?.text || "",
-                              optionC: item.options?.[2]?.text || "",
-                              optionD: item.options?.[3]?.text || "",
-                              correct_answer: item.correct_answer || "A",
-                              explanation: item.explanation || "",
-                            });
-                          }}
-                        >
-                          <Pencil className="mr-2 h-4 w-4" />
-                          Edit
-                        </DropdownMenuItem>
-
-                        <DropdownMenuItem
-                          className="text-destructive"
-                          onSelect={() => setRemoving(item)}
-                        >
-                          <Trash2 className="mr-2 h-4 w-4" />
-                          Hapus
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </TableCell>
+                  <TableHead>Pertanyaan</TableHead>
+                  <TableHead>Kategori</TableHead>
+                  <TableHead>Kunci</TableHead>
+                  <TableHead className="text-right">Aksi</TableHead>
                 </TableRow>
-              ))}
-            </TableBody>
+              </TableHeader>
+
+              <TableBody>
+                {paginatedQuestions.map((item) => (
+                  <TableRow
+                    key={item.id}
+                    className={`transition-colors hover:bg-emerald-50/70 dark:hover:bg-emerald-950/25 ${
+                      selectedIds.includes(item.id)
+                        ? "bg-emerald-50 dark:bg-emerald-950/30"
+                        : ""
+                    }`}
+                  >
+                    <TableCell>
+                      <input
+                        type="checkbox"
+                        aria-label={`Pilih soal ${item.question_text}`}
+                        checked={selectedIds.includes(item.id)}
+                        onChange={() => toggleQuestion(item.id)}
+                        className="h-4 w-4 cursor-pointer accent-emerald-600"
+                      />
+                    </TableCell>
+
+                    <TableCell className="max-w-md">
+                      <p className="line-clamp-2 font-medium">
+                        {item.question_text}
+                      </p>
+
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        Opsi: A. {item.options?.[0]?.text} · B.{" "}
+                        {item.options?.[1]?.text}
+                      </p>
+                    </TableCell>
+
+                    <TableCell>
+                      <Badge
+                        variant="outline"
+                        className="border-emerald-200 bg-emerald-50/60 dark:border-emerald-900/60 dark:bg-emerald-950/30"
+                      >
+                        {item.category}
+                      </Badge>
+                    </TableCell>
+
+                    <TableCell>
+                      <Badge className="bg-emerald-600 text-white shadow-sm shadow-emerald-700/20 hover:bg-emerald-700">
+                        Opsi {item.correct_answer}
+                      </Badge>
+                    </TableCell>
+
+                    <TableCell className="text-right">
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" size="icon">
+                            <MoreHorizontal className="h-4 w-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem
+                            onSelect={() => {
+                              setErrs({});
+                              setDraft({
+                                id: item.id,
+                                category: item.category,
+                                question_text: item.question_text,
+                                optionA: item.options?.[0]?.text || "",
+                                optionB: item.options?.[1]?.text || "",
+                                optionC: item.options?.[2]?.text || "",
+                                optionD: item.options?.[3]?.text || "",
+                                correct_answer: item.correct_answer || "A",
+                                explanation: item.explanation || "",
+                              });
+                            }}
+                          >
+                            <Pencil className="mr-2 h-4 w-4" />
+                            Edit
+                          </DropdownMenuItem>
+
+                          <DropdownMenuItem
+                            className="text-destructive"
+                            onSelect={() => setRemoving(item)}
+                          >
+                            <Trash2 className="mr-2 h-4 w-4" />
+                            Hapus
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
             </Table>
 
             {filtered.length > 0 && (
-              <div className="flex flex-wrap items-center justify-between gap-3 border-t p-4">
+              <div className="flex flex-wrap items-center justify-between gap-3 border-t border-emerald-100 bg-gradient-to-r from-emerald-50/70 via-transparent to-teal-50/60 p-4 dark:border-emerald-900/30 dark:from-emerald-950/25 dark:to-teal-950/20">
                 <p className="text-sm text-muted-foreground">
                   Menampilkan{" "}
                   <strong className="text-foreground">
@@ -847,7 +955,7 @@ export default function AdminQuestionsPage() {
                     Sebelumnya
                   </Button>
 
-                  <span className="whitespace-nowrap text-sm">
+                  <span className="whitespace-nowrap rounded-full border border-emerald-200/70 bg-background/70 px-3 py-1 text-sm dark:border-emerald-900/40">
                     Halaman {currentPage} dari {totalPages}
                   </span>
 
@@ -872,9 +980,14 @@ export default function AdminQuestionsPage() {
 
       {/* Dialog Tambah / Edit Soal */}
       <Dialog open={!!draft} onOpenChange={(o) => !o && setDraft(null)}>
-        <DialogContent className="max-h-[90vh] max-w-2xl overflow-y-auto">
+        <DialogContent className="max-h-[90vh] max-w-2xl overflow-y-auto border-emerald-200/70 dark:border-emerald-900/50">
           {draft && (
             <>
+              <div
+                aria-hidden="true"
+                className="pointer-events-none absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-emerald-400 via-teal-400 to-emerald-500"
+              />
+
               <DialogHeader>
                 <DialogTitle>
                   {draft.id ? "Edit Soal" : "Tambah Soal Baru"}
@@ -1033,7 +1146,11 @@ export default function AdminQuestionsPage() {
                   Batal
                 </Button>
 
-                <Button onClick={save} disabled={saving}>
+                <Button
+                  onClick={save}
+                  disabled={saving}
+                  className="shadow-lg shadow-emerald-700/20"
+                >
                   {saving ? (
                     <Loader2 className="h-4 w-4 animate-spin" />
                   ) : (
