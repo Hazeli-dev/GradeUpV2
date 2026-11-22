@@ -1,4 +1,3 @@
-
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Activity,
@@ -87,6 +86,38 @@ interface PromoForm {
   starts_at: string;
   ends_at: string;
   is_active: boolean;
+}
+
+// ==========================================
+// TAMPILAN (murni visual, tidak memengaruhi logika)
+// ==========================================
+
+const cardGlass =
+  "relative overflow-hidden rounded-3xl border border-slate-200/80 bg-white/85 shadow-[0_12px_36px_-24px_rgba(15,118,110,0.35)] backdrop-blur-sm dark:border-slate-700/70 dark:bg-slate-900/80";
+
+const headingText = "text-slate-950 dark:text-white";
+
+const mutedSoft = "text-slate-500 dark:text-slate-400";
+
+const tableHead =
+  "bg-emerald-50/80 text-xs uppercase text-slate-500 dark:bg-slate-800/60 dark:text-slate-400";
+
+const tableRow =
+  "transition-colors duration-300 hover:bg-emerald-50/60 dark:hover:bg-emerald-950/30";
+
+const iconBtn =
+  "rounded-lg border border-slate-200 p-2 text-slate-600 transition-colors hover:border-teal-300 hover:bg-teal-50 dark:border-slate-700 dark:text-slate-300 dark:hover:border-teal-700 dark:hover:bg-slate-800";
+
+const emptyIcon = "mb-3 h-10 w-10 text-slate-300 dark:text-slate-600";
+
+/** Garis aksen tipis di tepi atas kartu. */
+function CardAccent({ via = "via-emerald-400/70" }: { via?: string }) {
+  return (
+    <span
+      aria-hidden="true"
+      className={`pointer-events-none absolute inset-x-6 top-0 z-10 h-px bg-gradient-to-r from-transparent ${via} to-transparent`}
+    />
+  );
 }
 
 // ==========================================
@@ -179,13 +210,20 @@ const emptyPromoForm: PromoForm = {
 
 function StatusBadge({ status }: { status: string }) {
   const styles: Record<string, string> = {
-    Aktif: "bg-emerald-50 text-emerald-700 border-emerald-200",
-    Nonaktif: "bg-slate-100 text-slate-600 border-slate-200",
-    Kedaluwarsa: "bg-red-50 text-red-700 border-red-200",
-    "Akan Datang": "bg-blue-50 text-blue-700 border-blue-200",
-    reserved: "bg-amber-50 text-amber-700 border-amber-200",
-    used: "bg-emerald-50 text-emerald-700 border-emerald-200",
-    cancelled: "bg-slate-100 text-slate-600 border-slate-200",
+    Aktif:
+      "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/50 dark:text-emerald-300 dark:border-emerald-900",
+    Nonaktif:
+      "bg-slate-100 text-slate-600 border-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700",
+    Kedaluwarsa:
+      "bg-red-50 text-red-700 border-red-200 dark:bg-red-950/40 dark:text-red-300 dark:border-red-900",
+    "Akan Datang":
+      "bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950/40 dark:text-blue-300 dark:border-blue-900",
+    reserved:
+      "bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-900",
+    used:
+      "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/50 dark:text-emerald-300 dark:border-emerald-900",
+    cancelled:
+      "bg-slate-100 text-slate-600 border-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700",
   };
 
   return (
@@ -213,21 +251,27 @@ function StatCard({
   color: string;
 }) {
   return (
-    <div className="rounded-2xl border bg-card p-5 shadow-sm">
+    <div className="group relative overflow-hidden rounded-3xl border border-slate-200/80 bg-white/85 p-5 shadow-[0_10px_30px_-22px_rgba(15,118,110,0.3)] backdrop-blur-sm transition-all duration-300 hover:-translate-y-0.5 hover:border-emerald-300/80 hover:shadow-[0_20px_44px_-24px_rgba(15,118,110,0.4)] motion-reduce:transition-none motion-reduce:hover:translate-y-0 dark:border-slate-700/70 dark:bg-slate-900/80 dark:hover:border-emerald-700/70">
+      <CardAccent />
+
       <div className="flex items-center justify-between">
         <div>
-          <p className="text-sm font-medium text-muted-foreground">
+          <p className={`text-sm font-medium ${mutedSoft}`}>
             {title}
           </p>
-          <h3 className="mt-2 text-2xl font-bold tracking-tight">
+          <h3
+            className={`mt-2 text-2xl font-extrabold tracking-tight ${headingText}`}
+          >
             {value}
           </h3>
-          <p className="mt-1 text-xs text-muted-foreground">
+          <p className={`mt-1 text-xs ${mutedSoft}`}>
             {description}
           </p>
         </div>
 
-        <div className={`rounded-xl p-3 ${color}`}>
+        <div
+          className={`rounded-xl p-3 transition-transform duration-300 group-hover:scale-105 ${color}`}
+        >
           <Icon className="h-6 w-6" />
         </div>
       </div>
@@ -246,20 +290,28 @@ function FormField({
 }) {
   return (
     <div className="space-y-2">
-      <label className="text-sm font-medium">{label}</label>
+      <label className={`text-sm font-medium ${headingText}`}>
+        {label}
+      </label>
       {children}
       {description && (
-        <p className="text-xs text-muted-foreground">{description}</p>
+        <p className={`text-xs ${mutedSoft}`}>{description}</p>
       )}
     </div>
   );
 }
 
 const inputClass =
-  "w-full rounded-xl border border-input bg-background px-3 py-2.5 text-sm outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/10";
+  "w-full rounded-xl border border-slate-300 bg-white/80 px-3 py-2.5 text-sm outline-none transition focus:border-teal-500 focus:ring-2 focus:ring-teal-500/20 dark:border-slate-700 dark:bg-slate-900/80 dark:focus:border-emerald-500 dark:focus:ring-emerald-500/20";
 
 const buttonClass =
-  "inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-50";
+  "inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold transition-all duration-300 disabled:cursor-not-allowed disabled:opacity-50";
+
+const outlineButton =
+  "border border-slate-300 bg-white/70 text-slate-700 hover:border-teal-300 hover:bg-teal-50 dark:border-slate-700 dark:bg-slate-900/60 dark:text-slate-200 dark:hover:border-teal-700 dark:hover:bg-slate-800";
+
+const primaryButton =
+  "bg-teal-700 font-bold text-white shadow-md shadow-teal-700/20 hover:-translate-y-0.5 hover:bg-teal-800 disabled:hover:translate-y-0 motion-reduce:hover:translate-y-0 dark:bg-emerald-500 dark:text-slate-950 dark:hover:bg-emerald-400";
 
 function Modal({
   title,
@@ -273,12 +325,16 @@ function Modal({
   children: React.ReactNode;
 }) {
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-black/50 p-4">
-      <div className="my-auto w-full max-w-2xl overflow-hidden rounded-2xl border bg-background shadow-2xl">
-        <div className="flex items-start justify-between border-b p-5">
+    <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-slate-950/50 p-4 backdrop-blur-sm">
+      <div className="relative my-auto w-full max-w-2xl overflow-hidden rounded-3xl border border-emerald-200/70 bg-background shadow-2xl dark:border-emerald-900/50">
+        <CardAccent via="via-emerald-400/70" />
+
+        <div className="flex items-start justify-between border-b border-slate-200/70 bg-gradient-to-r from-emerald-100/60 to-transparent p-5 dark:border-slate-800 dark:from-emerald-950/40">
           <div>
-            <h2 className="text-lg font-bold">{title}</h2>
-            <p className="mt-1 text-sm text-muted-foreground">
+            <h2 className={`text-lg font-bold ${headingText}`}>
+              {title}
+            </h2>
+            <p className={`mt-1 text-sm ${mutedSoft}`}>
               {description}
             </p>
           </div>
@@ -286,7 +342,7 @@ function Modal({
           <button
             type="button"
             onClick={onClose}
-            className="rounded-lg p-2 text-muted-foreground hover:bg-muted"
+            className="rounded-lg p-2 text-slate-500 transition-colors hover:bg-emerald-50 hover:text-slate-800 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-white"
             aria-label="Tutup"
           >
             <X className="h-5 w-5" />
@@ -824,53 +880,68 @@ export default function AdminPromoManagementPage() {
   return (
     <div className="space-y-6 pb-10">
       {/* HEADER */}
-      <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
-        <div>
-          <div className="mb-2 flex items-center gap-2 text-sm text-muted-foreground">
-            <TicketPercent className="h-4 w-4" />
-            Admin / Manajemen Promo
+      <section className="relative isolate overflow-hidden rounded-3xl border border-emerald-300/50 bg-gradient-to-br from-emerald-100/90 via-white/80 to-teal-50/80 p-5 shadow-[0_20px_60px_-35px_rgba(15,118,110,0.45)] dark:border-emerald-800/50 dark:from-emerald-950/60 dark:via-slate-900/80 dark:to-slate-900/80 sm:p-7">
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-0 -z-10 overflow-hidden"
+        >
+          <div className="absolute -right-16 -top-20 h-56 w-56 rounded-full bg-emerald-300/50 blur-3xl dark:bg-emerald-500/15" />
+          <div className="absolute -bottom-20 left-1/3 h-48 w-48 rounded-full bg-teal-300/50 blur-3xl dark:bg-teal-600/15" />
+          <div className="absolute inset-0 bg-[radial-gradient(rgba(5,150,105,0.3)_1.2px,transparent_1.5px)] [background-size:24px_24px] [mask-image:radial-gradient(ellipse_70%_80%_at_85%_20%,#000,transparent_75%)] dark:bg-[radial-gradient(rgba(110,231,183,0.2)_1.2px,transparent_1.5px)]" />
+          <div className="absolute -right-10 -top-14 h-52 w-52 rounded-full border border-emerald-400/40 dark:border-emerald-400/10" />
+          <div className="absolute inset-x-8 top-0 h-px bg-gradient-to-r from-transparent via-emerald-400/60 to-transparent" />
+        </div>
+
+        <div className="relative flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
+          <div>
+            <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-teal-200/80 bg-teal-50 px-3 py-1.5 text-xs font-bold text-teal-800 dark:border-teal-800/70 dark:bg-teal-950/60 dark:text-teal-200">
+              <TicketPercent className="h-4 w-4 text-emerald-500" />
+              Admin / Manajemen Promo
+            </div>
+
+            <h1
+              className={`text-2xl font-extrabold tracking-[-0.035em] sm:text-3xl ${headingText}`}
+            >
+              Manajemen Promo
+            </h1>
+
+            <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">
+              Kelola campaign, kode diskon, dan riwayat penggunaan promo GradeUp.
+            </p>
           </div>
 
-          <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">
-            Manajemen Promo
-          </h1>
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={() => void fetchData()}
+              disabled={loading}
+              className={`${buttonClass} ${outlineButton}`}
+            >
+              <RefreshCw
+                className={`h-4 w-4 ${loading ? "animate-spin" : ""}`}
+              />
+              Refresh
+            </button>
 
-          <p className="mt-1 text-sm text-muted-foreground">
-            Kelola campaign, kode diskon, dan riwayat penggunaan promo GradeUp.
-          </p>
+            <button
+              type="button"
+              onClick={activeTab === "campaigns" ? openCreateCampaign : openCreatePromo}
+              className={`${buttonClass} ${primaryButton}`}
+            >
+              <Plus className="h-4 w-4" />
+              {activeTab === "campaigns" ? "Buat Campaign" : "Buat Kode Promo"}
+            </button>
+          </div>
         </div>
-
-        <div className="flex flex-wrap gap-2">
-          <button
-            type="button"
-            onClick={() => void fetchData()}
-            disabled={loading}
-            className={`${buttonClass} border bg-background hover:bg-muted`}
-          >
-            <RefreshCw
-              className={`h-4 w-4 ${loading ? "animate-spin" : ""}`}
-            />
-            Refresh
-          </button>
-
-          <button
-            type="button"
-            onClick={activeTab === "campaigns" ? openCreateCampaign : openCreatePromo}
-            className={`${buttonClass} bg-primary text-primary-foreground hover:bg-primary/90`}
-          >
-            <Plus className="h-4 w-4" />
-            {activeTab === "campaigns" ? "Buat Campaign" : "Buat Kode Promo"}
-          </button>
-        </div>
-      </div>
+      </section>
 
       {/* ALERT */}
       {message && (
         <div
-          className={`flex items-start gap-3 rounded-xl border p-4 text-sm ${
+          className={`flex items-start gap-3 rounded-2xl border p-4 text-sm ${
             message.type === "success"
-              ? "border-emerald-200 bg-emerald-50 text-emerald-800"
-              : "border-red-200 bg-red-50 text-red-800"
+              ? "border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-200"
+              : "border-red-200 bg-red-50 text-red-800 dark:border-red-900 dark:bg-red-950/40 dark:text-red-200"
           }`}
         >
           {message.type === "success" ? (
@@ -898,7 +969,7 @@ export default function AdminPromoManagementPage() {
           value={stats.totalPromos}
           description="Semua kode terdaftar"
           icon={TicketPercent}
-          color="bg-blue-50 text-blue-600"
+          color="bg-blue-50 text-blue-600 dark:bg-blue-950/50 dark:text-blue-300"
         />
 
         <StatCard
@@ -906,7 +977,7 @@ export default function AdminPromoManagementPage() {
           value={stats.activePromos}
           description={`${stats.activeCampaigns} campaign aktif`}
           icon={Activity}
-          color="bg-emerald-50 text-emerald-600"
+          color="bg-emerald-50 text-emerald-600 dark:bg-emerald-950/50 dark:text-emerald-300"
         />
 
         <StatCard
@@ -914,7 +985,7 @@ export default function AdminPromoManagementPage() {
           value={stats.used}
           description={`${stats.reserved} penggunaan masih reserved`}
           icon={TrendingUp}
-          color="bg-violet-50 text-violet-600"
+          color="bg-violet-50 text-violet-600 dark:bg-violet-950/50 dark:text-violet-300"
         />
 
         <StatCard
@@ -922,12 +993,12 @@ export default function AdminPromoManagementPage() {
           value={formatCurrency(stats.totalDiscount)}
           description="Dari penukaran berstatus used"
           icon={Gift}
-          color="bg-amber-50 text-amber-600"
+          color="bg-amber-50 text-amber-600 dark:bg-amber-950/50 dark:text-amber-300"
         />
       </div>
 
       {/* TABS */}
-      <div className="flex flex-wrap gap-2 border-b pb-3">
+      <div className="flex flex-wrap gap-2 border-b border-slate-200/70 pb-3 dark:border-slate-800">
         {[
           { id: "codes", label: "Kode Promo", icon: TicketPercent },
           { id: "campaigns", label: "Campaign", icon: CalendarDays },
@@ -944,10 +1015,10 @@ export default function AdminPromoManagementPage() {
                 setSearch("");
                 setStatusFilter("Semua");
               }}
-              className={`inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold transition ${
+              className={`inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold transition-all duration-300 ${
                 activeTab === tab.id
-                  ? "bg-primary text-primary-foreground"
-                  : "bg-muted/60 text-muted-foreground hover:bg-muted"
+                  ? "bg-teal-700 text-white shadow-md shadow-teal-700/20 dark:bg-emerald-500 dark:text-slate-950"
+                  : "border border-slate-200/80 bg-white/70 text-slate-600 hover:border-emerald-300/80 hover:bg-emerald-50/70 dark:border-slate-700/70 dark:bg-slate-900/60 dark:text-slate-300 dark:hover:border-emerald-700/70 dark:hover:bg-emerald-950/40"
               }`}
             >
               <Icon className="h-4 w-4" />
@@ -960,7 +1031,7 @@ export default function AdminPromoManagementPage() {
       {/* SEARCH AND FILTER */}
       <div className="flex flex-col gap-3 sm:flex-row">
         <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-teal-600 dark:text-emerald-400" />
 
           <input
             value={search}
@@ -1002,9 +1073,11 @@ export default function AdminPromoManagementPage() {
 
       {/* LOADING */}
       {loading ? (
-        <div className="flex min-h-64 items-center justify-center gap-3 rounded-2xl border bg-card">
-          <Loader2 className="h-6 w-6 animate-spin text-primary" />
-          <span className="text-sm text-muted-foreground">
+        <div
+          className={`flex min-h-64 items-center justify-center gap-3 ${cardGlass}`}
+        >
+          <Loader2 className="h-6 w-6 animate-spin text-teal-600 dark:text-emerald-400" />
+          <span className={`text-sm ${mutedSoft}`}>
             Memuat data promo...
           </span>
         </div>
@@ -1015,32 +1088,38 @@ export default function AdminPromoManagementPage() {
           {/* ================================== */}
 
           {activeTab === "codes" && (
-            <div className="overflow-hidden rounded-2xl border bg-card shadow-sm">
-              <div className="flex flex-col justify-between gap-2 border-b p-5 sm:flex-row sm:items-center">
+            <div className={cardGlass}>
+              <CardAccent via="via-teal-400/70" />
+
+              <div className="flex flex-col justify-between gap-2 border-b border-slate-200/70 p-5 dark:border-slate-800 sm:flex-row sm:items-center">
                 <div>
-                  <h2 className="font-bold">Daftar Kode Promo</h2>
-                  <p className="mt-1 text-xs text-muted-foreground">
+                  <h2 className={`font-bold ${headingText}`}>
+                    Daftar Kode Promo
+                  </h2>
+                  <p className={`mt-1 text-xs ${mutedSoft}`}>
                     {filteredPromos.length} kode promo ditemukan
                   </p>
                 </div>
 
-                <span className="text-xs text-muted-foreground">
+                <span className={`text-xs ${mutedSoft}`}>
                   Penggunaan dihitung dari data penukaran yang dimuat
                 </span>
               </div>
 
               {filteredPromos.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-16 text-center">
-                  <TicketPercent className="mb-3 h-10 w-10 text-muted-foreground/40" />
-                  <p className="font-semibold">Belum ada kode promo</p>
-                  <p className="mt-1 text-sm text-muted-foreground">
+                  <TicketPercent className={emptyIcon} />
+                  <p className={`font-semibold ${headingText}`}>
+                    Belum ada kode promo
+                  </p>
+                  <p className={`mt-1 text-sm ${mutedSoft}`}>
                     Buat kode promo pertama untuk GradeUp.
                   </p>
                 </div>
               ) : (
                 <div className="overflow-x-auto">
                   <table className="w-full min-w-[900px] text-left text-sm">
-                    <thead className="bg-muted/50 text-xs uppercase text-muted-foreground">
+                    <thead className={tableHead}>
                       <tr>
                         <th className="px-5 py-4">Kode Promo</th>
                         <th className="px-5 py-4">Diskon</th>
@@ -1052,7 +1131,7 @@ export default function AdminPromoManagementPage() {
                       </tr>
                     </thead>
 
-                    <tbody className="divide-y">
+                    <tbody className="divide-y divide-slate-200/70 dark:divide-slate-800">
                       {filteredPromos.map((promo) => {
                         const usedCount =
                           redemptionCounts[promo.id] || 0;
@@ -1063,18 +1142,17 @@ export default function AdminPromoManagementPage() {
                             : formatCurrency(promo.discount_value);
 
                         return (
-                          <tr
-                            key={promo.id}
-                            className="transition hover:bg-muted/30"
-                          >
+                          <tr key={promo.id} className={tableRow}>
                             <td className="px-5 py-4">
                               <div className="flex items-center gap-2">
                                 <div>
-                                  <p className="font-bold tracking-wide">
+                                  <p
+                                    className={`font-bold tracking-wide ${headingText}`}
+                                  >
                                     {promo.code}
                                   </p>
 
-                                  <p className="mt-1 text-xs text-muted-foreground">
+                                  <p className={`mt-1 text-xs ${mutedSoft}`}>
                                     {promo.assigned_user_id
                                       ? "Khusus siswa"
                                       : "Promo umum"}
@@ -1085,7 +1163,7 @@ export default function AdminPromoManagementPage() {
                                   type="button"
                                   onClick={() => void copyCode(promo.code)}
                                   title="Salin kode"
-                                  className="rounded-lg p-1.5 text-muted-foreground hover:bg-muted hover:text-primary"
+                                  className="rounded-lg p-1.5 text-slate-400 transition-colors hover:bg-emerald-50 hover:text-teal-700 dark:hover:bg-emerald-950/50 dark:hover:text-emerald-300"
                                 >
                                   <Copy className="h-3.5 w-3.5" />
                                 </button>
@@ -1093,17 +1171,19 @@ export default function AdminPromoManagementPage() {
                             </td>
 
                             <td className="px-5 py-4">
-                              <p className="font-semibold text-primary">
+                              <p className="font-semibold text-teal-700 dark:text-emerald-300">
                                 {discountLabel}
                               </p>
 
-                              <p className="mt-1 text-xs text-muted-foreground">
+                              <p className={`mt-1 text-xs ${mutedSoft}`}>
                                 Min. {formatCurrency(Number(promo.min_transaction_amount))}
                               </p>
                             </td>
 
                             <td className="px-5 py-4">
-                              <span className="text-sm">
+                              <span
+                                className={`text-sm ${headingText}`}
+                              >
                                 {promo.campaign_id
                                   ? campaignNames[promo.campaign_id] || "Campaign tidak ditemukan"
                                   : "Tanpa campaign"}
@@ -1111,21 +1191,25 @@ export default function AdminPromoManagementPage() {
                             </td>
 
                             <td className="px-5 py-4">
-                              <p className="font-semibold">
+                              <p
+                                className={`font-semibold ${headingText}`}
+                              >
                                 {usedCount}
                                 <span className="text-muted-foreground">
                                   {" "}/ {promo.max_uses ?? "∞"}
                                 </span>
                               </p>
 
-                              <p className="mt-1 text-xs text-muted-foreground">
+                              <p className={`mt-1 text-xs ${mutedSoft}`}>
                                 Maks. {promo.max_uses_per_user} / siswa
                               </p>
                             </td>
 
                             <td className="px-5 py-4">
-                              <p>{formatDate(promo.starts_at)}</p>
-                              <p className="mt-1 text-xs text-muted-foreground">
+                              <p className={headingText}>
+                                {formatDate(promo.starts_at)}
+                              </p>
+                              <p className={`mt-1 text-xs ${mutedSoft}`}>
                                 s.d. {formatDate(promo.ends_at)}
                               </p>
                             </td>
@@ -1140,7 +1224,7 @@ export default function AdminPromoManagementPage() {
                                   type="button"
                                   onClick={() => openEditPromo(promo)}
                                   title="Edit promo"
-                                  className="rounded-lg border p-2 hover:bg-muted"
+                                  className={iconBtn}
                                 >
                                   <Edit3 className="h-4 w-4" />
                                 </button>
@@ -1149,10 +1233,10 @@ export default function AdminPromoManagementPage() {
                                   type="button"
                                   onClick={() => void togglePromo(promo)}
                                   title={promo.is_active ? "Nonaktifkan" : "Aktifkan"}
-                                  className={`rounded-lg border px-3 py-2 text-xs font-semibold ${
+                                  className={`rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold transition-colors dark:border-slate-700 ${
                                     promo.is_active
-                                      ? "text-red-600 hover:bg-red-50"
-                                      : "text-emerald-600 hover:bg-emerald-50"
+                                      ? "text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-950/30"
+                                      : "text-emerald-600 hover:bg-emerald-50 dark:text-emerald-400 dark:hover:bg-emerald-950/30"
                                   }`}
                                 >
                                   {promo.is_active ? "Nonaktifkan" : "Aktifkan"}
@@ -1174,19 +1258,25 @@ export default function AdminPromoManagementPage() {
           {/* ================================== */}
 
           {activeTab === "campaigns" && (
-            <div className="overflow-hidden rounded-2xl border bg-card shadow-sm">
-              <div className="border-b p-5">
-                <h2 className="font-bold">Campaign Promo</h2>
-                <p className="mt-1 text-xs text-muted-foreground">
+            <div className={cardGlass}>
+              <CardAccent via="via-emerald-400/70" />
+
+              <div className="border-b border-slate-200/70 p-5 dark:border-slate-800">
+                <h2 className={`font-bold ${headingText}`}>
+                  Campaign Promo
+                </h2>
+                <p className={`mt-1 text-xs ${mutedSoft}`}>
                   Kelola periode dan kelompok promosi GradeUp.
                 </p>
               </div>
 
               {filteredCampaigns.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-16 text-center">
-                  <CalendarDays className="mb-3 h-10 w-10 text-muted-foreground/40" />
-                  <p className="font-semibold">Belum ada campaign</p>
-                  <p className="mt-1 text-sm text-muted-foreground">
+                  <CalendarDays className={emptyIcon} />
+                  <p className={`font-semibold ${headingText}`}>
+                    Belum ada campaign
+                  </p>
+                  <p className={`mt-1 text-sm ${mutedSoft}`}>
                     Buat campaign untuk mengelompokkan kode promo.
                   </p>
                 </div>
@@ -1200,23 +1290,29 @@ export default function AdminPromoManagementPage() {
                     return (
                       <div
                         key={campaign.id}
-                        className="rounded-2xl border p-5 transition hover:border-primary/40 hover:shadow-sm"
+                        className="group rounded-2xl border border-slate-200/80 bg-white/70 p-5 transition-all duration-300 hover:-translate-y-0.5 hover:border-emerald-300/80 hover:bg-emerald-50/50 hover:shadow-[0_18px_40px_-26px_rgba(15,118,110,0.4)] motion-reduce:transition-none motion-reduce:hover:translate-y-0 dark:border-slate-700/70 dark:bg-slate-900/60 dark:hover:border-emerald-700/70 dark:hover:bg-emerald-950/30"
                       >
                         <div className="flex items-start justify-between gap-3">
-                          <div className="rounded-xl bg-primary/10 p-3 text-primary">
+                          <div className="rounded-xl bg-emerald-50 p-3 text-teal-700 transition-colors duration-300 group-hover:bg-teal-700 group-hover:text-white dark:bg-emerald-950 dark:text-emerald-300 dark:group-hover:bg-emerald-500 dark:group-hover:text-slate-950">
                             <Gift className="h-5 w-5" />
                           </div>
 
                           <StatusBadge status={getCampaignStatus(campaign)} />
                         </div>
 
-                        <h3 className="mt-4 font-bold">{campaign.name}</h3>
+                        <h3 className={`mt-4 font-bold ${headingText}`}>
+                          {campaign.name}
+                        </h3>
 
-                        <p className="mt-1 min-h-10 text-sm text-muted-foreground">
+                        <p
+                          className={`mt-1 min-h-10 text-sm ${mutedSoft}`}
+                        >
                           {campaign.description || "Tidak ada deskripsi."}
                         </p>
 
-                        <div className="mt-4 space-y-2 border-t pt-4 text-xs text-muted-foreground">
+                        <div
+                          className={`mt-4 space-y-2 border-t border-slate-200/70 pt-4 text-xs dark:border-slate-800 ${mutedSoft}`}
+                        >
                           <div className="flex items-center gap-2">
                             <CalendarDays className="h-4 w-4" />
                             Mulai: {formatDate(campaign.starts_at)}
@@ -1237,7 +1333,7 @@ export default function AdminPromoManagementPage() {
                           <button
                             type="button"
                             onClick={() => openEditCampaign(campaign)}
-                            className="flex-1 rounded-xl border px-3 py-2 text-sm font-semibold hover:bg-muted"
+                            className={`flex-1 rounded-xl px-3 py-2 text-sm font-semibold transition-colors ${outlineButton}`}
                           >
                             <Edit3 className="mr-2 inline h-4 w-4" />
                             Edit
@@ -1246,10 +1342,10 @@ export default function AdminPromoManagementPage() {
                           <button
                             type="button"
                             onClick={() => void toggleCampaign(campaign)}
-                            className={`flex-1 rounded-xl border px-3 py-2 text-sm font-semibold ${
+                            className={`flex-1 rounded-xl border border-slate-200 px-3 py-2 text-sm font-semibold transition-colors dark:border-slate-700 ${
                               campaign.is_active
-                                ? "text-red-600 hover:bg-red-50"
-                                : "text-emerald-600 hover:bg-emerald-50"
+                                ? "text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-950/30"
+                                : "text-emerald-600 hover:bg-emerald-50 dark:text-emerald-400 dark:hover:bg-emerald-950/30"
                             }`}
                           >
                             {campaign.is_active ? "Nonaktifkan" : "Aktifkan"}
@@ -1268,26 +1364,32 @@ export default function AdminPromoManagementPage() {
           {/* ================================== */}
 
           {activeTab === "redemptions" && (
-            <div className="overflow-hidden rounded-2xl border bg-card shadow-sm">
-              <div className="border-b p-5">
-                <h2 className="font-bold">Riwayat Penukaran Promo</h2>
-                <p className="mt-1 text-xs text-muted-foreground">
+            <div className={cardGlass}>
+              <CardAccent via="via-violet-400/60" />
+
+              <div className="border-b border-slate-200/70 p-5 dark:border-slate-800">
+                <h2 className={`font-bold ${headingText}`}>
+                  Riwayat Penukaran Promo
+                </h2>
+                <p className={`mt-1 text-xs ${mutedSoft}`}>
                   Menampilkan maksimal 500 data penukaran terbaru.
                 </p>
               </div>
 
               {filteredRedemptions.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-16 text-center">
-                  <Users className="mb-3 h-10 w-10 text-muted-foreground/40" />
-                  <p className="font-semibold">Belum ada riwayat penukaran</p>
-                  <p className="mt-1 text-sm text-muted-foreground">
+                  <Users className={emptyIcon} />
+                  <p className={`font-semibold ${headingText}`}>
+                    Belum ada riwayat penukaran
+                  </p>
+                  <p className={`mt-1 text-sm ${mutedSoft}`}>
                     Data penggunaan promo akan muncul di sini.
                   </p>
                 </div>
               ) : (
                 <div className="overflow-x-auto">
                   <table className="w-full min-w-[800px] text-left text-sm">
-                    <thead className="bg-muted/50 text-xs uppercase text-muted-foreground">
+                    <thead className={tableHead}>
                       <tr>
                         <th className="px-5 py-4">Kode Promo</th>
                         <th className="px-5 py-4">ID Siswa</th>
@@ -1298,33 +1400,37 @@ export default function AdminPromoManagementPage() {
                       </tr>
                     </thead>
 
-                    <tbody className="divide-y">
+                    <tbody className="divide-y divide-slate-200/70 dark:divide-slate-800">
                       {filteredRedemptions.map((item) => {
                         const promo = promos.find(
                           (p) => p.id === item.promo_code_id
                         );
 
                         return (
-                          <tr key={item.id} className="hover:bg-muted/30">
-                            <td className="px-5 py-4 font-bold">
+                          <tr key={item.id} className={tableRow}>
+                            <td
+                              className={`px-5 py-4 font-bold ${headingText}`}
+                            >
                               {promo?.code || "Promo tidak ditemukan"}
                             </td>
 
                             <td className="px-5 py-4">
-                              <span className="font-mono text-xs">
+                              <span
+                                className={`font-mono text-xs ${mutedSoft}`}
+                              >
                                 {item.user_id}
                               </span>
                             </td>
 
-                            <td className="px-5 py-4">
+                            <td className={`px-5 py-4 ${headingText}`}>
                               {item.invoice_number || "-"}
                             </td>
 
-                            <td className="px-5 py-4 font-semibold text-primary">
+                            <td className="px-5 py-4 font-semibold text-teal-700 dark:text-emerald-300">
                               {formatCurrency(Number(item.discount_amount))}
                             </td>
 
-                            <td className="px-5 py-4">
+                            <td className={`px-5 py-4 ${mutedSoft}`}>
                               {new Date(item.created_at).toLocaleString("id-ID")}
                             </td>
 
@@ -1416,7 +1522,7 @@ export default function AdminPromoManagementPage() {
               </FormField>
             </div>
 
-            <label className="flex cursor-pointer items-center gap-3 rounded-xl border p-4">
+            <label className="flex cursor-pointer items-center gap-3 rounded-2xl border border-emerald-200/70 bg-gradient-to-br from-emerald-50/70 to-transparent p-4 dark:border-emerald-900/50 dark:from-emerald-950/30">
               <input
                 type="checkbox"
                 checked={campaignForm.is_active}
@@ -1426,22 +1532,24 @@ export default function AdminPromoManagementPage() {
                     is_active: event.target.checked,
                   })
                 }
-                className="h-4 w-4 accent-primary"
+                className="h-4 w-4 accent-teal-600"
               />
 
               <div>
-                <p className="text-sm font-semibold">Campaign Aktif</p>
-                <p className="text-xs text-muted-foreground">
+                <p className={`text-sm font-semibold ${headingText}`}>
+                  Campaign Aktif
+                </p>
+                <p className={`text-xs ${mutedSoft}`}>
                   Campaign dapat digunakan sesuai periode yang ditentukan.
                 </p>
               </div>
             </label>
 
-            <div className="flex justify-end gap-2 border-t pt-4">
+            <div className="flex justify-end gap-2 border-t border-slate-200/70 pt-4 dark:border-slate-800">
               <button
                 type="button"
                 onClick={() => setCampaignModal(false)}
-                className={`${buttonClass} border hover:bg-muted`}
+                className={`${buttonClass} ${outlineButton}`}
               >
                 Batal
               </button>
@@ -1449,7 +1557,7 @@ export default function AdminPromoManagementPage() {
               <button
                 type="submit"
                 disabled={saving}
-                className={`${buttonClass} bg-primary text-primary-foreground`}
+                className={`${buttonClass} ${primaryButton}`}
               >
                 {saving && <Loader2 className="h-4 w-4 animate-spin" />}
                 {editingCampaign ? "Simpan Perubahan" : "Buat Campaign"}
@@ -1671,7 +1779,7 @@ export default function AdminPromoManagementPage() {
               </FormField>
             </div>
 
-            <label className="flex cursor-pointer items-center gap-3 rounded-xl border p-4">
+            <label className="flex cursor-pointer items-center gap-3 rounded-2xl border border-emerald-200/70 bg-gradient-to-br from-emerald-50/70 to-transparent p-4 dark:border-emerald-900/50 dark:from-emerald-950/30">
               <input
                 type="checkbox"
                 checked={promoForm.is_active}
@@ -1681,22 +1789,24 @@ export default function AdminPromoManagementPage() {
                     is_active: event.target.checked,
                   })
                 }
-                className="h-4 w-4 accent-primary"
+                className="h-4 w-4 accent-teal-600"
               />
 
               <div>
-                <p className="text-sm font-semibold">Aktifkan Kode Promo</p>
-                <p className="text-xs text-muted-foreground">
+                <p className={`text-sm font-semibold ${headingText}`}>
+                  Aktifkan Kode Promo
+                </p>
+                <p className={`text-xs ${mutedSoft}`}>
                   Kode dapat digunakan sesuai periode dan ketentuan.
                 </p>
               </div>
             </label>
 
-            <div className="flex justify-end gap-2 border-t pt-4">
+            <div className="flex justify-end gap-2 border-t border-slate-200/70 pt-4 dark:border-slate-800">
               <button
                 type="button"
                 onClick={() => setPromoModal(false)}
-                className={`${buttonClass} border hover:bg-muted`}
+                className={`${buttonClass} ${outlineButton}`}
               >
                 Batal
               </button>
@@ -1704,7 +1814,7 @@ export default function AdminPromoManagementPage() {
               <button
                 type="submit"
                 disabled={saving}
-                className={`${buttonClass} bg-primary text-primary-foreground`}
+                className={`${buttonClass} ${primaryButton}`}
               >
                 {saving && <Loader2 className="h-4 w-4 animate-spin" />}
                 {editingPromo ? "Simpan Perubahan" : "Buat Kode Promo"}
