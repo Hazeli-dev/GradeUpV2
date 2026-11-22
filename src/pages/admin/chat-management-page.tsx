@@ -1,5 +1,10 @@
-
-import { useCallback, useEffect, useMemo, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+  type ReactNode,
+} from "react";
 import {
   MessageCircle,
   Search,
@@ -122,6 +127,71 @@ const getStudentInitial = (profile?: StudentProfile) => {
   const name = getStudentName(profile);
   return name.charAt(0).toUpperCase();
 };
+
+/* ------------------------------------------------------------------ */
+/* Dekorasi visual (murni tampilan, tidak interaktif)                  */
+/* ------------------------------------------------------------------ */
+
+const patternLine =
+  "[--gu-line:rgba(15,118,110,0.10)] dark:[--gu-line:rgba(52,211,153,0.09)]";
+
+const panelSurface =
+  "border border-emerald-200/70 bg-card/90 shadow-[0_16px_44px_-28px_rgba(15,118,110,0.4)] backdrop-blur-sm dark:border-emerald-900/40";
+
+const fieldFocus =
+  "focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/15";
+
+function ChatStyles() {
+  return (
+    <style>{`
+      @keyframes gu-drift {
+        0%, 100% { transform: translate3d(0, 0, 0) scale(1); }
+        50% { transform: translate3d(22px, -16px, 0) scale(1.07); }
+      }
+      @keyframes gu-drift-rev {
+        0%, 100% { transform: translate3d(0, 0, 0) scale(1); }
+        50% { transform: translate3d(-20px, 14px, 0) scale(1.06); }
+      }
+      @keyframes gu-reveal {
+        from { opacity: 0; transform: translate3d(0, 12px, 0); }
+        to { opacity: 1; transform: translate3d(0, 0, 0); }
+      }
+      .gu-drift { animation: gu-drift 20s ease-in-out infinite; }
+      .gu-drift-rev { animation: gu-drift-rev 24s ease-in-out infinite; }
+      .gu-reveal { animation: gu-reveal 0.6s cubic-bezier(0.22, 1, 0.36, 1) both; }
+
+      .gu-grid {
+        background-image:
+          linear-gradient(to right, var(--gu-line) 1px, transparent 1px),
+          linear-gradient(to bottom, var(--gu-line) 1px, transparent 1px);
+        background-size: 40px 40px;
+        -webkit-mask-image: radial-gradient(ellipse 80% 70% at 50% 0%, #000 20%, transparent 100%);
+        mask-image: radial-gradient(ellipse 80% 70% at 50% 0%, #000 20%, transparent 100%);
+      }
+      .gu-chat-bg {
+        background-image: radial-gradient(var(--gu-dot) 1px, transparent 1.3px);
+        background-size: 22px 22px;
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        .gu-drift, .gu-drift-rev, .gu-reveal {
+          animation: none !important;
+        }
+      }
+    `}</style>
+  );
+}
+
+function DecorLayer({ children }: { children: ReactNode }) {
+  return (
+    <div
+      aria-hidden="true"
+      className="pointer-events-none absolute inset-0 -z-10 overflow-hidden"
+    >
+      {children}
+    </div>
+  );
+}
 
 export default function ChatManagementPage() {
   const [conversations, setConversations] = useState<Conversation[]>([]);
@@ -583,86 +653,124 @@ export default function ChatManagementPage() {
   };
 
   return (
-    <div className="space-y-6">
-      {/* HEADER */}
-      <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
-        <div className="flex items-center gap-3">
-          <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300">
-            <MessageCircle className="h-5 w-5" />
-          </div>
+    <div className="relative isolate space-y-6">
+      <ChatStyles />
 
-          <div>
-            <h1 className="text-2xl font-bold tracking-tight">
-              Helpdesk GradeUp
-            </h1>
-            <p className="text-sm text-muted-foreground">
-              Kelola pertanyaan dan bantuan untuk siswa.
-            </p>
-          </div>
+      <DecorLayer>
+        <div className={`gu-grid absolute inset-0 ${patternLine}`} />
+        <div className="gu-drift absolute -right-24 -top-24 h-80 w-80 rounded-full bg-emerald-300/30 blur-3xl dark:bg-emerald-600/10" />
+        <div className="gu-drift-rev absolute -left-24 top-1/3 h-72 w-72 rounded-full bg-teal-300/25 blur-3xl dark:bg-teal-600/10" />
+      </DecorLayer>
+
+      {/* HEADER */}
+      <div className="gu-reveal relative overflow-hidden rounded-3xl border border-emerald-200/70 bg-gradient-to-br from-emerald-100/80 via-white/70 to-teal-100/70 p-5 shadow-[0_20px_50px_-30px_rgba(15,118,110,0.45)] backdrop-blur-sm dark:border-emerald-900/40 dark:from-emerald-950/60 dark:via-slate-900/60 dark:to-teal-950/50 sm:p-6">
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-0 overflow-hidden"
+        >
+          <div className="absolute -right-16 -top-20 h-56 w-56 rounded-full bg-emerald-400/30 blur-3xl dark:bg-emerald-500/15" />
+          <div className="absolute -bottom-24 left-1/3 h-52 w-52 rounded-full bg-teal-400/20 blur-3xl dark:bg-teal-500/10" />
+          <div className="absolute -right-10 top-6 h-40 w-40 rounded-full border border-emerald-400/30 dark:border-emerald-400/10" />
+          <div className="absolute inset-x-6 top-0 h-px bg-gradient-to-r from-transparent via-emerald-400/60 to-transparent dark:via-emerald-500/30" />
         </div>
 
-        <button
-          type="button"
-          onClick={() => {
-            void loadConversations(true);
-            void loadFaqs();
-          }}
-          className="inline-flex items-center justify-center gap-2 rounded-xl border bg-card px-4 py-2.5 text-sm font-semibold transition hover:bg-muted"
-        >
-          <RefreshCw className="h-4 w-4" />
-          Muat Ulang
-        </button>
+        <div className="relative flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
+          <div className="flex items-center gap-3">
+            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-600 text-white shadow-lg shadow-emerald-700/25">
+              <MessageCircle className="h-5 w-5" />
+            </div>
+
+            <div>
+              <h1 className="text-2xl font-bold tracking-tight">
+                Helpdesk GradeUp
+              </h1>
+              <p className="text-sm text-muted-foreground">
+                Kelola pertanyaan dan bantuan untuk siswa.
+              </p>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => {
+              void loadConversations(true);
+              void loadFaqs();
+            }}
+            className="inline-flex items-center justify-center gap-2 rounded-xl border border-emerald-200/80 bg-background/70 px-4 py-2.5 text-sm font-semibold backdrop-blur transition hover:border-emerald-400/60 hover:bg-background dark:border-emerald-900/50"
+          >
+            <RefreshCw className="h-4 w-4" />
+            Muat Ulang
+          </button>
+        </div>
       </div>
 
       {/* RINGKASAN */}
       <div className="grid gap-3 sm:grid-cols-3">
-        <div className="rounded-2xl border bg-card p-4">
-          <div className="flex items-center justify-between">
+        <div className={`group relative overflow-hidden rounded-2xl p-4 transition-all duration-300 hover:-translate-y-0.5 motion-reduce:transition-none motion-reduce:hover:translate-y-0 ${panelSurface}`}>
+          <span
+            aria-hidden="true"
+            className="pointer-events-none absolute -bottom-12 -right-12 h-32 w-32 rounded-full bg-emerald-400/20 blur-3xl dark:bg-emerald-500/10"
+          />
+          <div className="relative flex items-center justify-between">
             <p className="text-sm text-muted-foreground">
               Total Percakapan
             </p>
-            <MessageSquare className="h-5 w-5 text-emerald-600" />
+            <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-emerald-100 dark:bg-emerald-950">
+              <MessageSquare className="h-5 w-5 text-emerald-600" />
+            </span>
           </div>
-          <p className="mt-2 text-2xl font-bold">
+          <p className="relative mt-2 text-2xl font-bold">
             {conversations.length}
           </p>
         </div>
 
-        <div className="rounded-2xl border bg-card p-4">
-          <div className="flex items-center justify-between">
+        <div className={`group relative overflow-hidden rounded-2xl p-4 transition-all duration-300 hover:-translate-y-0.5 motion-reduce:transition-none motion-reduce:hover:translate-y-0 ${panelSurface}`}>
+          <span
+            aria-hidden="true"
+            className="pointer-events-none absolute -bottom-12 -right-12 h-32 w-32 rounded-full bg-amber-400/20 blur-3xl dark:bg-amber-500/10"
+          />
+          <div className="relative flex items-center justify-between">
             <p className="text-sm text-muted-foreground">
               Menunggu Balasan
             </p>
-            <AlertCircle className="h-5 w-5 text-amber-500" />
+            <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-amber-100 dark:bg-amber-950">
+              <AlertCircle className="h-5 w-5 text-amber-500" />
+            </span>
           </div>
-          <p className="mt-2 text-2xl font-bold">
+          <p className="relative mt-2 text-2xl font-bold">
             {waitingCount}
           </p>
         </div>
 
-        <div className="rounded-2xl border bg-card p-4">
-          <div className="flex items-center justify-between">
+        <div className={`group relative overflow-hidden rounded-2xl p-4 transition-all duration-300 hover:-translate-y-0.5 motion-reduce:transition-none motion-reduce:hover:translate-y-0 ${panelSurface}`}>
+          <span
+            aria-hidden="true"
+            className="pointer-events-none absolute -bottom-12 -right-12 h-32 w-32 rounded-full bg-blue-400/20 blur-3xl dark:bg-blue-500/10"
+          />
+          <div className="relative flex items-center justify-between">
             <p className="text-sm text-muted-foreground">
               FAQ Aktif
             </p>
-            <BookOpen className="h-5 w-5 text-blue-500" />
+            <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-blue-100 dark:bg-blue-950">
+              <BookOpen className="h-5 w-5 text-blue-500" />
+            </span>
           </div>
-          <p className="mt-2 text-2xl font-bold">
+          <p className="relative mt-2 text-2xl font-bold">
             {faqs.filter((faq) => faq.is_active).length}
           </p>
         </div>
       </div>
 
       {/* TAB */}
-      <div className="flex gap-2 border-b">
+      <div className="flex gap-2 border-b border-emerald-200/70 dark:border-emerald-900/40">
         <button
           type="button"
           onClick={() => setActiveTab("inbox")}
           className={cn(
-            "border-b-2 px-4 py-3 text-sm font-semibold transition",
+            "rounded-t-xl border-b-2 px-4 py-3 text-sm font-semibold transition",
             activeTab === "inbox"
-              ? "border-emerald-600 text-emerald-700 dark:text-emerald-300"
-              : "border-transparent text-muted-foreground hover:text-foreground"
+              ? "border-emerald-600 bg-emerald-50/70 text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-300"
+              : "border-transparent text-muted-foreground hover:bg-emerald-50/40 hover:text-foreground dark:hover:bg-emerald-950/20"
           )}
         >
           <span className="inline-flex items-center gap-2">
@@ -680,10 +788,10 @@ export default function ChatManagementPage() {
           type="button"
           onClick={() => setActiveTab("faq")}
           className={cn(
-            "border-b-2 px-4 py-3 text-sm font-semibold transition",
+            "rounded-t-xl border-b-2 px-4 py-3 text-sm font-semibold transition",
             activeTab === "faq"
-              ? "border-emerald-600 text-emerald-700 dark:text-emerald-300"
-              : "border-transparent text-muted-foreground hover:text-foreground"
+              ? "border-emerald-600 bg-emerald-50/70 text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-300"
+              : "border-transparent text-muted-foreground hover:bg-emerald-50/40 hover:text-foreground dark:hover:bg-emerald-950/20"
           )}
         >
           <span className="inline-flex items-center gap-2">
@@ -695,16 +803,16 @@ export default function ChatManagementPage() {
 
       {/* KOTAK MASUK */}
       {activeTab === "inbox" && (
-        <div className="grid min-h-[650px] overflow-hidden rounded-2xl border bg-card lg:grid-cols-[340px_minmax(0,1fr)]">
-          <section className="flex min-h-[300px] flex-col border-b lg:border-b-0 lg:border-r">
-            <div className="space-y-3 border-b p-4">
+        <div className={`grid min-h-[650px] overflow-hidden rounded-2xl lg:grid-cols-[340px_minmax(0,1fr)] ${panelSurface}`}>
+          <section className="flex min-h-[300px] flex-col border-b border-emerald-100 bg-gradient-to-b from-emerald-50/50 to-transparent dark:border-emerald-900/30 dark:from-emerald-950/20 lg:border-b-0 lg:border-r">
+            <div className="space-y-3 border-b border-emerald-100 p-4 dark:border-emerald-900/30">
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                 <input
                   value={search}
                   onChange={(event) => setSearch(event.target.value)}
                   placeholder="Cari nama, email, HP, atau pesan..."
-                  className="h-10 w-full rounded-xl border bg-background pl-9 pr-3 text-sm outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/15"
+                  className={`h-10 w-full rounded-xl border bg-background pl-9 pr-3 text-sm outline-none ${fieldFocus}`}
                 />
               </div>
 
@@ -731,7 +839,9 @@ export default function ChatManagementPage() {
                 </div>
               ) : filteredConversations.length === 0 ? (
                 <div className="flex flex-col items-center px-5 py-12 text-center">
-                  <Inbox className="mb-3 h-9 w-9 text-muted-foreground" />
+                  <span className="mb-3 flex h-14 w-14 items-center justify-center rounded-2xl bg-emerald-100 dark:bg-emerald-950">
+                    <Inbox className="h-7 w-7 text-emerald-600" />
+                  </span>
                   <p className="text-sm font-semibold">
                     Belum ada percakapan
                   </p>
@@ -751,9 +861,9 @@ export default function ChatManagementPage() {
                       type="button"
                       onClick={() => setSelectedId(conversation.id)}
                       className={cn(
-                        "w-full border-b p-4 text-left transition hover:bg-muted/60",
+                        "relative w-full border-b border-emerald-100/80 p-4 text-left transition hover:bg-emerald-50/70 dark:border-emerald-900/25 dark:hover:bg-emerald-950/25",
                         active &&
-                          "bg-emerald-50/80 dark:bg-emerald-950/30"
+                          "bg-emerald-50 shadow-[inset_3px_0_0_0_rgb(5,150,105)] dark:bg-emerald-950/40"
                       )}
                     >
                       <div className="flex items-start gap-3">
@@ -761,10 +871,10 @@ export default function ChatManagementPage() {
                           <img
                             src={profile.avatar_url}
                             alt={getStudentName(profile)}
-                            className="h-10 w-10 shrink-0 rounded-full border object-cover"
+                            className="h-10 w-10 shrink-0 rounded-full border-2 border-white object-cover shadow-sm dark:border-slate-800"
                           />
                         ) : (
-                          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-emerald-100 font-bold text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300">
+                          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-emerald-400 to-teal-500 font-bold text-white shadow-sm">
                             {getStudentInitial(profile)}
                           </div>
                         )}
@@ -818,12 +928,18 @@ export default function ChatManagementPage() {
           {/* DETAIL CHAT */}
           <section className="flex min-h-[500px] min-w-0 flex-col">
             {!selectedConversation ? (
-              <div className="flex flex-1 flex-col items-center justify-center px-6 py-16 text-center">
-                <div className="flex h-16 w-16 items-center justify-center rounded-3xl bg-emerald-50 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300">
-                  <MessageCircle className="h-8 w-8" />
+              <div className="gu-chat-bg flex flex-1 flex-col items-center justify-center px-6 py-16 text-center [--gu-dot:rgba(5,150,105,0.14)] dark:[--gu-dot:rgba(110,231,183,0.08)]">
+                <div className="relative">
+                  <div
+                    aria-hidden="true"
+                    className="pointer-events-none absolute -inset-6 rounded-full bg-emerald-400/25 blur-2xl dark:bg-emerald-500/10"
+                  />
+                  <div className="relative flex h-16 w-16 items-center justify-center rounded-3xl bg-gradient-to-br from-emerald-500 to-teal-600 text-white shadow-lg shadow-emerald-700/25">
+                    <MessageCircle className="h-8 w-8" />
+                  </div>
                 </div>
 
-                <h2 className="mt-4 text-lg font-bold">
+                <h2 className="mt-5 text-lg font-bold">
                   Pilih Percakapan
                 </h2>
 
@@ -835,16 +951,16 @@ export default function ChatManagementPage() {
             ) : (
               <>
                 {/* HEADER DETAIL */}
-                <div className="flex flex-wrap items-center justify-between gap-3 border-b p-4">
+                <div className="flex flex-wrap items-center justify-between gap-3 border-b border-emerald-100 bg-card/80 p-4 backdrop-blur dark:border-emerald-900/30">
                   <div className="flex min-w-0 items-center gap-3">
                     {selectedStudent?.avatar_url ? (
                       <img
                         src={selectedStudent.avatar_url}
                         alt={getStudentName(selectedStudent)}
-                        className="h-11 w-11 shrink-0 rounded-full border object-cover"
+                        className="h-11 w-11 shrink-0 rounded-full border-2 border-white object-cover shadow-sm dark:border-slate-800"
                       />
                     ) : (
-                      <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-emerald-100 font-bold text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300">
+                      <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-emerald-400 to-teal-500 font-bold text-white shadow-sm">
                         {getStudentInitial(selectedStudent)}
                       </div>
                     )}
@@ -892,10 +1008,17 @@ export default function ChatManagementPage() {
                 </div>
 
                 {/* KARTU IDENTITAS SISWA */}
-                <div className="border-b bg-muted/20 p-4">
-                  <div className="mb-3 flex items-center justify-between gap-2">
+                <div className="relative overflow-hidden border-b border-emerald-100 bg-gradient-to-br from-emerald-50/80 via-transparent to-teal-50/60 p-4 dark:border-emerald-900/30 dark:from-emerald-950/30 dark:to-teal-950/20">
+                  <div
+                    aria-hidden="true"
+                    className="pointer-events-none absolute -right-12 -top-12 h-36 w-36 rounded-full bg-emerald-300/30 blur-3xl dark:bg-emerald-600/10"
+                  />
+
+                  <div className="relative mb-3 flex items-center justify-between gap-2">
                     <div className="flex items-center gap-2">
-                      <IdCard className="h-4 w-4 text-emerald-600" />
+                      <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-emerald-100 dark:bg-emerald-950">
+                        <IdCard className="h-4 w-4 text-emerald-600" />
+                      </span>
                       <h3 className="text-xs font-bold uppercase tracking-wide">
                         Identitas Siswa
                       </h3>
@@ -910,16 +1033,16 @@ export default function ChatManagementPage() {
                         )
                       }
                       disabled={!selectedStudent?.email}
-                      className="inline-flex items-center gap-1.5 rounded-lg border bg-card px-2.5 py-1.5 text-[11px] font-semibold transition hover:bg-muted disabled:cursor-not-allowed disabled:opacity-40"
+                      className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-200/80 bg-card px-2.5 py-1.5 text-[11px] font-semibold transition hover:bg-emerald-50 disabled:cursor-not-allowed disabled:opacity-40 dark:border-emerald-900/50 dark:hover:bg-emerald-950/40"
                     >
                       <Copy className="h-3 w-3" />
                       Salin Email
                     </button>
                   </div>
 
-                  <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                  <div className="relative grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
                     <div className="flex min-w-0 items-start gap-2">
-                      <User className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
+                      <User className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600/70" />
                       <div className="min-w-0">
                         <p className="text-[10px] text-muted-foreground">
                           Nama Lengkap
@@ -933,7 +1056,7 @@ export default function ChatManagementPage() {
                     </div>
 
                     <div className="flex min-w-0 items-start gap-2">
-                      <User className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
+                      <User className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600/70" />
                       <div className="min-w-0">
                         <p className="text-[10px] text-muted-foreground">
                           Nama Akun
@@ -945,7 +1068,7 @@ export default function ChatManagementPage() {
                     </div>
 
                     <div className="flex min-w-0 items-start gap-2">
-                      <Mail className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
+                      <Mail className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600/70" />
                       <div className="min-w-0">
                         <p className="text-[10px] text-muted-foreground">
                           Email
@@ -957,7 +1080,7 @@ export default function ChatManagementPage() {
                     </div>
 
                     <div className="flex min-w-0 items-start gap-2">
-                      <Phone className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
+                      <Phone className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600/70" />
                       <div className="min-w-0">
                         <p className="text-[10px] text-muted-foreground">
                           Nomor HP
@@ -969,7 +1092,7 @@ export default function ChatManagementPage() {
                     </div>
 
                     <div className="flex min-w-0 items-start gap-2">
-                      <School className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
+                      <School className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600/70" />
                       <div className="min-w-0">
                         <p className="text-[10px] text-muted-foreground">
                           Sekolah
@@ -981,7 +1104,7 @@ export default function ChatManagementPage() {
                     </div>
 
                     <div className="flex min-w-0 items-start gap-2">
-                      <GraduationCap className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
+                      <GraduationCap className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600/70" />
                       <div className="min-w-0">
                         <p className="text-[10px] text-muted-foreground">
                           Jenjang / Kelas
@@ -1000,7 +1123,7 @@ export default function ChatManagementPage() {
                     </div>
 
                     <div className="flex min-w-0 items-start gap-2 sm:col-span-2 xl:col-span-3">
-                      <IdCard className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
+                      <IdCard className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600/70" />
                       <div className="min-w-0">
                         <p className="text-[10px] text-muted-foreground">
                           ID Akun
@@ -1028,7 +1151,7 @@ export default function ChatManagementPage() {
                   </div>
 
                   {!selectedStudent && (
-                    <p className="mt-3 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:bg-amber-950/40 dark:text-amber-300">
+                    <p className="relative mt-3 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:bg-amber-950/40 dark:text-amber-300">
                       Data profil belum berhasil dimuat. ID akun tetap
                       tersedia untuk identifikasi.
                     </p>
@@ -1036,7 +1159,7 @@ export default function ChatManagementPage() {
                 </div>
 
                 {/* RIWAYAT PESAN */}
-                <div className="flex-1 space-y-4 overflow-y-auto bg-muted/20 p-4">
+                <div className="gu-chat-bg flex-1 space-y-4 overflow-y-auto bg-gradient-to-b from-emerald-50/50 to-teal-50/30 p-4 [--gu-dot:rgba(5,150,105,0.14)] dark:from-emerald-950/20 dark:to-slate-900/20 dark:[--gu-dot:rgba(110,231,183,0.08)]">
                   {messagesLoading && messages.length === 0 ? (
                     <div className="flex justify-center py-10">
                       <Loader2 className="h-6 w-6 animate-spin text-emerald-600" />
@@ -1056,7 +1179,7 @@ export default function ChatManagementPage() {
                         return (
                           <div
                             key={message.id}
-                            className="mx-auto max-w-[90%] rounded-xl border border-dashed bg-background px-4 py-3 text-center"
+                            className="mx-auto max-w-[90%] rounded-xl border border-dashed border-emerald-300/70 bg-background/90 px-4 py-3 text-center backdrop-blur-sm dark:border-emerald-800/60"
                           >
                             <p className="text-[10px] font-bold uppercase tracking-wide text-emerald-700 dark:text-emerald-300">
                               Balasan Otomatis GradeUp
@@ -1085,10 +1208,10 @@ export default function ChatManagementPage() {
                         >
                           <div
                             className={cn(
-                              "max-w-[85%] rounded-2xl px-4 py-3 shadow-sm sm:max-w-[75%]",
+                              "max-w-[85%] rounded-2xl px-4 py-3 sm:max-w-[75%]",
                               isAdmin
-                                ? "rounded-br-md bg-emerald-600 text-white"
-                                : "rounded-bl-md border bg-card text-foreground"
+                                ? "rounded-br-md bg-gradient-to-br from-emerald-600 to-teal-600 text-white shadow-md shadow-emerald-700/20"
+                                : "rounded-bl-md border border-emerald-200/70 bg-card text-foreground shadow-sm dark:border-emerald-900/40"
                             )}
                           >
                             <p
@@ -1132,7 +1255,7 @@ export default function ChatManagementPage() {
                     event.preventDefault();
                     void sendReply();
                   }}
-                  className="border-t bg-card p-3 sm:p-4"
+                  className="border-t border-emerald-100 bg-card/90 p-3 backdrop-blur dark:border-emerald-900/30 sm:p-4"
                 >
                   {selectedConversation.status === "resolved" && (
                     <p className="mb-2 flex items-center gap-2 text-xs text-emerald-700 dark:text-emerald-300">
@@ -1158,13 +1281,13 @@ export default function ChatManagementPage() {
                       }}
                       rows={2}
                       placeholder="Tulis balasan untuk siswa..."
-                      className="min-h-[48px] flex-1 resize-y rounded-xl border bg-background px-3 py-3 text-sm outline-none transition focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/15"
+                      className={`min-h-[48px] flex-1 resize-y rounded-xl border bg-background px-3 py-3 text-sm outline-none transition ${fieldFocus}`}
                     />
 
                     <button
                       type="submit"
                       disabled={!reply.trim() || sending}
-                      className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-emerald-600 text-white transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50"
+                      className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-emerald-500 to-teal-600 text-white shadow-lg shadow-emerald-700/25 transition hover:from-emerald-600 hover:to-teal-700 disabled:cursor-not-allowed disabled:opacity-50"
                       aria-label="Kirim balasan"
                     >
                       {sending ? (
@@ -1202,7 +1325,7 @@ export default function ChatManagementPage() {
             <button
               type="button"
               onClick={openNewFaq}
-              className="inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-emerald-700"
+              className="inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-br from-emerald-500 to-teal-600 px-4 py-2.5 text-sm font-semibold text-white shadow-lg shadow-emerald-700/25 transition hover:from-emerald-600 hover:to-teal-700"
             >
               <Plus className="h-4 w-4" />
               Tambah FAQ
@@ -1210,12 +1333,14 @@ export default function ChatManagementPage() {
           </div>
 
           {faqLoading ? (
-            <div className="flex justify-center rounded-2xl border bg-card py-12">
+            <div className={`flex justify-center rounded-2xl py-12 ${panelSurface}`}>
               <Loader2 className="h-6 w-6 animate-spin text-emerald-600" />
             </div>
           ) : faqs.length === 0 ? (
-            <div className="rounded-2xl border bg-card px-6 py-12 text-center">
-              <BookOpen className="mx-auto h-9 w-9 text-muted-foreground" />
+            <div className={`rounded-2xl px-6 py-12 text-center ${panelSurface}`}>
+              <span className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-emerald-100 dark:bg-emerald-950">
+                <BookOpen className="h-7 w-7 text-emerald-600" />
+              </span>
               <p className="mt-3 font-semibold">
                 Belum ada data FAQ
               </p>
@@ -1228,9 +1353,14 @@ export default function ChatManagementPage() {
               {faqs.map((faq) => (
                 <article
                   key={faq.id}
-                  className="rounded-2xl border bg-card p-4 sm:p-5"
+                  className={`group relative overflow-hidden rounded-2xl p-4 transition-all duration-300 hover:-translate-y-0.5 hover:border-emerald-400/60 hover:shadow-[0_24px_50px_-28px_rgba(15,118,110,0.5)] motion-reduce:transition-none motion-reduce:hover:translate-y-0 sm:p-5 ${panelSurface}`}
                 >
-                  <div className="flex flex-col justify-between gap-3 sm:flex-row">
+                  <span
+                    aria-hidden="true"
+                    className="pointer-events-none absolute -bottom-14 -right-14 h-40 w-40 rounded-full bg-emerald-400/0 blur-3xl transition-colors duration-500 group-hover:bg-emerald-400/20 dark:group-hover:bg-emerald-500/10"
+                  />
+
+                  <div className="relative flex flex-col justify-between gap-3 sm:flex-row">
                     <div className="min-w-0 flex-1">
                       <div className="flex flex-wrap items-center gap-2">
                         <h3 className="font-bold">
@@ -1257,7 +1387,7 @@ export default function ChatManagementPage() {
                         {faq.keywords.map((keyword, index) => (
                           <span
                             key={`${faq.id}-${index}`}
-                            className="rounded-md bg-muted px-2 py-1 text-[10px] text-muted-foreground"
+                            className="rounded-md border border-emerald-200/70 bg-emerald-50/70 px-2 py-1 text-[10px] text-emerald-800 dark:border-emerald-900/40 dark:bg-emerald-950/30 dark:text-emerald-300"
                           >
                             {keyword}
                           </span>
@@ -1273,7 +1403,7 @@ export default function ChatManagementPage() {
                       <button
                         type="button"
                         onClick={() => openEditFaq(faq)}
-                        className="inline-flex h-9 items-center gap-2 rounded-lg border px-3 text-xs font-semibold transition hover:bg-muted"
+                        className="inline-flex h-9 items-center gap-2 rounded-lg border bg-background/70 px-3 text-xs font-semibold transition hover:border-emerald-400/60 hover:bg-emerald-50 dark:hover:bg-emerald-950/30"
                       >
                         <Pencil className="h-3.5 w-3.5" />
                         Edit
@@ -1313,8 +1443,13 @@ export default function ChatManagementPage() {
       {/* DIALOG TAMBAH / EDIT FAQ */}
       {faqDialogOpen && (
         <div className="fixed inset-0 z-[80] flex items-center justify-center overflow-y-auto bg-black/50 p-4 backdrop-blur-sm">
-          <div className="my-auto w-full max-w-xl rounded-2xl border bg-card shadow-2xl">
-            <div className="flex items-center justify-between border-b p-5">
+          <div className="relative my-auto w-full max-w-xl overflow-hidden rounded-2xl border border-emerald-200/70 bg-card shadow-2xl dark:border-emerald-900/50">
+            <div
+              aria-hidden="true"
+              className="pointer-events-none absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-emerald-400 via-teal-400 to-emerald-500"
+            />
+
+            <div className="flex items-center justify-between border-b border-emerald-100 p-5 dark:border-emerald-900/30">
               <div>
                 <h2 className="text-lg font-bold">
                   {editingFaq ? "Edit FAQ" : "Tambah FAQ"}
@@ -1345,7 +1480,7 @@ export default function ChatManagementPage() {
                     setFaqQuestion(event.target.value)
                   }
                   placeholder="Contoh: Bagaimana cara reset password?"
-                  className="h-11 w-full rounded-xl border bg-background px-3 text-sm outline-none focus:border-emerald-500"
+                  className={`h-11 w-full rounded-xl border bg-background px-3 text-sm outline-none ${fieldFocus}`}
                 />
               </div>
 
@@ -1359,7 +1494,7 @@ export default function ChatManagementPage() {
                     setFaqKeywords(event.target.value)
                   }
                   placeholder="lupa password, reset password"
-                  className="h-11 w-full rounded-xl border bg-background px-3 text-sm outline-none focus:border-emerald-500"
+                  className={`h-11 w-full rounded-xl border bg-background px-3 text-sm outline-none ${fieldFocus}`}
                 />
                 <p className="text-xs text-muted-foreground">
                   Pisahkan setiap kata kunci dengan koma.
@@ -1377,7 +1512,7 @@ export default function ChatManagementPage() {
                   }
                   rows={5}
                   placeholder="Tulis jawaban yang akan dikirim otomatis..."
-                  className="w-full resize-y rounded-xl border bg-background px-3 py-3 text-sm leading-6 outline-none focus:border-emerald-500"
+                  className={`w-full resize-y rounded-xl border bg-background px-3 py-3 text-sm leading-6 outline-none ${fieldFocus}`}
                 />
               </div>
 
@@ -1391,7 +1526,7 @@ export default function ChatManagementPage() {
                   onChange={(event) =>
                     setFaqPriority(event.target.value)
                   }
-                  className="h-11 w-full rounded-xl border bg-background px-3 text-sm outline-none focus:border-emerald-500"
+                  className={`h-11 w-full rounded-xl border bg-background px-3 text-sm outline-none ${fieldFocus}`}
                 />
                 <p className="text-xs text-muted-foreground">
                   Angka lebih besar akan ditampilkan lebih dahulu.
@@ -1399,7 +1534,7 @@ export default function ChatManagementPage() {
               </div>
             </div>
 
-            <div className="flex justify-end gap-2 border-t p-4">
+            <div className="flex justify-end gap-2 border-t border-emerald-100 p-4 dark:border-emerald-900/30">
               <button
                 type="button"
                 onClick={() => setFaqDialogOpen(false)}
@@ -1412,7 +1547,7 @@ export default function ChatManagementPage() {
                 type="button"
                 onClick={() => void saveFaq()}
                 disabled={faqSaving}
-                className="inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-emerald-700 disabled:opacity-50"
+                className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-br from-emerald-500 to-teal-600 px-4 py-2.5 text-sm font-semibold text-white shadow-lg shadow-emerald-700/25 transition hover:from-emerald-600 hover:to-teal-700 disabled:opacity-50"
               >
                 {faqSaving && (
                   <Loader2 className="h-4 w-4 animate-spin" />
