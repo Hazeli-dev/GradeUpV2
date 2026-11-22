@@ -1,4 +1,3 @@
-
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Search,
@@ -59,6 +58,36 @@ interface UserProfile {
 }
 
 type DurationUnit = "days" | "months" | "years" | "custom";
+
+// =====================================================
+// TAMPILAN (murni visual, tidak memengaruhi logika)
+// =====================================================
+
+const cardGlass =
+  "relative overflow-hidden rounded-3xl border border-slate-200/80 bg-white/85 shadow-[0_12px_36px_-24px_rgba(15,118,110,0.35)] backdrop-blur-sm dark:border-slate-700/70 dark:bg-slate-900/80";
+
+const headingText = "text-slate-950 dark:text-white";
+
+const mutedSoft = "text-slate-500 dark:text-slate-400";
+
+const outlineBtn =
+  "rounded-xl border-slate-300 text-slate-700 transition-colors duration-300 hover:border-teal-300 hover:bg-teal-50 dark:border-slate-700 dark:text-slate-200 dark:hover:border-teal-700 dark:hover:bg-slate-800";
+
+const primaryBtn =
+  "rounded-xl bg-teal-700 font-bold text-white shadow-md shadow-teal-700/20 transition-all duration-300 hover:-translate-y-0.5 hover:bg-teal-800 motion-reduce:transition-none motion-reduce:hover:translate-y-0 dark:bg-emerald-500 dark:text-slate-950 dark:hover:bg-emerald-400";
+
+const statCard =
+  "group relative overflow-hidden rounded-3xl border border-slate-200/80 bg-white/85 p-4 shadow-[0_10px_30px_-22px_rgba(15,118,110,0.3)] backdrop-blur-sm transition-all duration-300 hover:-translate-y-0.5 hover:border-emerald-300/80 hover:shadow-[0_20px_44px_-24px_rgba(15,118,110,0.4)] motion-reduce:transition-none motion-reduce:hover:translate-y-0 dark:border-slate-700/70 dark:bg-slate-900/80 dark:hover:border-emerald-700/70 md:p-5";
+
+/** Garis aksen tipis di tepi atas kartu. */
+function CardAccent({ via = "via-emerald-400/70" }: { via?: string }) {
+  return (
+    <span
+      aria-hidden="true"
+      className={`pointer-events-none absolute inset-x-6 top-0 z-10 h-px bg-gradient-to-r from-transparent ${via} to-transparent`}
+    />
+  );
+}
 
 function isPremiumActive(user: UserProfile): boolean {
   if (user.role === "admin") return false;
@@ -567,25 +596,47 @@ export function AdminUsersPage() {
   return (
     <div className="min-h-full space-y-6 p-4 md:space-y-8 md:p-6">
       {/* Header */}
-      <section className="relative overflow-hidden rounded-2xl border bg-gradient-to-br from-primary/[0.10] via-card to-card p-5 shadow-sm md:p-7">
-        <div className="pointer-events-none absolute -right-10 -top-16 h-52 w-52 rounded-full bg-primary/[0.07] blur-3xl" />
+      <section className="relative isolate overflow-hidden rounded-3xl border border-emerald-300/30 bg-gradient-to-br from-[#0f3324] via-[#174b34] to-[#0b2e22] p-5 shadow-[0_30px_80px_-40px_rgba(6,78,59,0.7)] ring-1 ring-inset ring-white/10 md:p-7">
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-0 -z-10 bg-[radial-gradient(circle_at_15%_0%,rgba(52,211,153,0.25),transparent_50%),radial-gradient(circle_at_100%_100%,rgba(20,184,166,0.22),transparent_45%)]"
+        />
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-0 -z-10 bg-[linear-gradient(to_right,rgba(167,243,208,0.08)_1px,transparent_1px),linear-gradient(to_bottom,rgba(167,243,208,0.08)_1px,transparent_1px)] [background-size:40px_40px] [mask-image:radial-gradient(ellipse_at_top_right,#000,transparent_70%)]"
+        />
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute -right-16 -top-24 -z-10 h-64 w-64 rounded-full border border-emerald-300/30"
+        />
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute -bottom-20 left-1/3 -z-10 h-48 w-48 rounded-full bg-emerald-400/10 blur-3xl"
+        />
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-x-8 top-0 -z-10 h-px bg-gradient-to-r from-transparent via-emerald-200/60 to-transparent"
+        />
 
         <div className="relative flex flex-col gap-5 md:flex-row md:items-center md:justify-between">
           <div>
             <div className="mb-3 flex items-center gap-2">
-              <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary/10 text-primary">
+              <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-emerald-400 text-[#123b29] shadow-md shadow-emerald-950/30">
                 <Users className="h-5 w-5" />
               </div>
-              <Badge variant="outline" className="text-primary">
+              <Badge
+                variant="outline"
+                className="border-emerald-200/20 bg-white/10 text-emerald-100"
+              >
                 ADMINISTRATION
               </Badge>
             </div>
 
-            <h1 className="text-2xl font-bold tracking-tight md:text-3xl">
+            <h1 className="text-2xl font-extrabold tracking-[-0.035em] text-white md:text-3xl">
               Manajemen Pengguna
             </h1>
 
-            <p className="mt-2 max-w-xl text-sm leading-relaxed text-muted-foreground">
+            <p className="mt-2 max-w-xl text-sm leading-relaxed text-slate-300">
               Kelola akun, pantau status keanggotaan, atur role,
               dan kelola akses Premium seluruh pengguna GradeUp.
             </p>
@@ -595,7 +646,7 @@ export function AdminUsersPage() {
             variant="outline"
             onClick={() => void fetchUsers()}
             disabled={loading || saving}
-            className="gap-2 self-start bg-background/80 md:self-center"
+            className="gap-2 self-start rounded-xl border-emerald-300/40 bg-white/10 font-bold text-white transition-colors duration-300 hover:border-emerald-200/60 hover:bg-white/20 hover:text-white md:self-center"
           >
             <RefreshCw
               className={`h-4 w-4 ${
@@ -609,7 +660,7 @@ export function AdminUsersPage() {
 
       {/* Error utama */}
       {errorMessage && !isDialogOpen && (
-        <div className="flex items-start gap-2 rounded-xl border border-destructive/30 bg-destructive/5 p-4 text-sm text-destructive">
+        <div className="flex items-start gap-2 rounded-2xl border border-destructive/30 bg-destructive/5 p-4 text-sm text-destructive">
           <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
           <div className="min-w-0 flex-1">
             <p className="font-semibold">
@@ -620,7 +671,7 @@ export function AdminUsersPage() {
               variant="outline"
               size="sm"
               onClick={() => void fetchUsers()}
-              className="mt-3"
+              className="mt-3 rounded-xl"
             >
               <RefreshCw className="mr-2 h-3.5 w-3.5" />
               Coba Lagi
@@ -631,95 +682,107 @@ export function AdminUsersPage() {
 
       {/* Statistik */}
       <section className="grid grid-cols-2 gap-3 xl:grid-cols-4">
-        <div className="rounded-2xl border bg-card p-4 shadow-sm transition-colors hover:bg-muted/20 md:p-5">
+        <div className={statCard}>
+          <CardAccent via="via-teal-400/70" />
           <div className="flex items-center justify-between">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 text-primary">
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-50 text-teal-700 transition-transform duration-300 group-hover:scale-105 dark:bg-emerald-950 dark:text-emerald-300">
               <Users className="h-5 w-5" />
             </div>
-            <ArrowUpRight className="h-4 w-4 text-muted-foreground" />
+            <ArrowUpRight className="h-4 w-4 text-slate-400 dark:text-slate-500" />
           </div>
-          <p className="mt-4 text-sm text-muted-foreground">
+          <p className={`mt-4 text-sm ${mutedSoft}`}>
             Total Pengguna
           </p>
-          <p className="mt-1 text-2xl font-bold tabular-nums">
+          <p
+            className={`mt-1 text-2xl font-extrabold tabular-nums ${headingText}`}
+          >
             {users.length}
           </p>
-          <p className="mt-1 text-xs text-muted-foreground">
+          <p className={`mt-1 text-xs ${mutedSoft}`}>
             Seluruh akun terdaftar
           </p>
         </div>
 
-        <div className="rounded-2xl border bg-card p-4 shadow-sm md:p-5">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-amber-500/10 text-amber-600">
+        <div className={statCard}>
+          <CardAccent via="via-amber-400/70" />
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-amber-500/10 text-amber-600 transition-transform duration-300 group-hover:scale-105 dark:text-amber-400">
             <Crown className="h-5 w-5" />
           </div>
-          <p className="mt-4 text-sm text-muted-foreground">
+          <p className={`mt-4 text-sm ${mutedSoft}`}>
             Premium Aktif
           </p>
-          <p className="mt-1 text-2xl font-bold tabular-nums text-amber-600">
+          <p className="mt-1 text-2xl font-extrabold tabular-nums text-amber-600 dark:text-amber-400">
             {premiumUsers.length}
           </p>
-          <p className="mt-1 text-xs text-muted-foreground">
+          <p className={`mt-1 text-xs ${mutedSoft}`}>
             Memiliki akses Premium
           </p>
         </div>
 
-        <div className="rounded-2xl border bg-card p-4 shadow-sm md:p-5">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-600">
+        <div className={statCard}>
+          <CardAccent via="via-emerald-400/70" />
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-600 transition-transform duration-300 group-hover:scale-105 dark:text-emerald-400">
             <UserCheck className="h-5 w-5" />
           </div>
-          <p className="mt-4 text-sm text-muted-foreground">
+          <p className={`mt-4 text-sm ${mutedSoft}`}>
             Pengguna Gratis
           </p>
-          <p className="mt-1 text-2xl font-bold tabular-nums text-emerald-600">
+          <p className="mt-1 text-2xl font-extrabold tabular-nums text-emerald-600 dark:text-emerald-400">
             {freeUsers.length}
           </p>
-          <p className="mt-1 text-xs text-muted-foreground">
+          <p className={`mt-1 text-xs ${mutedSoft}`}>
             Belum memiliki Premium aktif
           </p>
         </div>
 
-        <div className="rounded-2xl border bg-card p-4 shadow-sm md:p-5">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-violet-500/10 text-violet-600">
+        <div className={statCard}>
+          <CardAccent via="via-violet-400/60" />
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-violet-500/10 text-violet-600 transition-transform duration-300 group-hover:scale-105 dark:text-violet-400">
             <Shield className="h-5 w-5" />
           </div>
-          <p className="mt-4 text-sm text-muted-foreground">
+          <p className={`mt-4 text-sm ${mutedSoft}`}>
             Administrator
           </p>
-          <p className="mt-1 text-2xl font-bold tabular-nums">
+          <p
+            className={`mt-1 text-2xl font-extrabold tabular-nums ${headingText}`}
+          >
             {adminUsers.length}
           </p>
-          <p className="mt-1 text-xs text-muted-foreground">
+          <p className={`mt-1 text-xs ${mutedSoft}`}>
             Akun dengan hak admin
           </p>
         </div>
       </section>
 
       {/* Daftar pengguna */}
-      <section className="overflow-hidden rounded-2xl border bg-card shadow-sm">
-        <div className="flex flex-col gap-4 border-b p-4 md:flex-row md:items-center md:justify-between md:p-5">
+      <section className={cardGlass}>
+        <CardAccent via="via-teal-400/70" />
+
+        <div className="flex flex-col gap-4 border-b border-slate-200/70 p-4 dark:border-slate-800 md:flex-row md:items-center md:justify-between md:p-5">
           <div>
-            <h2 className="font-semibold">Daftar Pengguna</h2>
-            <p className="mt-1 text-xs text-muted-foreground">
+            <h2 className={`font-bold ${headingText}`}>
+              Daftar Pengguna
+            </h2>
+            <p className={`mt-1 text-xs ${mutedSoft}`}>
               {filteredUsers.length} dari {users.length} pengguna
               ditampilkan
             </p>
           </div>
 
           <div className="relative w-full md:max-w-sm">
-            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-teal-600 dark:text-emerald-400" />
             <Input
               placeholder="Cari nama atau email..."
               value={search}
               onChange={(event) => setSearch(event.target.value)}
-              className="h-10 rounded-xl pl-9 pr-9"
+              className="h-10 rounded-xl border-slate-300 bg-white/80 pl-9 pr-9 focus-visible:ring-teal-500/30 dark:border-slate-700 dark:bg-slate-900/80"
             />
 
             {search && (
               <button
                 type="button"
                 onClick={() => setSearch("")}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
                 aria-label="Hapus pencarian"
               >
                 <X className="h-4 w-4" />
@@ -731,7 +794,7 @@ export function AdminUsersPage() {
         <div className="overflow-x-auto">
           <Table>
             <TableHeader>
-              <TableRow className="bg-muted/30 hover:bg-muted/30">
+              <TableRow className="bg-emerald-50/80 hover:bg-emerald-50/80 dark:bg-slate-800/60 dark:hover:bg-slate-800/60">
                 <TableHead className="min-w-[230px] pl-5">
                   Pengguna
                 </TableHead>
@@ -753,8 +816,10 @@ export function AdminUsersPage() {
               {loading ? (
                 <TableRow>
                   <TableCell colSpan={6} className="h-48 text-center">
-                    <div className="flex flex-col items-center justify-center gap-3 text-muted-foreground">
-                      <Loader2 className="h-7 w-7 animate-spin text-primary" />
+                    <div
+                      className={`flex flex-col items-center justify-center gap-3 ${mutedSoft}`}
+                    >
+                      <Loader2 className="h-7 w-7 animate-spin text-teal-600 dark:text-emerald-400" />
                       <span className="text-sm">
                         Memuat data pengguna...
                       </span>
@@ -765,16 +830,16 @@ export function AdminUsersPage() {
                 <TableRow>
                   <TableCell colSpan={6} className="h-48 text-center">
                     <div className="flex flex-col items-center gap-3">
-                      <div className="flex h-12 w-12 items-center justify-center rounded-full bg-muted">
-                        <UserRound className="h-6 w-6 text-muted-foreground" />
+                      <div className="flex h-12 w-12 items-center justify-center rounded-full bg-emerald-50 dark:bg-slate-800">
+                        <UserRound className="h-6 w-6 text-teal-600 dark:text-emerald-400" />
                       </div>
                       <div>
-                        <p className="font-medium">
+                        <p className={`font-medium ${headingText}`}>
                           {search
                             ? "Pengguna tidak ditemukan"
                             : "Belum ada pengguna"}
                         </p>
-                        <p className="mt-1 text-sm text-muted-foreground">
+                        <p className={`mt-1 text-sm ${mutedSoft}`}>
                           {search
                             ? "Coba gunakan kata kunci lain."
                             : "Data pengguna akan muncul di sini."}
@@ -794,17 +859,17 @@ export function AdminUsersPage() {
                   return (
                     <TableRow
                       key={user.id}
-                      className="transition-colors hover:bg-muted/30"
+                      className="transition-colors duration-300 hover:bg-emerald-50/60 dark:hover:bg-emerald-950/30"
                     >
                       <TableCell className="py-4 pl-5">
                         <div className="flex items-center gap-3">
                           <div
-                            className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-sm font-bold ${
+                            className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-sm font-bold ring-1 ring-inset ${
                               user.role === "admin"
-                                ? "bg-violet-500/10 text-violet-600"
+                                ? "bg-violet-500/10 text-violet-600 ring-violet-500/20 dark:text-violet-400"
                                 : isPremiumActive(user)
-                                  ? "bg-amber-500/10 text-amber-600"
-                                  : "bg-primary/10 text-primary"
+                                  ? "bg-amber-500/10 text-amber-600 ring-amber-500/20 dark:text-amber-400"
+                                  : "bg-emerald-500/10 text-teal-700 ring-emerald-500/20 dark:text-emerald-300"
                             }`}
                           >
                             {getInitials(
@@ -814,15 +879,21 @@ export function AdminUsersPage() {
                           </div>
 
                           <div className="min-w-0">
-                            <p className="truncate font-semibold">
+                            <p
+                              className={`truncate font-semibold ${headingText}`}
+                            >
                               {user.full_name || "Tanpa Nama"}
                               {isCurrentUser && (
-                                <span className="ml-2 text-xs font-normal text-muted-foreground">
+                                <span
+                                  className={`ml-2 text-xs font-normal ${mutedSoft}`}
+                                >
                                   (Anda)
                                 </span>
                               )}
                             </p>
-                            <p className="mt-0.5 flex items-center gap-1.5 truncate text-xs text-muted-foreground">
+                            <p
+                              className={`mt-0.5 flex items-center gap-1.5 truncate text-xs ${mutedSoft}`}
+                            >
                               <Mail className="h-3 w-3 shrink-0" />
                               {user.email || "-"}
                             </p>
@@ -851,7 +922,7 @@ export function AdminUsersPage() {
                             Akses Admin
                           </Badge>
                         ) : status === "premium" ? (
-                          <Badge className="gap-1 border-0 bg-amber-500 text-white hover:bg-amber-600">
+                          <Badge className="gap-1 border-0 bg-amber-500 text-white shadow-sm shadow-amber-500/30 hover:bg-amber-600">
                             <Crown className="h-3 w-3" />
                             Premium Aktif
                           </Badge>
@@ -868,19 +939,23 @@ export function AdminUsersPage() {
 
                       <TableCell>
                         {user.role === "admin" ? (
-                          <span className="text-xs text-muted-foreground">
+                          <span className={`text-xs ${mutedSoft}`}>
                             Tidak dibatasi
                           </span>
                         ) : user.premium_until ? (
                           <div className="space-y-1">
-                            <div className="flex items-center gap-1.5 text-xs font-medium">
-                              <Calendar className="h-3.5 w-3.5 text-muted-foreground" />
+                            <div
+                              className={`flex items-center gap-1.5 text-xs font-medium ${headingText}`}
+                            >
+                              <Calendar
+                                className={`h-3.5 w-3.5 ${mutedSoft}`}
+                              />
                               {formatDate(user.premium_until)}
                             </div>
 
                             {isPremiumActive(user) &&
                               remainingDays !== null && (
-                                <p className="text-[11px] text-emerald-600">
+                                <p className="text-[11px] text-emerald-600 dark:text-emerald-400">
                                   {remainingDays === 0
                                     ? "Berakhir hari ini"
                                     : `${remainingDays} hari tersisa`}
@@ -888,13 +963,13 @@ export function AdminUsersPage() {
                               )}
                           </div>
                         ) : (
-                          <span className="text-xs text-muted-foreground">
+                          <span className={`text-xs ${mutedSoft}`}>
                             Belum berlangganan
                           </span>
                         )}
                       </TableCell>
 
-                      <TableCell className="text-xs text-muted-foreground">
+                      <TableCell className={`text-xs ${mutedSoft}`}>
                         {formatDate(user.created_at)}
                       </TableCell>
 
@@ -910,7 +985,7 @@ export function AdminUsersPage() {
                               size="sm"
                               onClick={() => void handleUpdateRole(user)}
                               disabled={saving || loading}
-                              className="gap-1.5 rounded-lg"
+                              className={`gap-1.5 ${outlineBtn}`}
                             >
                               <Shield className="h-3.5 w-3.5" />
                               {user.role === "admin"
@@ -925,7 +1000,7 @@ export function AdminUsersPage() {
                               size="sm"
                               onClick={() => handleOpenSetting(user)}
                               disabled={saving || loading}
-                              className="gap-1.5 rounded-lg"
+                              className={`gap-1.5 ${outlineBtn}`}
                             >
                               <Sliders className="h-3.5 w-3.5" />
                               Atur Paket
@@ -942,12 +1017,14 @@ export function AdminUsersPage() {
         </div>
 
         {!loading && users.length > 0 && (
-          <div className="flex flex-col gap-2 border-t bg-muted/20 px-5 py-3 text-xs text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
+          <div
+            className={`flex flex-col gap-2 border-t border-slate-200/70 bg-emerald-50/40 px-5 py-3 text-xs dark:border-slate-800 dark:bg-slate-950/30 sm:flex-row sm:items-center sm:justify-between ${mutedSoft}`}
+          >
             <span>
               Menampilkan {filteredUsers.length} pengguna
             </span>
             <span className="flex items-center gap-1.5">
-              <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
+              <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
               Data dari database GradeUp
             </span>
           </div>
@@ -967,10 +1044,15 @@ export function AdminUsersPage() {
           }
         }}
       >
-        <DialogContent className="max-h-[90vh] overflow-y-auto rounded-2xl sm:max-w-md">
+        <DialogContent className="max-h-[90vh] overflow-y-auto rounded-3xl border-emerald-200/70 dark:border-emerald-900/50 sm:max-w-md">
+          <span
+            aria-hidden="true"
+            className="pointer-events-none absolute inset-x-6 top-0 h-px bg-gradient-to-r from-transparent via-amber-400/70 to-transparent"
+          />
+
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 text-lg">
-              <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-amber-500/10 text-amber-600">
+              <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-amber-500/10 text-amber-600 dark:text-amber-400">
                 <Crown className="h-5 w-5" />
               </div>
               Atur Paket Premium
@@ -987,14 +1069,14 @@ export function AdminUsersPage() {
           </DialogHeader>
 
           {/* Status saat ini */}
-          <div className="rounded-xl border bg-muted/30 p-4">
+          <div className="rounded-2xl border border-emerald-200/70 bg-gradient-to-br from-emerald-50/80 to-transparent p-4 dark:border-emerald-900/50 dark:from-emerald-950/40">
             <div className="flex items-center justify-between gap-3">
               <div>
-                <p className="text-xs text-muted-foreground">
+                <p className={`text-xs ${mutedSoft}`}>
                   Status paket saat ini
                 </p>
 
-                <p className="mt-1 font-semibold">
+                <p className={`mt-1 font-semibold ${headingText}`}>
                   {selectedUser && isPremiumActive(selectedUser)
                     ? "Premium Aktif"
                     : selectedUser?.is_premium
@@ -1020,7 +1102,9 @@ export function AdminUsersPage() {
             </div>
 
             {selectedUser?.premium_until && (
-              <div className="mt-3 flex items-center gap-2 border-t pt-3 text-xs text-muted-foreground">
+              <div
+                className={`mt-3 flex items-center gap-2 border-t border-emerald-200/60 pt-3 text-xs dark:border-emerald-900/50 ${mutedSoft}`}
+              >
                 <Clock3 className="h-3.5 w-3.5" />
                 Berakhir: {formatDate(selectedUser.premium_until)}
               </div>
@@ -1028,7 +1112,9 @@ export function AdminUsersPage() {
           </div>
 
           {/* Informasi Premium */}
-          <div className="flex items-start gap-2 rounded-xl border border-amber-500/20 bg-amber-500/5 p-3 text-xs leading-relaxed text-muted-foreground">
+          <div
+            className={`flex items-start gap-2 rounded-2xl border border-amber-500/20 bg-amber-500/5 p-3 text-xs leading-relaxed ${mutedSoft}`}
+          >
             <Sparkles className="mt-0.5 h-4 w-4 shrink-0 text-amber-500" />
             <span>
               Akses Premium memberikan pengguna hak akses ke kursus
@@ -1050,7 +1136,7 @@ export function AdminUsersPage() {
                 }
                 disabled={saving}
               >
-                <SelectTrigger className="h-11 rounded-xl">
+                <SelectTrigger className="h-11 rounded-xl border-slate-300 focus:ring-teal-500/30 dark:border-slate-700">
                   <SelectValue placeholder="Pilih satuan..." />
                 </SelectTrigger>
 
@@ -1090,7 +1176,7 @@ export function AdminUsersPage() {
                     )
                   }
                   disabled={saving}
-                  className="h-11 rounded-xl"
+                  className="h-11 rounded-xl border-slate-300 focus-visible:ring-teal-500/30 dark:border-slate-700"
                 />
               </div>
             ) : (
@@ -1109,10 +1195,10 @@ export function AdminUsersPage() {
                     setCustomDate(event.target.value)
                   }
                   disabled={saving}
-                  className="h-11 rounded-xl"
+                  className="h-11 rounded-xl border-slate-300 focus-visible:ring-teal-500/30 dark:border-slate-700"
                 />
 
-                <p className="text-xs text-muted-foreground">
+                <p className={`text-xs ${mutedSoft}`}>
                   Akses berlaku sampai akhir tanggal yang dipilih.
                 </p>
               </div>
@@ -1121,20 +1207,20 @@ export function AdminUsersPage() {
 
           {/* Error dialog */}
           {errorMessage && isDialogOpen && (
-            <div className="flex items-start gap-2 rounded-xl border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
+            <div className="flex items-start gap-2 rounded-2xl border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
               <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
               <span className="break-words">{errorMessage}</span>
             </div>
           )}
 
-          <DialogFooter className="flex-col gap-3 border-t pt-4 sm:flex-row sm:justify-between">
+          <DialogFooter className="flex-col gap-3 border-t border-slate-200/70 pt-4 dark:border-slate-800 sm:flex-row sm:justify-between">
             {selectedUser?.is_premium ? (
               <Button
                 variant="destructive"
                 size="sm"
                 onClick={handleRevokePremium}
                 disabled={saving}
-                className="w-full sm:w-auto"
+                className="w-full rounded-xl sm:w-auto"
               >
                 {saving ? (
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -1152,7 +1238,7 @@ export function AdminUsersPage() {
                 variant="outline"
                 onClick={() => setIsDialogOpen(false)}
                 disabled={saving}
-                className="flex-1 sm:flex-none"
+                className={`flex-1 sm:flex-none ${outlineBtn}`}
               >
                 Batal
               </Button>
@@ -1160,7 +1246,7 @@ export function AdminUsersPage() {
               <Button
                 onClick={handleSavePremium}
                 disabled={saving}
-                className="flex-1 gap-2 sm:flex-none"
+                className={`flex-1 gap-2 sm:flex-none ${primaryBtn}`}
               >
                 {saving ? (
                   <>
