@@ -1,4 +1,3 @@
-
 import { useEffect, useState, type FormEvent } from "react";
 import {
   Bell,
@@ -106,6 +105,42 @@ const DEFAULT_CONTACT: PlatformContact = {
 };
 
 const CONFIRM_KEYWORD = "RESET-XP";
+
+// =====================================================
+// TAMPILAN (murni visual, tidak memengaruhi logika)
+// =====================================================
+
+const cardGlass =
+  "relative overflow-hidden rounded-3xl border border-slate-200/80 bg-white/85 shadow-[0_12px_36px_-24px_rgba(15,118,110,0.35)] backdrop-blur-sm dark:border-slate-700/70 dark:bg-slate-900/80";
+
+const headingText = "text-slate-950 dark:text-white";
+
+const mutedSoft = "text-slate-500 dark:text-slate-400";
+
+const outlineBtn =
+  "rounded-xl border-slate-300 text-slate-700 transition-colors duration-300 hover:border-teal-300 hover:bg-teal-50 dark:border-slate-700 dark:text-slate-200 dark:hover:border-teal-700 dark:hover:bg-slate-800";
+
+const primaryBtn =
+  "rounded-xl bg-teal-700 font-bold text-white shadow-md shadow-teal-700/20 transition-all duration-300 hover:-translate-y-0.5 hover:bg-teal-800 motion-reduce:transition-none motion-reduce:hover:translate-y-0 dark:bg-emerald-500 dark:text-slate-950 dark:hover:bg-emerald-400";
+
+const inputField =
+  "rounded-xl border-slate-300 bg-white/80 focus-visible:ring-teal-500/30 dark:border-slate-700 dark:bg-slate-900/80";
+
+const tabTrigger =
+  "gap-2 rounded-xl text-slate-600 transition-all duration-300 data-[state=active]:bg-teal-700 data-[state=active]:text-white data-[state=active]:shadow-md dark:text-slate-300 dark:data-[state=active]:bg-emerald-500 dark:data-[state=active]:text-slate-950";
+
+const subTile =
+  "rounded-2xl border border-emerald-100/70 bg-emerald-50/50 p-3 dark:border-slate-800 dark:bg-slate-950/30";
+
+/** Garis aksen tipis di tepi atas kartu. */
+function CardAccent({ via = "via-emerald-400/70" }: { via?: string }) {
+  return (
+    <span
+      aria-hidden="true"
+      className={`pointer-events-none absolute inset-x-6 top-0 z-10 h-px bg-gradient-to-r from-transparent ${via} to-transparent`}
+    />
+  );
+}
 
 function formatDateTime(value?: string) {
   if (!value) return "-";
@@ -524,39 +559,43 @@ export default function AdminSettingsPage() {
       </DemoBanner>
 
       <Tabs defaultValue="general">
-        <TabsList>
-          <TabsTrigger value="general">
+        <TabsList className="h-auto flex-wrap justify-start gap-1 rounded-2xl border border-slate-200/80 bg-white/70 p-1.5 shadow-[0_10px_30px_-20px_rgba(15,118,110,0.3)] backdrop-blur-sm dark:border-slate-700/70 dark:bg-slate-900/70">
+          <TabsTrigger value="general" className={tabTrigger}>
             <Settings /> Umum
           </TabsTrigger>
 
-          <TabsTrigger value="gamification">
+          <TabsTrigger value="gamification" className={tabTrigger}>
             <ShieldAlert /> Season & Gamifikasi
           </TabsTrigger>
 
-          <TabsTrigger value="platform">
+          <TabsTrigger value="platform" className={tabTrigger}>
             <Info /> Informasi Platform
           </TabsTrigger>
 
-          <TabsTrigger value="appearance">
+          <TabsTrigger value="appearance" className={tabTrigger}>
             <Palette /> Tampilan
           </TabsTrigger>
 
-          <TabsTrigger value="notifications">
+          <TabsTrigger value="notifications" className={tabTrigger}>
             <Bell /> Notifikasi
           </TabsTrigger>
         </TabsList>
 
         {/* TAB UMUM */}
         <TabsContent value="general">
-          <Card>
+          <Card className={cardGlass}>
+            <CardAccent via="via-teal-400/70" />
+
             <CardHeader>
-              <CardTitle>Pengaturan Umum</CardTitle>
+              <CardTitle className={headingText}>
+                Pengaturan Umum
+              </CardTitle>
               <CardDescription>
                 Identitas dan perilaku dasar platform.
               </CardDescription>
             </CardHeader>
 
-            <CardContent className="max-w-2xl divide-y">
+            <CardContent className="max-w-2xl divide-y divide-slate-200/70 dark:divide-slate-800">
               <div className="grid gap-4 pb-5 sm:grid-cols-2">
                 <div className="space-y-2">
                   <Label htmlFor="g-name">Nama platform</Label>
@@ -569,6 +608,7 @@ export default function AdminSettingsPage() {
                         name: event.target.value,
                       })
                     }
+                    className={inputField}
                   />
                 </div>
 
@@ -583,6 +623,7 @@ export default function AdminSettingsPage() {
                         tagline: event.target.value,
                       })
                     }
+                    className={inputField}
                   />
                 </div>
 
@@ -598,7 +639,7 @@ export default function AdminSettingsPage() {
                       })
                     }
                   >
-                    <SelectTrigger>
+                    <SelectTrigger className="rounded-xl border-slate-300 focus:ring-teal-500/30 dark:border-slate-700">
                       <SelectValue />
                     </SelectTrigger>
 
@@ -648,6 +689,7 @@ export default function AdminSettingsPage() {
                   onClick={() =>
                     toast.success("Pengaturan umum disimpan (demo)")
                   }
+                  className={primaryBtn}
                 >
                   Simpan Perubahan
                 </Button>
@@ -658,9 +700,15 @@ export default function AdminSettingsPage() {
 
         {/* TAB SEASON & GAMIFIKASI */}
         <TabsContent value="gamification" className="space-y-6">
-          <Card className="border-emerald-500/30 bg-emerald-500/5">
-            <CardHeader>
-              <div className="flex items-center gap-2 text-emerald-500">
+          <Card className="relative overflow-hidden rounded-3xl border border-emerald-300/50 bg-gradient-to-br from-emerald-100/70 via-white/80 to-white/80 shadow-[0_14px_40px_-26px_rgba(15,118,110,0.4)] backdrop-blur-sm dark:border-emerald-800/50 dark:from-emerald-950/50 dark:via-slate-900/80 dark:to-slate-900/80">
+            <CardAccent via="via-emerald-400/70" />
+            <span
+              aria-hidden="true"
+              className="pointer-events-none absolute -right-12 -top-12 h-44 w-44 rounded-full bg-emerald-300/30 blur-3xl dark:bg-emerald-500/10"
+            />
+
+            <CardHeader className="relative">
+              <div className="flex items-center gap-2 text-teal-700 dark:text-emerald-400">
                 <Sparkles className="h-5 w-5" />
                 <CardTitle className="text-lg font-bold">
                   Pengaturan Season
@@ -673,10 +721,12 @@ export default function AdminSettingsPage() {
               </CardDescription>
             </CardHeader>
 
-            <CardContent className="space-y-5">
+            <CardContent className="relative space-y-5">
               {loadingSeason ? (
-                <div className="flex items-center gap-2 py-4 text-sm text-muted-foreground">
-                  <Loader2 className="h-4 w-4 animate-spin" />
+                <div
+                  className={`flex items-center gap-2 py-4 text-sm ${mutedSoft}`}
+                >
+                  <Loader2 className="h-4 w-4 animate-spin text-teal-600 dark:text-emerald-400" />
                   Memuat konfigurasi Season...
                 </div>
               ) : (
@@ -689,7 +739,7 @@ export default function AdminSettingsPage() {
                     onChange={setAutoResetEnabled}
                   />
 
-                  <div className="grid gap-4 border-t pt-5 sm:grid-cols-2">
+                  <div className="grid gap-4 border-t border-emerald-200/60 pt-5 dark:border-emerald-900/50 sm:grid-cols-2">
                     <div className="space-y-2">
                       <Label htmlFor="season-name">Nama Season</Label>
 
@@ -700,6 +750,7 @@ export default function AdminSettingsPage() {
                           setSeasonName(event.target.value)
                         }
                         placeholder="Contoh: Season 1"
+                        className={inputField}
                       />
                     </div>
 
@@ -708,7 +759,7 @@ export default function AdminSettingsPage() {
                         htmlFor="reset-datetime"
                         className="flex items-center gap-1.5"
                       >
-                        <Calendar className="h-4 w-4 text-emerald-500" />
+                        <Calendar className="h-4 w-4 text-teal-600 dark:text-emerald-400" />
                         Tanggal & Jam Reset
                       </Label>
 
@@ -719,22 +770,24 @@ export default function AdminSettingsPage() {
                         onChange={(event) =>
                           setResetDateTime(event.target.value)
                         }
-                        className="font-mono"
+                        className={`font-mono ${inputField}`}
                       />
 
-                      <p className="text-xs text-muted-foreground">
+                      <p className={`text-xs ${mutedSoft}`}>
                         Menggunakan zona waktu perangkat admin.
                       </p>
                     </div>
                   </div>
 
-                  <div className="flex flex-col justify-between gap-3 rounded-lg border bg-background p-3 sm:flex-row sm:items-center">
+                  <div className="flex flex-col justify-between gap-3 rounded-2xl border border-slate-200/80 bg-white/80 p-3 dark:border-slate-700/70 dark:bg-slate-900/70 sm:flex-row sm:items-center">
                     <div className="flex items-center gap-2 text-sm">
-                      <Clock className="h-4 w-4 text-muted-foreground" />
-                      <span className="text-muted-foreground">
+                      <Clock
+                        className={`h-4 w-4 ${mutedSoft}`}
+                      />
+                      <span className={mutedSoft}>
                         Reset berikutnya:
                       </span>
-                      <strong>
+                      <strong className={headingText}>
                         {formatDateTime(
                           resetDateTime
                             ? new Date(resetDateTime).toISOString()
@@ -746,7 +799,7 @@ export default function AdminSettingsPage() {
                     <span
                       className={`text-xs font-semibold ${
                         autoResetEnabled
-                          ? "text-emerald-600"
+                          ? "text-emerald-600 dark:text-emerald-400"
                           : "text-muted-foreground"
                       }`}
                     >
@@ -760,7 +813,7 @@ export default function AdminSettingsPage() {
                     <Button
                       onClick={handleSaveSchedule}
                       disabled={savingSchedule}
-                      className="gap-2 font-bold"
+                      className={`gap-2 ${primaryBtn}`}
                     >
                       {savingSchedule ? (
                         <Loader2 className="h-4 w-4 animate-spin" />
@@ -776,7 +829,9 @@ export default function AdminSettingsPage() {
           </Card>
 
           {/* RESET MANUAL */}
-          <Card className="border-destructive/30 bg-destructive/5">
+          <Card className="relative overflow-hidden rounded-3xl border border-destructive/30 bg-gradient-to-br from-destructive/10 via-white/80 to-white/80 shadow-[0_14px_40px_-26px_rgba(220,38,38,0.3)] backdrop-blur-sm dark:from-destructive/15 dark:via-slate-900/80 dark:to-slate-900/80">
+            <CardAccent via="via-rose-400/60" />
+
             <CardHeader>
               <div className="flex items-center gap-2 text-destructive">
                 <ShieldAlert className="h-5 w-5" />
@@ -792,13 +847,17 @@ export default function AdminSettingsPage() {
             </CardHeader>
 
             <CardContent>
-              <div className="flex flex-col gap-3 rounded-xl border border-destructive/20 bg-background p-4 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex flex-col gap-3 rounded-2xl border border-destructive/20 bg-white/80 p-4 dark:bg-slate-900/70 sm:flex-row sm:items-center sm:justify-between">
                 <div>
-                  <h4 className="text-sm font-bold text-foreground">
+                  <h4
+                    className={`text-sm font-bold ${headingText}`}
+                  >
                     Mulai Season Baru
                   </h4>
 
-                  <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+                  <p
+                    className={`mt-1 text-xs leading-relaxed ${mutedSoft}`}
+                  >
                     XP Season siswa menjadi 0 dan level kembali ke 1.
                     XP sepanjang masa, badge, pencapaian, dan riwayat
                     ujian tetap dipertahankan.
@@ -822,14 +881,19 @@ export default function AdminSettingsPage() {
                   <DialogTrigger asChild>
                     <Button
                       variant="destructive"
-                      className="shrink-0 gap-2 font-bold"
+                      className="shrink-0 gap-2 rounded-xl font-bold"
                     >
                       <RotateCcw className="h-4 w-4" />
                       Reset Season Sekarang
                     </Button>
                   </DialogTrigger>
 
-                  <DialogContent className="sm:max-w-md">
+                  <DialogContent className="rounded-3xl border-destructive/20 sm:max-w-md">
+                    <span
+                      aria-hidden="true"
+                      className="pointer-events-none absolute inset-x-6 top-0 h-px bg-gradient-to-r from-transparent via-rose-400/70 to-transparent"
+                    />
+
                     <DialogHeader>
                       <div className="mx-auto mb-2 flex h-12 w-12 items-center justify-center rounded-full bg-destructive/10 text-destructive">
                         <AlertTriangle className="h-6 w-6" />
@@ -846,7 +910,7 @@ export default function AdminSettingsPage() {
                       </DialogDescription>
                     </DialogHeader>
 
-                    <div className="space-y-3 rounded-lg border border-destructive/20 bg-destructive/5 p-3 text-sm">
+                    <div className="space-y-3 rounded-2xl border border-destructive/20 bg-destructive/5 p-3 text-sm">
                       <p className="flex items-start gap-2">
                         <Users className="mt-0.5 h-4 w-4 shrink-0 text-destructive" />
                         XP Season seluruh siswa direset menjadi 0
@@ -885,7 +949,7 @@ export default function AdminSettingsPage() {
                         onChange={(event) =>
                           setConfirmText(event.target.value)
                         }
-                        className="text-center font-mono tracking-wider"
+                        className={`text-center font-mono tracking-wider ${inputField}`}
                       />
                     </div>
 
@@ -897,7 +961,7 @@ export default function AdminSettingsPage() {
                           setConfirmText("");
                         }}
                         disabled={resetting}
-                        className="w-full sm:w-auto"
+                        className={`w-full sm:w-auto ${outlineBtn}`}
                       >
                         Batal
                       </Button>
@@ -908,7 +972,7 @@ export default function AdminSettingsPage() {
                         disabled={
                           confirmText !== CONFIRM_KEYWORD || resetting
                         }
-                        className="w-full gap-2 font-bold sm:w-auto"
+                        className="w-full gap-2 rounded-xl font-bold sm:w-auto"
                       >
                         {resetting ? (
                           <>
@@ -928,11 +992,15 @@ export default function AdminSettingsPage() {
 
           {/* HASIL RESET TERAKHIR */}
           {resetResult && (
-            <Card>
+            <Card className={cardGlass}>
+              <CardAccent via="via-emerald-400/70" />
+
               <CardHeader>
                 <div className="flex items-center gap-2">
                   <CheckCircle2 className="h-5 w-5 text-emerald-500" />
-                  <CardTitle>Hasil Reset Terakhir</CardTitle>
+                  <CardTitle className={headingText}>
+                    Hasil Reset Terakhir
+                  </CardTitle>
                 </div>
 
                 <CardDescription>
@@ -941,49 +1009,57 @@ export default function AdminSettingsPage() {
               </CardHeader>
 
               <CardContent className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-                <div className="rounded-lg border p-3">
-                  <p className="text-xs text-muted-foreground">
+                <div className={subTile}>
+                  <p className={`text-xs ${mutedSoft}`}>
                     Season sebelumnya
                   </p>
-                  <p className="mt-1 font-bold">
+                  <p className={`mt-1 font-bold ${headingText}`}>
                     {resetResult.previous_season}
                   </p>
                 </div>
 
-                <div className="rounded-lg border p-3">
-                  <p className="text-xs text-muted-foreground">
+                <div className={subTile}>
+                  <p className={`text-xs ${mutedSoft}`}>
                     Season baru
                   </p>
-                  <p className="mt-1 font-bold text-emerald-600">
+                  <p className="mt-1 font-bold text-emerald-600 dark:text-emerald-400">
                     {resetResult.new_season}
                   </p>
                 </div>
 
-                <div className="rounded-lg border p-3">
-                  <p className="flex items-center gap-1 text-xs text-muted-foreground">
+                <div className={subTile}>
+                  <p
+                    className={`flex items-center gap-1 text-xs ${mutedSoft}`}
+                  >
                     <Users className="h-3.5 w-3.5" />
                     Siswa terdampak
                   </p>
-                  <p className="mt-1 text-xl font-bold">
+                  <p
+                    className={`mt-1 text-xl font-extrabold ${headingText}`}
+                  >
                     {resetResult.affected_students}
                   </p>
                 </div>
 
-                <div className="rounded-lg border p-3">
-                  <p className="flex items-center gap-1 text-xs text-muted-foreground">
+                <div className={subTile}>
+                  <p
+                    className={`flex items-center gap-1 text-xs ${mutedSoft}`}
+                  >
                     <Trash2 className="h-3.5 w-3.5" />
                     Aktivitas dihapus
                   </p>
-                  <p className="mt-1 text-xl font-bold">
+                  <p
+                    className={`mt-1 text-xl font-extrabold ${headingText}`}
+                  >
                     {resetResult.deleted_activities}
                   </p>
                 </div>
 
-                <div className="rounded-lg border p-3 sm:col-span-2 lg:col-span-4">
-                  <p className="text-xs text-muted-foreground">
+                <div className={`${subTile} sm:col-span-2 lg:col-span-4`}>
+                  <p className={`text-xs ${mutedSoft}`}>
                     Jadwal reset berikutnya
                   </p>
-                  <p className="mt-1 font-semibold">
+                  <p className={`mt-1 font-semibold ${headingText}`}>
                     {formatDateTime(resetResult.next_reset_at)}
                   </p>
                 </div>
@@ -992,13 +1068,17 @@ export default function AdminSettingsPage() {
           )}
 
           {/* RIWAYAT SEASON */}
-          <Card>
+          <Card className={cardGlass}>
+            <CardAccent via="via-teal-400/70" />
+
             <CardHeader>
               <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
                 <div>
                   <div className="flex items-center gap-2">
-                    <History className="h-5 w-5" />
-                    <CardTitle>Riwayat Reset Season</CardTitle>
+                    <History className="h-5 w-5 text-teal-600 dark:text-emerald-400" />
+                    <CardTitle className={headingText}>
+                      Riwayat Reset Season
+                    </CardTitle>
                   </div>
 
                   <CardDescription>
@@ -1011,7 +1091,7 @@ export default function AdminSettingsPage() {
                   size="sm"
                   onClick={refreshSeasonLogs}
                   disabled={loadingLogs}
-                  className="gap-2"
+                  className={`gap-2 ${outlineBtn}`}
                 >
                   {loadingLogs ? (
                     <Loader2 className="h-4 w-4 animate-spin" />
@@ -1025,58 +1105,65 @@ export default function AdminSettingsPage() {
 
             <CardContent>
               {loadingLogs ? (
-                <div className="flex items-center gap-2 py-6 text-sm text-muted-foreground">
-                  <Loader2 className="h-4 w-4 animate-spin" />
+                <div
+                  className={`flex items-center gap-2 py-6 text-sm ${mutedSoft}`}
+                >
+                  <Loader2 className="h-4 w-4 animate-spin text-teal-600 dark:text-emerald-400" />
                   Memuat riwayat Season...
                 </div>
               ) : seasonLogs.length === 0 ? (
-                <div className="rounded-lg border border-dashed p-8 text-center">
-                  <History className="mx-auto mb-2 h-8 w-8 text-muted-foreground" />
-                  <p className="font-semibold">
+                <div className="rounded-2xl border border-dashed border-teal-300/70 bg-white/60 p-8 text-center dark:border-slate-700 dark:bg-slate-900/60">
+                  <History className="mx-auto mb-2 h-8 w-8 text-slate-400 dark:text-slate-500" />
+                  <p className={`font-semibold ${headingText}`}>
                     Belum ada riwayat reset
                   </p>
-                  <p className="mt-1 text-xs text-muted-foreground">
+                  <p className={`mt-1 text-xs ${mutedSoft}`}>
                     Riwayat akan muncul setelah reset Season pertama berhasil.
                   </p>
                 </div>
               ) : (
                 <div className="space-y-3">
                   {seasonLogs.map((log) => (
-                    <div key={log.id} className="rounded-lg border p-3">
+                    <div
+                      key={log.id}
+                      className="rounded-2xl border border-slate-200/80 bg-white/70 p-3 transition-colors duration-300 hover:border-emerald-300/80 hover:bg-emerald-50/70 dark:border-slate-700/70 dark:bg-slate-900/60 dark:hover:border-emerald-700/70 dark:hover:bg-emerald-950/40"
+                    >
                       <div className="flex flex-col justify-between gap-2 sm:flex-row sm:items-center">
                         <div>
-                          <p className="font-semibold">
+                          <p
+                            className={`font-semibold ${headingText}`}
+                          >
                             {log.previous_season}{" "}
                             <span className="text-muted-foreground">→</span>{" "}
                             {log.new_season}
                           </p>
-                          <p className="mt-1 text-xs text-muted-foreground">
+                          <p className={`mt-1 text-xs ${mutedSoft}`}>
                             {formatDateTime(log.reset_at)}
                           </p>
                         </div>
 
-                        <span className="w-fit rounded-full bg-muted px-2.5 py-1 text-xs font-semibold">
+                        <span className="w-fit rounded-full border border-teal-200/80 bg-teal-50 px-2.5 py-1 text-xs font-semibold text-teal-800 dark:border-teal-800/70 dark:bg-teal-950/60 dark:text-teal-200">
                           {log.reset_source === "manual"
                             ? "Manual"
                             : "Otomatis"}
                         </span>
                       </div>
 
-                      <div className="mt-3 grid grid-cols-2 gap-3 border-t pt-3">
+                      <div className="mt-3 grid grid-cols-2 gap-3 border-t border-slate-200/70 pt-3 dark:border-slate-800">
                         <div>
-                          <p className="text-xs text-muted-foreground">
+                          <p className={`text-xs ${mutedSoft}`}>
                             Siswa terdampak
                           </p>
-                          <p className="font-bold">
+                          <p className={`font-bold ${headingText}`}>
                             {log.affected_students}
                           </p>
                         </div>
 
                         <div>
-                          <p className="text-xs text-muted-foreground">
+                          <p className={`text-xs ${mutedSoft}`}>
                             Aktivitas dihapus
                           </p>
-                          <p className="font-bold">
+                          <p className={`font-bold ${headingText}`}>
                             {log.deleted_activities}
                           </p>
                         </div>
@@ -1091,9 +1178,13 @@ export default function AdminSettingsPage() {
 
         {/* TAB INFORMASI PLATFORM */}
         <TabsContent value="platform" className="space-y-6">
-          <Card>
+          <Card className={cardGlass}>
+            <CardAccent via="via-teal-400/70" />
+
             <CardHeader>
-              <CardTitle>Informasi Platform</CardTitle>
+              <CardTitle className={headingText}>
+                Informasi Platform
+              </CardTitle>
 
               <CardDescription>
                 Kelola nama kontak, email, telepon, dan alamat yang
@@ -1104,8 +1195,10 @@ export default function AdminSettingsPage() {
 
             <CardContent>
               {loadingInfo ? (
-                <div className="flex items-center gap-2 py-6 text-sm text-muted-foreground">
-                  <Loader2 className="h-4 w-4 animate-spin" />
+                <div
+                  className={`flex items-center gap-2 py-6 text-sm ${mutedSoft}`}
+                >
+                  <Loader2 className="h-4 w-4 animate-spin text-teal-600 dark:text-emerald-400" />
                   Memuat informasi platform...
                 </div>
               ) : (
@@ -1134,6 +1227,7 @@ export default function AdminSettingsPage() {
                       placeholder="Contoh: Tim GradeUp"
                       maxLength={100}
                       aria-invalid={!!infoErr.name}
+                      className={inputField}
                     />
 
                     <FieldError message={infoErr.name} />
@@ -1160,6 +1254,7 @@ export default function AdminSettingsPage() {
                       placeholder="contoh@gradeup.id"
                       maxLength={254}
                       aria-invalid={!!infoErr.email}
+                      className={inputField}
                     />
 
                     <FieldError message={infoErr.email} />
@@ -1186,6 +1281,7 @@ export default function AdminSettingsPage() {
                       placeholder="+62..."
                       maxLength={30}
                       aria-invalid={!!infoErr.phone}
+                      className={inputField}
                     />
 
                     <FieldError message={infoErr.phone} />
@@ -1211,6 +1307,7 @@ export default function AdminSettingsPage() {
                       placeholder="Masukkan alamat kantor..."
                       maxLength={500}
                       aria-invalid={!!infoErr.address}
+                      className={inputField}
                     />
 
                     <FieldError message={infoErr.address} />
@@ -1220,7 +1317,7 @@ export default function AdminSettingsPage() {
                     <Button
                       type="submit"
                       disabled={savingInfo || loadingInfo}
-                      className="gap-2"
+                      className={`gap-2 ${primaryBtn}`}
                     >
                       {savingInfo ? (
                         <>
@@ -1240,15 +1337,19 @@ export default function AdminSettingsPage() {
             </CardContent>
           </Card>
 
-          <Card>
+          <Card className={cardGlass}>
+            <CardAccent via="via-emerald-400/70" />
+
             <CardHeader>
-              <CardTitle>Status Integrasi</CardTitle>
+              <CardTitle className={headingText}>
+                Status Integrasi
+              </CardTitle>
               <CardDescription>
                 Kesiapan layanan platform.
               </CardDescription>
             </CardHeader>
 
-            <CardContent className="max-w-2xl divide-y text-sm">
+            <CardContent className="max-w-2xl divide-y divide-slate-200/70 text-sm dark:divide-slate-800">
               {[
                 [
                   "Supabase (auth & database)",
@@ -1264,8 +1365,10 @@ export default function AdminSettingsPage() {
                   key={key}
                   className="flex items-center justify-between gap-4 py-3"
                 >
-                  <span className="font-semibold">{key}</span>
-                  <span className="text-right text-muted-foreground">
+                  <span className={`font-semibold ${headingText}`}>
+                    {key}
+                  </span>
+                  <span className={`text-right ${mutedSoft}`}>
                     {value}
                   </span>
                 </div>
@@ -1276,9 +1379,11 @@ export default function AdminSettingsPage() {
 
         {/* TAB TAMPILAN */}
         <TabsContent value="appearance">
-          <Card>
+          <Card className={cardGlass}>
+            <CardAccent via="via-teal-400/70" />
+
             <CardHeader>
-              <CardTitle>Tampilan</CardTitle>
+              <CardTitle className={headingText}>Tampilan</CardTitle>
               <CardDescription>
                 Mode terang atau gelap untuk perangkat ini.
               </CardDescription>
@@ -1292,15 +1397,19 @@ export default function AdminSettingsPage() {
 
         {/* TAB NOTIFIKASI */}
         <TabsContent value="notifications">
-          <Card>
+          <Card className={cardGlass}>
+            <CardAccent via="via-emerald-400/70" />
+
             <CardHeader>
-              <CardTitle>Notifikasi Admin</CardTitle>
+              <CardTitle className={headingText}>
+                Notifikasi Admin
+              </CardTitle>
               <CardDescription>
                 Pengaturan notifikasi ini masih berupa demo.
               </CardDescription>
             </CardHeader>
 
-            <CardContent className="max-w-2xl divide-y">
+            <CardContent className="max-w-2xl divide-y divide-slate-200/70 dark:divide-slate-800">
               <SettingRow
                 id="a-user"
                 title="Pengguna baru"
@@ -1346,6 +1455,7 @@ export default function AdminSettingsPage() {
                   onClick={() =>
                     toast.success("Notifikasi disimpan (demo)")
                   }
+                  className={primaryBtn}
                 >
                   Simpan
                 </Button>
