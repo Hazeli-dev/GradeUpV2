@@ -1,5 +1,10 @@
-
-import { useCallback, useEffect, useMemo, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+  type ReactNode,
+} from "react";
 import {
   Crown,
   Plus,
@@ -125,6 +130,67 @@ const emptyDraft = (): PlanDraft => ({
   is_active: false,
   sort_order: 0,
 });
+
+/* ------------------------------------------------------------------ */
+/* Dekorasi visual (murni tampilan, tidak interaktif)                  */
+/* ------------------------------------------------------------------ */
+
+const patternLine =
+  "[--gu-line:rgba(15,118,110,0.10)] dark:[--gu-line:rgba(52,211,153,0.09)]";
+
+const panelSurface =
+  "border border-emerald-200/70 bg-card/90 shadow-[0_16px_44px_-28px_rgba(15,118,110,0.4)] backdrop-blur-sm dark:border-emerald-900/40";
+
+const selectField =
+  "h-10 w-full appearance-none rounded-md border border-input bg-background pl-9 pr-8 text-xs font-medium outline-none transition-colors focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20";
+
+function PlansStyles() {
+  return (
+    <style>{`
+      @keyframes gu-drift {
+        0%, 100% { transform: translate3d(0, 0, 0) scale(1); }
+        50% { transform: translate3d(22px, -16px, 0) scale(1.07); }
+      }
+      @keyframes gu-drift-rev {
+        0%, 100% { transform: translate3d(0, 0, 0) scale(1); }
+        50% { transform: translate3d(-20px, 14px, 0) scale(1.06); }
+      }
+      @keyframes gu-reveal {
+        from { opacity: 0; transform: translate3d(0, 12px, 0); }
+        to { opacity: 1; transform: translate3d(0, 0, 0); }
+      }
+      .gu-drift { animation: gu-drift 20s ease-in-out infinite; }
+      .gu-drift-rev { animation: gu-drift-rev 24s ease-in-out infinite; }
+      .gu-reveal { animation: gu-reveal 0.6s cubic-bezier(0.22, 1, 0.36, 1) both; }
+
+      .gu-grid {
+        background-image:
+          linear-gradient(to right, var(--gu-line) 1px, transparent 1px),
+          linear-gradient(to bottom, var(--gu-line) 1px, transparent 1px);
+        background-size: 40px 40px;
+        -webkit-mask-image: radial-gradient(ellipse 80% 70% at 50% 0%, #000 20%, transparent 100%);
+        mask-image: radial-gradient(ellipse 80% 70% at 50% 0%, #000 20%, transparent 100%);
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        .gu-drift, .gu-drift-rev, .gu-reveal {
+          animation: none !important;
+        }
+      }
+    `}</style>
+  );
+}
+
+function DecorLayer({ children }: { children: ReactNode }) {
+  return (
+    <div
+      aria-hidden="true"
+      className="pointer-events-none absolute inset-0 -z-10 overflow-hidden"
+    >
+      {children}
+    </div>
+  );
+}
 
 export default function AdminPremiumPlansPage() {
   const [items, setItems] = useState<PremiumPlan[]>([]);
@@ -399,41 +465,67 @@ export default function AdminPremiumPlansPage() {
   };
 
   return (
-    <div className="min-w-0 space-y-6 pb-10">
-      {/* HEADER */}
-      <PageHeader
-        title="Manajemen Paket Premium"
-        description="Kelola produk langganan, harga, durasi, dan ketersediaan paket GradeUp."
-        actions={
-          <div className="flex flex-wrap items-center gap-2">
-            <Button
-              variant="outline"
-              onClick={() => void fetchData()}
-              disabled={loading}
-              className="h-9 gap-2"
-            >
-              <RefreshCw
-                className={`h-4 w-4 ${loading ? "animate-spin" : ""}`}
-              />
-              <span className="hidden sm:inline">Muat Ulang</span>
-              <span className="sm:hidden">Refresh</span>
-            </Button>
+    <div className="relative isolate min-w-0 space-y-6 pb-10">
+      <PlansStyles />
 
-            <Button onClick={openCreate} className="h-9 gap-2">
-              <Plus className="h-4 w-4" />
-              Tambah Paket
-            </Button>
-          </div>
-        }
-      />
+      <DecorLayer>
+        <div className={`gu-grid absolute inset-0 ${patternLine}`} />
+        <div className="gu-drift absolute -right-24 -top-24 h-80 w-80 rounded-full bg-emerald-300/30 blur-3xl dark:bg-emerald-600/10" />
+        <div className="gu-drift-rev absolute -left-24 top-1/3 h-72 w-72 rounded-full bg-teal-300/25 blur-3xl dark:bg-teal-600/10" />
+      </DecorLayer>
+
+      {/* HEADER */}
+      <div className="gu-reveal relative overflow-hidden rounded-3xl border border-emerald-200/70 bg-gradient-to-br from-emerald-100/80 via-white/70 to-teal-100/70 p-5 shadow-[0_20px_50px_-30px_rgba(15,118,110,0.45)] backdrop-blur-sm dark:border-emerald-900/40 dark:from-emerald-950/60 dark:via-slate-900/60 dark:to-teal-950/50 sm:p-6">
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-0 overflow-hidden"
+        >
+          <div className="absolute -right-16 -top-20 h-56 w-56 rounded-full bg-emerald-400/30 blur-3xl dark:bg-emerald-500/15" />
+          <div className="absolute -bottom-24 left-1/3 h-52 w-52 rounded-full bg-teal-400/20 blur-3xl dark:bg-teal-500/10" />
+          <div className="absolute -right-10 top-6 h-40 w-40 rounded-full border border-emerald-400/30 dark:border-emerald-400/10" />
+          <div className="absolute inset-x-6 top-0 h-px bg-gradient-to-r from-transparent via-emerald-400/60 to-transparent dark:via-emerald-500/30" />
+        </div>
+
+        <div className="relative">
+          <PageHeader
+            title="Manajemen Paket Premium"
+            description="Kelola produk langganan, harga, durasi, dan ketersediaan paket GradeUp."
+            actions={
+              <div className="flex flex-wrap items-center gap-2">
+                <Button
+                  variant="outline"
+                  onClick={() => void fetchData()}
+                  disabled={loading}
+                  className="h-9 gap-2 bg-background/70 backdrop-blur"
+                >
+                  <RefreshCw
+                    className={`h-4 w-4 ${loading ? "animate-spin" : ""}`}
+                  />
+                  <span className="hidden sm:inline">Muat Ulang</span>
+                  <span className="sm:hidden">Refresh</span>
+                </Button>
+
+                <Button
+                  onClick={openCreate}
+                  className="h-9 gap-2 shadow-lg shadow-emerald-700/20"
+                >
+                  <Plus className="h-4 w-4" />
+                  Tambah Paket
+                </Button>
+              </div>
+            }
+          />
+        </div>
+      </div>
 
       {/* PAGE INTRO */}
-      <Card className="overflow-hidden border-primary/15 shadow-sm">
+      <Card className={`overflow-hidden ${panelSurface}`}>
         <CardContent className="relative flex flex-col gap-4 p-5 sm:flex-row sm:items-center sm:justify-between sm:p-6">
-          <div className="pointer-events-none absolute -right-10 -top-16 h-48 w-48 rounded-full bg-primary/5 blur-3xl" />
+          <div className="pointer-events-none absolute -right-10 -top-16 h-48 w-48 rounded-full bg-emerald-400/20 blur-3xl dark:bg-emerald-500/10" />
+          <div className="pointer-events-none absolute -bottom-20 left-1/4 h-40 w-40 rounded-full bg-teal-400/15 blur-3xl dark:bg-teal-500/10" />
 
           <div className="relative flex min-w-0 items-start gap-4">
-            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
+            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-emerald-500 to-teal-600 text-white shadow-lg shadow-emerald-700/25">
               <Crown className="h-6 w-6" />
             </div>
 
@@ -442,7 +534,10 @@ export default function AdminPremiumPlansPage() {
                 <h2 className="text-base font-bold tracking-tight">
                   Pengelolaan Produk Langganan
                 </h2>
-                <Badge variant="outline" className="text-[10px]">
+                <Badge
+                  variant="outline"
+                  className="border-emerald-300/70 text-[10px] text-emerald-700 dark:border-emerald-800 dark:text-emerald-300"
+                >
                   ADMIN CONTROL
                 </Badge>
               </div>
@@ -455,7 +550,7 @@ export default function AdminPremiumPlansPage() {
             </div>
           </div>
 
-          <div className="relative flex shrink-0 items-center gap-2 rounded-lg border bg-muted/30 px-3 py-2">
+          <div className="relative flex shrink-0 items-center gap-2 rounded-lg border border-emerald-200/70 bg-background/70 px-3 py-2 backdrop-blur dark:border-emerald-900/40">
             <ShieldCheck className="h-4 w-4 text-emerald-600" />
             <div>
               <p className="text-[10px] font-medium text-muted-foreground">
@@ -469,8 +564,12 @@ export default function AdminPremiumPlansPage() {
 
       {/* SUMMARY */}
       <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        <Card>
-          <CardContent className="flex items-center gap-3 p-4">
+        <Card className={`group relative overflow-hidden transition-all duration-300 hover:-translate-y-0.5 motion-reduce:transition-none motion-reduce:hover:translate-y-0 ${panelSurface}`}>
+          <span
+            aria-hidden="true"
+            className="pointer-events-none absolute -bottom-12 -right-12 h-32 w-32 rounded-full bg-emerald-400/20 blur-3xl dark:bg-emerald-500/10"
+          />
+          <CardContent className="relative flex items-center gap-3 p-4">
             <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
               <Layers3 className="h-5 w-5" />
             </div>
@@ -483,8 +582,12 @@ export default function AdminPremiumPlansPage() {
           </CardContent>
         </Card>
 
-        <Card>
-          <CardContent className="flex items-center gap-3 p-4">
+        <Card className={`group relative overflow-hidden transition-all duration-300 hover:-translate-y-0.5 motion-reduce:transition-none motion-reduce:hover:translate-y-0 ${panelSurface}`}>
+          <span
+            aria-hidden="true"
+            className="pointer-events-none absolute -bottom-12 -right-12 h-32 w-32 rounded-full bg-emerald-400/25 blur-3xl dark:bg-emerald-500/10"
+          />
+          <CardContent className="relative flex items-center gap-3 p-4">
             <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-emerald-500/10 text-emerald-600">
               <CheckCircle2 className="h-5 w-5" />
             </div>
@@ -497,8 +600,12 @@ export default function AdminPremiumPlansPage() {
           </CardContent>
         </Card>
 
-        <Card>
-          <CardContent className="flex items-center gap-3 p-4">
+        <Card className={`group relative overflow-hidden transition-all duration-300 hover:-translate-y-0.5 motion-reduce:transition-none motion-reduce:hover:translate-y-0 ${panelSurface}`}>
+          <span
+            aria-hidden="true"
+            className="pointer-events-none absolute -bottom-12 -right-12 h-32 w-32 rounded-full bg-amber-400/20 blur-3xl dark:bg-amber-500/10"
+          />
+          <CardContent className="relative flex items-center gap-3 p-4">
             <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-amber-500/10 text-amber-600">
               <XCircle className="h-5 w-5" />
             </div>
@@ -511,8 +618,12 @@ export default function AdminPremiumPlansPage() {
           </CardContent>
         </Card>
 
-        <Card>
-          <CardContent className="flex items-center gap-3 p-4">
+        <Card className={`group relative overflow-hidden transition-all duration-300 hover:-translate-y-0.5 motion-reduce:transition-none motion-reduce:hover:translate-y-0 ${panelSurface}`}>
+          <span
+            aria-hidden="true"
+            className="pointer-events-none absolute -bottom-12 -right-12 h-32 w-32 rounded-full bg-blue-400/20 blur-3xl dark:bg-blue-500/10"
+          />
+          <CardContent className="relative flex items-center gap-3 p-4">
             <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-blue-500/10 text-blue-600">
               <CircleDollarSign className="h-5 w-5" />
             </div>
@@ -544,14 +655,14 @@ export default function AdminPremiumPlansPage() {
           </div>
 
           {!loading && !error && (
-            <span className="text-xs text-muted-foreground">
+            <span className="rounded-full border border-emerald-200/70 bg-background/70 px-3 py-1 text-xs text-muted-foreground backdrop-blur dark:border-emerald-900/40">
               {filteredItems.length} dari {items.length} paket
             </span>
           )}
         </div>
 
         {/* FILTER TOOLBAR */}
-        <Card>
+        <Card className={panelSurface}>
           <CardContent className="flex flex-col gap-3 p-3 sm:flex-row sm:items-center sm:p-4">
             <div className="relative min-w-0 flex-1">
               <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
@@ -582,7 +693,7 @@ export default function AdminPremiumPlansPage() {
                   onChange={(event) =>
                     setStatusFilter(event.target.value as StatusFilter)
                   }
-                  className="h-10 w-full appearance-none rounded-md border border-input bg-background pl-9 pr-8 text-xs font-medium outline-none transition-colors focus:ring-2 focus:ring-ring sm:w-36"
+                  className={`${selectField} sm:w-36`}
                 >
                   <option value="all">Semua Status</option>
                   <option value="active">Aktif</option>
@@ -599,7 +710,7 @@ export default function AdminPremiumPlansPage() {
                   onChange={(event) =>
                     setSortBy(event.target.value as SortOption)
                   }
-                  className="h-10 w-full appearance-none rounded-md border border-input bg-background pl-9 pr-8 text-xs font-medium outline-none transition-colors focus:ring-2 focus:ring-ring sm:w-40"
+                  className={`${selectField} sm:w-40`}
                 >
                   <option value="position">Urutan tampilan</option>
                   <option value="name">Nama paket</option>
@@ -620,7 +731,7 @@ export default function AdminPremiumPlansPage() {
             onRetry={() => void fetchData()}
           />
         ) : items.length === 0 ? (
-          <div className="rounded-xl border border-dashed px-4 py-10">
+          <div className="rounded-xl border border-dashed border-emerald-300/70 bg-card/60 px-4 py-10 backdrop-blur-sm dark:border-emerald-800/50">
             <EmptyState
               title="Belum ada paket Premium"
               description="Tambahkan paket pertama untuk mulai mengelola langganan GradeUp."
@@ -633,7 +744,7 @@ export default function AdminPremiumPlansPage() {
             />
           </div>
         ) : filteredItems.length === 0 ? (
-          <div className="rounded-xl border border-dashed px-4 py-10">
+          <div className="rounded-xl border border-dashed border-emerald-300/70 bg-card/60 px-4 py-10 backdrop-blur-sm dark:border-emerald-800/50">
             <EmptyState
               title="Data tidak ditemukan"
               description="Tidak ada paket yang sesuai dengan pencarian atau filter."
@@ -652,11 +763,13 @@ export default function AdminPremiumPlansPage() {
             />
           </div>
         ) : (
-          <Card className="overflow-hidden">
+          <Card className={`overflow-hidden ${panelSurface}`}>
             {/* TABLE HEADER */}
-            <div className="flex flex-col gap-1 border-b bg-muted/30 px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-5">
+            <div className="flex flex-col gap-1 border-b border-emerald-100 bg-gradient-to-r from-emerald-50/80 via-transparent to-teal-50/60 px-4 py-3 dark:border-emerald-900/30 dark:from-emerald-950/30 dark:to-teal-950/20 sm:flex-row sm:items-center sm:justify-between sm:px-5">
               <div className="flex items-center gap-2">
-                <Package className="h-4 w-4 text-primary" />
+                <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-emerald-100 dark:bg-emerald-950">
+                  <Package className="h-4 w-4 text-emerald-600" />
+                </span>
                 <p className="text-sm font-semibold">Data Paket Premium</p>
               </div>
               <p className="text-[11px] text-muted-foreground">
@@ -668,7 +781,7 @@ export default function AdminPremiumPlansPage() {
             <div className="hidden overflow-x-auto md:block">
               <table className="w-full min-w-[850px] text-left">
                 <thead>
-                  <tr className="border-b bg-muted/20">
+                  <tr className="border-b border-emerald-100 bg-emerald-50/60 dark:border-emerald-900/30 dark:bg-emerald-950/20">
                     <th className="w-12 px-5 py-3 text-center text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
                       No.
                     </th>
@@ -693,11 +806,11 @@ export default function AdminPremiumPlansPage() {
                   </tr>
                 </thead>
 
-                <tbody className="divide-y">
+                <tbody className="divide-y divide-emerald-100/80 dark:divide-emerald-900/25">
                   {filteredItems.map((item, index) => (
                     <tr
                       key={item.id}
-                      className="group transition-colors hover:bg-muted/20"
+                      className="group transition-colors hover:bg-emerald-50/70 dark:hover:bg-emerald-950/25"
                     >
                       <td className="px-5 py-4 text-center text-xs tabular-nums text-muted-foreground">
                         {index + 1}
@@ -708,7 +821,7 @@ export default function AdminPremiumPlansPage() {
                           <div
                             className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg ${
                               item.is_active
-                                ? "bg-primary/10 text-primary"
+                                ? "bg-gradient-to-br from-emerald-500 to-teal-600 text-white shadow-md shadow-emerald-700/20"
                                 : "bg-muted text-muted-foreground"
                             }`}
                           >
@@ -743,13 +856,16 @@ export default function AdminPremiumPlansPage() {
 
                       <td className="px-4 py-4">
                         <div className="flex items-center gap-1.5 whitespace-nowrap text-xs font-medium">
-                          <CalendarDays className="h-3.5 w-3.5 text-muted-foreground" />
+                          <CalendarDays className="h-3.5 w-3.5 text-emerald-600/70" />
                           {formatDuration(item.duration_months)}
                         </div>
                       </td>
 
                       <td className="px-4 py-4 text-center">
-                        <Badge variant="outline" className="font-medium">
+                        <Badge
+                          variant="outline"
+                          className="border-emerald-200 bg-emerald-50/60 font-medium dark:border-emerald-900/60 dark:bg-emerald-950/30"
+                        >
                           {item.features.length} fasilitas
                         </Badge>
                       </td>
@@ -773,7 +889,7 @@ export default function AdminPremiumPlansPage() {
                           <Button
                             size="sm"
                             variant="outline"
-                            className="h-8 gap-1.5"
+                            className="h-8 gap-1.5 bg-background/70 hover:border-emerald-400/60 hover:bg-emerald-50 dark:hover:bg-emerald-950/30"
                             onClick={() => openEdit(item)}
                           >
                             <Pencil className="h-3.5 w-3.5" />
@@ -807,12 +923,12 @@ export default function AdminPremiumPlansPage() {
             </div>
 
             {/* MOBILE LIST */}
-            <div className="divide-y md:hidden">
+            <div className="divide-y divide-emerald-100/80 dark:divide-emerald-900/25 md:hidden">
               {filteredItems.map((item, index) => (
                 <div key={item.id} className="space-y-3 p-4">
                   <div className="flex items-start justify-between gap-3">
                     <div className="flex min-w-0 items-start gap-3">
-                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-emerald-500 to-teal-600 text-white shadow-md shadow-emerald-700/20">
                         <Crown className="h-5 w-5" />
                       </div>
                       <div className="min-w-0">
@@ -831,7 +947,7 @@ export default function AdminPremiumPlansPage() {
                     </Badge>
                   </div>
 
-                  <div className="grid grid-cols-2 gap-3 rounded-lg bg-muted/30 p-3">
+                  <div className="grid grid-cols-2 gap-3 rounded-lg border border-emerald-100 bg-emerald-50/50 p-3 dark:border-emerald-900/30 dark:bg-emerald-950/20">
                     <div>
                       <p className="text-[10px] text-muted-foreground">
                         Harga
@@ -905,7 +1021,7 @@ export default function AdminPremiumPlansPage() {
             </div>
 
             {/* TABLE FOOTER */}
-            <div className="flex flex-col gap-1 border-t bg-muted/20 px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-5">
+            <div className="flex flex-col gap-1 border-t border-emerald-100 bg-gradient-to-r from-emerald-50/70 via-transparent to-teal-50/60 px-4 py-3 dark:border-emerald-900/30 dark:from-emerald-950/25 dark:to-teal-950/20 sm:flex-row sm:items-center sm:justify-between sm:px-5">
               <p className="text-[11px] text-muted-foreground">
                 Menampilkan {filteredItems.length} paket
               </p>
@@ -927,12 +1043,17 @@ export default function AdminPremiumPlansPage() {
           }
         }}
       >
-        <DialogContent className="flex max-h-[92vh] flex-col gap-0 overflow-hidden p-0 sm:max-w-2xl">
+        <DialogContent className="flex max-h-[92vh] flex-col gap-0 overflow-hidden border-emerald-200/70 p-0 dark:border-emerald-900/50 sm:max-w-2xl">
           {draft && (
             <>
-              <DialogHeader className="border-b px-5 py-4 text-left sm:px-6">
+              <div
+                aria-hidden="true"
+                className="pointer-events-none absolute inset-x-0 top-0 z-10 h-1 bg-gradient-to-r from-emerald-400 via-teal-400 to-emerald-500"
+              />
+
+              <DialogHeader className="border-b border-emerald-100 px-5 py-4 text-left dark:border-emerald-900/30 sm:px-6">
                 <div className="flex items-center gap-3">
-                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-emerald-500 to-teal-600 text-white shadow-md shadow-emerald-700/20">
                     {draft.id ? (
                       <Pencil className="h-5 w-5" />
                     ) : (
@@ -953,8 +1074,8 @@ export default function AdminPremiumPlansPage() {
               <div className="flex-1 space-y-6 overflow-y-auto px-5 py-5 sm:px-6">
                 {/* IDENTITAS */}
                 <section className="space-y-3">
-                  <div className="flex items-center gap-2 border-b pb-2">
-                    <Package className="h-4 w-4 text-primary" />
+                  <div className="flex items-center gap-2 border-b border-emerald-100 pb-2 dark:border-emerald-900/30">
+                    <Package className="h-4 w-4 text-emerald-600" />
                     <div>
                       <h4 className="text-sm font-bold">
                         Identitas Paket
@@ -1034,8 +1155,8 @@ export default function AdminPremiumPlansPage() {
 
                 {/* HARGA DAN DURASI */}
                 <section className="space-y-3">
-                  <div className="flex items-center gap-2 border-b pb-2">
-                    <CircleDollarSign className="h-4 w-4 text-primary" />
+                  <div className="flex items-center gap-2 border-b border-emerald-100 pb-2 dark:border-emerald-900/30">
+                    <CircleDollarSign className="h-4 w-4 text-emerald-600" />
                     <div>
                       <h4 className="text-sm font-bold">
                         Harga dan Durasi
@@ -1090,7 +1211,7 @@ export default function AdminPremiumPlansPage() {
                           })
                         }
                         disabled={saving}
-                        className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring disabled:opacity-50"
+                        className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 disabled:opacity-50"
                       >
                         {DURATION_OPTIONS.map((duration) => (
                           <option key={duration} value={duration}>
@@ -1109,8 +1230,8 @@ export default function AdminPremiumPlansPage() {
 
                 {/* FASILITAS */}
                 <section className="space-y-3">
-                  <div className="flex items-center gap-2 border-b pb-2">
-                    <CheckCircle2 className="h-4 w-4 text-primary" />
+                  <div className="flex items-center gap-2 border-b border-emerald-100 pb-2 dark:border-emerald-900/30">
+                    <CheckCircle2 className="h-4 w-4 text-emerald-600" />
                     <div>
                       <h4 className="text-sm font-bold">
                         Fasilitas Paket
@@ -1140,8 +1261,8 @@ export default function AdminPremiumPlansPage() {
 
                 {/* PENGATURAN */}
                 <section className="space-y-3">
-                  <div className="flex items-center gap-2 border-b pb-2">
-                    <Power className="h-4 w-4 text-primary" />
+                  <div className="flex items-center gap-2 border-b border-emerald-100 pb-2 dark:border-emerald-900/30">
+                    <Power className="h-4 w-4 text-emerald-600" />
                     <div>
                       <h4 className="text-sm font-bold">
                         Pengaturan Publikasi
@@ -1176,7 +1297,7 @@ export default function AdminPremiumPlansPage() {
                     </p>
                   </div>
 
-                  <div className="flex items-center justify-between gap-3 rounded-lg border p-4">
+                  <div className="flex items-center justify-between gap-3 rounded-lg border border-emerald-200/70 bg-gradient-to-br from-emerald-50/60 to-transparent p-4 dark:border-emerald-900/40 dark:from-emerald-950/20">
                     <div className="flex min-w-0 items-center gap-3">
                       <div
                         className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${
@@ -1238,7 +1359,7 @@ export default function AdminPremiumPlansPage() {
                 </section>
               </div>
 
-              <DialogFooter className="border-t bg-muted/20 px-5 py-4 sm:px-6">
+              <DialogFooter className="border-t border-emerald-100 bg-gradient-to-r from-emerald-50/60 via-transparent to-teal-50/50 px-5 py-4 dark:border-emerald-900/30 dark:from-emerald-950/20 dark:to-teal-950/15 sm:px-6">
                 <Button
                   variant="outline"
                   onClick={() => {
@@ -1252,7 +1373,7 @@ export default function AdminPremiumPlansPage() {
                 <Button
                   onClick={() => void save()}
                   disabled={saving}
-                  className="gap-2"
+                  className="gap-2 shadow-lg shadow-emerald-700/20"
                 >
                   {saving ? (
                     <>
@@ -1278,7 +1399,7 @@ export default function AdminPremiumPlansPage() {
 
       {/* INFORMATION */}
       {!loading && !error && items.length > 0 && (
-        <div className="flex items-start gap-3 rounded-xl border border-amber-500/20 bg-amber-500/5 p-4">
+        <div className="flex items-start gap-3 rounded-xl border border-amber-500/25 bg-gradient-to-br from-amber-50/80 to-amber-500/5 p-4 shadow-sm dark:from-amber-950/20 dark:to-amber-500/5">
           <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-amber-500/10 text-amber-600">
             <AlertTriangle className="h-4 w-4" />
           </div>
