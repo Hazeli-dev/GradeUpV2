@@ -1,5 +1,4 @@
-
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import {
   AlertTriangle,
@@ -66,6 +65,78 @@ interface ExamRule {
   title: string;
   description: string;
   icon: typeof Clock;
+}
+
+/* ------------------------------------------------------------------ */
+/* Dekorasi visual (murni tampilan, tidak interaktif)                  */
+/* ------------------------------------------------------------------ */
+
+const patternLine =
+  "[--gu-line:rgba(15,118,110,0.10)] dark:[--gu-line:rgba(52,211,153,0.09)]";
+const patternLineInverse = "[--gu-line:rgba(167,243,208,0.12)]";
+
+const panelSurface =
+  "border border-emerald-200/70 bg-card/90 shadow-[0_16px_44px_-28px_rgba(15,118,110,0.4)] backdrop-blur-sm dark:border-emerald-900/40";
+
+function ExamDetailStyles() {
+  return (
+    <style>{`
+      @keyframes gu-drift {
+        0%, 100% { transform: translate3d(0, 0, 0) scale(1); }
+        50% { transform: translate3d(22px, -16px, 0) scale(1.07); }
+      }
+      @keyframes gu-drift-rev {
+        0%, 100% { transform: translate3d(0, 0, 0) scale(1); }
+        50% { transform: translate3d(-20px, 14px, 0) scale(1.06); }
+      }
+      @keyframes gu-float {
+        0%, 100% { transform: translate3d(0, 0, 0); }
+        50% { transform: translate3d(0, -10px, 0); }
+      }
+      @keyframes gu-reveal {
+        from { opacity: 0; transform: translate3d(0, 14px, 0); }
+        to { opacity: 1; transform: translate3d(0, 0, 0); }
+      }
+      .gu-drift { animation: gu-drift 20s ease-in-out infinite; }
+      .gu-drift-rev { animation: gu-drift-rev 24s ease-in-out infinite; }
+      .gu-float { animation: gu-float 8s ease-in-out infinite; }
+      .gu-reveal { animation: gu-reveal 0.7s cubic-bezier(0.22, 1, 0.36, 1) both; }
+
+      .gu-grid {
+        background-image:
+          linear-gradient(to right, var(--gu-line) 1px, transparent 1px),
+          linear-gradient(to bottom, var(--gu-line) 1px, transparent 1px);
+        background-size: 40px 40px;
+        -webkit-mask-image: radial-gradient(ellipse 80% 70% at 50% 0%, #000 20%, transparent 100%);
+        mask-image: radial-gradient(ellipse 80% 70% at 50% 0%, #000 20%, transparent 100%);
+      }
+      .gu-grid-hero {
+        background-image:
+          linear-gradient(to right, var(--gu-line) 1px, transparent 1px),
+          linear-gradient(to bottom, var(--gu-line) 1px, transparent 1px);
+        background-size: 36px 36px;
+        -webkit-mask-image: radial-gradient(ellipse 85% 85% at 70% 30%, #000 20%, transparent 100%);
+        mask-image: radial-gradient(ellipse 85% 85% at 70% 30%, #000 20%, transparent 100%);
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        .gu-drift, .gu-drift-rev, .gu-float, .gu-reveal {
+          animation: none !important;
+        }
+      }
+    `}</style>
+  );
+}
+
+function DecorLayer({ children }: { children: ReactNode }) {
+  return (
+    <div
+      aria-hidden="true"
+      className="pointer-events-none absolute inset-0 -z-10 overflow-hidden"
+    >
+      {children}
+    </div>
+  );
 }
 
 export default function StudentExamDetailPage() {
@@ -365,6 +436,7 @@ export default function StudentExamDetailPage() {
       description: "Waktu pengerjaan",
       color: "text-sky-600 dark:text-sky-400",
       background: "bg-sky-500/10",
+      glow: "bg-sky-400/20 dark:bg-sky-500/10",
     },
     {
       label: "Jumlah soal",
@@ -373,6 +445,7 @@ export default function StudentExamDetailPage() {
       description: "Total pertanyaan",
       color: "text-violet-600 dark:text-violet-400",
       background: "bg-violet-500/10",
+      glow: "bg-violet-400/20 dark:bg-violet-500/10",
     },
     {
       label: "Tingkat",
@@ -381,6 +454,7 @@ export default function StudentExamDetailPage() {
       description: "Kesulitan ujian",
       color: "text-amber-600 dark:text-amber-400",
       background: "bg-amber-500/10",
+      glow: "bg-amber-400/20 dark:bg-amber-500/10",
     },
     {
       label: "Peserta",
@@ -389,6 +463,7 @@ export default function StudentExamDetailPage() {
       description: "Jumlah peserta",
       color: "text-emerald-600 dark:text-emerald-400",
       background: "bg-emerald-500/10",
+      glow: "bg-emerald-400/25 dark:bg-emerald-500/10",
     },
   ];
 
@@ -397,32 +472,74 @@ export default function StudentExamDetailPage() {
   // =========================================================
 
   return (
-    <div className="w-full space-y-6 pb-12 text-foreground">
+    <div className="relative isolate w-full space-y-6 pb-12 text-foreground">
+      <ExamDetailStyles />
+
+      <DecorLayer>
+        <div className={`gu-grid absolute inset-0 ${patternLine}`} />
+        <div className="gu-drift absolute -right-24 top-40 h-80 w-80 rounded-full bg-emerald-300/30 blur-3xl dark:bg-emerald-600/10" />
+        <div className="gu-drift-rev absolute -left-24 top-2/3 h-72 w-72 rounded-full bg-teal-300/25 blur-3xl dark:bg-teal-600/10" />
+      </DecorLayer>
+
       {/* NAVIGATION */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <Link
           to="/dashboard/exams"
-          className="group inline-flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-semibold text-muted-foreground transition-all hover:bg-muted hover:text-foreground"
+          className="group inline-flex items-center gap-2 rounded-xl border border-transparent px-3 py-2 text-sm font-semibold text-muted-foreground transition-all hover:border-emerald-200/70 hover:bg-card/80 hover:text-foreground dark:hover:border-emerald-900/40"
         >
           <ArrowLeft className="h-4 w-4 transition-transform group-hover:-translate-x-1" />
           Kembali ke Paket Ujian
         </Link>
 
-        <div className="inline-flex items-center gap-2 text-xs font-medium text-muted-foreground">
+        <div className="inline-flex items-center gap-2 rounded-full border border-emerald-200/70 bg-card/70 px-3 py-1.5 text-xs font-medium text-muted-foreground backdrop-blur dark:border-emerald-900/40">
           <GraduationCap className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
           GradeUp Exam Center
         </div>
       </div>
 
       {/* HERO */}
-      <section className="relative isolate overflow-hidden rounded-[28px] border border-emerald-500/20 bg-slate-950 shadow-xl shadow-emerald-950/10">
+      <section className="gu-reveal relative isolate overflow-hidden rounded-[28px] border border-emerald-400/25 bg-slate-950 shadow-[0_30px_80px_-35px_rgba(6,78,59,0.65)] ring-1 ring-inset ring-white/10">
         <div className="absolute inset-0 -z-10 bg-gradient-to-br from-emerald-700 via-teal-800 to-slate-950" />
 
-        <div className="absolute -right-20 -top-28 -z-10 h-80 w-80 rounded-full bg-emerald-400/20 blur-3xl" />
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-0 -z-10 bg-[radial-gradient(circle_at_15%_0%,rgba(52,211,153,0.28),transparent_50%),radial-gradient(circle_at_95%_100%,rgba(34,211,238,0.16),transparent_45%)]"
+        />
 
-        <div className="absolute -bottom-32 left-1/3 -z-10 h-80 w-80 rounded-full bg-cyan-400/10 blur-3xl" />
+        <div
+          aria-hidden="true"
+          className={`gu-grid-hero pointer-events-none absolute inset-0 -z-10 ${patternLineInverse}`}
+        />
 
-        <div className="absolute right-6 top-6 hidden opacity-[0.07] sm:block">
+        <div
+          aria-hidden="true"
+          className="gu-drift pointer-events-none absolute -right-20 -top-28 -z-10 h-80 w-80 rounded-full bg-emerald-400/25 blur-3xl"
+        />
+
+        <div
+          aria-hidden="true"
+          className="gu-drift-rev pointer-events-none absolute -bottom-32 left-1/3 -z-10 h-80 w-80 rounded-full bg-cyan-400/15 blur-3xl"
+        />
+
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute -bottom-24 -left-16 -z-10 h-64 w-64 rounded-full border border-emerald-300/15"
+        />
+
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute right-[30%] top-0 -z-10 hidden h-24 w-24 rotate-12 rounded-3xl border border-white/10 bg-white/5 sm:block"
+        />
+
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-x-10 top-0 -z-10 h-px bg-gradient-to-r from-transparent via-emerald-200/60 to-transparent"
+        />
+
+        <div
+          aria-hidden="true"
+          className="gu-float pointer-events-none absolute right-6 top-6 hidden opacity-[0.08] sm:block"
+        >
           <ClipboardCheck className="h-52 w-52 text-white" />
         </div>
 
@@ -460,17 +577,17 @@ export default function StudentExamDetailPage() {
           </div>
 
           <div className="mt-7 flex flex-wrap items-center gap-3">
-            <div className="inline-flex items-center gap-2 rounded-xl border border-white/15 bg-white/10 px-3.5 py-2.5 text-xs font-semibold text-white backdrop-blur-md">
+            <div className="inline-flex items-center gap-2 rounded-xl border border-white/15 bg-white/10 px-3.5 py-2.5 text-xs font-semibold text-white shadow-lg shadow-black/10 backdrop-blur-md">
               <BookOpen className="h-4 w-4 text-emerald-200" />
               {exam.questionCount} Pertanyaan
             </div>
 
-            <div className="inline-flex items-center gap-2 rounded-xl border border-white/15 bg-white/10 px-3.5 py-2.5 text-xs font-semibold text-white backdrop-blur-md">
+            <div className="inline-flex items-center gap-2 rounded-xl border border-white/15 bg-white/10 px-3.5 py-2.5 text-xs font-semibold text-white shadow-lg shadow-black/10 backdrop-blur-md">
               <Clock className="h-4 w-4 text-emerald-200" />
               {formatDuration(exam.duration)}
             </div>
 
-            <div className="inline-flex items-center gap-2 rounded-xl border border-white/15 bg-white/10 px-3.5 py-2.5 text-xs font-semibold text-white backdrop-blur-md">
+            <div className="inline-flex items-center gap-2 rounded-xl border border-white/15 bg-white/10 px-3.5 py-2.5 text-xs font-semibold text-white shadow-lg shadow-black/10 backdrop-blur-md">
               <Users className="h-4 w-4 text-emerald-200" />
               {exam.participants.toLocaleString("id-ID")} Peserta
             </div>
@@ -489,9 +606,14 @@ export default function StudentExamDetailPage() {
               return (
                 <Card
                   key={stat.label}
-                  className="rounded-2xl border-border bg-card shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md"
+                  className={`group relative overflow-hidden rounded-2xl transition-all duration-300 hover:-translate-y-0.5 hover:border-emerald-400/60 hover:shadow-[0_24px_50px_-28px_rgba(15,118,110,0.5)] motion-reduce:transition-none motion-reduce:hover:translate-y-0 ${panelSurface}`}
                 >
-                  <CardContent className="p-4">
+                  <span
+                    aria-hidden="true"
+                    className={`pointer-events-none absolute -bottom-12 -right-12 h-32 w-32 rounded-full blur-3xl ${stat.glow}`}
+                  />
+
+                  <CardContent className="relative p-4">
                     <div
                       className={cn(
                         "flex h-10 w-10 items-center justify-center rounded-xl",
@@ -520,10 +642,10 @@ export default function StudentExamDetailPage() {
           </section>
 
           {/* INSTRUCTIONS */}
-          <Card className="overflow-hidden rounded-2xl border-border bg-card shadow-sm">
-            <CardHeader className="border-b border-border bg-muted/20 px-5 py-5 sm:px-6">
+          <Card className={`overflow-hidden rounded-2xl ${panelSurface}`}>
+            <CardHeader className="border-b border-emerald-100 bg-gradient-to-r from-emerald-50/80 via-transparent to-teal-50/60 px-5 py-5 dark:border-emerald-900/30 dark:from-emerald-950/30 dark:to-teal-950/20 sm:px-6">
               <div className="flex items-center gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-emerald-500 to-teal-600 text-white shadow-md shadow-emerald-700/20">
                   <ClipboardList className="h-5 w-5" />
                 </div>
 
@@ -547,12 +669,12 @@ export default function StudentExamDetailPage() {
                   return (
                     <div key={rule.title} className="flex gap-3.5">
                       <div className="relative">
-                        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-border bg-muted/60 text-muted-foreground">
-                          <Icon className="h-4.5 w-4.5" />
+                        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-emerald-200/80 bg-emerald-50/70 text-emerald-700 dark:border-emerald-900/50 dark:bg-emerald-950/40 dark:text-emerald-300">
+                          <Icon className="h-[18px] w-[18px]" />
                         </div>
 
                         {index !== rules.length - 1 && (
-                          <div className="absolute left-1/2 top-11 h-5 w-px -translate-x-1/2 bg-border" />
+                          <div className="absolute left-1/2 top-11 h-5 w-px -translate-x-1/2 bg-gradient-to-b from-emerald-300/70 to-transparent dark:from-emerald-700/50" />
                         )}
                       </div>
 
@@ -579,8 +701,13 @@ export default function StudentExamDetailPage() {
           </Card>
 
           {/* PREPARATION NOTE */}
-          <div className="rounded-2xl border border-sky-500/20 bg-sky-500/5 p-4 sm:p-5">
-            <div className="flex items-start gap-3">
+          <div className="relative overflow-hidden rounded-2xl border border-sky-500/25 bg-gradient-to-br from-sky-50/80 to-sky-500/5 p-4 shadow-sm backdrop-blur-sm dark:from-sky-950/20 dark:to-sky-500/5 sm:p-5">
+            <span
+              aria-hidden="true"
+              className="pointer-events-none absolute -right-10 -top-10 h-32 w-32 rounded-full bg-sky-400/20 blur-3xl dark:bg-sky-500/10"
+            />
+
+            <div className="relative flex items-start gap-3">
               <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-sky-500/10 text-sky-600 dark:text-sky-400">
                 <Info className="h-4 w-4" />
               </div>
@@ -603,10 +730,15 @@ export default function StudentExamDetailPage() {
         {/* RIGHT SIDEBAR */}
         <aside className="space-y-5 lg:sticky lg:top-5">
           {/* START EXAM CARD */}
-          <Card className="overflow-hidden rounded-2xl border-border bg-card shadow-md">
-            <div className="h-1.5 bg-gradient-to-r from-emerald-500 via-teal-500 to-cyan-500" />
+          <Card className={`relative overflow-hidden rounded-2xl shadow-[0_24px_60px_-30px_rgba(15,118,110,0.55)] ${panelSurface}`}>
+            <span
+              aria-hidden="true"
+              className="pointer-events-none absolute -right-16 -top-16 h-44 w-44 rounded-full bg-emerald-400/25 blur-3xl dark:bg-emerald-500/10"
+            />
 
-            <CardContent className="space-y-5 p-5 sm:p-6">
+            <div className="relative h-1.5 bg-gradient-to-r from-emerald-500 via-teal-500 to-cyan-500" />
+
+            <CardContent className="relative space-y-5 p-5 sm:p-6">
               <div className="flex items-center justify-between">
                 <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
                   Status Paket
@@ -652,7 +784,7 @@ export default function StudentExamDetailPage() {
                 </p>
               </div>
 
-              <div className="space-y-3 rounded-xl border border-border bg-muted/30 p-3.5">
+              <div className="space-y-3 rounded-xl border border-emerald-200/70 bg-gradient-to-br from-emerald-50/70 to-transparent p-3.5 dark:border-emerald-900/40 dark:from-emerald-950/25">
                 <div className="flex items-center justify-between text-xs">
                   <span className="text-muted-foreground">Durasi</span>
 
@@ -661,7 +793,7 @@ export default function StudentExamDetailPage() {
                   </span>
                 </div>
 
-                <div className="h-px bg-border" />
+                <div className="h-px bg-emerald-100 dark:bg-emerald-900/30" />
 
                 <div className="flex items-center justify-between text-xs">
                   <span className="text-muted-foreground">Jumlah soal</span>
@@ -671,7 +803,7 @@ export default function StudentExamDetailPage() {
                   </span>
                 </div>
 
-                <div className="h-px bg-border" />
+                <div className="h-px bg-emerald-100 dark:bg-emerald-900/30" />
 
                 <div className="flex items-center justify-between text-xs">
                   <span className="text-muted-foreground">Kesulitan</span>
@@ -682,7 +814,7 @@ export default function StudentExamDetailPage() {
 
               <Button
                 size="lg"
-                className="h-12 w-full gap-2 rounded-xl bg-emerald-600 font-bold text-white shadow-lg shadow-emerald-600/15 transition-all hover:bg-emerald-700 hover:shadow-xl"
+                className="h-12 w-full gap-2 rounded-xl bg-gradient-to-br from-emerald-500 to-teal-600 font-bold text-white shadow-lg shadow-emerald-600/25 transition-all hover:from-emerald-600 hover:to-teal-700 hover:shadow-xl"
                 onClick={handleStartExam}
               >
                 {exam.premium && !isPremium ? (
@@ -711,8 +843,8 @@ export default function StudentExamDetailPage() {
           </Card>
 
           {/* HISTORY */}
-          <Card className="overflow-hidden rounded-2xl border-border bg-card shadow-sm">
-            <CardHeader className="border-b border-border px-5 py-4">
+          <Card className={`overflow-hidden rounded-2xl ${panelSurface}`}>
+            <CardHeader className="border-b border-emerald-100 bg-gradient-to-r from-emerald-50/70 via-transparent to-teal-50/50 px-5 py-4 dark:border-emerald-900/30 dark:from-emerald-950/25 dark:to-teal-950/15">
               <div className="flex items-center justify-between gap-2">
                 <div className="flex items-center gap-2.5">
                   <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-violet-500/10 text-violet-600 dark:text-violet-400">
@@ -782,7 +914,7 @@ export default function StudentExamDetailPage() {
                 </div>
               ) : history.length === 0 ? (
                 <div className="py-6 text-center">
-                  <div className="mx-auto flex h-11 w-11 items-center justify-center rounded-xl bg-muted text-muted-foreground">
+                  <div className="mx-auto flex h-11 w-11 items-center justify-center rounded-xl bg-emerald-100 text-emerald-600 dark:bg-emerald-950 dark:text-emerald-400">
                     <FileText className="h-5 w-5" />
                   </div>
 
@@ -801,10 +933,10 @@ export default function StudentExamDetailPage() {
                     <Link
                       key={item.id}
                       to={`/dashboard/results/${item.id}`}
-                      className="group flex items-center justify-between gap-3 rounded-xl border border-border bg-background p-3 transition-all hover:border-emerald-500/40 hover:bg-muted/50"
+                      className="group flex items-center justify-between gap-3 rounded-xl border border-emerald-200/60 bg-background/70 p-3 transition-all hover:border-emerald-500/50 hover:bg-emerald-50/70 dark:border-emerald-900/40 dark:hover:bg-emerald-950/30"
                     >
                       <div className="flex min-w-0 items-center gap-3">
-                        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
+                        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-emerald-500 to-teal-600 text-white shadow-sm shadow-emerald-700/20">
                           <ClipboardCheck className="h-4 w-4" />
                         </div>
 
@@ -848,9 +980,14 @@ export default function StudentExamDetailPage() {
           }
         }}
       >
-        <DialogContent className="max-h-[90vh] max-w-xl overflow-y-auto rounded-2xl border-border bg-card">
+        <DialogContent className="max-h-[90vh] max-w-xl overflow-y-auto rounded-2xl border-emerald-200/70 bg-card dark:border-emerald-900/50">
+          <div
+            aria-hidden="true"
+            className="pointer-events-none absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-emerald-400 via-teal-400 to-emerald-500"
+          />
+
           <DialogHeader>
-            <div className="mb-2 flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
+            <div className="mb-2 flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-600 text-white shadow-lg shadow-emerald-700/25">
               <ClipboardCheck className="h-6 w-6" />
             </div>
 
@@ -867,7 +1004,7 @@ export default function StudentExamDetailPage() {
 
           {/* EXAM SUMMARY */}
           <div className="my-2 grid grid-cols-2 gap-3">
-            <div className="rounded-xl border border-border bg-muted/30 p-3">
+            <div className="rounded-xl border border-emerald-200/70 bg-gradient-to-br from-emerald-50/70 to-transparent p-3 dark:border-emerald-900/40 dark:from-emerald-950/25">
               <div className="flex items-center gap-2 text-muted-foreground">
                 <Clock className="h-4 w-4" />
                 <span className="text-[10px] font-semibold">Durasi</span>
@@ -878,7 +1015,7 @@ export default function StudentExamDetailPage() {
               </p>
             </div>
 
-            <div className="rounded-xl border border-border bg-muted/30 p-3">
+            <div className="rounded-xl border border-emerald-200/70 bg-gradient-to-br from-emerald-50/70 to-transparent p-3 dark:border-emerald-900/40 dark:from-emerald-950/25">
               <div className="flex items-center gap-2 text-muted-foreground">
                 <HelpCircle className="h-4 w-4" />
                 <span className="text-[10px] font-semibold">
@@ -918,7 +1055,7 @@ export default function StudentExamDetailPage() {
           </div>
 
           {/* WARNING */}
-          <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-3.5">
+          <div className="rounded-xl border border-amber-500/25 bg-gradient-to-br from-amber-50/80 to-amber-500/5 p-3.5 dark:from-amber-950/20 dark:to-amber-500/5">
             <div className="flex items-start gap-2.5">
               <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400" />
 
@@ -937,7 +1074,7 @@ export default function StudentExamDetailPage() {
           </div>
 
           {/* AGREEMENT */}
-          <div className="flex items-start gap-3 rounded-xl border border-border bg-muted/30 p-3.5">
+          <div className="flex items-start gap-3 rounded-xl border border-emerald-200/70 bg-muted/30 p-3.5 dark:border-emerald-900/40">
             <Checkbox
               id="agree"
               checked={agreed}
@@ -972,7 +1109,7 @@ export default function StudentExamDetailPage() {
               type="button"
               disabled={!agreed}
               onClick={handleConfirmStart}
-              className="gap-2 rounded-xl bg-emerald-600 font-bold text-white hover:bg-emerald-700"
+              className="gap-2 rounded-xl bg-gradient-to-br from-emerald-500 to-teal-600 font-bold text-white shadow-lg shadow-emerald-700/25 hover:from-emerald-600 hover:to-teal-700"
             >
               <Play className="h-4 w-4 fill-current" />
               Mulai Sekarang
